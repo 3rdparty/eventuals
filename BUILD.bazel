@@ -1,0 +1,29 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "grpc",
+    hdrs = [
+        "stout/grpc/call-base.h",
+        "stout/grpc/call-type.h",
+        "stout/grpc/client.h",
+        "stout/grpc/logging.h",
+        "stout/grpc/server.h",
+        "stout/grpc/traits.h",
+    ],
+    srcs = [
+        "stout/grpc/client.cc",
+        "stout/grpc/server.cc",
+    ],
+    deps = [
+        "@stout-borrowed-ptr//:borrowed_ptr",
+        "@stout-notification//:notification",
+        "@com_google_absl//absl/base:base",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/memory:memory",
+        "@com_google_absl//absl/synchronization:synchronization",
+        "@com_google_absl//absl/types:optional",
+        "@com_github_google_glog//:glog",
+        "@com_github_grpc_grpc//:grpc++",
+    ],
+    visibility = ["//visibility:public"],
+)

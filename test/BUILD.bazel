@@ -1,0 +1,29 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "grpc",
+    srcs = [
+        "stringify.h",
+        "BuildAndStart.cc",
+        "Unimplemented.cc",
+        "CancelledByServer.cc",
+        "CancelledByClient.cc",
+        "Unary.cc",
+        "Streaming.cc",
+        "ServerUnavailable.cc",
+        "ClientDeathTest.cc",
+        "ServerDeathTest.cc",
+        "MultipleHosts.cc",
+    ],
+    copts = ["-ftime-trace"],
+    deps = [
+      "//:grpc",
+      "@com_github_grpc_grpc//examples:helloworld_cc_grpc",
+      "@com_github_grpc_grpc//examples:keyvaluestore",
+      "@gtest//:gtest_main",
+    ],
+    # NOTE: need to add 'linkstatic = True' in order to get this to
+    # link until https://github.com/grpc/grpc/issues/13856 gets
+    # resolved.
+    linkstatic = True,
+)
