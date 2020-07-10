@@ -268,8 +268,8 @@ public:
       const std::string& name,
       Handler&& handler)
   {
-    return Serve<Service, Request, Response, Handler>(
-        name,
+    return Serve<Request, Response, Handler>(
+        std::string(Service::service_full_name()) + "." + name,
         std::string("*"),
         std::forward<Handler>(handler));
   }
