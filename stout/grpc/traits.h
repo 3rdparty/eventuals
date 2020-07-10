@@ -92,11 +92,19 @@ struct RequestResponseTraits
   static absl::optional<Error> Validate(const google::protobuf::MethodDescriptor* method)
   {
     if (Details<Request>::streaming && !method->client_streaming()) {
-      return Error { "Method DOES NOT have streaming requests" };
+      return Error { "Method does not have streaming requests" };
+    }
+
+    if (!Details<Request>::streaming && method->client_streaming()) {
+      return Error { "Method has streaming requests" };
     }
 
     if (Details<Response>::streaming && !method->server_streaming()) {
-      return Error { "Method DOES NOT have streaming responses" };
+      return Error { "Method does not have streaming responses" };
+    }
+
+    if (!Details<Response>::streaming && method->server_streaming()) {
+      return Error { "Method has streaming responses" };
     }
 
     if (Details<Request>::name() != method->input_type()->full_name()) {
@@ -108,7 +116,7 @@ struct RequestResponseTraits
 
     if (Details<Response>::name() != method->output_type()->full_name()) {
       return Error {
-          "Method does not have reponses of type "
+          "Method does not have responses of type "
           + Details<Response>::name()
       };
     }

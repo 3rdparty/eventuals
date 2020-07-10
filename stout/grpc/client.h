@@ -703,6 +703,10 @@ public:
                 case CallType::SERVER_STREAMING:
                   return call->WriteAndDone(*request);
                 default:
+                  // NOTE: because 'Client' is a friend of
+                  // 'ClientCallBase' we won't get a compile time
+                  // error even if the type of 'call' doesn't allow us
+                  // to call 'Write()'.
                   return call->Write(*request);
               }
             }();

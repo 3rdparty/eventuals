@@ -14,8 +14,8 @@ cc_test(
         "ClientDeathTest.cc",
         "ServerDeathTest.cc",
         "MultipleHosts.cc",
+        "ServeValidate.cc",
     ],
-    copts = ["-ftime-trace"],
     deps = [
       "//:grpc",
       "@com_github_grpc_grpc//examples:helloworld_cc_grpc",
