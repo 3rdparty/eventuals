@@ -185,8 +185,8 @@ public:
       Read&& read,
       Done&& done)
   {
-    return Serve<Service, Request, Response, Read, Done>(
-        name,
+    return Serve<Request, Response>(
+        std::string(Service::service_full_name()) + "." + name,
         std::string("*"),
         std::forward<Read>(read),
         std::forward<Done>(done));
@@ -230,7 +230,7 @@ public:
       Read&& read,
       Done&& done)
   {
-    return Serve<Request, Response, Read, Done>(
+    return Serve<Request, Response>(
         name,
         std::string("*"),
         std::forward<Read>(read),
@@ -268,7 +268,7 @@ public:
       const std::string& name,
       Handler&& handler)
   {
-    return Serve<Request, Response, Handler>(
+    return Serve<Request, Response>(
         std::string(Service::service_full_name()) + "." + name,
         std::string("*"),
         std::forward<Handler>(handler));
@@ -285,7 +285,7 @@ public:
       const std::string& host,
       Handler&& handler)
   {
-    return Serve<Request, Response, Handler>(
+    return Serve<Request, Response>(
         std::string(Service::service_full_name()) + "." + name,
         host,
         std::forward<Handler>(handler));
@@ -300,7 +300,7 @@ public:
       const std::string& name,
       Handler&& handler)
   {
-    return Serve<Request, Response, Handler>(
+    return Serve<Request, Response>(
         name,
         std::string("*"),
         std::forward<Handler>(handler));
