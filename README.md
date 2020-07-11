@@ -121,7 +121,7 @@ auto status = server->Serve<RouteGuide, Stream<Point>, RouteSummary>(
         });
 ```
 
-In most cases one can use the higher-level version of `Serve()` that sets up the `OnRead` and `OnDone` handler automagically. Here's an example of the `ListFeatures` method from `RouteGuide`:
+There is a "syntactic sugar" overload of `Serve()` that sets up the `OnRead` and an `OnDone` handler (which gets invoked when a call has finished). Here's an example of the `ListFeatures` method from `RouteGuide` which uses one of the overloadsf of `Serve()`:
 
 ```cpp
 auto status = server->Serve<RouteGuide, Rectangle, Stream<Feature>>(
@@ -150,7 +150,75 @@ auto status = server->Serve<RouteGuide, Rectangle, Stream<Feature>>(
     });
 ```
 
-... to be continued ...
+```
++--------------------------------------------------+----------------------------+--------------------------------------+
+|                     Function                     |         Description        |                Status                |
++--------------------------------------------------+----------------------------+--------------------------------------+
+| call->OnRead([](auto* call, auto&& request) {    | Starts reading requests.   | ServerCallStatus::Ok on              |
+|   if (request) {                                 |                            | success, otherwise the               |
+|     // Received a request.                       |                            | call likely needs to be              |
+|   } else {                                       |                            | cancelled.                           |
+|     // End of stream or broken stream.           |                            |                                      |
+|   }                                              |                            |                                      |
+| });                                              |                            |                                      |
++--------------------------------------------------+----------------------------+--------------------------------------+
+|                                                  | Invoked when a call has    | Always ServerCallStatus::Ok.         |
+|                                                  | finished. Note that 'call' |                                      |
+|                                                  | should not be used after   |                                      |
+| call->OnDone([](auto* call, bool cancelled) {    | your handler is invoked    |                                      |
+|   // ...                                         | unless you haven't yet     |                                      |
+| });                                              | relinquished the           |                                      |
+|                                                  | borrowed_ptr from the      |                                      |
+|                                                  | initial call.              |                                      |
++--------------------------------------------------+----------------------------+--------------------------------------+
+|                                                  | Writes a response to the   | ServerCallStatus::Ok means           |
+|                                                  | client and finishes the    | the response has been                |
+| auto status = grpc::Status::OK;                  | call with the specified    | queued to go out on the              |
+|                                                  | status. Note that this is  | wire, but has not yet been           |
+|                                                  | the only available at      | sent.                                |
+| call->WriteAndFinish(response, status);          | compile time for RPCs with |                                      |
+|                                                  | a unary response.          | ServerCallStatus::WritingUnavailable |
+| // ...                                           |                            | means that writing is no longer      |
+|                                                  |                            | available, likely due to a           |
+| auto options = grpc::WriteOptions();             |                            | cancelled call or broken stream.     |
+|                                                  |                            |                                      |
+| call->WriteAndFinish(response, options, status); |                            | * See Suggested Improvements for     |
+|                                                  |                            | a discussion on a proposed overload  |
+|                                                  |                            | of all 'Write()' functions that      |
+|                                                  |                            | provide a callback when the write    |
+|                                                  |                            | has actually been sent to the wire.  |
++--------------------------------------------------+----------------------------+--------------------------------------+
+| call->Write(response);                           | Writes a response with     | ServerCallStatus::Ok on success.     |
+|                                                  | optional options. Only     |                                      |
+| // ...                                           | available at compile time  | See further discussion above in      |
+|                                                  | for server streaming RPCs. | 'WriteAndFinish()'.                  |
+| auto options = grpc::WriteOptions();             |                            |                                      |
+|                                                  |                            |                                      |
+| call->Write(response, options);                  |                            |                                      |
++--------------------------------------------------+----------------------------+--------------------------------------+
+| call->WriteLast(response);                       | Writes a response and sets | ServerCallStatus::Ok on success.     |
+|                                                  | the bit indicating this    |                                      |
+| // ...                                           | is the last response the   | Any subsequent calls to a 'Write*()' |
+|                                                  | server will send. Only     | variant will return                  |
+| auto options = grpc::WriteOptions();             | available at compile time  | ServerCallStatus::WaitingForFinished |
+|                                                  | for server streaming RPCs. | after doing a 'WriteLast()'          |
+| call->WriteLast(response, options);              |                            | because the only valid call is       |
+|                                                  |                            | 'Finish()' at this point.            |
++--------------------------------------------------+----------------------------+--------------------------------------+
+| auto status = grpc::Status::OK;                  | Finishes the call with     | ServerCallStatus::Ok on success.     |
+|                                                  | the specified status.      |                                      |
+| call->Finish(status);                            |                            | If the call is already done,         |
+|                                                  |                            | e.g., because it was cancelled,      |
+|                                                  |                            | it may return                        |
+|                                                  |                            | ServerCallStatus::Done.              |
++--------------------------------------------------+----------------------------+--------------------------------------+
+|                                                  | Attempts to cancel         | Returns void.                        |
+|                                                  | the call. If successful    |                                      |
+| call->context()->TryCancel();                    | any 'OnDone()' handlers    |                                      |
+|                                                  | will be invoked with       |                                      |
+|                                                  | 'cancelled' set to true.   |                                      |
++--------------------------------------------------+----------------------------+--------------------------------------+
+```
 
 ## Known Limitations
 
