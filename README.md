@@ -58,7 +58,7 @@ Each new call accepted by the server invokes the callback passed to `Serve()`. T
 
 You can access the `grpc::ServerContext` by invoking the `context()` function, for example, to determine if the call has been cancelled:
 
-````cpp
+```cpp
 if (call->context()->IsCancelled()) {
   // ...
 }
