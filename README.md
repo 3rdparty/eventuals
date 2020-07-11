@@ -15,6 +15,8 @@
 
 ## Suggested Improvements
 
-* Provide a callback, e.g., an extra callback in `Server::Serve()`, that is invoked to check the health of a service or service endpoint (method/host).
+* Provide an overload of `Server::Serve()` that doesn't take a "done" calback.
+
+* Provide a callback, e.g., an extra callback in `Server::Serve()`, that is invoked to check the health of a service or service endpoint (method/host). If nothing else, because services can be added dynamically and _after_ a server has been started this will let a router/proxy be able to do the right thing to determine "readiness".
 
 * Provide a callback for each variant of 'Write()' to inform when the actual data is going to the wire.
