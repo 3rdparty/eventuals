@@ -6,6 +6,12 @@ An asynchronous interface for gRPC based on callbacks. While gRPC already provid
 
 Please see [Known Limitations](#known-limitations) and [Suggested Improvements](#suggested-improvements) below for more insight into the limits of the inteface.
 
+## Examples
+
+Examples can be found [here](https://github.com/3rdparty/stout-grpc-examples).
+
+They have been put in a separate repository to make it easier to clone that repository and start building a project rather than trying to figure out what pieces of the build should be copied.
+
 ## Usage
 
 Build a server using a `ServerBuilder` just like with gRPC:
