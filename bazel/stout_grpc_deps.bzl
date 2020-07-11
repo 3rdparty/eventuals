@@ -21,15 +21,17 @@ def stout_grpc_deps():
     )
 
   if "stout-notification" not in native.existing_rules():
-    git_repository(
+    http_archive(
         name = "stout-notification",
-        remote = "https://github.com/benh/stout-notification.git",
-        commit = "69b1e4cefb823187bcceb5e548ef306178d5cf89",
+        url = "https://github.com/3rdparty/stout-notification/archive/0.1.0.tar.gz",
+        sha256 = "63c9315f965927f6b8491614aa3f9cdc560c49343d2c13ea33599699e2be4120",
+        strip_prefix = "stout-notification-0.1.0",
     )
 
   if "stout-borrowed-ptr" not in native.existing_rules():
-    git_repository(
+    http_archive(
         name = "stout-borrowed-ptr",
-        remote = "https://github.com/benh/stout-borrowed-ptr.git",
-        commit = "47ad24d5f0275608012e5ff41a782e9e993a8272",
+        url = "https://github.com/3rdparty/stout-borrowed-ptr/archive/0.1.0.tar.gz",
+        sha256 = "c39f6cb00731b4109d784c16937f2a44546e19cd9c910d1034961c8f82e338b9",
+        strip_prefix = "stout-borrowed-ptr-0.1.0",
     )
