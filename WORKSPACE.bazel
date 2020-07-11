@@ -11,12 +11,11 @@ http_archive(
     strip_prefix = "googletest-release-1.10.0",
 )
 
-# Release 1.29.1.
 http_archive(
     name = "com_github_grpc_grpc",
-    urls = ["https://github.com/grpc/grpc/archive/7d89dbb311f049b43bda7bbf6f7d7bf1b4c24419.zip"],
-    sha256 = "f8f61b159bf43d49c434046314e9743a2b0e8f019774a6251d7950ec47a941a4",
-    strip_prefix = "grpc-7d89dbb311f049b43bda7bbf6f7d7bf1b4c24419",
+    urls = ["https://github.com/grpc/grpc/archive/v1.29.1.tar.gz"],
+    sha256 = "0343e6dbde66e9a31c691f2f61e98d79f3584e03a11511fad3f10e3667832a45",
+    strip_prefix = "grpc-1.29.1",
 )
 
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
