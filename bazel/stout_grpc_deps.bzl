@@ -22,15 +22,15 @@ def stout_grpc_deps():
   if "stout-notification" not in native.existing_rules():
     http_archive(
         name = "stout-notification",
-        url = "https://github.com/3rdparty/stout-notification/archive/0.1.0.tar.gz",
-        sha256 = "63c9315f965927f6b8491614aa3f9cdc560c49343d2c13ea33599699e2be4120",
-        strip_prefix = "stout-notification-0.1.0",
+        url = "https://github.com/3rdparty/stout-notification/archive/0.2.0.tar.gz",
+        sha256 = "613dd13d1cf86d095da4d62e25e873a1365f1aec353521dc1c7068c83eee3ab3",
+        strip_prefix = "stout-notification-0.2.0",
     )
 
   if "stout-borrowed-ptr" not in native.existing_rules():
     http_archive(
         name = "stout-borrowed-ptr",
-        url = "https://github.com/3rdparty/stout-borrowed-ptr/archive/0.1.0.tar.gz",
-        sha256 = "c39f6cb00731b4109d784c16937f2a44546e19cd9c910d1034961c8f82e338b9",
-        strip_prefix = "stout-borrowed-ptr-0.1.0",
+        url = "https://github.com/3rdparty/stout-borrowed-ptr/archive/0.2.0.tar.gz",
+        sha256 = "ae9a0b124922a3cf404e4f3acc6011e2fa46697b7923304e37b3ec48f3a908b1",
+        strip_prefix = "stout-borrowed-ptr-0.2.0",
     )
