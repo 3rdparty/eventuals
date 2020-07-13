@@ -758,6 +758,14 @@ protected:
   }
 
 private:
+  friend class Server;
+
+  template <typename F>
+  void OnDoneDoneDone(F&& f)
+  {
+    donedonedone_.Watch(f);
+  }
+
   ServerCallStatus write(
       ::grpc::ByteBuffer* buffer,
       ::grpc::WriteOptions options)
@@ -814,6 +822,7 @@ private:
   std::unique_ptr<ServerContext> context_;
 
   Notification<bool> done_;
+  Notification<bool> donedonedone_;
 
   CallType type_;
 };
@@ -1064,10 +1073,9 @@ std::enable_if_t<
     auto call = borrow(
         new ServerCall<Request, Response>(std::move(context)),
         [](auto* call) {
-          // NOTE: see note in ServerCallBase constructor as to the
-          // invariant that we must set up our 'OnDone' handler
-          // *after* the ServerCallBase constructor.
-          call->OnDone([](auto* call, bool) {
+          // NOTE: using private 'OnDoneDoneDone()' which gets invoked
+          // *after* all of the other 'OnDone()' handlers.
+          call->OnDoneDoneDone([call](bool) {
             delete call;
           });
         });

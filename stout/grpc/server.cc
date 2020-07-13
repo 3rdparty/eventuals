@@ -6,6 +6,14 @@ namespace grpc {
 ServerCallBase::ServerCallBase(std::unique_ptr<ServerContext>&& context, CallType type)
   : status_(ServerCallStatus::Ok), context_(std::move(context)), type_(type)
 {
+  // NOTE: we rely on the explicit design of Notification where the
+  // ***first*** handler added via 'Watch()' will be the last handler
+  // that gets executed in order to trigger 'donedonedone_' after
+  // we've triggered all of the other 'OnDone()' handlers.
+  done_.Watch([this](bool cancelled) {
+    donedonedone_.Notify(cancelled);
+  });
+
   // NOTE: 'context_->OnDone()' NOT 'this->OnDone()'.
   context_->OnDone([this](bool cancelled) {
     // NOTE: emperical evidence shows that gRPC may invoke the done
