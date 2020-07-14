@@ -1,3 +1,5 @@
+#include "gmock/gmock.h"
+
 #include "gtest/gtest.h"
 
 #include "stout/grpc/client.h"
@@ -15,6 +17,8 @@ using stout::grpc::ClientCallStatus;
 using stout::grpc::ServerBuilder;
 using stout::grpc::ServerCallStatus;
 using stout::grpc::Stream;
+
+using testing::MockFunction;
 
 
 TEST_F(StoutGrpcTest, Streaming)
@@ -36,6 +40,9 @@ TEST_F(StoutGrpcTest, Streaming)
 
   ASSERT_TRUE(server);
 
+  // Mock for both server and client write callbacks.
+  MockFunction<void(bool)> write;
+
   Notification<bool> done;
 
   auto serve = server->Serve<
@@ -46,7 +53,10 @@ TEST_F(StoutGrpcTest, Streaming)
           if (request) {
             keyvaluestore::Response response;
             response.set_value(request->key());
-            EXPECT_EQ(ServerCallStatus::Ok, call->Write(response));
+            EXPECT_CALL(write, Call(true))
+              .Times(1);
+            auto status = call->Write(response, write.AsStdFunction());
+            EXPECT_EQ(ServerCallStatus::Ok, status);
           } else {
             call->Finish(grpc::Status::OK);
           }
@@ -78,7 +88,10 @@ TEST_F(StoutGrpcTest, Streaming)
               EXPECT_EQ(ClientCallStatus::Ok, call->WritesDoneAndFinish());
             } else {
               request.set_key("1");
-              EXPECT_EQ(ClientCallStatus::Ok, call->Write(request));
+              EXPECT_CALL(write, Call(true))
+                .Times(1);
+              auto status = call->Write(request, write.AsStdFunction());
+              EXPECT_EQ(ClientCallStatus::Ok, status);
             }
           }
         },

@@ -219,11 +219,11 @@ auto status = server->Serve<RouteGuide, Rectangle, Stream<Feature>>(
 |                                               |                            | available, likely due to a           |
 | auto options = grpc::WriteOptions();          |                            | cancelled call or broken stream.     |
 |                                               |                            |                                      |
-| call->WriteAndFinish(                         |                            | * See Suggested Improvements for     |
-|     response,                                 |                            | a discussion on a proposed overload  |
-|     options,                                  |                            | of all 'Write()' functions that      |
-|     status);                                  |                            | provide a callback when the write    |
-|                                               |                            | has actually been sent to the wire.  |
+| call->WriteAndFinish(                         |                            |                                      |
+|     response,                                 |                            |                                      |
+|     options,                                  |                            |                                      |
+|     status);                                  |                            |                                      |
+|                                               |                            |                                      |
 +-----------------------------------------------+----------------------------+--------------------------------------+
 | call->Write(response);                        | Writes a response with     | ServerCallStatus::Ok on success.     |
 |                                               | optional options. Only     |                                      |
@@ -274,5 +274,3 @@ auto status = server->Serve<RouteGuide, Rectangle, Stream<Feature>>(
 * Provide an overload of `Server::Serve()` that doesn't take a "done" calback.
 
 * Provide a callback, e.g., an extra callback in `Server::Serve()`, that is invoked to check the health of a service or service endpoint (method/host). If nothing else, because services can be added dynamically and _after_ a server has been started this will let a router/proxy be able to do the right thing to determine "readiness".
-
-* Provide a callback for each variant of 'Write()' to inform when the actual data is going to the wire.

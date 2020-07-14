@@ -78,6 +78,8 @@ public:
     return &context_;
   }
 
+  ClientCallStatus Finish();
+
 protected:
   template <typename Response, typename F>
   ClientCallStatus OnRead(F&& f)
@@ -156,10 +158,11 @@ protected:
     return Finish(std::forward<F>(f));
   }
 
-  template <typename Request>
+  template <typename Request, typename Callback>
   ClientCallStatus Write(
       const Request& request,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
   {
     ::grpc::ByteBuffer buffer;
 
@@ -173,15 +176,16 @@ protected:
       return status_;
     }
 
-    return write(&buffer, options);
+    return write(&buffer, options, std::forward<Callback>(callback));
   }
 
-  template <typename Request>
+  template <typename Request, typename Callback>
   ClientCallStatus WriteAndDone(
       const Request& request,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
   {
-    auto status = Write(request, options);
+    auto status = Write(request, options, std::forward<Callback>(callback));
 
     if (status != ClientCallStatus::Ok) {
       return status;
@@ -227,8 +231,6 @@ protected:
     return Finish();
   }
 
-  ClientCallStatus Finish();
-
 private:
   friend class Client;
 
@@ -247,22 +249,27 @@ private:
     stream_->StartCall(&start_callback_);
   }
 
+  template <typename Callback>
   ClientCallStatus write(
       ::grpc::ByteBuffer* buffer,
-      ::grpc::WriteOptions options)
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
     EXCLUSIVE_LOCKS_REQUIRED(mutex_)
   {
     if (!write_callback_) {
       return ClientCallStatus::WritingUnavailable;
     }
 
-    write_buffers_.emplace_back();
+    write_datas_.emplace_back();
 
-    write_buffers_.back().first.Swap(buffer);
-    write_buffers_.back().second = options;
+    auto& data = write_datas_.back();
+
+    data.buffer.Swap(buffer);
+    data.options = options;
+    data.callback = std::forward<Callback>(callback);
 
     if (!writing_) {
-      buffer = &write_buffers_.front().first;
+      buffer = &write_datas_.front().buffer;
       writing_ = true;
     } else {
       buffer = nullptr;
@@ -296,10 +303,15 @@ private:
   bool writing_ = false;
   bool writes_done_ = false;
   std::function<void(bool, void*)> write_callback_;
-  std::list<
-    std::pair<
-      ::grpc::ByteBuffer,
-      ::grpc::WriteOptions>> write_buffers_;
+
+  struct WriteData
+  {
+    ::grpc::ByteBuffer buffer;
+    ::grpc::WriteOptions options;
+    std::function<void(bool)> callback;
+  };
+
+  std::list<WriteData> write_datas_;
 
   absl::once_flag finish_once_;
   std::function<void(bool, void*)> finish_callback_;
@@ -325,11 +337,37 @@ public:
         });
   }
 
+  template <typename Callback>
   ClientCallStatus WriteAndDone(
       const Request& request,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
   {
-    return ClientCallBase::WriteAndDone<Request>(request, options);
+    return ClientCallBase::WriteAndDone(
+        request,
+        options,
+        std::forward<Callback>(callback));
+  }
+
+  template <typename Callback>
+  ClientCallStatus WriteAndDone(
+      const Request& request,
+      Callback&& callback)
+  {
+    return ClientCallBase::WriteAndDone(
+        request,
+        ::grpc::WriteOptions(),
+        std::forward<Callback>(callback));
+  }
+
+  ClientCallStatus WriteAndDone(
+      const Request& request,
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions())
+  {
+    return ClientCallBase::WriteAndDone(
+        request,
+        options,
+        std::function<void(bool)>());
   }
 
   template <typename F>
@@ -350,10 +388,7 @@ public:
         });
   }
 
-  ClientCallStatus Finish()
-  {
-    return ClientCallBase::Finish();
-  }
+  using ClientCallBase::Finish;
 };
 
 
@@ -372,18 +407,69 @@ public:
         });
   }
 
+  template <typename Callback>
   ClientCallStatus Write(
       const Request& request,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
   {
-    return ClientCallBase::Write<Request>(request, options);
+    return ClientCallBase::Write(
+        request,
+        options,
+        std::forward<Callback>(callback));
+  }
+
+  template <typename Callback>
+  ClientCallStatus Write(
+      const Request& request,
+      Callback&& callback)
+  {
+    return ClientCallBase::Write(
+        request,
+        ::grpc::WriteOptions(),
+        std::forward<Callback>(callback));
+  }
+
+  ClientCallStatus Write(
+      const Request& request)
+  {
+    return ClientCallBase::Write(
+        request,
+        ::grpc::WriteOptions(),
+        std::function<void(bool)>());
+  }
+
+  template <typename Callback>
+  ClientCallStatus WriteAndDone(
+      const Request& request,
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
+  {
+    return ClientCallBase::WriteAndDone(
+        request,
+        options,
+        std::forward<Callback>(callback));
+  }
+
+  template <typename Callback>
+  ClientCallStatus WriteAndDone(
+      const Request& request,
+      Callback&& callback)
+  {
+    return ClientCallBase::WriteAndDone(
+        request,
+        ::grpc::WriteOptions(),
+        std::forward<Callback>(callback));
   }
 
   ClientCallStatus WriteAndDone(
       const Request& request,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions())
   {
-    return ClientCallBase::WriteAndDone<Request>(request, options);
+    return ClientCallBase::WriteAndDone(
+        request,
+        options,
+        std::function<void(bool)>());
   }
 
   using ClientCallBase::WritesDone;
@@ -407,10 +493,7 @@ public:
         });
   }
 
-  ClientCallStatus Finish()
-  {
-    return ClientCallBase::Finish();
-  }
+  using ClientCallBase::Finish;
 };
 
 
@@ -429,11 +512,37 @@ public:
         });
   }
 
+  template <typename Callback>
   ClientCallStatus WriteAndDone(
       const Request& request,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
   {
-    return ClientCallBase::WriteAndDone<Request>(request, options);
+    return ClientCallBase::WriteAndDone(
+        request,
+        options,
+        std::forward<Callback>(callback));
+  }
+
+  template <typename Callback>
+  ClientCallStatus WriteAndDone(
+      const Request& request,
+      Callback&& callback)
+  {
+    return ClientCallBase::WriteAndDone(
+        request,
+        ::grpc::WriteOptions(),
+        std::forward<Callback>(callback));
+  }
+
+  ClientCallStatus WriteAndDone(
+      const Request& request,
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions())
+  {
+    return ClientCallBase::WriteAndDone(
+        request,
+        options,
+        std::function<void(bool)>());
   }
 
   template <typename F>
@@ -454,10 +563,7 @@ public:
         });
   }
 
-  ClientCallStatus Finish()
-  {
-    return ClientCallBase::Finish();
-  }
+  using ClientCallBase::Finish;
 };
 
 
@@ -476,18 +582,69 @@ public:
         });
   }
 
+  template <typename Callback>
   ClientCallStatus Write(
       const Request& request,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
   {
-    return ClientCallBase::Write<Request>(request, options);
+    return ClientCallBase::Write(
+        request,
+        options,
+        std::forward<Callback>(callback));
+  }
+
+  template <typename Callback>
+  ClientCallStatus Write(
+      const Request& request,
+      Callback&& callback)
+  {
+    return ClientCallBase::Write(
+        request,
+        ::grpc::WriteOptions(),
+        std::forward<Callback>(callback));
+  }
+
+  ClientCallStatus Write(
+      const Request& request)
+  {
+    return ClientCallBase::Write(
+        request,
+        ::grpc::WriteOptions(),
+        std::function<void(bool)>());
+  }
+
+  template <typename Callback>
+  ClientCallStatus WriteAndDone(
+      const Request& request,
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
+  {
+    return ClientCallBase::WriteAndDone(
+        request,
+        options,
+        std::forward<Callback>(callback));
+  }
+
+  template <typename Callback>
+  ClientCallStatus WriteAndDone(
+      const Request& request,
+      Callback&& callback)
+  {
+    return ClientCallBase::WriteAndDone(
+        request,
+        ::grpc::WriteOptions(),
+        std::forward<Callback>(callback));
   }
 
   ClientCallStatus WriteAndDone(
       const Request& request,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions())
   {
-    return ClientCallBase::WriteAndDone<Request>(request, options);
+    return ClientCallBase::WriteAndDone(
+        request,
+        options,
+        std::function<void(bool)>());
   }
 
   using ClientCallBase::WritesDone;
@@ -511,10 +668,7 @@ public:
         });
   }
 
-  ClientCallStatus Finish()
-  {
-    return ClientCallBase::Finish();
-  }
+  using ClientCallBase::Finish;
 };
 
 
@@ -578,16 +732,22 @@ public:
 
   void Shutdown()
   {
-    cq_.Shutdown();
+    // Client might have been moved, use 'thread_' to distinguish.
+    if (thread_.joinable()) {
+      cq_.Shutdown();
+    }
   }
 
   void Wait()
   {
-    thread_.join();
+    // Client might have been moved, use 'thread_' to distinguish.
+    if (thread_.joinable()) {
+      thread_.join();
 
-    void* tag = nullptr;
-    bool ok = false;
-    while (cq_.Next(&tag, &ok)) {}
+      void* tag = nullptr;
+      bool ok = false;
+      while (cq_.Next(&tag, &ok)) {}
+    }
   }
 
   template <
@@ -707,7 +867,10 @@ public:
                   // 'ClientCallBase' we won't get a compile time
                   // error even if the type of 'call' doesn't allow us
                   // to call 'Write()'.
-                  return call->Write(*request);
+                  return call->Write(
+                      *request,
+                      ::grpc::WriteOptions(),
+                      std::function<void(bool)>());
               }
             }();
 

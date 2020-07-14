@@ -39,17 +39,23 @@ ServerCallBase::ServerCallBase(std::unique_ptr<ServerContext>&& context, CallTyp
 
   write_callback_ = [this](bool ok, void*) {
     if (ok) {
+      mutex_.Lock();
+      std::function<void(bool)>* callback = &write_datas_.front().callback;
+      mutex_.Unlock();
+      if (*callback) {
+        (*callback)(true);
+      }
+      mutex_.Lock();
+
+      write_datas_.pop_front();
+
       ::grpc::ByteBuffer* buffer = nullptr;
       ::grpc::WriteOptions* options = nullptr;
       ::grpc::Status* finish_status = nullptr;
 
-      mutex_.Lock();
-
-      write_buffers_.pop_front();
-
-      if (!write_buffers_.empty()) {
-        buffer = &write_buffers_.front().first;
-        options = &write_buffers_.front().second;
+      if (!write_datas_.empty()) {
+        buffer = &write_datas_.front().buffer;
+        options = &write_datas_.front().options;
       } else if (finish_status_) {
         finish_status = &finish_status_.value();
       }
@@ -62,9 +68,17 @@ ServerCallBase::ServerCallBase(std::unique_ptr<ServerContext>&& context, CallTyp
         stream()->Finish(*finish_status, &finish_callback_);
       }
     } else {
+      decltype(write_datas_) write_datas;
       mutex_.Lock();
+      write_datas = std::move(write_datas_);
       write_callback_ = std::function<void(bool, void*)>();
       mutex_.Unlock();
+      while (!write_datas.empty()) {
+        if (write_datas.front().callback) {
+          write_datas.front().callback(false);
+        }
+        write_datas.pop_front();
+      }
     }
   };
 
@@ -90,7 +104,7 @@ ServerCallStatus ServerCallBase::Finish(const ::grpc::Status& finish_status)
     finish_status_ = finish_status;
     status_ = ServerCallStatus::Finishing;
 
-    if (write_buffers_.empty()) {
+    if (write_datas_.empty()) {
       mutex_.Unlock();
       stream()->Finish(finish_status, &finish_callback_);
       return ServerCallStatus::Ok;

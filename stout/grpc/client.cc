@@ -7,23 +7,29 @@ ClientCallBase::ClientCallBase(CallType type) : type_(type)
 {
   write_callback_ = [this](bool ok, void*) mutable {
     if (ok) {
+      mutex_.Lock();
+
+      // Might get here after doing a 'WritesDone()' so don't have
+      // anything to pop/destruct.
+      if (!write_datas_.empty()) {
+        std::function<void(bool)>* callback = &write_datas_.front().callback;
+        mutex_.Unlock();
+        if (*callback) {
+          (*callback)(true);
+        }
+        mutex_.Lock();
+        write_datas_.pop_front();
+      }
+
       ::grpc::ByteBuffer* buffer = nullptr;
       ::grpc::WriteOptions* options = nullptr;
       ::grpc::Status* finish_status = nullptr;
 
       bool do_writes_done = false;
 
-      mutex_.Lock();
-
-      // Might get here after doing a 'WritesDone()' so don't have
-      // anything to pop/destruct.
-      if (!write_buffers_.empty()) {
-        write_buffers_.pop_front();
-      }
-
-      if (!write_buffers_.empty()) {
-        buffer = &write_buffers_.front().first;
-        options = &write_buffers_.front().second;
+      if (!write_datas_.empty()) {
+        buffer = &write_datas_.front().buffer;
+        options = &write_datas_.front().options;
       } else if (finish_status_) {
         finish_status = &finish_status_.value();
       } else if (status_ == ClientCallStatus::WaitingForFinish && !writes_done_) {
@@ -42,9 +48,17 @@ ClientCallBase::ClientCallBase(CallType type) : type_(type)
         stream_->WritesDone(&write_callback_);
       }
     } else {
+      decltype(write_datas_) write_datas;
       mutex_.Lock();
+      write_datas = std::move(write_datas_);
       write_callback_ = std::function<void(bool, void*)>();
       mutex_.Unlock();
+      while (!write_datas.empty()) {
+        if (write_datas.front().callback) {
+          write_datas.front().callback(false);
+        }
+        write_datas.pop_front();
+      }
     }
   };
 }

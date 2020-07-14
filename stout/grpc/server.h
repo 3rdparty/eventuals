@@ -148,7 +148,10 @@ public:
 
   void Shutdown()
   {
-    server_->Shutdown();
+    // Server might have gotten moved.
+    if (server_) {
+      server_->Shutdown();
+    }
 
     for (auto&& cq : cqs_) {
       cq->Shutdown();
@@ -157,6 +160,10 @@ public:
 
   void Wait()
   {
+    if (server_) {
+      server_->Wait();
+    }
+
     for (auto&& thread : threads_) {
       thread.join();
     }
@@ -551,7 +558,7 @@ public:
         for (size_t j = 0; j < minimumThreadsPerCompletionQueue_.value(); ++j) {
           threads.push_back(
               std::thread(
-                          [cq = cq.get()]() {
+                  [cq = cq.get()]() {
                     void* tag = nullptr;
                     bool ok = false;
                     while (cq->Next(&tag, &ok)) {
@@ -612,10 +619,11 @@ public:
   ServerCallStatus Finish(const ::grpc::Status& finish_status);
 
 protected:
-  template <typename Response>
+  template <typename Response, typename Callback>
   ServerCallStatus WriteAndFinish(
       const Response& response,
-      ::grpc::WriteOptions options,
+      const ::grpc::WriteOptions& options,
+      Callback&& callback,
       const ::grpc::Status& finish_status)
   {
     ::grpc::ByteBuffer buffer;
@@ -645,7 +653,7 @@ protected:
 
       if (status_ == ServerCallStatus::Ok) {
         status_ = ServerCallStatus::WritingLast;
-        auto status = write(&buffer, options);
+        auto status = write(&buffer, options, callback);
         if (status == ServerCallStatus::Ok) {
           finish_status_ = finish_status;
           status_ = ServerCallStatus::Finishing;
@@ -660,9 +668,39 @@ protected:
   template <typename Response>
   ServerCallStatus WriteAndFinish(
       const Response& response,
+      const ::grpc::WriteOptions& options,
       const ::grpc::Status& finish_status)
   {
-    return WriteAndFinish(response, ::grpc::WriteOptions(), finish_status);
+    return WriteAndFinish(
+        response,
+        options,
+        std::function<void(bool)>(),
+        finish_status);
+  }
+
+  template <typename Response, typename Callback>
+  ServerCallStatus WriteAndFinish(
+      const Response& response,
+      Callback&& callback,
+      const ::grpc::Status& finish_status)
+  {
+    return WriteAndFinish(
+        response,
+        ::grpc::WriteOptions(),
+        std::forward<Callback>(callback),
+        finish_status);
+  }
+
+  template <typename Response>
+  ServerCallStatus WriteAndFinish(
+      const Response& response,
+      const ::grpc::Status& finish_status)
+  {
+    return WriteAndFinish(
+        response,
+        ::grpc::WriteOptions(),
+        std::function<void(bool)>(),
+        finish_status);
   }
 
   template <typename F>
@@ -718,10 +756,11 @@ protected:
     return status;
   }
 
-  template <typename Response>
+  template <typename Response, typename Callback>
   ServerCallStatus Write(
       const Response& response,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions(),
+      Callback&& callback = std::function<void(bool)>())
   {
     ::grpc::ByteBuffer buffer;
 
@@ -735,19 +774,31 @@ protected:
       return status_;
     }
 
-    return write(&buffer, options);
+    return write(&buffer, options, std::forward<Callback>(callback));
   }
 
-  template <typename Response>
+  template <typename Response, typename Callback>
+  ServerCallStatus Write(
+      const Response& response,
+      Callback&& callback)
+  {
+    return Write(
+        response,
+        ::grpc::WriteOptions(),
+        std::forward<Callback>(callback));
+  }
+
+  template <typename Response, typename Callback>
   ServerCallStatus WriteLast(
       const Response& response,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions(),
+      Callback&& callback = std::function<void(bool)>())
   {
     absl::MutexLock lock(&mutex_);
 
     if (status_ == ServerCallStatus::Ok) {
       status_ = ServerCallStatus::WritingLast;
-      auto status = write(response, options);
+      auto status = write(response, options, std::forward<Callback>(callback));
       if (status == ServerCallStatus::Ok) {
         status_ = ServerCallStatus::WaitingForFinish;
       }
@@ -755,6 +806,17 @@ protected:
     }
 
     return status_;
+  }
+
+  template <typename Response, typename Callback>
+  ServerCallStatus WriteLast(
+      const Response& response,
+      Callback&& callback)
+  {
+    return WriteLast(
+        response,
+        ::grpc::WriteOptions(),
+        std::forward<Callback>(callback));
   }
 
 private:
@@ -766,22 +828,27 @@ private:
     donedonedone_.Watch(f);
   }
 
+  template <typename Callback>
   ServerCallStatus write(
       ::grpc::ByteBuffer* buffer,
-      ::grpc::WriteOptions options)
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
     EXCLUSIVE_LOCKS_REQUIRED(mutex_)
   {
     if (!write_callback_) {
       return ServerCallStatus::WritingUnavailable;
     }
 
-    write_buffers_.emplace_back();
+    write_datas_.emplace_back();
 
-    write_buffers_.back().first.Swap(buffer);
-    write_buffers_.back().second = options;
+    auto& data = write_datas_.back();
 
-    if (write_buffers_.size() == 1) {
-      buffer = &write_buffers_.front().first;
+    data.buffer.Swap(buffer);
+    data.options = options;
+    data.callback = std::forward<Callback>(callback);
+
+    if (write_datas_.size() == 1) {
+      buffer = &write_datas_.front().buffer;
     } else {
       buffer = nullptr;
     }
@@ -811,10 +878,15 @@ private:
   ::grpc::ByteBuffer read_buffer_;
 
   std::function<void(bool, void*)> write_callback_;
-  std::list<
-    std::pair<
-      ::grpc::ByteBuffer,
-      ::grpc::WriteOptions>> write_buffers_;
+
+  struct WriteData
+  {
+    ::grpc::ByteBuffer buffer;
+    ::grpc::WriteOptions options;
+    std::function<void(bool)> callback;
+  };
+
+  std::list<WriteData> write_datas_;
 
   std::function<void(bool, void*)> finish_callback_;
   absl::optional<::grpc::Status> finish_status_ = absl::nullopt;
@@ -854,19 +926,50 @@ public:
         });
   }
 
+  template <typename Callback>
   ServerCallStatus WriteAndFinish(
       const Response& response,
+      const ::grpc::WriteOptions& options,
+      Callback&& callback,
       const ::grpc::Status& finish_status)
   {
-    return ServerCallBase::WriteAndFinish<Response>(response, finish_status);
+    return ServerCallBase::WriteAndFinish(
+        response,
+        options,
+        std::forward<Callback>(callback),
+        finish_status);
   }
 
   ServerCallStatus WriteAndFinish(
       const Response& response,
-      ::grpc::WriteOptions options,
+      const ::grpc::WriteOptions& options,
       const ::grpc::Status& finish_status)
   {
-    return ServerCallBase::WriteAndFinish<Response>(response, options, finish_status);
+    return ServerCallBase::WriteAndFinish(
+        response,
+        options,
+        std::function<void(bool)>(),
+        finish_status);
+  }
+
+  template <typename Callback>
+  ServerCallStatus WriteAndFinish(
+      const Response& response,
+      Callback&& callback,
+      const ::grpc::Status& finish_status)
+  {
+    return ServerCallBase::WriteAndFinish(
+        response,
+        ::grpc::WriteOptions(),
+        std::forward<Callback>(callback),
+        finish_status);
+  }
+
+  ServerCallStatus WriteAndFinish(
+      const Response& response,
+      const ::grpc::Status& finish_status)
+  {
+    return ServerCallBase::WriteAndFinish(response, finish_status);
   }
 };
 
@@ -897,19 +1000,45 @@ public:
         });
   }
 
+  template <typename Callback>
   ServerCallStatus WriteAndFinish(
       const Response& response,
+      const ::grpc::WriteOptions& options,
+      Callback&& callback,
       const ::grpc::Status& finish_status)
   {
-    return ServerCallBase::WriteAndFinish<Response>(response, finish_status);
+    return ServerCallBase::WriteAndFinish(
+        response,
+        options,
+        std::forward<Callback>(callback),
+        finish_status);
+  }
+
+  template <typename Callback>
+  ServerCallStatus WriteAndFinish(
+      const Response& response,
+      Callback&& callback,
+      const ::grpc::Status& finish_status)
+  {
+    return ServerCallBase::WriteAndFinish(
+        response,
+        std::forward<Callback>(callback),
+        finish_status);
   }
 
   ServerCallStatus WriteAndFinish(
       const Response& response,
-      ::grpc::WriteOptions options,
+      const ::grpc::WriteOptions& options,
       const ::grpc::Status& finish_status)
   {
-    return ServerCallBase::WriteAndFinish<Response>(response, options, finish_status);
+    return ServerCallBase::WriteAndFinish(response, options, finish_status);
+  }
+
+  ServerCallStatus WriteAndFinish(
+      const Response& response,
+      const ::grpc::Status& finish_status)
+  {
+    return ServerCallBase::WriteAndFinish(response, finish_status);
   }
 };
 
@@ -940,33 +1069,87 @@ public:
         });
   }
 
+  template <typename Callback>
   ServerCallStatus Write(
       const Response& response,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions(),
+      Callback&& callback = std::function<void(bool)>())
   {
-    return ServerCallBase::Write<Response>(response, options);
+    return ServerCallBase::Write(
+        response,
+        options,
+        std::forward<Callback>(callback));
   }
 
+  template <typename Callback>
+  ServerCallStatus Write(
+      const Response& response,
+      Callback&& callback)
+  {
+    return ServerCallBase::Write(response, std::forward<Callback>(callback));
+  }
+
+  template <typename Callback>
   ServerCallStatus WriteLast(
       const Response& response,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions(),
+      Callback&& callback = std::function<void(bool)>())
   {
-    return ServerCallBase::WriteLast<Response>(response, options);
+    return ServerCallBase::WriteLast(
+        response,
+        options,
+        std::forward<Callback>(callback));
+  }
+
+  template <typename Callback>
+  ServerCallStatus WriteLast(
+      const Response& response,
+      Callback&& callback)
+  {
+    return ServerCallBase::WriteLast(
+        response,
+        std::forward<Callback>(callback));
+  }
+
+  template <typename Callback>
+  ServerCallStatus WriteAndFinish(
+      const Response& response,
+      const ::grpc::WriteOptions& options,
+      Callback&& callback,
+      const ::grpc::Status& finish_status)
+  {
+    return ServerCallBase::WriteAndFinish(
+        response,
+        options,
+        std::forward<Callback>(callback),
+        finish_status);
+  }
+
+  template <typename Callback>
+  ServerCallStatus WriteAndFinish(
+      const Response& response,
+      Callback&& callback,
+      const ::grpc::Status& finish_status)
+  {
+    return ServerCallBase::WriteAndFinish(
+        response,
+        std::forward<Callback>(callback),
+        finish_status);
+  }
+
+  ServerCallStatus WriteAndFinish(
+      const Response& response,
+      const ::grpc::WriteOptions& options,
+      const ::grpc::Status& finish_status)
+  {
+    return ServerCallBase::WriteAndFinish(response, options, finish_status);
   }
 
   ServerCallStatus WriteAndFinish(
       const Response& response,
       const ::grpc::Status& finish_status)
   {
-    return ServerCallBase::WriteAndFinish<Response>(response, finish_status);
-  }
-
-  ServerCallStatus WriteAndFinish(
-      const Response& response,
-      ::grpc::WriteOptions options,
-      const ::grpc::Status& finish_status)
-  {
-    return ServerCallBase::WriteAndFinish<Response>(response, options, finish_status);
+    return ServerCallBase::WriteAndFinish(response, finish_status);
   }
 };
 
@@ -997,33 +1180,87 @@ public:
         });
   }
 
+  template <typename Callback>
   ServerCallStatus Write(
       const Response& response,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions(),
+      Callback&& callback = std::function<void(bool)>())
   {
-    return ServerCallBase::Write<Response>(response, options);
+    return ServerCallBase::Write(
+        response,
+        options,
+        std::forward<Callback>(callback));
   }
 
+  template <typename Callback>
+  ServerCallStatus Write(
+      const Response& response,
+      Callback&& callback)
+  {
+    return ServerCallBase::Write(response, std::forward<Callback>(callback));
+  }
+
+  template <typename Callback>
   ServerCallStatus WriteLast(
       const Response& response,
-      ::grpc::WriteOptions options = ::grpc::WriteOptions())
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions(),
+      Callback&& callback = std::function<void(bool)>())
   {
-    return ServerCallBase::WriteLast<Response>(response, options);
+    return ServerCallBase::WriteLast(
+        response,
+        options,
+        std::forward<Callback>(callback));
+  }
+
+  template <typename Callback>
+  ServerCallStatus WriteLast(
+      const Response& response,
+      Callback&& callback)
+  {
+    return ServerCallBase::WriteLast(
+        response,
+        std::forward<Callback>(callback));
+  }
+
+  template <typename Callback>
+  ServerCallStatus WriteAndFinish(
+      const Response& response,
+      const ::grpc::WriteOptions& options,
+      Callback&& callback,
+      const ::grpc::Status& finish_status)
+  {
+    return ServerCallBase::WriteAndFinish(
+        response,
+        options,
+        std::forward<Callback>(callback),
+        finish_status);
+  }
+
+  template <typename Callback>
+  ServerCallStatus WriteAndFinish(
+      const Response& response,
+      Callback&& callback,
+      const ::grpc::Status& finish_status)
+  {
+    return ServerCallBase::WriteAndFinish(
+        response,
+        std::forward<Callback>(callback),
+        finish_status);
+  }
+
+  ServerCallStatus WriteAndFinish(
+      const Response& response,
+      const ::grpc::WriteOptions& options,
+      const ::grpc::Status& finish_status)
+  {
+    return ServerCallBase::WriteAndFinish(response, options, finish_status);
   }
 
   ServerCallStatus WriteAndFinish(
       const Response& response,
       const ::grpc::Status& finish_status)
   {
-    return ServerCallBase::WriteAndFinish<Response>(response, finish_status);
-  }
-
-  ServerCallStatus WriteAndFinish(
-      const Response& response,
-      ::grpc::WriteOptions options,
-      const ::grpc::Status& finish_status)
-  {
-    return ServerCallBase::WriteAndFinish<Response>(response, options, finish_status);
+    return ServerCallBase::WriteAndFinish(response, finish_status);
   }
 };
 
