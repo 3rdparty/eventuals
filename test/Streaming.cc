@@ -6,7 +6,7 @@
 // https://github.com/grpc/grpc/blob/master/examples/protos/keyvaluestore.proto
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 
-#include "stringify.h"
+#include "test.h"
 
 using stout::Notification;
 
@@ -17,7 +17,7 @@ using stout::grpc::ServerCallStatus;
 using stout::grpc::Stream;
 
 
-TEST(GrpcTest, Streaming)
+TEST_F(StoutGrpcTest, Streaming)
 {
   ServerBuilder builder;
 

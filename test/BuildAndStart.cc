@@ -2,10 +2,12 @@
 
 #include "stout/grpc/server.h"
 
+#include "test.h"
+
 using stout::grpc::ServerBuilder;
 
 
-TEST(GrpcTest, BuildAndStart)
+TEST_F(StoutGrpcTest, BuildAndStart)
 {
   ServerBuilder builder;
 

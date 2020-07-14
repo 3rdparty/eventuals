@@ -6,7 +6,7 @@
 // https://github.com/grpc/grpc/blob/master/examples/protos/keyvaluestore.proto
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 
-#include "stringify.h"
+#include "test.h"
 
 using stout::Notification;
 
@@ -15,7 +15,7 @@ using stout::grpc::ServerBuilder;
 using stout::grpc::Stream;
 
 
-TEST(GrpcTest, ServerDeathTest)
+TEST_F(StoutGrpcTest, ServerDeathTest)
 {
   // NOTE: need pipes to get the server's port, this also helps
   // synchronize when the server is ready to have the client connect.

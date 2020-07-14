@@ -6,7 +6,7 @@
 // https://github.com/grpc/grpc/blob/master/examples/protos/keyvaluestore.proto
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 
-#include "stringify.h"
+#include "test.h"
 
 using stout::Notification;
 
@@ -14,7 +14,7 @@ using stout::grpc::Client;
 using stout::grpc::Stream;
 
 
-TEST(GrpcTest, ServerUnavailable)
+TEST_F(StoutGrpcTest, ServerUnavailable)
 {
   // NOTE: we use 'getpid()' to create a _unique_ UNIX domain socket
   // path that should never have a server listening on for this test.

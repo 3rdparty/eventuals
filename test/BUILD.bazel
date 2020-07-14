@@ -3,7 +3,7 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 cc_test(
     name = "grpc",
     srcs = [
-        "stringify.h",
+        "test.h",
         "BuildAndStart.cc",
         "Unimplemented.cc",
         "CancelledByServer.cc",

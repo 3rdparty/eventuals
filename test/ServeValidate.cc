@@ -8,6 +8,8 @@
 
 #include "stout/grpc/server.h"
 
+#include "test.h"
+
 using helloworld::HelloRequest;
 using helloworld::HelloReply;
 using helloworld::Greeter;
@@ -16,7 +18,7 @@ using stout::grpc::ServerBuilder;
 using stout::grpc::Stream;
 
 
-TEST(GrpcTest, ServeValidate)
+TEST_F(StoutGrpcTest, ServeValidate)
 {
   ServerBuilder builder;
 

@@ -6,7 +6,7 @@
 // https://github.com/grpc/grpc/blob/master/examples/protos/helloworld.proto
 #include "examples/protos/helloworld.grpc.pb.h"
 
-#include "stringify.h"
+#include "test.h"
 
 using helloworld::HelloRequest;
 using helloworld::HelloReply;
@@ -20,7 +20,7 @@ using stout::grpc::ServerBuilder;
 using stout::grpc::ServerCallStatus;
 
 
-TEST(GrpcTest, Unary)
+TEST_F(StoutGrpcTest, Unary)
 {
   ServerBuilder builder;
 
