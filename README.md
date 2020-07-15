@@ -208,22 +208,30 @@ auto status = server->Serve<RouteGuide, Rectangle, Stream<Feature>>(
 |                                               | borrowed_ptr from the      |                                      |
 |                                               | initial call.              |                                      |
 +-----------------------------------------------+----------------------------+--------------------------------------+
-|                                               | Writes a response to the   | ServerCallStatus::Ok means           |
-| auto status = grpc::Status::OK;               | client and finishes the    | the response has been                |
-|                                               | call with the specified    | queued to go out on the              |
+| auto status = grpc::Status::OK;               | Writes a response to the   | ServerCallStatus::Ok means           |
+|                                               | client and finishes the    | the response has been                |
+| call->WriteAndFinish(response, status);       | call with the specified    | queued to go out on the              |
 |                                               | status. Note that this is  | wire, but has not yet been           |
-|                                               | the only available at      | sent.                                |
-| call->WriteAndFinish(response, status);       | compile time for RPCs with |                                      |
-|                                               | a unary response.          | ServerCallStatus::WritingUnavailable |
-| // ...                                        |                            | means that writing is no longer      |
-|                                               |                            | available, likely due to a           |
-| auto options = grpc::WriteOptions();          |                            | cancelled call or broken stream.     |
-|                                               |                            |                                      |
-| call->WriteAndFinish(                         |                            |                                      |
-|     response,                                 |                            |                                      |
+| // ...                                        | the only available at      | sent.                                |
+|                                               | compile time for RPCs with |                                      |
+| auto options = grpc::WriteOptions();          | a unary response.          | ServerCallStatus::WritingUnavailable |
+|                                               |                            | means that writing is no longer      |
+| call->WriteAndFinish(                         |                            | available, likely due to a           |
+|     response,                                 |                            | cancelled call or broken stream.     |
 |     options,                                  |                            |                                      |
 |     status);                                  |                            |                                      |
-|                                               |                            |                                      |
+|                                               | NOTE: all Write*()         |                                      |
+| call->WriteAndFinish(                         | functions have an overload |                                      |
+|     response,                                 | that takes a callback      |                                      |
+|     options, // Can be omitted.               | which will be invoked      |                                      |
+|     [](bool ok) {                             | to indicate if the write   |                                      |
+|       if (ok) {                               | succeeded or failed.       |                                      |
+|         // Write succeeded.                   |                            |                                      |
+|       } else {                                |                            |                                      |
+|         // Write failed.                      |                            |                                      |
+|       }                                       |                            |                                      |
+|     },                                        |                            |                                      |
+|     status);                                  |                            |                                      |
 +-----------------------------------------------+----------------------------+--------------------------------------+
 | call->Write(response);                        | Writes a response with     | ServerCallStatus::Ok on success.     |
 |                                               | optional options. Only     |                                      |
@@ -232,6 +240,18 @@ auto status = server->Serve<RouteGuide, Rectangle, Stream<Feature>>(
 | auto options = grpc::WriteOptions();          |                            |                                      |
 |                                               |                            |                                      |
 | call->Write(response, options);               |                            |                                      |
+|                                               |                            |                                      |
+| call->Write(                                  |                            |                                      |
+|     response,                                 |                            |                                      |
+|     options, // Can be omitted.               |                            |                                      |
+|     [](bool ok) {                             |                            |                                      |
+|       if (ok) {                               |                            |                                      |
+|         // Write succeeded.                   |                            |                                      |
+|       } else {                                |                            |                                      |
+|         // Write failed.                      |                            |                                      |
+|       }                                       |                            |                                      |
+|                                               |                            |                                      |
+|     });                                       |                            |                                      |
 +-----------------------------------------------+----------------------------+--------------------------------------+
 | call->WriteLast(response);                    | Writes a response and sets | ServerCallStatus::Ok on success.     |
 |                                               | the bit indicating this    |                                      |
@@ -241,6 +261,17 @@ auto status = server->Serve<RouteGuide, Rectangle, Stream<Feature>>(
 |                                               | for server streaming RPCs. | after doing a 'WriteLast()'          |
 | call->WriteLast(response, options);           |                            | because the only valid call is       |
 |                                               |                            | 'Finish()' at this point.            |
+| call->WriteLast(                              |                            |                                      |
+|     response,                                 |                            |                                      |
+|     options, // Can be omitted.               |                            |                                      |
+|     [](bool ok) {                             |                            |                                      |
+|       if (ok) {                               |                            |                                      |
+|         // Write succeeded.                   |                            |                                      |
+|       } else {                                |                            |                                      |
+|         // Write failed.                      |                            |                                      |
+|       }                                       |                            |                                      |
+|                                               |                            |                                      |
+|     });                                       |                            |                                      |
 +-----------------------------------------------+----------------------------+--------------------------------------+
 |                                               | Finishes the call with     | ServerCallStatus::Ok on success.     |
 | auto status = grpc::Status::OK;               | the specified status.      |                                      |
