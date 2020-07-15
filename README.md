@@ -12,6 +12,10 @@ Examples can be found [here](https://github.com/3rdparty/stout-grpc-examples).
 
 They have been put in a separate repository to make it easier to clone that repository and start building a project rather than trying to figure out what pieces of the build should be copied.
 
+## Logging
+
+[glog](https://github.com/google/glog) is used to perform logging. You'll need to enable glog verbose logging by setting the environment variable `GLOG_v=1` (or any value greater than 1) as well as the enironment variable `STOUT_GRPC_LOG=1`. You can call `google::InitGoogleLogging(argv[0]);` in your own `main()` function to properly initialize glog.
+
 ## Usage
 
 Build a server using a `ServerBuilder` just like with gRPC:
