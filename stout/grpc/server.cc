@@ -3,117 +3,150 @@
 namespace stout {
 namespace grpc {
 
-ServerCallBase::ServerCallBase(std::unique_ptr<ServerContext>&& context, CallType type)
-  : status_(ServerCallStatus::Ok), context_(std::move(context)), type_(type)
+Server::Server(
+    std::unique_ptr<::grpc::AsyncGenericService>&& service,
+    std::unique_ptr<::grpc::Server>&& server,
+    std::vector<std::unique_ptr<::grpc::ServerCompletionQueue>>&& cqs,
+    std::vector<std::thread>&& threads)
+  : service_(std::move(service)),
+    server_(std::move(server)),
+    cqs_(std::move(cqs)),
+    threads_(std::move(threads))
 {
-  // NOTE: we rely on the explicit design of Notification where the
-  // ***first*** handler added via 'Watch()' will be the last handler
-  // that gets executed in order to trigger 'donedonedone_' after
-  // we've triggered all of the other 'OnDone()' handlers.
-  done_.Watch([this](bool cancelled) {
-    donedonedone_.Notify(cancelled);
-  });
+  for (auto&& cq : cqs_) {
+    // Create a context and handler for every completion queue and
+    // start the "inifinite loop" of getting callbacks from gRPC for
+    // each new call.
+    //
+    // NOTE: for this first context we keep a pointer so that we can
+    // set the pointer to the handler stored in handlers_ which we
+    // won't have until after we've created the handler (a "chicken or
+    // the egg" scenario).
+    auto* context = new ServerContext();
 
-  // NOTE: 'context_->OnDone()' NOT 'this->OnDone()'.
-  context_->OnDone([this](bool cancelled) {
-    // NOTE: emperical evidence shows that gRPC may invoke the done
-    // handler set up by 'AsyncNotifyWhenDone' before our
-    // 'finish_callback_' gets invoked. That or there is a nasty race
-    // between when a thread gets the 'finish_callback_' tag from the
-    // completion queue and gRPC therefore decides that everything is
-    // done even though that thread may not yet have invoked the
-    // callback. So, if we were in the 'Finishing' state then we wait
-    // for the callback to notify we're "done done done", otherwise we
-    // notify now.
-    mutex_.Lock();
+    handlers_.push_back(
+        make_shared_function(
+            [this,
+             cq = cq.get(),
+             context = std::unique_ptr<ServerContext>(context)](
+                 bool ok, void* tag) mutable {
+              if (ok) {
+                // Stash the received context so we can make a new
+                // context to pass to gRPC before we start to serve.
+                std::unique_ptr<ServerContext> received = std::move(context);
+                context = absl::make_unique<ServerContext>();
 
-    if (status_ != ServerCallStatus::Finishing) {
-      status_ = ServerCallStatus::Done;
-      mutex_.Unlock();
-      done_.Notify(cancelled);
-    } else {
-      status_ = ServerCallStatus::Done;
-      mutex_.Unlock();
-    }
-  });
+                service_->RequestCall(
+                    context->context(),
+                    context->stream(),
+                    cq,
+                    cq,
+                    tag);
 
-  write_callback_ = [this](bool ok, void*) {
-    if (ok) {
-      mutex_.Lock();
-      std::function<void(bool)>* callback = &write_datas_.front().callback;
-      mutex_.Unlock();
-      if (*callback) {
-        (*callback)(true);
-      }
-      mutex_.Lock();
+                serve(std::move(received));
+              }
+            }));
 
-      write_datas_.pop_front();
-
-      ::grpc::ByteBuffer* buffer = nullptr;
-      ::grpc::WriteOptions* options = nullptr;
-      ::grpc::Status* finish_status = nullptr;
-
-      if (!write_datas_.empty()) {
-        buffer = &write_datas_.front().buffer;
-        options = &write_datas_.front().options;
-      } else if (finish_status_) {
-        finish_status = &finish_status_.value();
-      }
-
-      mutex_.Unlock();
-
-      if (buffer != nullptr) {
-        stream()->Write(*buffer, *options, &write_callback_);
-      } else if (finish_status != nullptr) {
-        stream()->Finish(*finish_status, &finish_callback_);
-      }
-    } else {
-      decltype(write_datas_) write_datas;
-      mutex_.Lock();
-      write_datas = std::move(write_datas_);
-      write_callback_ = std::function<void(bool, void*)>();
-      mutex_.Unlock();
-      while (!write_datas.empty()) {
-        if (write_datas.front().callback) {
-          write_datas.front().callback(false);
-        }
-        write_datas.pop_front();
-      }
-    }
-  };
-
-  finish_callback_ = [this](bool, void*) {
-    mutex_.Lock();
-    status_ = ServerCallStatus::Done;
-    mutex_.Unlock();
-    done_.Notify(this->context()->IsCancelled());
-  };
+    service_->RequestCall(
+        context->context(),
+        context->stream(),
+        cq.get(),
+        cq.get(),
+        &handlers_.back());
+  }
 }
 
 
-ServerCallStatus ServerCallBase::Finish(const ::grpc::Status& finish_status)
+Server::~Server()
 {
-  auto status = ServerCallStatus::Ok;
+  Shutdown();
+  Wait();
+}
 
-  mutex_.Lock();
 
-  status = status_;
+void Server::Shutdown()
+{
+  // Server might have gotten moved.
+  if (server_) {
+    server_->Shutdown();
+  }
 
-  if (status == ServerCallStatus::Ok
-      || status == ServerCallStatus::WaitingForFinish) {
-    finish_status_ = finish_status;
-    status_ = ServerCallStatus::Finishing;
+  for (auto&& cq : cqs_) {
+    cq->Shutdown();
+  }
+}
 
-    if (write_datas_.empty()) {
-      mutex_.Unlock();
-      stream()->Finish(finish_status, &finish_callback_);
-      return ServerCallStatus::Ok;
+
+void Server::Wait()
+{
+  if (server_) {
+    server_->Wait();
+  }
+
+  for (auto&& thread : threads_) {
+    thread.join();
+  }
+
+  for (auto&& cq : cqs_) {
+    void* tag = nullptr;
+    bool ok = false;
+    while (cq->Next(&tag, &ok)) {}
+  }
+}
+
+
+void Server::serve(std::unique_ptr<ServerContext>&& context)
+{
+  auto* endpoint = lookup(context.get());
+  if (endpoint != nullptr) {
+    endpoint->serve(std::move(context));
+  } else {
+    unimplemented(context.release());
+  }
+}
+
+
+Server::Endpoint* Server::lookup(ServerContext* context)
+{
+  Server::Endpoint* endpoint = nullptr;
+
+  mutex_.ReaderLock();
+
+  auto iterator = endpoints_.find(
+      std::make_pair(context->method(), context->host()));
+
+  if (iterator != endpoints_.end()) {
+    endpoint = iterator->second.get();
+  } else {
+    iterator = endpoints_.find(
+        std::make_pair(context->method(), "*"));
+
+    if (iterator != endpoints_.end()) {
+      endpoint = iterator->second.get();
     }
   }
 
-  mutex_.Unlock();
+  mutex_.ReaderUnlock();
 
-  return status;
+  return endpoint;
+}
+
+
+void Server::unimplemented(ServerContext* context)
+{
+  VLOG_IF(1, STOUT_GRPC_LOG)
+    << "Dropping " << context->method()
+    << " for host " << context->host() << std::endl;
+
+  auto status = ::grpc::Status(
+      ::grpc::UNIMPLEMENTED,
+      context->method() + " for host " + context->host());
+
+  context->stream()->Finish(status, &noop);
+
+  context->OnDone([context](bool) {
+    delete context;
+  });
 }
 
 } // namespace grpc {
