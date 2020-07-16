@@ -18,6 +18,8 @@ They have been put in a separate repository to make it easier to clone that repo
 
 ## Usage
 
+### Server
+
 Build a server using a `ServerBuilder` just like with gRPC:
 
 ```cpp
@@ -91,7 +93,9 @@ auto status = server->Serve<RouteGuide, Stream<RouteNote>, Stream<RouteNote>>(
     });
 ```
 
-Responses are written via 'Write()', and a call is finished via 'Finish()'. Here's a complete example of the `RecordRoute` method of the `RouteGuide` service:
+Responses are written via 'Write()', and a call is finished via 'Finish()'. Below is a complete example of the `RecordRoute` method of the `RouteGuide` service:
+
+> The `Write*()` family of functions all have an overload version that takes a callback/lambda that will get called to indicaute whether or not the write succeed (i.e., is going to the wire). Because each write gets queued this can be useful for determining when the write has actually been sent.
 
 ```cpp
 auto status = server->Serve<RouteGuide, Stream<Point>, RouteSummary>(
@@ -160,9 +164,52 @@ auto status = server->Serve<RouteGuide, Rectangle, Stream<Feature>>(
     });
 ```
 
-- [ ] Add usage for clients.
+### Client
 
-## Server API Reference
+Construct a client similar to how you might construct a channel with gRPC:
+
+```cpp
+stout::grpc::Client client("localhost:50051", grpc::InsecureChannelCredentials());
+```
+
+You then start a call with:
+
+```cpp
+client.Call<RouteGuide, Stream<Point>, RouteSummary>(
+    "RecordRoute",
+    [&](auto&& call, bool ok) {
+      if (ok) {
+        // Connected, start reading/writing.
+      } else {
+        // Failed to connect.
+      }
+    });
+```
+
+Similar to the server the `call` argument here is a `stout::borrowed_ptr`. Also similar to the server you can set up an `OnRead()` handler to read responses from the server.
+
+You write requests via the `Write*()` family of functions. Like the server, these functions all have overloads that take a callback indicating when the write has actually succeeded for failed.
+
+There is a syntactic sugar" overload of `Client::Call()` that lets you specify the initial request to be sent, which is useful for unary calls when there is only a single request:
+
+```cpp
+Point point;
+// ...
+client.Call<RouteGuide, Point, Feature>(
+    "GetFeature",
+    &point,
+    [](auto* call, auto&& response) {
+      // ...
+      call->Finish();
+    },
+    [](auto*, const Status& status) {
+      // Call finished with 'status'.
+    });
+```
+
+## API Reference
+
+### Server
 
 ```
 +-----------------------------------------------+----------------------------+--------------------------------------+
@@ -182,9 +229,8 @@ auto status = server->Serve<RouteGuide, Rectangle, Stream<Feature>>(
 | server->Serve<Request, Response>(             | Same as above but without  | See above.                           |
 |   "package.Service.Method",                   | the 'Service' type;        |                                      |
 |   [](auto&& call) {                           | all you need are the       |                                      |
-|                                               | generated protobuf         |                                      |
-|     // ...                                    | headers!                   |                                      |
-|   });                                         |                            |                                      |
+|     // ...                                    | generated protobuf         |                                      |
+|   });                                         | headers!                   |                                      |
 +-----------------------------------------------+----------------------------+--------------------------------------+
 | server->Serve<Request, Response>(             | Overload that takes the    | See above.                           |
 |   "package.Service.Method",                   | 'OnRead()' and 'OnDone()'  |                                      |
@@ -292,7 +338,135 @@ auto status = server->Serve<RouteGuide, Rectangle, Stream<Feature>>(
 +-----------------------------------------------+----------------------------+--------------------------------------+
 ```
 
-- [ ] Add API reference for clients.
+### Client
+
+```
++------------------------------------------------+----------------------------+--------------------------------------+
+|                    Function                    |         Description        |                Status                |
++------------------------------------------------+----------------------------+--------------------------------------+
+|                                                | Initiates an RPC to        | ClientStatus::Ok() on success,       |
+| client->Call<Service, Request, Response>(      | "/package.Service/Method"  | otherwise ClientStatus::Error()      |
+|   "Method",                                    | for host/authority "host"  | either due to an invalid RPC         |
+|   "host",                                      | with the specified         | method (e.g., service and/or method  |
+|   [](auto&& call) {                            | callback. The 'call'       | doesn't exist, incorrect             |
+|     // ...                                     | argument is a              | request/response types, etc)         |
+|   });                                          | 'stout::borrowed_ptr'.     | or a connectivity issue.             |
+|                                                |                            |                                      |
+|                                                | You can omit host.         |                                      |
++------------------------------------------------+----------------------------+--------------------------------------+
+| client->Call<Request, Response>(               | Same as above but without  | See above.                           |
+|   "package.Service.Method",                    | the 'Service' type;        |                                      |
+|   [](auto&& call) {                            | all you need are the       |                                      |
+|     // ...                                     | generated protobuf         |                                      |
+|   });                                          | headers!                   |                                      |
++------------------------------------------------+----------------------------+--------------------------------------+
+| client->Call<Request, Response>(               | Overload that takes the    | See above.                           |
+|   "package.Service.Method",                    | 'OnRead()' and             |                                      |
+|   [](auto* call, auto&& response) {            | 'OnFinished()' handlers    |                                      |
+|     // OnRead                                  | and sets them up           |                                      |
+|   },                                           | automagically.             |                                      |
+|   [](auto* call, const grpc::Status& s) {      |                            |                                      |
+|     // OnFinished                              | Note: this overload never  |                                      |
+|   });                                          | has access to the          |                                      |
+|                                                | 'stout::borrowed_ptr'.     |                                      |
++------------------------------------------------+----------------------------+--------------------------------------+
+| call->OnRead([](auto* call, auto&& response) { | Starts reading responses.  | ClientCallStatus::Ok on              |
+|   if (response) {                              |                            | success, otherwise the               |
+|     // Received a request.                     |                            | call likely needs to be              |
+|   } else {                                     |                            | cancelled.                           |
+|     // End of stream or broken stream.         |                            |                                      |
+|   }                                            |                            |                                      |
+| });                                            |                            |                                      |
++------------------------------------------------+----------------------------+--------------------------------------+
+|                                                | Invoked when a call has    | ClientCallStatus::Ok unless          |
+|                                                | finished. Note that 'call' | called multiples times.              |
+|                                                | should not be used after   |                                      |
+| call->OnFinished(                              | your handler is invoked    |                                      |
+|     [](auto* call, const grpc::Status& s) {    | unless you haven't yet     |                                      |
+|       // ...                                   | relinquished the           |                                      |
+|     });                                        | borrowed_ptr passed to     |                                      |
+|                                                | the initial 'Client::Call' |                                      |
+|                                                | handler.                   |                                      |
++------------------------------------------------+----------------------------+--------------------------------------+
+| call->WriteAndDone(request);                   | Writes a request to the    | ClientCallStatus::Ok means           |
+|                                                | server and performs        | the response has been                |
+| // ...                                         | 'WritesDone()'.            | queued to go out on the              |
+|                                                | Note that this is          | wire, but has not yet been           |
+| auto options = grpc::WriteOptions();           | the only available at      | sent.                                |
+|                                                | compile time for RPCs with |                                      |
+| call->WriteAndDone(request, options);          | a unary request.           | ClientCallStatus::WritingUnavailable |
+|                                                |                            | means that writing is no longer      |
+| call->WriteAndDone(                            |                            | available, likely due to a           |
+|     response,                                  |                            | cancelled call or broken stream.     |
+|     options, // Can be omitted.                | NOTE: all Write*()         |                                      |
+|     [](bool ok) {                              | functions have an overload |                                      |
+|       if (ok) {                                | that takes a callback      |                                      |
+|         // Write succeeded.                    | which will be invoked      |                                      |
+|       } else {                                 | to indicate if the write   |                                      |
+|         // Write failed.                       | succeeded or failed.       |                                      |
+|       }                                        |                            |                                      |
+|     });                                        |                            |                                      |
++------------------------------------------------+----------------------------+--------------------------------------+
+| call->Write(request);                          | Writes a request with      | ClientCallStatus::Ok on success.     |
+|                                                | optional options. Only     |                                      |
+| // ...                                         | available at compile time  | See further discussion above in      |
+|                                                | for client streaming RPCs. | 'WriteAndDone()'.                    |
+| auto options = grpc::WriteOptions();           |                            |                                      |
+|                                                |                            |                                      |
+| call->Write(request, options);                 |                            |                                      |
+|                                                |                            |                                      |
+| call->Write(                                   |                            |                                      |
+|     request,                                   |                            |                                      |
+|     options, // Can be omitted.                |                            |                                      |
+|     [](bool ok) {                              |                            |                                      |
+|       if (ok) {                                |                            |                                      |
+|         // Write succeeded.                    |                            |                                      |
+|       } else {                                 |                            |                                      |
+|         // Write failed.                       |                            |                                      |
+|       }                                        |                            |                                      |
+|                                                |                            |                                      |
+|     });                                        |                            |                                      |
++------------------------------------------------+----------------------------+--------------------------------------+
+| call->WritesDone();                            | Signals to the server      | ClientCallStatus::Ok on success.     |
+|                                                | that the client            |                                      |
+|                                                | stream of requests is      | Any subsequent calls to a 'Write*()' |
+|                                                | done.                      | variant will return                  |
+|                                                |                            | ClientCallStatus::WaitingForFinished |
+|                                                |                            | after doing a 'WritesDone()'         |
+|                                                |                            | because the only valid call is       |
+|                                                |                            | 'Finish()' at this point.            |
++------------------------------------------------+----------------------------+--------------------------------------+
+|                                                | Indicates the call is      | ClientCallStatus::Ok on success.     |
+| call->Finish();                                | is finished. When the      |                                      |
+|                                                | call has actually          | If the call is already done,         |
+| // ...                                         | finished the callback      | e.g., because it was cancelled,      |
+|                                                | set up by 'IsFinished()'   | it may return                        |
+| call->Finish(                                  | gets invoked.              | ClientCallStatus::Finished.          |
+|     [](auto* call, const grpc::Status& s) {    |                            |                                      |
+|     });                                        | The 'Finish()' overload    |                                      |
+|                                                | that takes a callback      |                                      |
+|                                                | performs 'OnFinished()'    |                                      |
+|                                                | before calling 'Finish()'  |                                      |
+|                                                | and it is an error to call |                                      |
+|                                                | 'OnFinished()' as well     |                                      |
+|                                                | as the 'Finish()'          |                                      |
+|                                                | overload that takes a      |                                      |
+|                                                | callback.                  |                                      |
++------------------------------------------------+----------------------------+--------------------------------------+
+| call->WritesDoneAndFinish();                   | Performs 'WritesDone()'    |                                      |
+|                                                | and then 'Finish()',       |                                      |
+| call->WritesDoneAndFinish(                     | optionally performing      |                                      |
+|     [](auto* call, const grpc::Status& s) {    | 'OnFinished()' if a        |                                      |
+|     });                                        | callback is passed.        |                                      |
++------------------------------------------------+----------------------------+--------------------------------------+
+|                                                | Attempts to cancel         | Returns void.                        |
+|                                                | the call. If successful    |                                      |
+| call->context()->TryCancel();                  | any 'OnFinished()'         |                                      |
+|                                                | handlers will be           |                                      |
+|                                                | invoked with a status of   |                                      |
+|                                                | grpc::CANCELLED.           |                                      |
++------------------------------------------------+----------------------------+--------------------------------------+
+```
 
 ## Known Limitations
 
