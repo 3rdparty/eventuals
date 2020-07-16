@@ -16,6 +16,28 @@ Examples can be found [here](https://github.com/3rdparty/stout-grpc-examples).
 
 They have been put in a separate repository to make it easier to clone that repository and start building a project rather than trying to figure out what pieces of the build should be copied.
 
+We recommend cloning the examples and building them in order to play around with the library.
+
+## Building/Testing
+
+We suggest starting with the examples above, as they provide a good template for how you might embed this library into your own project.
+
+Currently we only support [Bazel](https://bazel.build).
+
+You can build the library with:
+
+```sh
+$ bazel build :grpc
+...
+```
+
+You can build and run the tests with:
+
+```sh
+$ bazel test test:grpc
+...
+```
+
 ## Logging
 
 [glog](https://github.com/google/glog) is used to perform logging. You'll need to enable glog verbose logging by setting the environment variable `GLOG_v=1` (or any value greater than 1) as well as the enironment variable `STOUT_GRPC_LOG=1`. You can call `google::InitGoogleLogging(argv[0]);` in your own `main()` function to properly initialize glog.
