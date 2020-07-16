@@ -6,6 +6,10 @@ An asynchronous interface for gRPC based on callbacks. While gRPC already provid
 
 Please see [Known Limitations](#known-limitations) and [Suggested Improvements](#suggested-improvements) below for more insight into the limits of the inteface.
 
+### Contact
+
+Please reach out to `stout@3rdparty.dev` for any questions or if you're looking for support.
+
 ## Examples
 
 Examples can be found [here](https://github.com/3rdparty/stout-grpc-examples).
