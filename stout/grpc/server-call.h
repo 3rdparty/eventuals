@@ -177,8 +177,8 @@ public:
   template <typename Callback>
   ServerCallStatus Write(
       const Response& response,
-      const ::grpc::WriteOptions& options = ::grpc::WriteOptions(),
-      Callback&& callback = std::function<void(bool)>())
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
   {
     return ServerCallBase::Write(
         response,
@@ -191,14 +191,27 @@ public:
       const Response& response,
       Callback&& callback)
   {
-    return ServerCallBase::Write(response, std::forward<Callback>(callback));
+    return ServerCallBase::Write(
+        response,
+        ::grpc::WriteOptions(),
+        std::forward<Callback>(callback));
+  }
+
+  ServerCallStatus Write(
+      const Response& response,
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions())
+  {
+    return ServerCallBase::Write(
+        response,
+        options,
+        std::function<void(bool)>());
   }
 
   template <typename Callback>
   ServerCallStatus WriteLast(
       const Response& response,
-      const ::grpc::WriteOptions& options = ::grpc::WriteOptions(),
-      Callback&& callback = std::function<void(bool)>())
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
   {
     return ServerCallBase::WriteLast(
         response,
@@ -213,7 +226,18 @@ public:
   {
     return ServerCallBase::WriteLast(
         response,
+        ::grpc::WriteOptions(),
         std::forward<Callback>(callback));
+  }
+
+  ServerCallStatus WriteLast(
+      const Response& response,
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions())
+  {
+    return ServerCallBase::WriteLast(
+        response,
+        options,
+        std::function<void(bool)>());
   }
 
   template <typename Callback>
@@ -288,8 +312,8 @@ public:
   template <typename Callback>
   ServerCallStatus Write(
       const Response& response,
-      const ::grpc::WriteOptions& options = ::grpc::WriteOptions(),
-      Callback&& callback = std::function<void(bool)>())
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
   {
     return ServerCallBase::Write(
         response,
@@ -302,14 +326,27 @@ public:
       const Response& response,
       Callback&& callback)
   {
-    return ServerCallBase::Write(response, std::forward<Callback>(callback));
+    return ServerCallBase::Write(
+        response,
+        ::grpc::WriteOptions(),
+        std::forward<Callback>(callback));
+  }
+
+  ServerCallStatus Write(
+      const Response& response,
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions())
+  {
+    return ServerCallBase::Write(
+        response,
+        options,
+        std::function<void(bool)>());
   }
 
   template <typename Callback>
   ServerCallStatus WriteLast(
       const Response& response,
-      const ::grpc::WriteOptions& options = ::grpc::WriteOptions(),
-      Callback&& callback = std::function<void(bool)>())
+      const ::grpc::WriteOptions& options,
+      Callback&& callback)
   {
     return ServerCallBase::WriteLast(
         response,
@@ -324,7 +361,18 @@ public:
   {
     return ServerCallBase::WriteLast(
         response,
+        ::grpc::WriteOptions(),
         std::forward<Callback>(callback));
+  }
+
+  ServerCallStatus WriteLast(
+      const Response& response,
+      const ::grpc::WriteOptions& options = ::grpc::WriteOptions())
+  {
+    return ServerCallBase::WriteLast(
+        response,
+        options,
+        std::function<void(bool)>());
   }
 
   template <typename Callback>
