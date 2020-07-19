@@ -1,5 +1,8 @@
 #pragma once
 
+#include <functional>
+#include <list>
+
 #include "absl/base/call_once.h"
 
 #include "absl/synchronization/mutex.h"
