@@ -3,6 +3,10 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 def stout_grpc_deps():
+  # NOTE: glog references gflags but since grpc depends on gflags we
+  # don't need to explicitly add them here. If you don't include grpc
+  # as we do in WORKSPACE.bazel then you'll need to add gflags
+  # yourself _before_ glog.
   if "com_github_google_glog" not in native.existing_rules():
     http_archive(
         name = "com_github_google_glog",
