@@ -3,10 +3,14 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 def stout_grpc_deps():
-  # NOTE: glog references gflags but since grpc depends on gflags we
-  # don't need to explicitly add them here. If you don't include grpc
-  # as we do in WORKSPACE.bazel then you'll need to add gflags
-  # yourself _before_ glog.
+  if "com_github_gflags_gflags" not in native.existing_rules():
+    http_archive(
+        name = "com_github_gflags_gflags",
+        url = "https://github.com/gflags/gflags/archive/v2.2.2.tar.gz",
+        sha256 = "34af2f15cf7367513b352bdcd2493ab14ce43692d2dcd9dfc499492966c64dcf",
+        strip_prefix = "gflags-2.2.2",
+    )
+
   if "com_github_google_glog" not in native.existing_rules():
     http_archive(
         name = "com_github_google_glog",
@@ -26,9 +30,9 @@ def stout_grpc_deps():
   if "stout-notification" not in native.existing_rules():
     http_archive(
         name = "stout-notification",
-        url = "https://github.com/3rdparty/stout-notification/archive/0.2.0.tar.gz",
-        sha256 = "613dd13d1cf86d095da4d62e25e873a1365f1aec353521dc1c7068c83eee3ab3",
-        strip_prefix = "stout-notification-0.2.0",
+        url = "https://github.com/3rdparty/stout-notification/archive/0.3.0.tar.gz",
+        sha256 = "789af33b1a1ae1682cee6aade0846d50ce6a69773684b8a30633fc97a890b767",
+        strip_prefix = "stout-notification-0.3.0",
     )
 
   if "stout-borrowed-ptr" not in native.existing_rules():
