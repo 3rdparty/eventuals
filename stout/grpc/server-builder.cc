@@ -44,7 +44,7 @@ ServerBuilder& ServerBuilder::SetMinimumThreadsPerCompletionQueue(size_t n)
 
 ServerBuilder& ServerBuilder::AddListeningPort(
     const std::string& address,
-    std::shared_ptr<grpc_impl::ServerCredentials> credentials,
+    std::shared_ptr<::grpc::ServerCredentials> credentials,
     int* selectedPort)
 {
   addresses_.push_back(address);
