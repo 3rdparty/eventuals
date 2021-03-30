@@ -50,7 +50,7 @@ protected:
     // NOTE: invariant here is that since 'Write' and 'WriteLast' are
     // *not* exposed via ServerCall then we can use 'WriteAndFinish' here
     // because no other writes should be outstanding.
-    if (type_ != CallType::SERVER_STREAMING || type_ != CallType::BIDI_STREAMING) {
+    if (type_ == CallType::UNARY || type_ == CallType::CLIENT_STREAMING) {
       auto status = ServerCallStatus::Ok;
       mutex_.Lock();
       if (status_ == ServerCallStatus::Ok) {
