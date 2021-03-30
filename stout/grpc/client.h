@@ -199,7 +199,6 @@ public:
                     ::grpc::INTERNAL,
                     "ClientCallStatus is " + stringify(status));
                 break;
-                
             }
           }
 
