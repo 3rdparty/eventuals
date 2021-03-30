@@ -19,7 +19,7 @@ TEST_F(StoutGrpcTest, MultipleHosts)
 {
   ServerBuilder builder;
 
-  int port = 1;
+  int port = 0;
 
   builder.AddListeningPort(
       "0.0.0.0:0",
