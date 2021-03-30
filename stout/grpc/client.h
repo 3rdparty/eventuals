@@ -1,6 +1,9 @@
 #pragma once
 
+#include <string>
 #include <thread>
+
+#include "absl/types/optional.h"
 
 #include "google/protobuf/descriptor.h"
 
@@ -340,7 +343,7 @@ public:
 private:
   std::shared_ptr<::grpc::Channel> channel_;
   ::grpc::GenericStub stub_;
-  ::grpc::CompletionQueue cq_;
+  ::grpc::CompletionQueue cq_; // NOTE: keeps Client from being moveable.
   std::thread thread_;
 };
 

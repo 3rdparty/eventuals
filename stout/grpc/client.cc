@@ -31,7 +31,7 @@ Client::~Client()
 
 void Client::Shutdown()
 {
-  // Client might have been moved, use 'thread_' to distinguish.
+  // Might have already waited, use 'thread_' to distinguish.
   if (thread_.joinable()) {
     cq_.Shutdown();
   }
@@ -40,7 +40,7 @@ void Client::Shutdown()
 
 void Client::Wait()
 {
-  // Client might have been moved, use 'thread_' to distinguish.
+  // Might have already waited, use 'thread_' to distinguish.
   if (thread_.joinable()) {
     thread_.join();
 
