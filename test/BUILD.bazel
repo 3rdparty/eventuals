@@ -15,6 +15,7 @@ cc_test(
         "server-death-test.cc",
         "multiple-hosts.cc",
         "serve-validate.cc",
+        "cluster.cc",
     ],
     deps = [
       "//:grpc",

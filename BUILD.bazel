@@ -9,6 +9,7 @@ cc_library(
         "stout/grpc/client-call.h",
         "stout/grpc/client-call-base.h",
         "stout/grpc/client-call-status.h",
+        "stout/grpc/cluster.h",
         "stout/grpc/logging.h",
         "stout/grpc/server.h",
         "stout/grpc/server-builder.h",
@@ -22,6 +23,7 @@ cc_library(
     srcs = [
         "stout/grpc/client.cc",
         "stout/grpc/client-call-base.cc",
+        "stout/grpc/cluster.cc",
         "stout/grpc/server.cc",
         "stout/grpc/server-builder.cc",
         "stout/grpc/server-call-base.cc",        
