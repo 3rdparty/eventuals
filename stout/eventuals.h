@@ -21,9 +21,6 @@
 // 'fail' and 'stop' (note this is different then just using composing
 // with a function because a 'then' would take a continuation 'k').
 //
-// TODO(benh): create a 'stream()' and 'loop()' and 'map()' and
-// 'filter()'.
-//
 // TODO(benh): composing non-continuation eventual that doesn't have a
 // 'fail' handler instead will need to propagate the failure past the
 // eventual to the continuation.
@@ -38,7 +35,14 @@
 namespace stout {
 namespace eventuals {
 
-struct Empty {};
+struct Undefined {};
+
+template <typename>
+struct IsUndefined : std::false_type {};
+
+template <>
+struct IsUndefined<Undefined> : std::true_type {};
+
 
 template <
   typename Value,
@@ -52,12 +56,12 @@ struct Eventual
 {
   using Type = Value;
 
-  K k;
+  K k_;
 
-  Context context;
-  Start start;
-  Fail fail;
-  Stop stop;
+  Context context_;
+  Start start_;
+  Fail fail_;
+  Stop stop_;
 
   Eventual(const Eventual& that) = default;
   Eventual(Eventual&& that) = default;
@@ -73,21 +77,26 @@ struct Eventual
     return *this;
   }
 
-  template <typename T>
-  void succeeded(T&& t)
+  void start()
   {
-    start(context, k, std::forward<T>(t));
+    start_(context_, k_);
+  }
+
+  template <typename T>
+  void succeed(T&& t)
+  {
+    start_(context_, k_, std::forward<T>(t));
   }
 
   template <typename Error>
-  void failed(Error&& error)
+  void fail(Error&& error)
   {
-    fail(context, k, std::forward<Error>(error));
+    fail_(context_, k_, std::forward<Error>(error));
   }
 
-  void stopped()
+  void stop()
   {
-    stop(context, k);
+    stop_(context_, k_);
   }
 };
 
@@ -136,7 +145,7 @@ struct HasEventualContinuation<
     Fail,
     Stop,
     Errors...>> : std::conditional_t<
-  std::is_same<K, Empty>::value,
+  std::is_same<K, Undefined>::value,
   std::false_type,
   std::true_type> {};
 
@@ -162,7 +171,7 @@ struct IsEventualContinuation<
     Fail,
     Stop,
     Errors...>> : std::conditional_t<
-  std::is_same<Fail, Empty>::value,
+  std::is_same<Fail, Undefined>::value,
   std::false_type,
   std::true_type> {};
 
@@ -177,16 +186,16 @@ auto eventual(Context context, Start start, Stop stop)
 {
   return Eventual<
     Value,
-    Empty,
+    Undefined,
     Context,
     Start,
-    Empty,
+    Undefined,
     Stop,
     Errors...> {
-    Empty(),
+    Undefined(),
     std::move(context),
     std::move(start),
-    Empty(),
+    Undefined(),
     std::move(stop)
   };
 }
@@ -200,7 +209,7 @@ template <
 auto eventual(Start start, Stop stop)
 {
   return eventual<Value, Errors...>(
-      Empty(),
+      Undefined(),
       std::move(start),
       std::move(stop));
 }
@@ -217,13 +226,13 @@ auto continuation(Context context, Start start, Fail fail, Stop stop)
 {
   return Eventual<
     Value,
-    Empty,
+    Undefined,
     Context,
     Start,
     Fail,
     Stop,
     Errors...> {
-    Empty(),
+    Undefined(),
     std::move(context),
     std::move(start),
     std::move(fail),
@@ -241,7 +250,7 @@ template <
 auto continuation(Start start, Fail fail, Stop stop)
 {
   return continuation<Value, Errors...>(
-      Empty(),
+      Undefined(),
       std::move(start),
       std::move(fail),
       std::move(stop));
@@ -255,28 +264,28 @@ template <
   typename Stop>
 struct Terminal
 {
-  using Type = Empty;
+  using Type = Undefined;
 
-  Context context;
-  Start start;
-  Fail fail;
-  Stop stop;
+  Context context_;
+  Start start_;
+  Fail fail_;
+  Stop stop_;
 
   template <typename T>
-  void succeeded(T&& t)
+  void succeed(T&& t)
   {
-    start(context, std::forward<T>(t));
+    start_(context_, std::forward<T>(t));
   }
 
   template <typename Error>
-  void failed(Error&& error)
+  void fail(Error&& error)
   {
-    fail(context, std::forward<Error>(error));
+    fail_(context_, std::forward<Error>(error));
   }
 
-  void stopped()
+  void stop()
   {
-    stop(context);
+    stop_(context_);
   }
 };
 
@@ -310,6 +319,18 @@ struct HasTerminal : std::false_type {};
 
 
 template <
+  typename Context,
+  typename Start,
+  typename Fail,
+  typename Stop>
+struct HasTerminal<
+  Terminal<
+    Context,
+    Start,
+    Fail,
+    Stop>> : std::true_type {};
+
+template <
   typename Value,
   typename K,
   typename Context,
@@ -325,43 +346,7 @@ struct HasTerminal<
     Start,
     Fail,
     Stop,
-    Errors...>> : std::conditional_t<
-  IsTerminal<K>::value,
-  std::true_type,
-  HasTerminal<K>> {};
-
-
-template <typename K, typename T>
-void succeeded(K& k, T&& t)
-{
-  static_assert(
-      !std::is_same_v<K, Empty>,
-      "You're using a continuation that goes nowhere!");
-
-  k.succeeded(std::forward<T>(t));
-}
-
-
-template <typename K, typename Error>
-void failed(K& k, Error&& error)
-{
-  static_assert(
-      !std::is_same_v<K, Empty>,
-      "You're using a continuation that goes nowhere!");
-
-  k.failed(std::forward<Error>(error));
-}
-
-
-template <typename K>
-void stopped(K& k)
-{
-  static_assert(
-      !std::is_same_v<K, Empty>,
-      "You're using a continuation that goes nowhere!");
-
-  k.stopped();
-}
+    Errors...>> : HasTerminal<K> {};
 
 
 template <
@@ -407,63 +392,96 @@ auto operator|(E e, K k)
 
   if constexpr (HasEventualContinuation<E>::value) {
     return compose<Value>(
-        std::move(e.k) | std::move(k),
-        std::move(e.context),
-        std::move(e.start),
-        std::move(e.fail),
-        std::move(e.stop));
+        std::move(e.k_) | std::move(k),
+        std::move(e.context_),
+        std::move(e.start_),
+        std::move(e.fail_),
+        std::move(e.stop_));
   } else {
     return compose<Value>(
         std::move(k),
-        std::move(e.context),
-        std::move(e.start),
-        std::move(e.fail),
-        std::move(e.stop));
+        std::move(e.context_),
+        std::move(e.start_),
+        std::move(e.fail_),
+        std::move(e.stop_));
   }
 }
 
 
 template <
   typename E,
-  typename K,
+  typename F,
   std::enable_if_t<
     IsEventual<E>::value
-    && !IsEventual<K>::value
-    && !IsTerminal<K>::value, int> = 0>
-auto operator|(E e, K k)
+    && !IsEventual<F>::value
+    && !IsTerminal<F>::value, int> = 0>
+auto operator|(E e, F f)
 {
   return std::move(e)
-    | continuation<decltype(k(std::declval<typename E::Type>()))>(
-        std::move(k),
-        [](auto& k, auto&& kk, auto&& value) {
-          succeeded(kk, k(std::forward<decltype(value)>(value)));
+    | continuation<decltype(f(std::declval<typename E::Type>()))>(
+        std::move(f),
+        [](auto& f, auto&& k, auto&& value) {
+          succeed(k, f(std::forward<decltype(value)>(value)));
         },
-        [](auto&, auto&& kk, auto&& error) {
-          failed(kk, std::forward<decltype(error)>(error));
+        [](auto&, auto&& k, auto&& error) {
+          fail(k, std::forward<decltype(error)>(error));
         },
-        [](auto&, auto&& kk) {
-          stopped(kk);
+        [](auto&, auto&& k) {
+          stop(k);
         });
 }
 
 
-template <
-  typename E,
-  std::enable_if_t<
-    IsEventual<E>::value && HasTerminal<E>::value, int> = 0>
-void start(E& e)
+template <typename K>
+void start(K& k)
 {
-  e.start(e.context, e.k);
+  static_assert(
+      HasTerminal<K>::value,
+      "Trying to start a continuation that never terminates!");
+
+  static_assert(
+      !std::is_same_v<K, Undefined>,
+      "You're starting a continuation that goes nowhere!");
+
+  k.start();
 }
 
 
-template <
-  typename E,
-  std::enable_if_t<
-    IsEventual<E>::value && HasTerminal<E>::value, int> = 0>
-void stop(E& e)
+// TODO(benh): Overload with no 't'.
+template <typename K, typename T>
+void succeed(K& k, T&& t)
 {
-  e.stop(e.context, e.k);
+  static_assert(
+      !std::is_same_v<K, Undefined>,
+      "You're succedding a continuation that goes nowhere!");
+
+  k.succeed(std::forward<T>(t));
+}
+
+
+template <typename K, typename Error>
+void fail(K& k, Error&& error)
+{
+  static_assert(
+      !std::is_same_v<K, Undefined>,
+      "You're failing a continuation that goes nowhere!");
+
+  k.fail(std::forward<Error>(error));
+}
+
+
+template <typename K>
+void stop(K& k)
+{
+  static_assert(
+      HasTerminal<K>::value,
+      "Trying to stop a continuation that never terminates!");
+
+    static_assert(
+      !std::is_same_v<K, Undefined>,
+      "You're stopping a continuation that goes nowhere!");
+
+  k.stop();
 }
 
 } // namespace eventuals {

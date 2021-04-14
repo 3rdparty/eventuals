@@ -1,9 +1,10 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
-    name = "eventual",
+    name = "eventuals",
     hdrs = [
-        "stout/eventual.h",
+        "stout/eventuals.h",
+        "stout/streams.h",
         "stout/task.h"
     ],
     visibility = ["//visibility:public"],
