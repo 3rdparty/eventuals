@@ -1,5 +1,7 @@
 #pragma once
 
+#include "stout/undefined.h"
+
 // TODO(benh): lifecycle management, i.e., don't let an eventual get
 // started more than once or don't let an eventual get stopped if it
 // hasn't been started. this is a little tricky because using
@@ -34,15 +36,6 @@
 
 namespace stout {
 namespace eventuals {
-
-struct Undefined {};
-
-template <typename>
-struct IsUndefined : std::false_type {};
-
-template <>
-struct IsUndefined<Undefined> : std::true_type {};
-
 
 template <
   typename Value,

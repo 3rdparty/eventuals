@@ -3,6 +3,8 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "eventuals",
     hdrs = [
+        "stout/undefined.h",
+        "stout/sequence.h",
         "stout/eventuals.h",
         "stout/streams.h",
         "stout/task.h"
