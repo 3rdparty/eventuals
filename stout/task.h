@@ -1,5 +1,7 @@
 #pragma once
 
+#include "stout/eventuals.h"
+
 #include <future>
 
 namespace stout {
