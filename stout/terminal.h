@@ -148,7 +148,7 @@ struct IsContinuation<
   detail::Terminal<Context, Start, Fail, Stop>> : std::true_type {};
 
 
-auto Terminal()
+inline auto Terminal()
 {
   return detail::Terminal<Undefined, Undefined, Undefined, Undefined> {
     Undefined(),
