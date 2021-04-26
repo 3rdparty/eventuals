@@ -5,9 +5,13 @@ cc_library(
     hdrs = [
         "stout/undefined.h",
         "stout/sequence.h",
-        "stout/eventuals.h",
-        "stout/streams.h",
-        "stout/task.h"
+        "stout/eventual.h",
+        "stout/stream.h",
+        "stout/task.h",
+        "stout/terminal.h",
+        "stout/continuation.h",
+        "stout/transform.h",
+        "stout/loop.h",
     ],
     visibility = ["//visibility:public"],
 )

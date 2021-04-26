@@ -4,21 +4,20 @@
 
 #include "gtest/gtest.h"
 
-#include "stout/eventuals.h"
-#include "stout/streams.h"
+#include "stout/eventual.h"
+#include "stout/stream.h"
 #include "stout/task.h"
 
 namespace eventuals = stout::eventuals;
 
-using stout::eventuals::continuation;
 using stout::eventuals::ended;
-using stout::eventuals::eventual;
-using stout::eventuals::loop;
+using stout::eventuals::Eventual;
+using stout::eventuals::Loop;
 using stout::eventuals::map;
 using stout::eventuals::reduce;
-using stout::eventuals::stream;
-using stout::eventuals::terminal;
-using stout::eventuals::transform;
+using stout::eventuals::Stream;
+using stout::eventuals::succeed;
+using stout::eventuals::Terminal;
 
 using stout::eventuals::FailedException;
 using stout::eventuals::StoppedException;
@@ -37,38 +36,36 @@ TEST(EventualTest, Succeed)
   EXPECT_CALL(stop, Call())
     .Times(0);
 
-  auto i = eventual<int>(
-      5,
-      [](auto& context, auto& k) {
-        auto thread = std::thread(
-            [&context, &k]() mutable {
-              succeed(k, context);
-            });
-        thread.detach();
-      },
-      [&](auto&, auto&) {
-        stop.Call();
-      });
-
-  auto j = i
+  auto e = Eventual<int>()
+    .context(5)
+    .start([](auto& context, auto& k) {
+      auto thread = std::thread(
+          [&context, &k]() mutable {
+            succeed(k, context);
+          });
+      thread.detach();
+    })
+    .stop([&](auto&, auto&) {
+      stop.Call();
+    })
     | [](int i) { return i + 2; }
-    | continuation<int>(
-        9,
-        [](auto& context, auto& k, auto&& value) {
-          auto thread = std::thread(
-              [value, &context, &k]() mutable {
-                succeed(k, context - value);
-              });
-          thread.detach();
-        },
-        [&](auto&, auto&, auto&&) {
-          fail.Call();
-        },
-        [&](auto&, auto&) {
-          stop.Call();
-        });
+    | (Eventual<int>()
+       .context(9)
+       .start([](auto& context, auto& k, auto&& value) {
+         auto thread = std::thread(
+             [value, &context, &k]() mutable {
+               succeed(k, context - value);
+             });
+         thread.detach();
+       })
+       .fail([&](auto&, auto&, auto&&) {
+         fail.Call();
+       })
+       .stop([&](auto&, auto&) {
+         stop.Call();
+       }));
 
-  EXPECT_EQ(2, eventuals::run(eventuals::task(j)));
+  EXPECT_EQ(2, eventuals::run(eventuals::task(e)));
 }
 
 
@@ -83,33 +80,28 @@ TEST(EventualTest, Fail)
   EXPECT_CALL(stop, Call())
     .Times(0);
 
-  auto i = eventual<int>(
-      5,
-      [](auto& context, auto& k) {
-        auto thread = std::thread(
-            [&context, &k]() mutable {
-              fail(k, context);
-            });
-        thread.detach();
-      },
-      [&](auto&, auto&) {
-        stop.Call();
-      });
-
-  auto j = i
+  auto e = Eventual<int>()
+    .context("error")
+    .start([](auto& error, auto& k) {
+      auto thread = std::thread(
+          [&error, &k]() mutable {
+            fail(k, error);
+          });
+      thread.detach();
+    })
+    .stop([&](auto&, auto&) {
+      stop.Call();
+    })
     | [](int i) { return i + 2; }
-    | continuation<int>(
-        [&](auto&, auto&, auto&&) {
-          start.Call();
-        },
-        [](auto&, auto& k, auto&& error) {
-          fail(k, std::forward<decltype(error)>(error));
-        },
-        [&](auto&, auto&) {
-          stop.Call();
-        });
+    | (Eventual<int>()
+       .start([&](auto& k, auto&& value) {
+         start.Call();
+       })
+       .stop([&](auto&) {
+         stop.Call();
+       }));
 
-  EXPECT_THROW(eventuals::run(eventuals::task(j)), FailedException);
+  EXPECT_THROW(eventuals::run(eventuals::task(e)), FailedException);
 }
 
 
@@ -125,29 +117,27 @@ TEST(EventualTest, Stopped)
   EXPECT_CALL(fail, Call())
     .Times(0);
 
-  auto i = eventual<int>(
-      5,
-      [&](auto&, auto& k) {
-        start.Call();
-      },
-      [](auto&, auto& k) {
-        stop(k);
-      });
-
-  auto j = i
+  auto e = Eventual<int>()
+    .context(5)
+    .start([&](auto&, auto& k) {
+      start.Call();
+    })
+    .stop([](auto&, auto& k) {
+      stop(k);
+    })
     | [](int i) { return i + 2; }
-    | continuation<int>(
-        [&](auto&, auto&, auto&&) {
-          start.Call();
-        },
-        [&](auto&, auto&, auto&&) {
-          fail.Call();
-        },
-        [](auto&, auto& k) {
-          stop(k);
-        });
+    | (Eventual<int>()
+       .start([&](auto&, auto&&) {
+         start.Call();
+       })
+       .fail([&](auto&, auto&&) {
+         fail.Call();
+       })
+       .stop([](auto& k) {
+         stop(k);
+       }));
 
-  auto t = eventuals::task(j);
+  auto t = eventuals::task(e);
 
   eventuals::start(t);
 
@@ -169,45 +159,45 @@ TEST(EventualTest, Reuse)
     .Times(0);
 
   auto operation = [&](int i, auto&& promise) {
-    return eventual<int>(
-        i,
-        [](auto& context, auto& k) {
-          auto thread = std::thread(
-              [&context, &k]() mutable {
-                succeed(k, context);
-              });
-          thread.detach();
-        },
-        [&](auto&, auto&) {
-          stop.Call();
-        })
+    return (Eventual<int>()
+            .context(i)
+            .start([](auto& context, auto& k) {
+              auto thread = std::thread(
+                  [&context, &k]() mutable {
+                    succeed(k, context);
+                  });
+              thread.detach();
+            })
+            .stop([&](auto&, auto&) {
+              stop.Call();
+            }))
       | [](int i) { return i + 2; }
-      | continuation<int>(
-          9,
-          [](auto& context, auto& k, auto&& value) {
-            auto thread = std::thread(
-                [value, &context, &k]() mutable {
-                  succeed(k, context - value);
-                });
-            thread.detach();
-          },
-          [&](auto&, auto&, auto&&) {
-            fail.Call();
-          },
-          [&](auto&, auto&) {
-            stop.Call();
-          })
-      | terminal(
-          std::move(promise),
-          [](auto& promise, auto&& value) {
-            promise.set_value(std::forward<decltype(value)>(value));
-          },
-          [](auto& promise, auto&& error) {
-            promise.set_exception(std::make_exception_ptr(FailedException()));
-          },
-          [](auto& promise) {
-            promise.set_exception(std::make_exception_ptr(StoppedException()));
-          });
+      | (Eventual<int>()
+         .context(9)
+         .start([](auto& context, auto& k, auto&& value) {
+           auto thread = std::thread(
+               [value, &context, &k]() mutable {
+                 succeed(k, context - value);
+               });
+           thread.detach();
+         })
+         .fail([&](auto&, auto&, auto&&) {
+           fail.Call();
+         })
+         .stop([&](auto&, auto&) {
+           stop.Call();
+         }))
+      | (Terminal()
+         .context(std::move(promise))
+         .start([](auto& promise, auto&& value) {
+           promise.set_value(std::forward<decltype(value)>(value));
+         })
+         .fail([](auto& promise, auto&& error) {
+           promise.set_exception(std::make_exception_ptr(FailedException()));
+         })
+         .stop([](auto& promise) {
+           promise.set_exception(std::make_exception_ptr(StoppedException()));
+         }));
   };
 
   using Operation = decltype(operation(int(), std::promise<int>()));
@@ -250,39 +240,36 @@ TEST(StreamTest, Succeed)
   EXPECT_CALL(done, Call())
     .Times(0);
 
-  auto s = stream<int>(
-      5,
-      /* next = */ [](auto& count, auto& k) {
-        if (count > 0) {
-          emit(k, count--);
-        } else {
-          ended(k);
-        }
-      },
-      /* done = */ [&](auto&, auto&) {
-        done.Call();
-      },
-      /* stop = */ [&](auto&, auto&) {
-        stop.Call();
-      })
-    | loop<int>(
-        0,
-        /* start = */ [](auto&, auto& stream) {
-          next(stream);
-        },
-        /* body = */ [](auto& sum, auto& stream, auto&& value) {
-          sum += value;
-          next(stream);
-        },
-        /* ended = */ [](auto& sum, auto& k) {
-          succeed(k, sum);
-        },
-        /* fail = */ [&](auto&, auto&, auto&&) {
-          fail.Call();
-        },
-        /* stop = */ [&](auto&, auto&) {
-          stop.Call();
-        });
+  auto s = Stream<int>()
+    .context(5)
+    .next([](auto& count, auto& k) {
+      if (count > 0) {
+        emit(k, count--);
+      } else {
+        ended(k);
+      }
+    })
+    .done([&](auto&, auto&) {
+      done.Call();
+    })
+    .stop([&](auto&, auto&) {
+      stop.Call();
+    })
+    | (Loop<int>()
+       .context(0)
+       .body([](auto& sum, auto& stream, auto&& value) {
+         sum += value;
+         next(stream);
+       })
+       .ended([](auto& sum, auto& k) {
+         succeed(k, sum);
+       })
+       .fail([&](auto&, auto&, auto&&) {
+         fail.Call();
+       })
+       .stop([&](auto&, auto&) {
+         stop.Call();
+       }));
 
   EXPECT_EQ(15, eventuals::run(eventuals::task(s)));
 }
@@ -299,35 +286,35 @@ TEST(StreamTest, Done)
   EXPECT_CALL(stop, Call())
     .Times(0);
 
-  auto s = stream<int>(
-      0,
-      /* next = */ [](auto&, auto& k) {
-        emit(k, 0);
-      },
-      /* done = */ [](auto&, auto& k) {
-        ended(k);
-      },
-      /* stop = */ [&](auto&, auto&) {
-        stop.Call();
-      })
-    | loop<int>(
-        0,
-        /* body = */ [](auto& count, auto& stream, auto&&) {
-          if (++count == 2) {
-            done(stream);
-          } else {
-            next(stream);
-          }
-        },
-        /* ended = */ [](auto& count, auto& k) {
-          succeed(k, count);
-        },
-        /* fail = */ [&](auto&, auto&, auto&&) {
-          fail.Call();
-        },
-        /* stop = */ [&](auto&, auto&) {
-          stop.Call();
-        });
+  auto s = Stream<int>()
+    .context(0)
+    .next([](auto& value, auto& k) {
+      emit(k, value);
+    })
+    .done([](auto&, auto& k) {
+      ended(k);
+    })
+    .stop([&](auto&, auto&) {
+      stop.Call();
+    })
+    | (Loop<int>()
+       .context(0)
+       .body([](auto& count, auto& stream, auto&&) {
+         if (++count == 2) {
+           done(stream);
+         } else {
+           next(stream);
+         }
+       })
+       .ended([](auto& count, auto& k) {
+         succeed(k, count);
+       })
+       .fail([&](auto&, auto&, auto&&) {
+         fail.Call();
+       })
+       .stop([&](auto&, auto&) {
+         stop.Call();
+       }));
 
   EXPECT_EQ(2, eventuals::run(eventuals::task(s)));
 }
@@ -350,31 +337,31 @@ TEST(StreamTest, Fail)
   EXPECT_CALL(ended, Call())
     .Times(0);
 
-  auto s = stream<int>(
-      0,
-      /* next = */ [](auto&, auto& k) {
-        eventuals::fail(k, 0);
-      },
-      /* done = */ [&](auto&, auto&) {
-        done.Call();
-      },
-      /* stop = */ [&](auto&, auto&) {
-        stop.Call();
-      })
-    | loop<int>(
-        0,
-        /* body = */ [](auto&, auto& stream, auto&&) {
-          next(stream);
-        },
-        /* ended = */ [&](auto&, auto&) {
-          ended.Call();
-        },
-        /* fail = */ [&](auto&, auto& k, auto&& error) {
-          eventuals::fail(k, std::forward<decltype(error)>(error));
-        },
-        /* stop = */ [&](auto&, auto&) {
-          stop.Call();
-        });
+  auto s = Stream<int>()
+    .context("error")
+    .next([](auto& error, auto& k) {
+      eventuals::fail(k, error);
+    })
+    .done([&](auto&, auto&) {
+      done.Call();
+    })
+    .stop([&](auto&, auto&) {
+      stop.Call();
+    })
+    | (Loop<int>()
+       .context(0)
+       .body([](auto&, auto& stream, auto&&) {
+         next(stream);
+       })
+       .ended([&](auto&, auto&) {
+         ended.Call();
+       })
+       .fail([&](auto&, auto& k, auto&& error) {
+         eventuals::fail(k, std::forward<decltype(error)>(error));
+       })
+       .stop([&](auto&, auto&) {
+         stop.Call();
+       }));
 
   EXPECT_THROW(eventuals::run(eventuals::task(s)), FailedException);
 }
@@ -397,31 +384,30 @@ TEST(StreamTest, Stop)
   EXPECT_CALL(ended, Call())
     .Times(0);
 
-  auto s = stream<int>(
-      0,
-      /* next = */ [](auto&, auto& k) {
-        emit(k, 0);
-      },
-      /* done = */ [&](auto&, auto&) {
-        done.Call();
-      },
-      /* stop = */ [](auto&, auto& k) {
-        stop(k);
-      })
-    | loop<int>(
-        0,
-        /* body = */ [&](auto&, auto&, auto&&) {
-          body.Call();
-        },
-        /* ended = */ [&](auto&, auto&) {
-          ended.Call();
-        },
-        /* fail = */ [&](auto&, auto&, auto&&) {
-          fail.Call();
-        },
-        /* stop = */ [](auto&, auto& k) {
-          stop(k);
-        });
+  auto s = Stream<int>()
+    .next([](auto& k) {
+      emit(k, 0);
+    })
+    .done([&](auto&) {
+      done.Call();
+    })
+    .stop([](auto& k) {
+      stop(k);
+    })
+    | (Loop<int>()
+       .context(0)
+       .body([&](auto&, auto&, auto&&) {
+         body.Call();
+       })
+       .ended([&](auto&, auto&) {
+         ended.Call();
+       })
+       .fail([&](auto&, auto&, auto&&) {
+         fail.Call();
+       })
+       .stop([](auto&, auto& k) {
+         stop(k);
+       }));
 
   auto t = eventuals::task(s);
 
@@ -447,40 +433,31 @@ TEST(StreamTest, Transform)
   EXPECT_CALL(done, Call())
     .Times(0);
 
-  auto s = stream<int>(
-      5,
-      /* next = */ [](auto& count, auto& k) {
-        if (count > 0) {
-          emit(k, count--);
-        } else {
-          ended(k);
-        }
-      },
-      /* done = */ [&](auto&, auto&) {
-        done.Call();
-      },
-      /* stop = */ [&](auto&, auto&) {
-        stop.Call();
-      })
+  auto s = Stream<int>()
+    .context(5)
+    .next([](auto& count, auto& k) {
+      if (count > 0) {
+        emit(k, count--);
+      } else {
+        ended(k);
+      }
+    })
+    .done([&](auto&, auto&) {
+      done.Call();
+    })
+    .stop([&](auto&, auto&) {
+      stop.Call();
+    })
     | [](int i) { return i + 1; }
-    | loop<int>(
-        0,
-        /* start = */ [](auto&, auto& stream) {
-          next(stream);
-        },
-        /* body = */ [](auto& sum, auto& stream, auto&& value) {
-          sum += value;
-          next(stream);
-        },
-        /* ended = */ [](auto& sum, auto& k) {
-          succeed(k, sum);
-        },
-        /* fail = */ [&](auto&, auto&, auto&&) {
-          fail.Call();
-        },
-        /* stop = */ [&](auto&, auto&) {
-          stop.Call();
-        });
+    | (Loop<int>()
+       .context(0)
+       .body([](auto& sum, auto& stream, auto&& value) {
+         sum += value;
+         next(stream);
+       })
+       .ended([](auto& sum, auto& k) {
+         succeed(k, sum);
+       }));
 
   EXPECT_EQ(20, eventuals::run(eventuals::task(s)));
 }
@@ -488,32 +465,23 @@ TEST(StreamTest, Transform)
 
 TEST(StreamTest, MapReduce)
 {
-    // Using mocks to ensure fail and stop callbacks don't get invoked.
-  MockFunction<void()> stop, done;
-
-  EXPECT_CALL(stop, Call())
-    .Times(0);
-
-  EXPECT_CALL(done, Call())
-    .Times(0);
-
-  auto s = stream<int>(
-      5,
-      /* next = */ [](auto& count, auto& k) {
-        if (count > 0) {
-          emit(k, count--);
-        } else {
-          ended(k);
-        }
-      },
-      /* done = */ [&](auto&, auto&) {
-        done.Call();
-      },
-      /* stop = */ [&](auto&, auto&) {
-        stop.Call();
-      })
-    | map<int>([](int i) { return i + 1; })
-    | reduce<int>(0, [](auto&& sum, auto&& value) { return sum + value; });
+  auto s = Stream<int>()
+    .context(5)
+    .next([](auto& count, auto& k) {
+      if (count > 0) {
+        emit(k, count--);
+      } else {
+        ended(k);
+      }
+    })
+    | map<int>([](int i) {
+      return i + 1;
+    })
+    | reduce<int>(
+        /* sum = */ 0,
+        [](auto&& sum, auto&& value) {
+          return sum + value;
+        });
 
   EXPECT_EQ(20, eventuals::run(eventuals::task(s)));
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "stout/eventuals.h"
+#include "stout/eventual.h"
 
 #include <future>
 
@@ -35,7 +35,7 @@ struct Task
 
   E e;
 
-  std::future<typename E::Type> future;
+  std::future<typename E::Value> future;
 };
 
 
@@ -43,26 +43,29 @@ template <
   typename E,
   std::enable_if_t<
     IsEventual<E>::value
-    && !IsEventualContinuation<E>::value
     && !HasTerminal<E>::value, int> = 0>
 auto task(E e)
 {
-  std::promise<typename E::Type> promise;
+  static_assert(
+      IsUndefined<decltype(e.fail_)>::value,
+      "Not expecting an eventual continuation");
+
+  std::promise<typename E::Value> promise;
 
   auto future = promise.get_future();
 
   auto t = std::move(e)
-    | terminal(
-        std::move(promise),
-        [](auto& promise, auto&& value) {
-          promise.set_value(std::forward<decltype(value)>(value));
-        },
-        [](auto& promise, auto&&...) {
-          promise.set_exception(std::make_exception_ptr(FailedException()));
-        },
-        [](auto& promise) {
-          promise.set_exception(std::make_exception_ptr(StoppedException()));
-        });
+    | (Terminal()
+       .context(std::move(promise))
+       .start([](auto& promise, auto&& value) {
+         promise.set_value(std::forward<decltype(value)>(value));
+       })
+       .fail([](auto& promise, auto&&...) {
+         promise.set_exception(std::make_exception_ptr(FailedException()));
+       })
+       .stop([](auto& promise) {
+         promise.set_exception(std::make_exception_ptr(StoppedException()));
+       }));
 
   return Task<decltype(t)> {
     std::move(t),
