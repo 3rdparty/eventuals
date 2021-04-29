@@ -35,7 +35,7 @@ struct Sequence {
         std::move(next)
       };
     } else {
-      auto next = std::move(next_).once(std::move(f));
+      auto next = std::move(next_).Once(std::move(f));
       return Sequence<F_, decltype(next)> {
         std::move(f_),
         std::move(next)
