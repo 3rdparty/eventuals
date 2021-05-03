@@ -55,14 +55,14 @@ void start(K& k)
 
 
 // TODO(benh): Overload with no 't'.
-template <typename K, typename T>
-void succeed(K& k, T&& t)
+template <typename K, typename... Args>
+void succeed(K& k, Args&&... args)
 {
   static_assert(
       !std::is_same_v<K, Undefined>,
       "You're succedding a continuation that goes nowhere!");
 
-  k.Succeed(std::forward<T>(t));
+  k.Start(std::forward<Args>(args)...);
 }
 
 
@@ -269,42 +269,29 @@ struct Eventual
         std::move(stop));
   }
 
-  void Start()
+  template <typename... Args>
+  void Start(Args&&... args)
   {
     static_assert(
         !IsUndefined<Start_>::value,
         "Undefined 'start' (and no default)");
 
     if constexpr (IsUndefined<Context_>::value) {
-      start_(k_);
+      start_(k_, std::forward<Args>(args)...);
     } else {
-      start_(context_, k_);
+      start_(context_, k_, std::forward<Args>(args)...);
     }
   }
 
-  template <typename T>
-  void Succeed(T&& t)
-  {
-    static_assert(
-        !IsUndefined<Start_>::value,
-        "Undefined 'start' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
-      start_(k_, std::forward<T>(t));
-    } else {
-      start_(context_, k_, std::forward<T>(t));
-    }
-  }
-
-  template <typename Error>
-  void Fail(Error&& error)
+  template <typename... Args>
+  void Fail(Args&&... args)
   {
     if constexpr (IsUndefined<Fail_>::value) {
-      stout::eventuals::fail(k_, std::forward<Error>(error));
+      stout::eventuals::fail(k_, std::forward<Args>(args)...);
     } else if constexpr (IsUndefined<Context_>::value) {
-      fail_(k_, std::forward<Error>(error));
+      fail_(k_, std::forward<Args>(args)...);
     } else {
-      fail_(context_, k_, std::forward<Error>(error));
+      fail_(context_, k_, std::forward<Args>(args)...);
     }
   }
 

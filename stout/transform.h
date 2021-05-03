@@ -186,29 +186,29 @@ struct Transform
         std::move(stop));
   }
 
-  template <typename S>
-  void Succeed(S& s)
+  template <typename... Args>
+  void Start(Args&&... args)
   {
     if constexpr (IsUndefined<Start_>::value) {
-      stout::eventuals::succeed(k_, s);
+      stout::eventuals::succeed(k_, std::forward<Args>(args)...);
     } else if constexpr (IsUndefined<Context_>::value) {
-      start_(k_, s);
+      start_(k_, std::forward<Args>(args)...);
     } else {
-      start_(context_, k_, s);
+      start_(context_, k_, std::forward<Args>(args)...);
     }
   }
 
-  template <typename S, typename T>
-  void Body(S& s, T&& t)
+  template <typename... Args>
+  void Body(Args&&... args)
   {
     static_assert(
         !IsUndefined<Body_>::value,
         "Undefined 'body' (and no default)");
 
     if constexpr (IsUndefined<Context_>::value) {
-      body_(k_, s, std::forward<T>(t));
+      body_(k_, std::forward<Args>(args)...);
     } else {
-      body_(context_, k_, s, std::forward<T>(t));
+      body_(context_, k_, std::forward<Args>(args)...);
     }
   }
 
@@ -225,17 +225,17 @@ struct Transform
     }
   }
 
-  template <typename Error>
-  void Fail(Error&& error)
+  template <typename... Args>
+  void Fail(Args&&... args)
   {
     static_assert(
         !IsUndefined<Fail_>::value,
         "Undefined 'fail' (and no default)");
 
     if constexpr (IsUndefined<Context_>::value) {
-      fail_(k_, std::forward<Error>(error));
+      fail_(k_, std::forward<Args>(args)...);
     } else {
-      fail_(context_, k_, std::forward<Error>(error));
+      fail_(context_, k_, std::forward<Args>(args)...);
     }
   }
 

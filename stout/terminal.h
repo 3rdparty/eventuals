@@ -89,31 +89,31 @@ struct Terminal
         std::move(stop));
   }
 
-  template <typename T>
-  void Succeed(T&& t)
+  template <typename... Args>
+  void Start(Args&&... args)
   {
     static_assert(
         !IsUndefined<Start_>::value,
         "Undefined 'start' (and no default)");
 
     if constexpr (IsUndefined<Context_>::value) {
-      start_(std::forward<T>(t));
+      start_(std::forward<Args>(args)...);
     } else {
-      start_(context_, std::forward<T>(t));
+      start_(context_, std::forward<Args>(args)...);
     }
   }
 
-  template <typename Error>
-  void Fail(Error&& error)
+  template <typename... Args>
+  void Fail(Args&&... args)
   {
     static_assert(
         !IsUndefined<Start_>::value,
         "Undefined 'fail' (and no default)");
 
     if constexpr (IsUndefined<Context_>::value) {
-      fail_(std::forward<Error>(error));
+      fail_(std::forward<Args>(args)...);
     } else {
-      fail_(context_, std::forward<Error>(error));
+      fail_(context_, std::forward<Args>(args)...);
     }
   }
 
@@ -124,7 +124,7 @@ struct Terminal
         "Undefined 'stop' (and no default)");
 
     if constexpr (IsUndefined<Context_>::value) {
-        stop_();
+      stop_();
     } else {
       stop_(context_);
     }

@@ -16,25 +16,25 @@
 namespace stout {
 namespace eventuals {
 
-template <typename K, typename T>
-void emit(K& k, T&& t)
+template <typename K, typename... Args>
+void emit(K& k, Args&&... args)
 {
   static_assert(
       !std::is_same_v<K, Undefined>,
       "You're using a continuation that goes nowhere!");
 
-  k.Emit(std::forward<T>(t));
+  k.Emit(std::forward<Args>(args)...);
 }
 
 
-template <typename K, typename S, typename T>
-void body(K& k, S& s, T&& t)
+template <typename K, typename... Args>
+void body(K& k, Args&&... args)
 {
   static_assert(
       !std::is_same_v<K, Undefined>,
       "You're using a continuation that goes nowhere!");
 
-  k.Body(s, std::forward<T>(t));
+  k.Body(std::forward<Args>(args)...);
 }
 
 
@@ -81,21 +81,22 @@ struct StreamK
   S_* stream_ = nullptr;
   K_* k_ = nullptr;
 
-  void Start()
+  template <typename... Args>
+  void Start(Args&&... args)
   {
-    eventuals::succeed(*k_, *stream_);
+    eventuals::succeed(*k_, *stream_, std::forward<Args>(args)...);
   }
 
-  template <typename Error>
-  void Fail(Error&& error)
+  template <typename... Args>
+  void Fail(Args&&... args)
   {
-    eventuals::fail(*k_, std::forward<Error>(error));
+    eventuals::fail(*k_, std::forward<Args>(args)...);
   }
 
-  template <typename T>
-  void Emit(T&& t)
+  template <typename... Args>
+  void Emit(Args&&... args)
   {
-    eventuals::body(*k_, *stream_, std::forward<T>(t));
+    eventuals::body(*k_, *stream_, std::forward<Args>(args)...);
   }
 
   void Ended()
@@ -364,48 +365,32 @@ struct Stream
         std::move(stop));
   }
 
-  void Start()
+  template <typename... Args>
+  void Start(Args&&... args)
   {
     streamk_.stream_ = this;
     streamk_.k_ = &k_;
 
     if constexpr (IsUndefined<Start_>::value) {
-      stout::eventuals::start(streamk_);
+      stout::eventuals::start(streamk_, std::forward<Args>(args)...);
     } else if constexpr (IsUndefined<Context_>::value) {
-      start_(streamk_);
+      start_(streamk_, std::forward<Args>(args)...);
     } else {
-      start_(context_, streamk_);
+      start_(context_, streamk_, std::forward<Args>(args)...);
     }
   }
 
-  template <typename T>
-  void Succeed(T&& t)
-  {
-    static_assert(
-        !IsUndefined<Start_>::value,
-        "Undefined 'start' (and no default)");
-
-    streamk_.stream_ = this;
-    streamk_.k_ = &k_;
-
-    if constexpr (IsUndefined<Context_>::value) {
-      start_(streamk_, std::forward<T>(t));
-    } else {
-      start_(context_, streamk_, std::forward<T>(t));
-    }
-  }
-
-  template <typename Error>
-  void Fail(Error&& error)
+  template <typename... Args>
+  void Fail(Args&&... args)
   {
     static_assert(
         !IsUndefined<Fail_>::value,
         "Undefined 'fail' (and no default)");
 
     if constexpr (IsUndefined<Context_>::value) {
-      fail_(k_, std::forward<Error>(error));
+      fail_(k_, std::forward<Args>(args)...);
     } else {
-      fail_(context_, k_, std::forward<Error>(error));
+      fail_(context_, k_, std::forward<Args>(args)...);
     }
   }
 
