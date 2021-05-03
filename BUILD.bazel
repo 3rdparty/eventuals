@@ -12,6 +12,7 @@ cc_library(
         "stout/continuation.h",
         "stout/transform.h",
         "stout/loop.h",
+        "stout/context.h",
     ],
     visibility = ["//visibility:public"],
 )
