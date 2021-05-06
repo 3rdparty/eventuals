@@ -2,7 +2,10 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 
 cc_test(
     name = "eventuals",
-    srcs = ["eventuals.cc"],
+    srcs = [
+        "eventuals.cc",
+        "conditional.cc",
+    ],
     deps = [
         "//:eventuals",
         "@gtest//:gtest_main",
