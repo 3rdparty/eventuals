@@ -3,7 +3,8 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 cc_test(
     name = "eventuals",
     srcs = [
-        "eventuals.cc",
+        "eventual.cc",
+        "stream.cc",
         "conditional.cc",
     ],
     deps = [
