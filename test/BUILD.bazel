@@ -6,6 +6,7 @@ cc_test(
         "eventual.cc",
         "stream.cc",
         "conditional.cc",
+        "lock.cc",
     ],
     deps = [
         "//:eventuals",

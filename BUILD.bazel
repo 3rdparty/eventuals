@@ -14,6 +14,7 @@ cc_library(
         "stout/loop.h",
         "stout/context.h",
         "stout/conditional.h",
+        "stout/lock.h",
     ],
     visibility = ["//visibility:public"],
 )

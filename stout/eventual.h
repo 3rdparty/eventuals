@@ -173,14 +173,14 @@ struct Eventual
         create<decltype(f(std::declval<Value>()))>(
             Undefined(),
             std::move(f),
-            [](auto& f, auto& k, auto&& value) {
-              stout::eventuals::succeed(k, f(std::forward<decltype(value)>(value)));
+            [](auto& f, auto& k, auto&&... args) {
+              eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
             },
-            [](auto&, auto& k, auto&& error) {
-              stout::eventuals::fail(k, std::forward<decltype(error)>(error));
+            [](auto&, auto& k, auto&&... args) {
+              eventuals::fail(k, std::forward<decltype(args)>(args)...);
             },
             [](auto&, auto& k) {
-              stout::eventuals::stop(k);
+              eventuals::stop(k);
             }));
   }
 
@@ -283,7 +283,7 @@ struct Eventual
   void Fail(Args&&... args)
   {
     if constexpr (IsUndefined<Fail_>::value) {
-      stout::eventuals::fail(k_, std::forward<Args>(args)...);
+      eventuals::fail(k_, std::forward<Args>(args)...);
     } else if constexpr (IsUndefined<Context_>::value) {
       fail_(k_, std::forward<Args>(args)...);
     } else {

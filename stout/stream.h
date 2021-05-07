@@ -224,11 +224,11 @@ struct Stream
           // a 'fail' that propagates the error (instead of the
           // current 'Undefined()').
           [](auto& k) {
-            stout::eventuals::start(k);
+            eventuals::start(k);
           },
           Undefined(),
           [](auto& k) {
-            stout::eventuals::stop(k);
+            eventuals::stop(k);
           });
   }
 
@@ -372,7 +372,7 @@ struct Stream
     streamk_.k_ = &k_;
 
     if constexpr (IsUndefined<Start_>::value) {
-      stout::eventuals::start(streamk_, std::forward<Args>(args)...);
+      eventuals::start(streamk_, std::forward<Args>(args)...);
     } else if constexpr (IsUndefined<Context_>::value) {
       start_(streamk_, std::forward<Args>(args)...);
     } else {

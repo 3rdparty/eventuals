@@ -35,30 +35,37 @@ struct Task
 
   E e;
 
-  std::future<typename E::Value> future;
+  using Value = std::conditional_t<
+    IsUndefined<typename E::Value>::value,
+    void,
+    typename E::Value>;
+
+  std::future<Value> future;
 };
 
 
 template <
   typename E,
   std::enable_if_t<
-    IsEventual<E>::value
-    && !HasTerminal<E>::value, int> = 0>
+    !HasTerminal<E>::value, int> = 0>
 auto task(E e)
 {
-  static_assert(
-      IsUndefined<decltype(e.fail_)>::value,
-      "Not expecting an eventual continuation");
+  using Value = std::conditional_t<
+    IsUndefined<typename E::Value>::value,
+    void,
+    typename E::Value>;
 
-  std::promise<typename E::Value> promise;
+  std::promise<Value> promise;
 
   auto future = promise.get_future();
 
   auto t = std::move(e)
     | (Terminal()
        .context(std::move(promise))
-       .start([](auto& promise, auto&& value) {
-         promise.set_value(std::forward<decltype(value)>(value));
+       .start([](auto& promise, auto&&... values) {
+         static_assert(sizeof...(values) == 0 || sizeof...(values) == 1,
+                       "Task only supports 0 or 1 value, but found > 1");
+         promise.set_value(std::forward<decltype(values)>(values)...);
        })
        .fail([](auto& promise, auto&&...) {
          promise.set_exception(std::make_exception_ptr(FailedException()));
