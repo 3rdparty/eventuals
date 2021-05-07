@@ -89,20 +89,6 @@ struct ResultOfPossibleUndefined<F, Undefined>
 };
 
 
-template <typename K, typename Value>
-struct ValueFrom
-{
-  using type = typename K::Value;
-};
-
-
-template <typename Value>
-struct ValueFrom<Undefined, Value>
-{
-  using type = Value;
-};
-
-
 template <typename K_, typename Value_>
 struct Acquire
 {

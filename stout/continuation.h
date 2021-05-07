@@ -1,10 +1,24 @@
 #pragma once
 
+#include "stout/undefined.h"
+
 namespace stout {
 namespace eventuals {
 
-template <typename>
+template <typename K>
 struct IsContinuation : std::false_type {};
+
+template <typename K, typename Value>
+struct ValueFrom
+{
+  using type = typename K::Value;
+};
+
+template <typename Value>
+struct ValueFrom<Undefined, Value>
+{
+  using type = Value;
+};
 
 template <typename K>
 struct Compose
