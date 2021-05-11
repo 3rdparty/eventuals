@@ -25,34 +25,40 @@ TEST(LockTest, Succeed)
 {
   Lock lock;
 
-  auto e1 = Eventual<std::string>()
-    .start([](auto& k) {
-      auto thread = std::thread(
-          [&k]() mutable {
-            succeed(k, "t1");
-          });
-      thread.detach();
-    })
-    | Acquire(&lock)
-    | [](auto&& value) { return std::move(value); };
+  auto e1 = [&]() {
+    return Eventual<std::string>()
+      .start([](auto& k) {
+        auto thread = std::thread(
+            [&k]() mutable {
+              succeed(k, "t1");
+            });
+        thread.detach();
+      })
+      | Acquire(&lock)
+      | [](auto&& value) { return std::move(value); };
+  };
 
-  auto e2 = Eventual<std::string>()
-    .start([](auto& k) {
-      auto thread = std::thread(
-          [&k]() mutable {
-            succeed(k, "t2");
-          });
-      thread.detach();
-    })
-    | Acquire(&lock)
-    | [](auto&& value) { return std::move(value); };
+  auto e2 = [&]() {
+    return Eventual<std::string>()
+      .start([](auto& k) {
+        auto thread = std::thread(
+            [&k]() mutable {
+              succeed(k, "t2");
+            });
+        thread.detach();
+      })
+      | Acquire(&lock)
+      | [](auto&& value) { return std::move(value); };
+  };
 
-  auto e3 = Release(&lock)
-    | []() { return "t3"; };
+  auto e3 = [&]() {
+    return Release(&lock)
+      | []() { return "t3"; };
+  };
 
-  auto t1 = eventuals::task(std::move(e1));
-  auto t2 = eventuals::task(std::move(e2));
-  auto t3 = eventuals::task(std::move(e3));
+  auto t1 = eventuals::task(e1());
+  auto t2 = eventuals::task(e2());
+  auto t3 = eventuals::task(e3());
 
   eventuals::start(t1);
 
@@ -72,26 +78,28 @@ TEST(LockTest, Fail)
 {
   Lock lock;
 
-  auto e1 =
-    Acquire(&lock)
-    | (Eventual<std::string>()
-       .start([](auto& k) {
-         auto thread = std::thread(
-             [&k]() mutable {
-               fail(k, "error");
-             });
-         thread.detach();
-       }))
-    | Release(&lock)
-    | [](auto&& value) { return std::move(value); };
+  auto e1 = [&]() {
+    return Acquire(&lock)
+      | (Eventual<std::string>()
+         .start([](auto& k) {
+           auto thread = std::thread(
+               [&k]() mutable {
+                 fail(k, "error");
+               });
+           thread.detach();
+         }))
+      | Release(&lock)
+      | [](auto&& value) { return std::move(value); };
+  };
 
-  auto e2 =
-    Acquire(&lock)
-    | []() { return "t2"; };
+  auto e2 = [&]() {
+    return Acquire(&lock)
+      | []() { return "t2"; };
+  };
 
-  EXPECT_THROW(eventuals::run(eventuals::task(e1)), FailedException);
+  EXPECT_THROW(eventuals::run(eventuals::task(e1())), FailedException);
 
-  EXPECT_STREQ("t2", eventuals::run(eventuals::task(e2)));
+  EXPECT_STREQ("t2", eventuals::run(eventuals::task(e2())));
 }
 
 
@@ -105,22 +113,24 @@ TEST(LockTest, Stop)
 
   Lock lock;
 
-  auto e1 =
-    Acquire(&lock)
-    | (Eventual<std::string>()
-       .start([&](auto& k) {
-         start.Call();
-       })
-       .stop([](auto& k) {
-         stop(k);
-       }))
-    | Release(&lock);
+  auto e1 = [&]() {
+    return Acquire(&lock)
+      | (Eventual<std::string>()
+         .start([&](auto& k) {
+           start.Call();
+         })
+         .stop([](auto& k) {
+           stop(k);
+         }))
+      | Release(&lock);
+  };
 
-  auto e2 =
-    Acquire(&lock)
-    | []() { return "t2"; };
+  auto e2 = [&]() {
+    return Acquire(&lock)
+      | []() { return "t2"; };
+  };
 
-  auto t1 = eventuals::task(std::move(e1));
+  auto t1 = eventuals::task(e1());
 
   eventuals::start(t1);
 
@@ -128,7 +138,7 @@ TEST(LockTest, Stop)
 
   EXPECT_THROW(eventuals::wait(t1), StoppedException);
 
-  EXPECT_STREQ("t2", eventuals::run(eventuals::task(e2)));
+  EXPECT_STREQ("t2", eventuals::run(eventuals::task(e2())));
 }
 
 

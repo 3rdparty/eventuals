@@ -8,72 +8,92 @@
 namespace stout {
 namespace eventuals {
 
+////////////////////////////////////////////////////////////////////////
+
 class Lock
 {
 public:
-  template <typename F>
-  void Acquire(void* holder, F&& f)
+  struct Waiter
   {
-    bool acquired = false;
+    std::function<void()> f_;
+    Waiter* next_ = nullptr;
+  };
 
-    mutex_.lock();
-    {
-      if (holder_ != nullptr) {
-        waiters_.emplace_back(Waiter { holder, std::forward<F>(f) });
-      } else {
-        holder_ = holder;
-        acquired = true;
+  bool AcquireFast(Waiter* waiter)
+  {
+    assert(waiter->next_ == nullptr);
+
+    waiter->next_ = head_.load(std::memory_order_relaxed);
+
+    while (waiter->next_ == nullptr) {
+      if (head_.compare_exchange_weak(
+              waiter->next_, waiter,
+              std::memory_order_release,
+              std::memory_order_relaxed)) {
+        return true;
       }
     }
-    mutex_.unlock();
 
-    if (acquired) {
-      f();
+    waiter->next_ = nullptr;
+
+    return false;
+  }
+
+  void AcquireSlow(Waiter* waiter)
+  {
+    assert(waiter->next_ == nullptr);
+
+    waiter->next_ = head_.load(std::memory_order_relaxed);
+
+    while (!head_.compare_exchange_weak(
+               waiter->next_, waiter,
+               std::memory_order_release,
+               std::memory_order_relaxed));
+
+    // Check whether we *acquired* (i.e., even though this is the slow
+    // path it's possible that the lock was held in the fast path and
+    // was released before trying the slow path, hence we might have
+    // been able to acquire) or *queued* (i.e., we have some waiters
+    // ahead of us). If we acquired then execute the waiter's
+    // continuation.
+    if (waiter->next_ == nullptr) {
+      waiter->f_();
     }
   }
 
   void Release()
   {
-    Waiter waiter;
+    auto* waiter = head_.load(std::memory_order_relaxed);
 
-    mutex_.lock();
-    {
-      if (!waiters_.empty()) {
-        waiter = std::move(waiters_.front());
-        waiters_.pop_front();
-        holder_ = waiter.holder_;
-      } else {
-        holder_ = nullptr;
+    // Should have at least one waiter (who ever acquired) even if
+    // they're aren't any others waiting.
+    assert(waiter != nullptr);
+
+    if (waiter->next_ == nullptr) {
+      if (!head_.compare_exchange_weak(
+              waiter, nullptr,
+              std::memory_order_release,
+              std::memory_order_relaxed)) {
+        return Release(); // Try again.
       }
+    } else {
+      while (waiter->next_->next_ != nullptr) {
+        waiter = waiter->next_;
+      }
+      waiter->next_ = nullptr;
+      waiter->f_();
     }
-    mutex_.unlock();
-
-    if (waiter) {
-      waiter.f_();
-    }
-  }
-
-  void* holder()
-  {
-    return holder_;
   }
 
 private:
-  std::mutex mutex_;
-
-  void* holder_ = nullptr;
-
-  struct Waiter
-  {
-    void* holder_ = nullptr;
-    std::function<void()> f_;
-    operator bool() { return holder_ != nullptr; }
-  };
-
-  std::deque<Waiter> waiters_;
+  std::atomic<Waiter*> head_ = nullptr;
 };
 
+////////////////////////////////////////////////////////////////////////
+
 namespace detail {
+
+////////////////////////////////////////////////////////////////////////
 
 template <typename F, typename... Values>
 struct ResultOfPossibleUndefined
@@ -81,20 +101,21 @@ struct ResultOfPossibleUndefined
   using type = std::result_of_t<F(Values...)>;
 };
 
-
 template <typename F>
 struct ResultOfPossibleUndefined<F, Undefined>
 {
   using type = std::result_of_t<F()>;
 };
 
+////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename Value_>
 struct Acquire
 {
   using Value = typename ValueFrom<K_, Value_>::type;
 
-  Acquire(K_ k, Lock* lock) : k_(std::move(k)), lock_(lock) {}
+  Acquire(K_ k, Lock* lock)
+    : k_(std::move(k)), lock_(lock) {}
 
   template <typename Value, typename K>
   static auto create(K k, Lock* lock)
@@ -144,65 +165,70 @@ struct Acquire
   template <typename... Args>
   void Start(Args&&... args)
   {
-    // TODO(benh): "schedule" the lambda to run on the current thread
-    // pool if the current thread is part of a thread pool.
-    //
-    // TODO(benh): Only copy the args if can't acquire the lock.
-    lock_->Acquire(
-        this,
-        [this,
-         tuple = std::forward_as_tuple(std::forward<Args>(args)...)]() mutable {
-          std::apply([&](auto&&... args) {
-            eventuals::succeed(k_, std::forward<decltype(args)>(args)...);
-          },
-          std::move(tuple));
-        });
+    if (lock_->AcquireFast(&waiter_)) {
+      eventuals::succeed(k_, std::forward<Args>(args)...);
+    } else {
+      // TODO(benh): void allocating in the heap by storing args in
+      // pre-allocated buffer (which still might occasionally spill
+      // into the heap but hopefully not frequently).
+      waiter_.f_ = [
+          this,
+          tuple = std::forward_as_tuple(std::forward<Args>(args)...)]() mutable {
+        // TODO(benh): submit to run on the *current* thread pool.
+        std::apply([&](auto&&... args) {
+          eventuals::succeed(k_, std::forward<decltype(args)>(args)...);
+        },
+        std::move(tuple));
+      };
+      lock_->AcquireSlow(&waiter_);
+    }
   }
 
   template <typename... Args>
   void Fail(Args&&... args)
   {
-    // TODO(benh): "schedule" the lambda to run on the current thread
-    // pool if the current thread is part of a thread pool.
-    //
-    // TODO(benh): Only copy the args if can't acquire the lock.
-    lock_->Acquire(
-        this,
-        [this,
-         tuple = std::forward_as_tuple(std::forward<Args>(args)...)]() mutable {
-          std::apply([&](auto&&... args) {
-            eventuals::fail(k_, std::forward<decltype(args)>(args)...);
-          },
-          std::move(tuple));
-        });
+    if (lock_->AcquireFast(&waiter_)) {
+      eventuals::fail(k_, std::forward<Args>(args)...);
+    } else {
+      // TODO(benh): void allocating in the heap by storing args in
+      // pre-allocated buffer (which still might occasionally spill
+      // into the heap but hopefully not frequently).
+      waiter_.f_ = [
+          this,
+          tuple = std::forward_as_tuple(std::forward<Args>(args)...)]() mutable {
+        // TODO(benh): submit to run on the *current* thread pool.
+        std::apply([&](auto&&... args) {
+          eventuals::fail(k_, std::forward<decltype(args)>(args)...);
+        },
+        std::move(tuple));
+      };
+      lock_->AcquireSlow(&waiter_);
+    }
   }
 
   void Stop()
   {
-    if (lock_->holder() != this) {
-      // TODO(benh): "schedule" the lambda to run on the current thread
-      // pool if the current thread is part of a thread pool.
-      lock_->Acquire(
-          this,
-          [this]() mutable {
-            eventuals::stop(k_);
-          });
-    } else {
-      eventuals::stop(k_);
-    }
+    // Propagate stop (will fail at compile time if K_ isn't stoppable).
+    eventuals::stop(k_);
   }
 
   K_ k_;
   Lock* lock_;
+  Lock::Waiter waiter_;
 };
 
+////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename Value_>
 struct Release
 {
   using Value = typename ValueFrom<K_, Value_>::type;
 
-  Release(K_ k, Lock* lock) : k_(std::move(k)), lock_(lock) {}
+  Release(K_ k, Lock* lock)
+    : k_(std::move(k)), lock_(lock) {}
+
+  Release(Release&& that)
+    : k_(std::move(that.k_)), lock_(that.lock_) {}
 
   template <typename Value, typename K>
   static auto create(K k, Lock* lock)
@@ -252,38 +278,66 @@ struct Release
   template <typename... Args>
   void Start(Args&&... args)
   {
-    lock_->Release();
-    eventuals::succeed(k_, std::forward<decltype(args)>(args)...);
+    bool expected = false;
+    if (released_.compare_exchange_strong(
+            expected,
+            true,
+            std::memory_order_release,
+            std::memory_order_relaxed)) {
+      lock_->Release();
+      eventuals::succeed(k_, std::forward<decltype(args)>(args)...);
+    }
   }
 
   template <typename... Args>
   void Fail(Args&&... args)
   {
-    lock_->Release();
-    eventuals::fail(k_, std::forward<Args>(args)...);
+    bool expected = false;
+    if (released_.compare_exchange_strong(
+            expected,
+            true,
+            std::memory_order_release,
+            std::memory_order_relaxed)) {
+      lock_->Release();
+      eventuals::fail(k_, std::forward<Args>(args)...);
+    }
   }
 
   void Stop()
   {
-    lock_->Release();
-    eventuals::stop(k_);
+    bool expected = false;
+    if (released_.compare_exchange_strong(
+            expected,
+            true,
+            std::memory_order_release,
+            std::memory_order_relaxed)) {
+      lock_->Release();
+      eventuals::stop(k_);
+    }
   }
 
   K_ k_;
   Lock* lock_;
+  std::atomic<bool> released_ = false;
 };
 
+////////////////////////////////////////////////////////////////////////
+
 } // namespace detail {
+
+////////////////////////////////////////////////////////////////////////
 
 template <typename K, typename Value>
 struct IsContinuation<
   detail::Acquire<K, Value>> : std::true_type {};
 
+////////////////////////////////////////////////////////////////////////
 
 template <typename K, typename Value>
 struct HasTerminal<
   detail::Acquire<K, Value>> : HasTerminal<K> {};
 
+////////////////////////////////////////////////////////////////////////
 
 template <typename K, typename Value_>
 struct Compose<detail::Acquire<K, Value_>>
@@ -295,40 +349,43 @@ struct Compose<detail::Acquire<K, Value_>>
   }
 };
 
-
 template <typename K, typename Value_>
 struct Compose<detail::Release<K, Value_>>
 {
   template <typename Value>
-  static auto compose(detail::Release<K, Value_> acquire)
+  static auto compose(detail::Release<K, Value_> release)
   {
-    return detail::Release<K, Value>(std::move(acquire.k_), acquire.lock_);
+    return detail::Release<K, Value>(std::move(release.k_), release.lock_);
   }
 };
 
-
+////////////////////////////////////////////////////////////////////////
 
 template <typename K, typename Value>
 struct IsContinuation<
   detail::Release<K, Value>> : std::true_type {};
 
+////////////////////////////////////////////////////////////////////////
 
 template <typename K, typename Value>
 struct HasTerminal<
   detail::Release<K, Value>> : HasTerminal<K> {};
 
+////////////////////////////////////////////////////////////////////////
 
 inline auto Acquire(Lock* lock)
 {
   return detail::Acquire<Undefined, Undefined>(Undefined(), lock);
 }
 
+////////////////////////////////////////////////////////////////////////
 
 inline auto Release(Lock* lock)
 {
   return detail::Release<Undefined, Undefined>(Undefined(), lock);
 }
 
+////////////////////////////////////////////////////////////////////////
 
 class Synchronizable
 {
@@ -346,6 +403,8 @@ public:
 private:
   Lock* lock_;
 };
+
+////////////////////////////////////////////////////////////////////////
 
 } // namespace eventuals {
 } // namespace stout {
