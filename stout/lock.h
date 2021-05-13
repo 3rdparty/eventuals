@@ -168,18 +168,23 @@ struct Acquire
     if (lock_->AcquireFast(&waiter_)) {
       eventuals::succeed(k_, std::forward<Args>(args)...);
     } else {
-      // TODO(benh): void allocating in the heap by storing args in
-      // pre-allocated buffer (which still might occasionally spill
-      // into the heap but hopefully not frequently).
-      waiter_.f_ = [
-          this,
-          tuple = std::forward_as_tuple(std::forward<Args>(args)...)]() mutable {
+      static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
+                    "Acquire only supports 0 or 1 argument, but found > 1");
+
+      if constexpr (sizeof...(args) == 1) {
+        assert(!value_);
+        value_.emplace(std::forward<Args>(args)...);
+      }
+
+      waiter_.f_ = [this]() mutable {
         // TODO(benh): submit to run on the *current* thread pool.
-        std::apply([&](auto&&... args) {
-          eventuals::succeed(k_, std::forward<decltype(args)>(args)...);
-        },
-        std::move(tuple));
+        if constexpr (sizeof...(args) == 1) {
+          eventuals::succeed(k_, *value_);
+        } else {
+          eventuals::succeed(k_);
+        }
       };
+
       lock_->AcquireSlow(&waiter_);
     }
   }
@@ -190,9 +195,8 @@ struct Acquire
     if (lock_->AcquireFast(&waiter_)) {
       eventuals::fail(k_, std::forward<Args>(args)...);
     } else {
-      // TODO(benh): void allocating in the heap by storing args in
-      // pre-allocated buffer (which still might occasionally spill
-      // into the heap but hopefully not frequently).
+      // TODO(benh): avoid allocating in the heap by storing args in
+      // pre-allocated buffer based on tracking Errors...
       waiter_.f_ = [
           this,
           tuple = std::forward_as_tuple(std::forward<Args>(args)...)]() mutable {
@@ -227,6 +231,7 @@ struct Acquire
   K_ k_;
   Lock* lock_;
   Lock::Waiter waiter_;
+  std::optional<Value_> value_;
 };
 
 ////////////////////////////////////////////////////////////////////////
