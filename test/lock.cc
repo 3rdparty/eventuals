@@ -119,7 +119,7 @@ TEST(LockTest, Stop)
          .start([&](auto& k) {
            start.Call();
          })
-         .stop([](auto& k) {
+         .interrupt([](auto& k) {
            stop(k);
          }))
       | Release(&lock);
@@ -134,7 +134,7 @@ TEST(LockTest, Stop)
 
   eventuals::start(t1);
 
-  eventuals::stop(t1);
+  eventuals::interrupt(t1);
 
   EXPECT_THROW(eventuals::wait(t1), StoppedException);
 

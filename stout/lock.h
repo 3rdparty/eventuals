@@ -208,8 +208,20 @@ struct Acquire
 
   void Stop()
   {
-    // Propagate stop (will fail at compile time if K_ isn't stoppable).
-    eventuals::stop(k_);
+    if (lock_->AcquireFast(&waiter_)) {
+      eventuals::stop(k_);
+    } else {
+      waiter_.f_ = [this]() mutable {
+        // TODO(benh): submit to run on the *current* thread pool.
+        eventuals::stop(k_);
+      };
+      lock_->AcquireSlow(&waiter_);
+    }
+  }
+
+  void Register(Interrupt& interrupt)
+  {
+    k_.Register(interrupt);
   }
 
   K_ k_;
@@ -278,6 +290,8 @@ struct Release
   template <typename... Args>
   void Start(Args&&... args)
   {
+    // NOTE: only one of Start, Fail, or Stop *should* be getting
+    // called but being conservative here (for now).
     bool expected = false;
     if (released_.compare_exchange_strong(
             expected,
@@ -286,12 +300,16 @@ struct Release
             std::memory_order_relaxed)) {
       lock_->Release();
       eventuals::succeed(k_, std::forward<decltype(args)>(args)...);
+    } else {
+      std::abort();
     }
   }
 
   template <typename... Args>
   void Fail(Args&&... args)
   {
+    // NOTE: only one of Start, Fail, or Stop *should* be getting
+    // called but being conservative here (for now).
     bool expected = false;
     if (released_.compare_exchange_strong(
             expected,
@@ -300,11 +318,15 @@ struct Release
             std::memory_order_relaxed)) {
       lock_->Release();
       eventuals::fail(k_, std::forward<Args>(args)...);
+    } else {
+      std::abort();
     }
   }
 
   void Stop()
   {
+    // NOTE: only one of Start, Fail, or Stop *should* be getting
+    // called but being conservative here (for now).
     bool expected = false;
     if (released_.compare_exchange_strong(
             expected,
@@ -313,7 +335,14 @@ struct Release
             std::memory_order_relaxed)) {
       lock_->Release();
       eventuals::stop(k_);
+    } else {
+      std::abort();
     }
+  }
+
+  void Register(Interrupt& interrupt)
+  {
+    k_.Register(interrupt);
   }
 
   K_ k_;

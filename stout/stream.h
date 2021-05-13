@@ -93,6 +93,11 @@ struct StreamK
     eventuals::fail(*k_, std::forward<Args>(args)...);
   }
 
+  void Stop()
+  {
+    eventuals::stop(*k_);
+  }
+
   template <typename... Args>
   void Emit(Args&&... args)
   {
@@ -115,6 +120,7 @@ template <
   typename Done_,
   typename Fail_,
   typename Stop_,
+  typename Interrupt_,
   typename... Errors_>
 struct Stream
 {
@@ -128,8 +134,11 @@ struct Stream
   Done_ done_;
   Fail_ fail_;
   Stop_ stop_;
+  Interrupt_ interrupt_;
 
   StreamK<Stream, K_> streamk_;
+
+  std::optional<Interrupt::Handler> handler_;
 
   Stream(const Stream& that) = default;
   Stream(Stream&& that) = default;
@@ -154,7 +163,8 @@ struct Stream
     typename Next,
     typename Done,
     typename Fail,
-    typename Stop>
+    typename Stop,
+    typename Interrupt>
   static auto create(
       K k,
       Context context,
@@ -162,7 +172,8 @@ struct Stream
       Next next,
       Done done,
       Fail fail,
-      Stop stop)
+      Stop stop,
+      Interrupt interrupt)
   {
     return Stream<
       Value,
@@ -173,6 +184,7 @@ struct Stream
       Done,
       Fail,
       Stop,
+      Interrupt,
       Errors...> {
       std::move(k),
       std::move(context),
@@ -180,7 +192,8 @@ struct Stream
       std::move(next),
       std::move(done),
       std::move(fail),
-      std::move(stop)
+      std::move(stop),
+      std::move(interrupt)
     };
   }
 
@@ -207,9 +220,11 @@ struct Stream
         std::move(next_),
         std::move(done_),
         std::move(fail_),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
 
     return Eventual<
+      Undefined,
       Undefined,
       Undefined,
       Undefined,
@@ -229,7 +244,8 @@ struct Stream
           Undefined(),
           [](auto& k) {
             eventuals::stop(k);
-          });
+          },
+          Undefined());
   }
 
   template <
@@ -265,7 +281,8 @@ struct Stream
         std::move(next_),
         std::move(done_),
         std::move(fail_),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
   }
 
   template <
@@ -292,7 +309,8 @@ struct Stream
         std::move(next_),
         std::move(done_),
         std::move(fail_),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
   }
 
   template <typename Start>
@@ -306,7 +324,8 @@ struct Stream
         std::move(next_),
         std::move(done_),
         std::move(fail_),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
   }
 
   template <typename Next>
@@ -320,7 +339,8 @@ struct Stream
         std::move(next),
         std::move(done_),
         std::move(fail_),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
   }
 
   template <typename Done>
@@ -334,7 +354,8 @@ struct Stream
         std::move(next_),
         std::move(done),
         std::move(fail_),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
   }
 
   template <typename Fail>
@@ -348,7 +369,8 @@ struct Stream
         std::move(next_),
         std::move(done_),
         std::move(fail),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
   }
 
   template <typename Stop>
@@ -362,7 +384,23 @@ struct Stream
         std::move(next_),
         std::move(done_),
         std::move(fail_),
-        std::move(stop));
+        std::move(stop),
+        std::move(interrupt_));
+  }
+
+  template <typename Interrupt>
+  auto interrupt(Interrupt interrupt) &&
+  {
+    static_assert(IsUndefined<Interrupt_>::value, "Duplicate 'interrupt'");
+    return create<Value_, Errors_...>(
+        std::move(k_),
+        std::move(context_),
+        std::move(start_),
+        std::move(next_),
+        std::move(done_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt));
   }
 
   template <typename... Args>
@@ -371,23 +409,34 @@ struct Stream
     streamk_.stream_ = this;
     streamk_.k_ = &k_;
 
-    if constexpr (IsUndefined<Start_>::value) {
-      eventuals::start(streamk_, std::forward<Args>(args)...);
-    } else if constexpr (IsUndefined<Context_>::value) {
-      start_(streamk_, std::forward<Args>(args)...);
+    auto interrupted = [this]() mutable {
+      if constexpr (!IsUndefined<Interrupt_>::value) {
+        return !handler_->Install();
+      } else {
+        (void) this; // Eschew warning that 'this' isn't used.
+        return false;
+      }
+    }();
+
+    if (interrupted) {
+      handler_->Invoke();
     } else {
-      start_(context_, streamk_, std::forward<Args>(args)...);
+      if constexpr (IsUndefined<Start_>::value) {
+        eventuals::start(streamk_, std::forward<Args>(args)...);
+      } else if constexpr (IsUndefined<Context_>::value) {
+        start_(streamk_, std::forward<Args>(args)...);
+      } else {
+        start_(context_, streamk_, std::forward<Args>(args)...);
+      }
     }
   }
 
   template <typename... Args>
   void Fail(Args&&... args)
   {
-    static_assert(
-        !IsUndefined<Fail_>::value,
-        "Undefined 'fail' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
+    if constexpr (IsUndefined<Fail_>::value) {
+      eventuals::fail(k_, std::forward<Args>(args)...);
+    } else if constexpr (IsUndefined<Context_>::value) {
       fail_(k_, std::forward<Args>(args)...);
     } else {
       fail_(context_, k_, std::forward<Args>(args)...);
@@ -396,14 +445,27 @@ struct Stream
 
   void Stop()
   {
-    static_assert(
-        !IsUndefined<Stop_>::value,
-        "Undefined 'stop' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
+    if constexpr (!IsUndefined<Stop_>::value) {
+      eventuals::stop(k_);
+    } else if constexpr (IsUndefined<Context_>::value) {
       stop_(k_);
     } else {
       stop_(context_, k_);
+    }
+  }
+
+  void Register(Interrupt& interrupt)
+  {
+    k_.Register(interrupt);
+
+    if constexpr (!IsUndefined<Interrupt_>::value) {
+      handler_.emplace(&interrupt, [this]() {
+        if constexpr (IsUndefined<Context_>::value) {
+          interrupt_(k_);
+        } else {
+          interrupt_(context_, k_);
+        }
+      });
     }
   }
 
@@ -450,6 +512,7 @@ template <
   typename Done,
   typename Fail,
   typename Stop,
+  typename Interrupt,
   typename... Errors>
 struct IsStream<
   detail::Stream<
@@ -461,6 +524,7 @@ struct IsStream<
     Done,
     Fail,
     Stop,
+    Interrupt,
     Errors...>> : std::true_type {};
 
 
@@ -473,6 +537,7 @@ template <
   typename Done,
   typename Fail,
   typename Stop,
+  typename Interrupt,
   typename... Errors>
 struct IsContinuation<
   detail::Stream<
@@ -484,6 +549,7 @@ struct IsContinuation<
     Done,
     Fail,
     Stop,
+    Interrupt,
     Errors...>> : std::true_type {};
 
 
@@ -496,6 +562,7 @@ template <
   typename Done,
   typename Fail,
   typename Stop,
+  typename Interrupt,
   typename... Errors>
 struct HasLoop<
   detail::Stream<
@@ -507,6 +574,7 @@ struct HasLoop<
     Done,
     Fail,
     Stop,
+    Interrupt,
     Errors...>> : HasLoop<K> {};
 
 
@@ -519,6 +587,7 @@ template <
   typename Done,
   typename Fail,
   typename Stop,
+  typename Interrupt,
   typename... Errors>
 struct HasTerminal<
   detail::Stream<
@@ -530,6 +599,7 @@ struct HasTerminal<
     Done,
     Fail,
     Stop,
+    Interrupt,
     Errors...>> : HasTerminal<K> {};
 
 
@@ -550,7 +620,9 @@ auto Stream()
     Undefined,
     Undefined,
     Undefined,
+    Undefined,
     Errors...> {
+    Undefined(),
     Undefined(),
     Undefined(),
     Undefined(),

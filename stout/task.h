@@ -25,22 +25,24 @@ struct FailedException : public std::exception
 };
 
 
-template <typename E>
+template <typename E_>
 struct Task
 {
+  using Value = std::conditional_t<
+    IsUndefined<typename E_::Value>::value,
+    void,
+    typename E_::Value>;
+
   // NOTE: task is not copyable or moveable because of 'std::future',
   // but that's ok because once started if the task got moved that
   // would be catastrophic since computation is already underway and
   // expecting things to be at specific places in memory.
 
-  E e;
+  E_ e_;
 
-  using Value = std::conditional_t<
-    IsUndefined<typename E::Value>::value,
-    void,
-    typename E::Value>;
+  std::future<Value> future_;
 
-  std::future<Value> future;
+  Interrupt interrupt_;
 };
 
 
@@ -84,15 +86,16 @@ auto task(E e)
 template <typename E>
 Task<E>& start(Task<E>& task)
 {
-  start(task.e);
+  task.e_.Register(task.interrupt_);
+  start(task.e_);
   return task;
 }
 
 
 template <typename E>
-Task<E>& stop(Task<E>& task)
+Task<E>& interrupt(Task<E>& task)
 {
-  stop(task.e);
+  task.interrupt_.Trigger();
   return task;
 }
 
@@ -100,15 +103,21 @@ Task<E>& stop(Task<E>& task)
 template <typename E>
 auto wait(Task<E>& task)
 {
-  return task.future.get();
+  return task.future_.get();
+}
+
+
+template <typename E>
+auto run(Task<E>& task)
+{
+  return wait(start(task));
 }
 
 
 template <typename E>
 auto run(Task<E>&& task)
 {
-  start(task);
-  return wait(task);
+  return run(task);
 }
 
 } // namespace eventuals {

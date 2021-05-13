@@ -1,5 +1,6 @@
 #pragma once
 
+#include "stout/interrupt.h"
 #include "stout/terminal.h"
 #include "stout/undefined.h"
 
@@ -17,6 +18,7 @@ template <
   typename Ended_,
   typename Fail_,
   typename Stop_,
+  typename Interrupt_,
   typename... Errors_>
 struct Loop
 {
@@ -30,6 +32,9 @@ struct Loop
   Ended_ ended_;
   Fail_ fail_;
   Stop_ stop_;
+  Interrupt_ interrupt_;
+
+  std::optional<Interrupt::Handler> handler_;
 
   Loop(const Loop& that) = default;
   Loop(Loop&& that) = default;
@@ -54,7 +59,8 @@ struct Loop
     typename Body,
     typename Ended,
     typename Fail,
-    typename Stop>
+    typename Stop,
+    typename Interrupt>
   static auto create(
       K k,
       Context context,
@@ -62,7 +68,8 @@ struct Loop
       Body body,
       Ended ended,
       Fail fail,
-      Stop stop)
+      Stop stop,
+      Interrupt interrupt)
   {
     return Loop<
       Value,
@@ -73,6 +80,7 @@ struct Loop
       Ended,
       Fail,
       Stop,
+      Interrupt,
       Errors...> {
       std::move(k),
       std::move(context),
@@ -80,7 +88,8 @@ struct Loop
       std::move(body),
       std::move(ended),
       std::move(fail),
-      std::move(stop)
+      std::move(stop),
+      std::move(interrupt),
     };
   }
 
@@ -113,7 +122,8 @@ struct Loop
         std::move(body_),
         std::move(ended_),
         std::move(fail_),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
   }
 
   template <typename Context>
@@ -127,7 +137,8 @@ struct Loop
         std::move(body_),
         std::move(ended_),
         std::move(fail_),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
   }
 
   template <typename Start>
@@ -141,7 +152,8 @@ struct Loop
         std::move(body_),
         std::move(ended_),
         std::move(fail_),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
   }
 
   template <typename Body>
@@ -155,7 +167,8 @@ struct Loop
         std::move(body),
         std::move(ended_),
         std::move(fail_),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
   }
 
   template <typename Ended>
@@ -169,7 +182,8 @@ struct Loop
         std::move(body_),
         std::move(ended),
         std::move(fail_),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
   }
 
   template <typename Fail>
@@ -183,7 +197,8 @@ struct Loop
         std::move(body_),
         std::move(ended_),
         std::move(fail),
-        std::move(stop_));
+        std::move(stop_),
+        std::move(interrupt_));
   }
 
   template <typename Stop>
@@ -197,18 +212,85 @@ struct Loop
         std::move(body_),
         std::move(ended_),
         std::move(fail_),
-        std::move(stop));
+        std::move(stop),
+        std::move(interrupt_));
+  }
+
+  template <typename Interrupt>
+  auto interrupt(Interrupt interrupt) &&
+  {
+    static_assert(IsUndefined<Interrupt_>::value, "Duplicate 'interrupt'");
+    return create<Value_, Errors_...>(
+        std::move(k_),
+        std::move(context_),
+        std::move(start_),
+        std::move(body_),
+        std::move(ended_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt));
   }
 
   template <typename... Args>
   void Start(Args&&... args)
   {
-    if constexpr (IsUndefined<Start_>::value) {
-      next(std::forward<Args>(args)...);
-    } else if constexpr (IsUndefined<Context_>::value) {
-      start_(std::forward<Args>(args)...);
+    auto interrupted = [this]() mutable {
+      if constexpr (!IsUndefined<Interrupt_>::value) {
+        return !handler_->Install();
+      } else {
+        (void) this; // Eschew warning that 'this' isn't used.
+        return false;
+      }
+    }();
+
+    if (interrupted) {
+      handler_->Invoke();
     } else {
-      start_(context_, std::forward<Args>(args)...);
+      if constexpr (IsUndefined<Start_>::value) {
+        next(std::forward<Args>(args)...);
+      } else if constexpr (IsUndefined<Context_>::value) {
+        start_(std::forward<Args>(args)...);
+      } else {
+        start_(context_, std::forward<Args>(args)...);
+      }
+    }
+  }
+
+  template <typename... Args>
+  void Fail(Args&&... args)
+  {
+    if constexpr (IsUndefined<Start_>::value) {
+      eventuals::fail(k_, std::forward<Args>(args)...);
+    } else if constexpr (IsUndefined<Context_>::value) {
+      fail_(k_, std::forward<Args>(args)...);
+    } else {
+      fail_(context_, k_, std::forward<Args>(args)...);
+    }
+  }
+
+  void Stop()
+  {
+    if constexpr (IsUndefined<Start_>::value) {
+      eventuals::stop(k_);
+    } else if constexpr (IsUndefined<Context_>::value) {
+      stop_(k_);
+    } else {
+      stop_(context_, k_);
+    }
+  }
+
+  void Register(Interrupt& interrupt)
+  {
+    k_.Register(interrupt);
+
+    if constexpr (!IsUndefined<Interrupt_>::value) {
+      handler_.emplace(&interrupt, [this]() {
+        if constexpr (IsUndefined<Context_>::value) {
+          interrupt_(k_);
+        } else {
+          interrupt_(context_, k_);
+        }
+      });
     }
   }
 
@@ -238,33 +320,6 @@ struct Loop
       ended_(context_, k_);
     }
   }
-
-  template <typename... Args>
-  void Fail(Args&&... args)
-  {
-    static_assert(
-        !IsUndefined<Fail_>::value,
-        "Undefined 'fail' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
-      fail_(k_, std::forward<Args>(args)...);
-    } else {
-      fail_(context_, k_, std::forward<Args>(args)...);
-    }
-  }
-
-  void Stop()
-  {
-    static_assert(
-        !IsUndefined<Stop_>::value,
-        "Undefined 'stop' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
-      stop_(k_);
-    } else {
-      stop_(context_, k_);
-    }
-  }
 };
 
 } // namespace detail {
@@ -283,6 +338,7 @@ template <
   typename Ended,
   typename Fail,
   typename Stop,
+  typename Interrupt,
   typename... Errors>
 struct IsLoop<
   detail::Loop<
@@ -294,6 +350,7 @@ struct IsLoop<
     Ended,
     Fail,
     Stop,
+    Interrupt,
     Errors...>> : std::true_type {};
 
 
@@ -306,6 +363,7 @@ template <
   typename Ended,
   typename Fail,
   typename Stop,
+  typename Interrupt,
   typename... Errors>
 struct IsContinuation<
   detail::Loop<
@@ -317,6 +375,7 @@ struct IsContinuation<
     Ended,
     Fail,
     Stop,
+    Interrupt,
     Errors...>> : std::true_type {};
 
 
@@ -333,6 +392,7 @@ template <
   typename Ended,
   typename Fail,
   typename Stop,
+  typename Interrupt,
   typename... Errors>
 struct HasLoop<
   detail::Loop<
@@ -344,6 +404,7 @@ struct HasLoop<
     Ended,
     Fail,
     Stop,
+    Interrupt,
     Errors...>> : std::true_type {};
 
 
@@ -356,6 +417,7 @@ template <
   typename Ended,
   typename Fail,
   typename Stop,
+  typename Interrupt,
   typename... Errors>
 struct HasTerminal<
   detail::Loop<
@@ -367,6 +429,7 @@ struct HasTerminal<
     Ended,
     Fail,
     Stop,
+    Interrupt,
     Errors...>> : HasTerminal<K> {};
 
 
@@ -382,7 +445,9 @@ auto Loop()
     Undefined,
     Undefined,
     Undefined,
+    Undefined,
     Errors...> {
+    Undefined(),
     Undefined(),
     Undefined(),
     Undefined(),

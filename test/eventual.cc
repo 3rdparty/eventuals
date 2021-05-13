@@ -29,141 +29,16 @@ TEST(EventualTest, Succeed)
   EXPECT_CALL(stop, Call())
     .Times(0);
 
-  auto e = Eventual<int>()
-    .context(5)
-    .start([](auto& context, auto& k) {
-      auto thread = std::thread(
-          [&context, &k]() mutable {
-            succeed(k, context);
-          });
-      thread.detach();
-    })
-    .stop([&](auto&, auto&) {
-      stop.Call();
-    })
-    | [](int i) { return i + 2; }
-    | (Eventual<int>()
-       .context(9)
-       .start([](auto& context, auto& k, auto&& value) {
-         auto thread = std::thread(
-             [value, &context, &k]() mutable {
-               succeed(k, context - value);
-             });
-         thread.detach();
-       })
-       .fail([&](auto&, auto&, auto&&) {
-         fail.Call();
-       })
-       .stop([&](auto&, auto&) {
-         stop.Call();
-       }));
-
-  EXPECT_EQ(2, eventuals::run(eventuals::task(e)));
-}
-
-
-TEST(EventualTest, Fail)
-{
-  // Using mocks to ensure start and stop callback don't get invoked.
-  MockFunction<void()> start, stop;
-
-  EXPECT_CALL(start, Call())
-    .Times(0);
-
-  EXPECT_CALL(stop, Call())
-    .Times(0);
-
-  auto e = Eventual<int>()
-    .context("error")
-    .start([](auto& error, auto& k) {
-      auto thread = std::thread(
-          [&error, &k]() mutable {
-            fail(k, error);
-          });
-      thread.detach();
-    })
-    .stop([&](auto&, auto&) {
-      stop.Call();
-    })
-    | [](int i) { return i + 2; }
-    | (Eventual<int>()
-       .start([&](auto& k, auto&& value) {
-         start.Call();
-       })
-       .stop([&](auto&) {
-         stop.Call();
-       }));
-
-  EXPECT_THROW(eventuals::run(eventuals::task(e)), FailedException);
-}
-
-
-TEST(EventualTest, Stopped)
-{
-  // Using mocks to ensure start is only called once and fail
-  // callbacks don't get invoked.
-  MockFunction<void()> start, fail;
-
-  EXPECT_CALL(start, Call())
-    .Times(1);
-
-  EXPECT_CALL(fail, Call())
-    .Times(0);
-
-  auto e = Eventual<int>()
-    .context(5)
-    .start([&](auto&, auto& k) {
-      start.Call();
-    })
-    .stop([](auto&, auto& k) {
-      stop(k);
-    })
-    | [](int i) { return i + 2; }
-    | (Eventual<int>()
-       .start([&](auto&, auto&&) {
-         start.Call();
-       })
-       .fail([&](auto&, auto&&) {
-         fail.Call();
-       })
-       .stop([](auto& k) {
-         stop(k);
-       }));
-
-  auto t = eventuals::task(e);
-
-  eventuals::start(t);
-
-  eventuals::stop(t);
-
-  EXPECT_THROW(eventuals::wait(t), StoppedException);
-}
-
-
-TEST(EventualTest, Reuse)
-{
-  // Using mocks to ensure fail and stop callbacks don't get invoked.
-  MockFunction<void()> fail, stop;
-
-  EXPECT_CALL(fail, Call())
-    .Times(0);
-
-  EXPECT_CALL(stop, Call())
-    .Times(0);
-
-  auto operation = [&](int i, auto&& promise) {
-    return (Eventual<int>()
-            .context(i)
-            .start([](auto& context, auto& k) {
-              auto thread = std::thread(
-                  [&context, &k]() mutable {
-                    succeed(k, context);
-                  });
-              thread.detach();
-            })
-            .stop([&](auto&, auto&) {
-              stop.Call();
-            }))
+  auto e = [&]() {
+    return Eventual<int>()
+      .context(5)
+      .start([](auto& context, auto& k) {
+        auto thread = std::thread(
+            [&context, &k]() mutable {
+              succeed(k, context);
+            });
+        thread.detach();
+      })
       | [](int i) { return i + 2; }
       | (Eventual<int>()
          .context(9)
@@ -179,6 +54,113 @@ TEST(EventualTest, Reuse)
          })
          .stop([&](auto&, auto&) {
            stop.Call();
+         }));
+  };
+
+  EXPECT_EQ(2, eventuals::run(eventuals::task(e())));
+}
+
+
+TEST(EventualTest, Fail)
+{
+  // Using mocks to ensure start and stop callback don't get invoked.
+  MockFunction<void()> start, stop;
+
+  EXPECT_CALL(start, Call())
+    .Times(0);
+
+  EXPECT_CALL(stop, Call())
+    .Times(0);
+
+  auto e = [&]() {
+    return Eventual<int>()
+      .context("error")
+      .start([](auto& error, auto& k) {
+        auto thread = std::thread(
+            [&error, &k]() mutable {
+              fail(k, error);
+            });
+        thread.detach();
+      })
+      | [](int i) { return i + 2; }
+      | (Eventual<int>()
+         .start([&](auto& k, auto&& value) {
+           start.Call();
+         })
+         .stop([&](auto&) {
+           stop.Call();
+         }));
+  };
+
+  EXPECT_THROW(eventuals::run(eventuals::task(e())), FailedException);
+}
+
+
+TEST(EventualTest, Interrupt)
+{
+  // Using mocks to ensure start is only called once and fail
+  // callbacks don't get invoked.
+  MockFunction<void()> start, fail;
+
+  EXPECT_CALL(fail, Call())
+    .Times(0);
+
+  auto e = [&]() {
+    return Eventual<int>()
+      .context(5)
+      .start([&](auto&, auto& k) {
+        start.Call();
+      })
+      .interrupt([](auto&, auto& k) {
+        stop(k);
+      })
+      | [](int i) { return i + 2; }
+      | (Eventual<int>()
+         .start([&](auto&, auto&&) {
+           start.Call();
+         })
+         .fail([&](auto&, auto&&) {
+           fail.Call();
+         })
+         .stop([](auto& k) {
+           stop(k);
+         }));
+  };
+
+  auto t = eventuals::task(e());
+
+  EXPECT_CALL(start, Call())
+    .WillOnce([&]() {
+      eventuals::interrupt(t);
+    });
+
+  eventuals::start(t);
+
+  EXPECT_THROW(eventuals::wait(t), StoppedException);
+}
+
+
+TEST(EventualTest, Reuse)
+{
+  auto operation = [](int i, auto&& promise) {
+    return (Eventual<int>()
+            .context(i)
+            .start([](auto& context, auto& k) {
+              auto thread = std::thread(
+                  [&context, &k]() mutable {
+                    succeed(k, context);
+                  });
+              thread.detach();
+            }))
+      | [](int i) { return i + 2; }
+      | (Eventual<int>()
+         .context(9)
+         .start([](auto& context, auto& k, auto&& value) {
+           auto thread = std::thread(
+               [value, &context, &k]() mutable {
+                 succeed(k, context - value);
+               });
+           thread.detach();
          }))
       | (Terminal()
          .context(std::move(promise))

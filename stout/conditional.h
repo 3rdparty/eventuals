@@ -134,11 +134,15 @@ struct Conditional
   template <typename... Args>
   void Start(Args&&... args)
   {
-    conditionalk_.ek_.emplace(std::move(e_).k(std::move(k_)));
-
     static_assert(
         !IsUndefined<Start_>::value,
         "Undefined 'start' (and no default)");
+
+    conditionalk_.ek_.emplace(std::move(e_).k(std::move(k_)));
+
+    if (interrupt_ != nullptr) {
+      conditionalk_.ek_->Register(*interrupt_);
+    }
 
     if constexpr (IsUndefined<Context_>::value) {
       start_(conditionalk_, std::forward<Args>(args)...);
@@ -158,6 +162,11 @@ struct Conditional
     eventuals::stop(k_);
   }
 
+  void Register(Interrupt& interrupt)
+  {
+    interrupt_ = &interrupt;
+  }
+
   K_ k_;
 
   E_ e_;
@@ -165,6 +174,8 @@ struct Conditional
   Start_ start_;
 
   ConditionalK<E_, K_> conditionalk_;
+
+  Interrupt* interrupt_ = nullptr;
 };
 
 } // namespace detail {
