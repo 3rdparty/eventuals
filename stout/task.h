@@ -29,7 +29,10 @@ struct StoppedException : public std::exception
 
 struct FailedException : public std::exception
 {
-  template <typename Error>
+  template <
+    typename Error,
+    std::enable_if_t<
+      !std::is_same_v<Error, FailedException>, int> = 0>
   FailedException(Error&& error)
   {
     std::stringstream ss;
@@ -41,12 +44,6 @@ struct FailedException : public std::exception
     }
     message_ = ss.str();
   }
-
-  // NOTE: this copy constructor is necessary because the compiler
-  // might pick the generic constructor that takes any Error type
-  // instead when it's trying to copy.
-  FailedException(const FailedException& that)
-    : message_(that.message_) {}
 
   FailedException(FailedException&& that)
     : message_(std::move(that.message_)) {}
