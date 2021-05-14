@@ -39,15 +39,18 @@ struct FailedException : public std::exception
     } else {
       ss << " (error of type " << typeid(Error).name() << ")";
     }
-    message = ss.str();
+    message_ = ss.str();
   }
+
+  FailedException(FailedException&& that)
+    : message_(std::move(that.message_)) {}
 
   const char* what() const throw()
   {
-    return message.c_str();
+    return message_.c_str();
   }
 
-  std::string message;
+  std::string message_;
 };
 
 
