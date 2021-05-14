@@ -29,16 +29,9 @@ struct StoppedException : public std::exception
 
 struct FailedException : public std::exception
 {
-  template <
-    typename Error,
-    std::enable_if_t<
-      !std::is_same_v<Error, FailedException>, int> = 0>
-  FailedException(Error&& error)
+  template <typename Error>
+  FailedException(const Error& error)
   {
-    static_assert(
-        !std::is_same_v<Error, FailedException>,
-        "Why is compiler choosing this constructor?");
-
     std::stringstream ss;
     ss << "Eventual computation failed";
     if constexpr (Streamable<std::stringstream, Error>::value) {
@@ -48,6 +41,12 @@ struct FailedException : public std::exception
     }
     message_ = ss.str();
   }
+
+  // NOTE: this copy constructor is necessary because the compiler
+  // might do a copy when doing a throw even though we have the move
+  // constructor below.
+  FailedException(const FailedException& that)
+    : message_(that.message_) {}
 
   FailedException(FailedException&& that)
     : message_(std::move(that.message_)) {}
