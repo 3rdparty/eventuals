@@ -168,10 +168,14 @@ TEST(EventualTest, Reuse)
            promise.set_value(std::forward<decltype(value)>(value));
          })
          .fail([](auto& promise, auto&& error) {
-           promise.set_exception(std::make_exception_ptr(FailedException()));
+           promise.set_exception(
+               std::make_exception_ptr(
+                   FailedException(std::forward<decltype(error)>(error))));
          })
          .stop([](auto& promise) {
-           promise.set_exception(std::make_exception_ptr(StoppedException()));
+           promise.set_exception(
+               std::make_exception_ptr(
+                   StoppedException()));
          }));
   };
 

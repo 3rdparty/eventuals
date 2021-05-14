@@ -7,6 +7,17 @@
 namespace stout {
 namespace eventuals {
 
+template <typename S, typename T, typename = void>
+struct Streamable : std::false_type {};
+
+template <typename S, typename T>
+struct Streamable<
+  S,
+  T,
+  decltype(void(std::declval<S&>() << std::declval<T const&>()))>
+  : std::true_type {};
+
+
 struct StoppedException : public std::exception
 {
   const char* what() const throw()
@@ -18,10 +29,25 @@ struct StoppedException : public std::exception
 
 struct FailedException : public std::exception
 {
+  template <typename Error>
+  FailedException(Error&& error)
+  {
+    std::stringstream ss;
+    ss << "Eventual computation failed";
+    if constexpr (Streamable<std::stringstream, Error>::value) {
+      ss << ": " << error;
+    } else {
+      ss << " (error of type " << typeid(Error).name() << ")";
+    }
+    message = ss.str();
+  }
+
   const char* what() const throw()
   {
-    return "Eventual computation failed";
+    return message.c_str();
   }
+
+  std::string message;
 };
 
 
@@ -69,11 +95,15 @@ auto task(E e)
                        "Task only supports 0 or 1 value, but found > 1");
          promise.set_value(std::forward<decltype(values)>(values)...);
        })
-       .fail([](auto& promise, auto&&...) {
-         promise.set_exception(std::make_exception_ptr(FailedException()));
+       .fail([](auto& promise, auto&&... errors) {
+         promise.set_exception(
+             std::make_exception_ptr(
+                 FailedException(std::forward<decltype(errors)>(errors)...)));
        })
        .stop([](auto& promise) {
-         promise.set_exception(std::make_exception_ptr(StoppedException()));
+         promise.set_exception(
+             std::make_exception_ptr(
+                 StoppedException()));
        }));
 
   return Task<decltype(t)> {
