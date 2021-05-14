@@ -42,7 +42,11 @@ struct FailedException : public std::exception
     message_ = ss.str();
   }
 
-  FailedException(const FailedException& that) = delete;
+  // NOTE: this copy constructor is necessary because the compiler
+  // might pick the generic constructor that takes any Error type
+  // instead when it's trying to copy.
+  FailedException(const FailedException& that)
+    : message_(that.message_) {}
 
   FailedException(FailedException&& that)
     : message_(std::move(that.message_)) {}
