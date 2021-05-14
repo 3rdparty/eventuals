@@ -12,7 +12,18 @@ public:
   {
     template <typename F>
     Handler(Interrupt* interrupt, F f)
-      : interrupt_(interrupt), f_(std::move(f)) {}
+      : interrupt_(interrupt), f_(std::move(f))
+    {
+      assert(interrupt != nullptr);
+    }
+
+    Handler(const Handler& that) = delete;
+
+    Handler(Handler&& that)
+      : interrupt_(that.interrupt_), f_(std::move(that.f_))
+    {
+      assert(that.next_ == nullptr);
+    }
 
     bool Install()
     {
