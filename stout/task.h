@@ -42,6 +42,8 @@ struct FailedException : public std::exception
     message_ = ss.str();
   }
 
+  FailedException(const FailedException& that) = delete;
+
   FailedException(FailedException&& that)
     : message_(std::move(that.message_)) {}
 
