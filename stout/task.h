@@ -35,6 +35,10 @@ struct FailedException : public std::exception
       !std::is_same_v<Error, FailedException>, int> = 0>
   FailedException(Error&& error)
   {
+    static_assert(
+        !std::is_same_v<Error, FailedException>,
+        "Why is compiler choosing this constructor?");
+
     std::stringstream ss;
     ss << "Eventual computation failed";
     if constexpr (Streamable<std::stringstream, Error>::value) {
