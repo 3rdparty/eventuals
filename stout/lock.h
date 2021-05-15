@@ -427,7 +427,7 @@ public:
   Synchronizable(Lock* lock) : lock_(lock) {}
 
   template <typename E>
-  auto synchronized(E e)
+  auto synchronized(E e) const
   {
     return Acquire(lock_)
       | std::move(e)
