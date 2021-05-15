@@ -88,7 +88,7 @@ TEST(ConditionalTest, No)
 }
 
 
-TEST(ConditionalTest, Fail)
+TEST(ConditionalTest, FailBeforeStart)
 {
   auto e = []() {
     return Eventual<std::string>()
@@ -99,8 +99,7 @@ TEST(ConditionalTest, Fail)
 
   auto c = [&]() {
     return Eventual<int>()
-      .context(0)
-      .start([](auto& value, auto& k) {
+      .start([](auto& k) {
         auto thread = std::thread(
             [&k]() mutable {
               fail(k, "error");
@@ -114,6 +113,40 @@ TEST(ConditionalTest, Fail)
              yes(k);
            } else {
              no(k, "no");
+           }
+         }));
+  };
+
+  EXPECT_THROW(eventuals::run(eventuals::task(c())), FailedException);
+}
+
+
+TEST(ConditionalTest, FailAfterStart)
+{
+  auto e = []() {
+    return Eventual<std::string>()
+      .start([](auto& k) {
+        succeed(k, "yes");
+      });
+  };
+
+  auto c = [&]() {
+    return Eventual<int>()
+      .context(0)
+      .start([](auto& value, auto& k) {
+        auto thread = std::thread(
+            [&value, &k]() mutable {
+              succeed(k, value);
+            });
+        thread.detach();
+      })
+      | [](int i) { return i + 1; }
+      | (Conditional<std::string>(e())
+         .start([](auto& k, auto&& i) {
+           if (i > 1) {
+             yes(k);
+           } else {
+             fail(k, "error");
            }
          }));
   };
