@@ -17,6 +17,7 @@ cc_library(
         "stout/lock.h",
         "stout/interrupt.h",
         "stout/repeated.h",
+        "stout/then.h",
     ],
     visibility = ["//visibility:public"],
 )

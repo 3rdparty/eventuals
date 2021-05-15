@@ -8,6 +8,7 @@ cc_test(
         "conditional.cc",
         "lock.cc",
         "repeated.cc",
+        "then.cc",
     ],
     deps = [
         "//:eventuals",
