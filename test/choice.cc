@@ -4,23 +4,21 @@
 
 #include "gtest/gtest.h"
 
-#include "stout/conditional.h"
+#include "stout/choice.h"
 #include "stout/task.h"
 
 namespace eventuals = stout::eventuals;
 
-using stout::eventuals::Conditional;
+using stout::eventuals::Choice;
 using stout::eventuals::Eventual;
-using stout::eventuals::no;
 using stout::eventuals::succeed;
-using stout::eventuals::yes;
 
 using stout::eventuals::FailedException;
 using stout::eventuals::StoppedException;
 
 using testing::MockFunction;
 
-TEST(ConditionalTest, Yes)
+TEST(ChoiceTest, Yes)
 {
   auto e = []() {
     return Eventual<std::string>()
@@ -40,12 +38,12 @@ TEST(ConditionalTest, Yes)
         thread.detach();
       })
       | [](int i) { return i + 1; }
-      | (Conditional<std::string>(e())
-         .start([](auto& k, auto&& i) {
+      | (Choice<std::string>([&]() { return e(); })
+         .start([](auto& k, auto& yes, auto&& i) {
            if (i > 1) {
-             yes(k);
+             succeed(yes);
            } else {
-             no(k, "no");
+             succeed(k, "no");
            }
          }));
   };
@@ -54,7 +52,7 @@ TEST(ConditionalTest, Yes)
 }
 
 
-TEST(ConditionalTest, No)
+TEST(ChoiceTest, No)
 {
   auto e = []() {
     return Eventual<std::string>()
@@ -74,12 +72,12 @@ TEST(ConditionalTest, No)
         thread.detach();
       })
       | [](int i) { return i + 1; }
-      | (Conditional<std::string>(e())
-         .start([](auto& k, auto&& i) {
+      | (Choice<std::string>([&]() { return e(); })
+         .start([](auto& k, auto& yes, auto&& i) {
            if (i > 1) {
-             yes(k);
+             succeed(yes);
            } else {
-             no(k, "no");
+             succeed(k, "no");
            }
          }));
   };
@@ -88,7 +86,50 @@ TEST(ConditionalTest, No)
 }
 
 
-TEST(ConditionalTest, FailBeforeStart)
+TEST(ChoiceTest, Maybe)
+{
+  auto yes = []() {
+    return Eventual<std::string>()
+      .start([](auto& k) {
+        succeed(k, "yes");
+      });
+  };
+
+  auto maybe = []() {
+    return Eventual<std::string>()
+      .start([](auto& k) {
+        succeed(k, "maybe");
+      });
+  };
+
+  auto c = [&]() {
+    return Eventual<int>()
+      .context(1)
+      .start([](auto& value, auto& k) {
+        auto thread = std::thread(
+            [&value, &k]() mutable {
+              succeed(k, value);
+            });
+        thread.detach();
+      })
+      | [](int i) { return i + 1; }
+      | (Choice<std::string>(
+             [&]() { return yes(); },
+             [&]() { return maybe(); })
+         .start([](auto& k, auto& yes, auto& maybe, auto&& i) {
+           if (i > 1) {
+             succeed(maybe);
+           } else {
+             succeed(k, "no");
+           }
+         }));
+  };
+
+  EXPECT_EQ("maybe", eventuals::run(eventuals::task(c())));
+}
+
+
+TEST(ChoiceTest, FailBeforeStart)
 {
   auto e = []() {
     return Eventual<std::string>()
@@ -107,12 +148,12 @@ TEST(ConditionalTest, FailBeforeStart)
         thread.detach();
       })
       | [](int i) { return i + 1; }
-      | (Conditional<std::string>(e())
-         .start([](auto& k, auto&& i) {
+      | (Choice<std::string>([&]() { return e(); })
+         .start([](auto& k, auto& yes, auto&& i) {
            if (i > 1) {
-             yes(k);
+             succeed(yes);
            } else {
-             no(k, "no");
+             succeed(k, "no");
            }
          }));
   };
@@ -121,7 +162,7 @@ TEST(ConditionalTest, FailBeforeStart)
 }
 
 
-TEST(ConditionalTest, FailAfterStart)
+TEST(ChoiceTest, FailAfterStart)
 {
   auto e = []() {
     return Eventual<std::string>()
@@ -141,10 +182,10 @@ TEST(ConditionalTest, FailAfterStart)
         thread.detach();
       })
       | [](int i) { return i + 1; }
-      | (Conditional<std::string>(e())
-         .start([](auto& k, auto&& i) {
+      | (Choice<std::string>([&]() { return e(); })
+         .start([](auto& k, auto& yes, auto&& i) {
            if (i > 1) {
-             yes(k);
+             succeed(yes);
            } else {
              fail(k, "error");
            }
@@ -155,7 +196,7 @@ TEST(ConditionalTest, FailAfterStart)
 }
 
 
-TEST(ConditionalTest, Interrupt)
+TEST(ChoiceTest, Interrupt)
 {
   // Using mocks to ensure start is only called once.
   MockFunction<void()> start;
@@ -176,9 +217,9 @@ TEST(ConditionalTest, Interrupt)
         succeed(k, 0);
       })
       | [](int i) { return i + 1; }
-      | (Conditional<std::string>(e())
-         .start([](auto& k, auto&&) {
-           yes(k);
+      | (Choice<std::string>([&]() { return e(); })
+         .start([](auto& k, auto& yes, auto&&) {
+           succeed(yes);
          }));
   };
 

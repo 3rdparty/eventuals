@@ -5,7 +5,7 @@ cc_test(
     srcs = [
         "eventual.cc",
         "stream.cc",
-        "conditional.cc",
+        "choice.cc",
         "lock.cc",
         "repeated.cc",
         "then.cc",
