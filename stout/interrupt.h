@@ -33,7 +33,8 @@ public:
 
     void Invoke()
     {
-      return f_();
+      assert(f_);
+      f_();
     }
 
     Interrupt* interrupt_;
