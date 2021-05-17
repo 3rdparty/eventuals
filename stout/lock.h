@@ -199,7 +199,7 @@ struct Acquire
       // pre-allocated buffer based on tracking Errors...
       waiter_.f_ = [
           this,
-          tuple = std::forward_as_tuple(std::forward<Args>(args)...)]() mutable {
+          tuple = std::make_tuple(std::forward<Args>(args)...)]() mutable {
         // TODO(benh): submit to run on the *current* thread pool.
         std::apply([&](auto&&... args) {
           eventuals::fail(k_, std::forward<decltype(args)>(args)...);
