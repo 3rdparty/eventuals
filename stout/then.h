@@ -74,7 +74,10 @@ struct Then
     : k_(std::move(k)),
       e_(std::move(e)),
       context_(std::move(context)),
-      start_(std::move(start)) {}
+      start_(std::move(start))
+  {
+    assert(interrupt_ == nullptr);
+  }
 
   template <
     typename Value,
@@ -170,6 +173,7 @@ struct Then
 
   void Register(Interrupt& interrupt)
   {
+    assert(interrupt_ == nullptr);
     interrupt_ = &interrupt;
   }
 

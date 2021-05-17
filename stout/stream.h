@@ -410,15 +410,15 @@ struct Stream
     streamk_.k_ = &k_;
 
     auto interrupted = [this]() mutable {
-      if constexpr (!IsUndefined<Interrupt_>::value) {
+      if (handler_) {
         return !handler_->Install();
       } else {
-        (void) this; // Eschew warning that 'this' isn't used.
         return false;
       }
     }();
 
     if (interrupted) {
+      assert(handler_);
       handler_->Invoke();
     } else {
       if constexpr (IsUndefined<Start_>::value) {
