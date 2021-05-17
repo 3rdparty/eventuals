@@ -9,6 +9,7 @@ cc_test(
         "lock.cc",
         "repeated.cc",
         "then.cc",
+        "invoke-result-unknown-args.cc",
     ],
     deps = [
         "//:eventuals",
