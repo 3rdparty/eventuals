@@ -132,7 +132,33 @@ struct Repeated
         std::move(done));
   }
 
-  template <typename K>
+  template <
+    typename F,
+    std::enable_if_t<
+      !IsContinuation<F>::value, int> = 0>
+  auto k(F f) &&
+  {
+    // Handle non-eventuals that are *invocable*.
+    return std::move(*this).k(
+        create<decltype(f(std::declval<Value>()))>(
+            Undefined(),
+            std::move(f),
+            [](auto& f, auto& k, auto&&... args) {
+              eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
+            },
+            [](auto&, auto& k, auto&&... args) {
+              eventuals::fail(k, std::forward<decltype(args)>(args)...);
+            },
+            [](auto&, auto& k) {
+              eventuals::stop(k);
+            },
+            Undefined()));
+  }
+
+  template <
+    typename K,
+    std::enable_if_t<
+      IsContinuation<K>::value, int> = 0>
   auto k(K k) &&
   {
     using Value = std::conditional_t<
