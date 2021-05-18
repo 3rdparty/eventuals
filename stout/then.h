@@ -96,29 +96,6 @@ struct Then
   }
 
   template <
-    typename F,
-    std::enable_if_t<
-      !IsContinuation<F>::value, int> = 0>
-  auto k(F f) &&
-  {
-    // Handle non-eventuals that are *invocable*.
-    return std::move(*this).k(
-        create<decltype(f(std::declval<Value>()))>(
-            Undefined(),
-            std::move(f),
-            [](auto& f, auto& k, auto&&... args) {
-              eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
-            },
-            [](auto&, auto& k, auto&&... args) {
-              eventuals::fail(k, std::forward<decltype(args)>(args)...);
-            },
-            [](auto&, auto& k) {
-              eventuals::stop(k);
-            },
-            Undefined()));
-  }
-
-  template <
     typename K,
     std::enable_if_t<
       IsContinuation<K>::value, int> = 0>
@@ -140,6 +117,27 @@ struct Then
         std::move(e_),
         std::move(context_),
         std::move(start_));
+  }
+
+  template <
+    typename F,
+    std::enable_if_t<
+      !IsContinuation<F>::value, int> = 0>
+  auto k(F f) &&
+  {
+    // Handle non-eventuals that are *invocable*.
+    return std::move(*this).k(
+        eventuals::Eventual<decltype(f(std::declval<Value>()))>()
+        .context(std::move(f))
+        .start([](auto& f, auto& k, auto&&... args) {
+          eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
+        })
+        .fail([](auto&, auto& k, auto&&... args) {
+          eventuals::fail(k, std::forward<decltype(args)>(args)...);
+        })
+        .stop([](auto&, auto& k) {
+          eventuals::stop(k);
+        }));
   }
 
   template <typename Context>
