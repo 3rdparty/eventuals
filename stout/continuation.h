@@ -41,7 +41,8 @@ namespace detail {
 template <typename E, typename K>
 auto operator|(E e, K k)
 {
-  return std::move(e).k(compose<typename E::Value>(std::move(k)));
+  using Value = typename E::Value;
+  return std::move(e).k(compose<Value>(std::move(k)));
 }
 
 } // namespace detail {

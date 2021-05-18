@@ -96,15 +96,15 @@ namespace detail {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F, typename... Values>
-struct ResultOfPossibleUndefined
+struct InvokeResultPossiblyUndefined
 {
-  using type = std::result_of_t<F(Values...)>;
+  using type = std::invoke_result_t<F, Values...>;
 };
 
 template <typename F>
-struct ResultOfPossibleUndefined<F, Undefined>
+struct InvokeResultPossiblyUndefined<F, Undefined>
 {
-  using type = std::result_of_t<F()>;
+  using type = std::invoke_result_t<F>;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -126,10 +126,11 @@ struct Acquire
   template <
     typename K,
     std::enable_if_t<
-      IsContinuation<K>::value, int> = 0>
+      IsContinuation<K>::value
+      || !IsUndefined<K_>::value, int> = 0>
   auto k(K k) &&
   {
-   return create<Value>(
+   return create<Value_>(
         [&]() {
           if constexpr (!IsUndefined<K_>::value) {
             return std::move(k_) | std::move(k);
@@ -143,13 +144,13 @@ struct Acquire
   template <
     typename F,
     std::enable_if_t<
-      !IsContinuation<F>::value, int> = 0>
+      !IsContinuation<F>::value
+      && IsUndefined<K_>::value, int> = 0>
   auto k(F f) &&
   {
-   using Value = typename ResultOfPossibleUndefined<F, Value_>::type;
-
+    using Result = typename InvokeResultPossiblyUndefined<F, Value>::type;
     return std::move(*this).k(
-        eventuals::Eventual<Value>()
+        eventuals::Eventual<Result>()
         .context(std::move(f))
         .start([](auto& f, auto& k, auto&&... args) {
           eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
@@ -170,6 +171,8 @@ struct Acquire
     } else {
       static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
                     "Acquire only supports 0 or 1 argument, but found > 1");
+
+      static_assert(IsUndefined<Value_>::value || sizeof...(args) == 1);
 
       if constexpr (sizeof...(args) == 1) {
         assert(!value_);
@@ -256,10 +259,11 @@ struct Release
   template <
     typename K,
     std::enable_if_t<
-      IsContinuation<K>::value, int> = 0>
+      IsContinuation<K>::value
+      || !IsUndefined<K_>::value, int> = 0>
   auto k(K k) &&
   {
-   return create<Value>(
+   return create<Value_>(
         [&]() {
           if constexpr (!IsUndefined<K_>::value) {
             return std::move(k_) | std::move(k);
@@ -273,13 +277,13 @@ struct Release
   template <
     typename F,
     std::enable_if_t<
-      !IsContinuation<F>::value, int> = 0>
+      !IsContinuation<F>::value
+      && IsUndefined<K_>::value, int> = 0>
   auto k(F f) &&
   {
-    using Value = typename ResultOfPossibleUndefined<F, Value_>::type;
-
+    using Result = typename InvokeResultPossiblyUndefined<F, Value>::type;
     return std::move(*this).k(
-        eventuals::Eventual<Value>()
+        eventuals::Eventual<Result>()
         .context(std::move(f))
         .start([](auto& f, auto& k, auto&&... args) {
           eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
