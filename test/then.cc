@@ -39,7 +39,7 @@ TEST(ThenTest, Succeed)
         thread.detach();
       })
       | [](int i) { return i + 1; }
-      | (Then<std::string>([&](std::string s = "") { return e(std::move(s)); })
+      | (Then<std::string>([&](std::string s) { return e(std::move(s)); })
          .start([](auto& k, auto&& i) {
            if (i > 1) {
              succeed(k, "then");
@@ -73,7 +73,7 @@ TEST(ThenTest, FailBeforeStart)
         thread.detach();
       })
       | [](int i) { return i + 1; }
-      | (Then<std::string>([&](std::string s = "") { return e(std::move(s)); })
+      | (Then<std::string>([&](std::string s) { return e(std::move(s)); })
          .start([](auto& k, auto&& i) {
            if (i > 1) {
              succeed(k, "then");
@@ -108,7 +108,7 @@ TEST(ThenTest, FailAfterStart)
         thread.detach();
       })
       | [](int i) { return i + 1; }
-      | (Then<std::string>([&](std::string s = "") { return e(std::move(s)); })
+      | (Then<std::string>([&](std::string s) { return e(std::move(s)); })
          .start([](auto& k, auto&& i) {
            if (i > 1) {
              succeed(k, "then");
@@ -143,7 +143,7 @@ TEST(ThenTest, Interrupt)
         succeed(k, 0);
       })
       | [](int i) { return i + 1; }
-      | (Then<std::string>([&](std::string s = "") { return e(std::move(s)); })
+      | (Then<std::string>([&](std::string s) { return e(std::move(s)); })
          .start([](auto& k, auto&&) {
            succeed(k, "then");
          }));

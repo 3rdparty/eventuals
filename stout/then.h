@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stout/eventual.h"
+#include "stout/invoke-result-unknown-args.h"
 
 namespace stout {
 namespace eventuals {
@@ -20,7 +21,8 @@ struct ThenK
 {
   Then_* then_ = nullptr;
 
-  using EK_ = decltype(std::declval<E_>()().template k(std::declval<K_>()));
+  using E = typename InvokeResultUnknownArgs<E_>::type;
+  using EK_ = decltype(std::declval<E>().template k(std::declval<K_>()));
 
   std::optional<EK_> ek_;
 
