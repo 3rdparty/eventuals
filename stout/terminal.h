@@ -254,5 +254,20 @@ struct HasTerminal<
     Stop,
     Interrupt>> : std::true_type {};
 
+
+template <
+  typename Context,
+  typename Start,
+  typename Fail,
+  typename Stop,
+  typename Interrupt,
+  typename Value>
+struct ValueFrom<
+  detail::Terminal<Context, Start, Fail, Stop, Interrupt>,
+  Value>
+{
+  using type = Value;
+};
+
 } // namespace eventuals {
 } // namespace stout {
