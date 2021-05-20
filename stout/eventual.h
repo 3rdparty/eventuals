@@ -319,7 +319,7 @@ struct Eventual
 
   void Stop()
   {
-    if constexpr (!IsUndefined<Stop_>::value) {
+    if constexpr (IsUndefined<Stop_>::value) {
       eventuals::stop(k_);
     } else if constexpr (IsUndefined<Context_>::value) {
       stop_(k_);
