@@ -3,6 +3,7 @@
 #include "stout/eventual.h"
 
 #include <future>
+#include <sstream>
 
 namespace stout {
 namespace eventuals {
