@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include "stout/undefined.h"
 
 namespace stout {

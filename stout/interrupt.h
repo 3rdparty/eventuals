@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <atomic>
 
 #include "stout/callback.h"
