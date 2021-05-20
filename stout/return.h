@@ -10,7 +10,7 @@ auto Return(T t)
 {
   return Eventual<T>()
     .context(std::move(t))
-    .start([](auto& t, auto& k) {
+    .start([](auto& t, auto& k, auto&&...) {
       eventuals::succeed(k, std::move(t));
     });
 }
