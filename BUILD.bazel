@@ -19,6 +19,8 @@ cc_library(
         "stout/repeated.h",
         "stout/then.h",
         "stout/callback.h",
+        "stout/return.h",
+        "stout/conditional.h",
         "stout/invoke-result-unknown-args.h",
     ],
     visibility = ["//visibility:public"],
