@@ -167,13 +167,11 @@ struct Then
   template <typename... Args>
   void Start(Args&&... args)
   {
-    static_assert(
-        !IsUndefined<Start_>::value,
-        "Undefined 'start' (and no default)");
-
     thenk_.then_ = this;
 
-    if constexpr (IsUndefined<Context_>::value) {
+    if constexpr (IsUndefined<Start_>::value) {
+      eventuals::succeed(thenk_, std::forward<decltype(args)>(args)...);
+    } else if constexpr (IsUndefined<Context_>::value) {
       start_(thenk_, std::forward<Args>(args)...);
     } else {
       start_(context_, thenk_, std::forward<Args>(args)...);
