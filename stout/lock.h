@@ -1,9 +1,10 @@
 #pragma once
 
-#include <deque>
-#include <mutex>
+#include <atomic>
+#include <optional>
 
 #include "stout/eventual.h"
+#include "stout/callback.h"
 
 namespace stout {
 namespace eventuals {
@@ -15,7 +16,7 @@ class Lock
 public:
   struct Waiter
   {
-    std::function<void()> f_;
+    Callback<> f_;
     Waiter* next_ = nullptr;
   };
 

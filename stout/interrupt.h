@@ -2,6 +2,8 @@
 
 #include <atomic>
 
+#include "stout/callback.h"
+
 namespace stout {
 namespace eventuals {
 
@@ -38,7 +40,7 @@ public:
     }
 
     Interrupt* interrupt_;
-    std::function<void()> f_;
+    Callback<> f_;
     Handler* next_ = nullptr;
   };
 
