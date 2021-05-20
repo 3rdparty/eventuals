@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include "stout/continuation.h"
 #include "stout/interrupt.h"
 #include "stout/undefined.h"
