@@ -9,6 +9,7 @@ namespace stout {
 // allocation or use std::function (which increases compile times and
 // is not required to avoid heap allocation even if most
 // implementations do for small lambdas).
+
 template <typename... Args>
 struct Callback
 {
@@ -17,22 +18,37 @@ struct Callback
   template <typename F>
   Callback(F f)
   {
+    this->operator=(std::move(f));
+  }
+
+  template <typename F>
+  Callback& operator=(F f)
+  {
     static_assert(sizeof(Handler<F>) <= SIZE);
     new(&storage_) Handler<F>(std::move(f));
     base_ = reinterpret_cast<Handler<F>*>(&storage_);
+    return *this;
+  }
+
+  Callback(Callback&& that)
+    : storage_(std::move(that.storage_)),
+      base_(that.base_)
+  {
+    // Set 'base_' to nullptr so 'Destruct()' is only invoked once.
+    that.base_ = nullptr;
   }
 
   ~Callback()
   {
     // TODO(benh): better way to do this?
-    if (base_) {
+    if (base_ != nullptr) {
       base_->Destruct();
     }
   }
 
   void operator()(Args... args)
   {
-    assert(base_);
+    assert(base_ != nullptr);
     base_->Invoke(std::forward<Args>(args)...);
   }
 
