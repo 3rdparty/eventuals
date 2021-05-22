@@ -183,7 +183,7 @@ struct Acquire
       waiter_.f_ = [this]() mutable {
         // TODO(benh): submit to run on the *current* thread pool.
         if constexpr (sizeof...(args) == 1) {
-          eventuals::succeed(k_, *value_);
+          eventuals::succeed(k_, std::move(*value_));
         } else {
           eventuals::succeed(k_);
         }
