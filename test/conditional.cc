@@ -42,7 +42,7 @@ TEST(ConditionalTest, Then)
   auto c = [&]() {
     return Return(1)
       | [](int i) { return i + 1; }
-      | Conditional<string>(
+      | Conditional(
           [](auto&& i) { return i > 1; },
           [&](auto&&) { return then(); },
           [&](auto&&) { return els3(); });
@@ -71,7 +71,7 @@ TEST(ConditionalTest, Else)
   auto c = [&]() {
     return Return(0)
       | [](int i) { return i + 1; }
-      | Conditional<string>(
+      | Conditional(
           [](auto&& i) { return i > 1; },
           [&](auto&&) { return then(); },
           [&](auto&&) { return els3(); });
@@ -107,7 +107,7 @@ TEST(ConditionalTest, Fail)
         thread.detach();
       })
       | [](int i) { return i + 1; }
-      | Conditional<string>(
+      | Conditional(
           [](auto&& i) { return i > 1; },
           [&](auto&&) { return then(); },
           [&](auto&&) { return els3(); });
@@ -142,7 +142,7 @@ TEST(ConditionalTest, Interrupt)
   auto c = [&]() {
     return Return(1)
       | [](int i) { return i + 1; }
-      | Conditional<string>(
+      | Conditional(
           [](auto&& i) { return i > 1; },
           [&](auto&&) { return then(); },
           [&](auto&&) { return els3(); });
