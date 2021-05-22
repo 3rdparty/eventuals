@@ -45,4 +45,8 @@ struct InvokeResultUnknownArgs : std::conditional_t<
   std::invoke_result<F, Args...>,
   InvokeResultUnknownArgs<F, detail::decrement<n>(), Args..., AnyArg>> {};
 
+
+template <typename F, typename... Args>
+struct InvokeResultUnknownArgs<F, 0, Args...> {};
+
 } // namespace stout {
