@@ -28,9 +28,9 @@ template <size_t n>
 constexpr size_t decrement()
 {
   static_assert(
-      n != 0,
-      "tried up to 16 arguments; either make your "
-      "argument types more explicit (i.e, don't use"
+      n > 1,
+      "could not determine invoke result; either make "
+      "your argument types more explicit (i.e, don't use"
       " 'auto') or specify a larger 'n'");
 
   return n - 1;
@@ -39,7 +39,7 @@ constexpr size_t decrement()
 } // namespace detail {
 
 
-template <typename F, size_t n = 16, typename... Args>
+template <typename F, size_t n = 12, typename... Args>
 struct InvokeResultUnknownArgs : std::conditional_t<
   std::is_invocable_v<F, Args...>,
   std::invoke_result<F, Args...>,
