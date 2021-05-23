@@ -99,7 +99,7 @@ struct Repeated
 {
   using E = typename InvokeResultUnknownArgs<E_>::type;
 
-  using Value = typename E::Value;
+  using Value = typename ValueFrom<K_, typename E::Value>::type;
 
   Repeated(K_ k, E_ e, Context_ context, Start_ start, Next_ next, Done_ done)
     : k_(std::move(k)),
