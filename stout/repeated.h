@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stout/eventual.h"
+#include "stout/invoke-result-unknown-args.h"
 #include "stout/stream.h"
 
 namespace stout {
@@ -96,7 +97,9 @@ template <
   typename... Errors_>
 struct Repeated
 {
-  using Value = typename decltype(std::declval<E_>()())::Value;
+  using E = typename InvokeResultUnknownArgs<E_>::type;
+
+  using Value = typename E::Value;
 
   Repeated(K_ k, E_ e, Context_ context, Start_ start, Next_ next, Done_ done)
     : k_(std::move(k)),
@@ -311,7 +314,8 @@ struct Repeated
   RepeatedK<Repeated, K_> repeatedk_;
 
   std::optional<
-    decltype(e_().k(std::declval<RepeatK<Repeated, K_>>()))> repeat_;
+    decltype(std::declval<E>().k(
+                 std::declval<RepeatK<Repeated, K_>>()))> repeat_;
 
   Interrupt* interrupt_ = nullptr;
 };
@@ -375,9 +379,13 @@ struct HasTerminal<
   detail::RepeatedK<R, K>> : HasTerminal<K> {};
 
 
-template <typename Value, typename... Errors, typename E>
+template <typename... Errors, typename E>
 auto Repeated(E e)
 {
+  using Result = typename InvokeResultUnknownArgs<E>::type;
+
+  using Value = typename Result::Value;
+
   return detail::Repeated<
     Undefined,
     E,

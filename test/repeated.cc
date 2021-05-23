@@ -43,7 +43,7 @@ TEST(RepeatedTest, Succeed)
             });
         thread.detach();
       })
-      | (Repeated<string>([&](string s = "") { return e(s); })
+      | (Repeated([&](string s) { return e(s); })
          .context(deque<string>())
          .start([](auto& strings, auto& k, auto&& initializer) {
            strings = initializer;
@@ -96,7 +96,7 @@ TEST(RepeatedTest, Fail)
             });
         thread.detach();
       })
-      | (Repeated<string>([&](string s = "") { return e(s); })
+      | (Repeated([&](string s) { return e(s); })
          .context(deque<string>())
          .start([](auto& strings, auto& k, auto&& initializer) {
            strings = initializer;
@@ -150,7 +150,7 @@ TEST(RepeatedTest, Interrupt)
             });
         thread.detach();
       })
-      | (Repeated<string>([&](string s = "") { return e(s); })
+      | (Repeated([&](string s) { return e(s); })
          .context(deque<string>())
          .start([](auto& strings, auto& k, auto&& initializer) {
            strings = initializer;
