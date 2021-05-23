@@ -97,10 +97,6 @@ struct Loop
   auto k(K k) &&
   {
     static_assert(
-        IsEventual<K>::value || IsTerminal<K>::value,
-        "Expecting an 'Eventual' or a 'Terminal'");
-
-    static_assert(
         !IsTerminal<K>::value || !HasTerminal<K_>::value,
         "Redundant 'Terminal'");
 
