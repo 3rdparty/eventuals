@@ -11,6 +11,21 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename K>
+void notify(K& k)
+{
+  k.Notify();
+}
+
+
+template <typename K>
+void wait(K& k)
+{
+  k.Wait();
+}
+
+////////////////////////////////////////////////////////////////////////
+
 class Lock
 {
 public:
@@ -362,6 +377,205 @@ struct Release
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename Wait_>
+struct WaitK
+{
+  Wait_* wait_ = nullptr;
+
+  template <typename... Args>
+  void Start(Args&&... args)
+  {
+    eventuals::succeed(wait_->k_, std::forward<Args>(args)...);
+  }
+
+  void Notify()
+  {
+    if (!wait_->wait_) {
+      throw std::runtime_error("Attempting to notify without waiting");
+    }
+
+    wait_->lock_->AcquireSlow(&wait_->waiter_);
+  }
+
+  void Wait()
+  {
+    wait_->wait_ = true;
+  }
+};
+
+
+template <
+  typename K_,
+  typename Context_,
+  typename Condition_,
+  typename Arg_,
+  typename Value_>
+struct Wait
+{
+  using Value = Value_;
+
+  Wait(K_ k, Context_ context, Condition_ condition, Lock* lock)
+    : k_(std::move(k)),
+      context_(std::move(context)),
+      condition_(std::move(condition)),
+      lock_(lock) {}
+
+  Wait(Wait&& that)
+    : k_(std::move(that.k_)),
+      context_(std::move(that.context_)),
+      condition_(std::move(that.condition_)),
+      lock_(that.lock_) {}
+
+  template <
+    typename Arg,
+    typename Value,
+    typename K,
+    typename Context,
+    typename Condition>
+  static auto create(K k, Context context, Condition condition, Lock* lock)
+  {
+    return Wait<K, Context, Condition, Arg, Value>(
+        std::move(k),
+        std::move(context),
+        std::move(condition),
+        lock);
+  }
+
+  template <
+    typename K,
+    std::enable_if_t<
+      IsContinuation<K>::value
+      || !IsUndefined<K_>::value, int> = 0>
+  auto k(K k) &&
+  {
+   return create<Arg_, Value_>(
+        [&]() {
+          if constexpr (!IsUndefined<K_>::value) {
+            return std::move(k_) | std::move(k);
+          } else {
+            return std::move(k);
+          }
+        }(),
+        std::move(context_),
+        std::move(condition_),
+        lock_);
+  }
+
+  template <
+    typename F,
+    std::enable_if_t<
+      !IsContinuation<F>::value
+      && IsUndefined<K_>::value, int> = 0>
+  auto k(F f) &&
+  {
+    using Result = typename InvokeResultPossiblyUndefined<F, Value>::type;
+    return std::move(*this).k(
+        eventuals::Eventual<Result>()
+        .context(std::move(f))
+        .start([](auto& f, auto& k, auto&&... args) {
+          eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
+        })
+        .fail([](auto&, auto& k, auto&&... args) {
+          eventuals::fail(k, std::forward<decltype(args)>(args)...);
+        })
+        .stop([](auto&, auto& k) {
+          eventuals::stop(k);
+        }));
+  }
+
+  template <typename Context>
+  auto context(Context context) &&
+  {
+    static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
+    return create<Arg_, Value_>(
+        std::move(k_),
+        std::move(context),
+        std::move(condition_),
+        lock_);
+  }
+
+  template <typename Condition>
+  auto condition(Condition condition) &&
+  {
+    static_assert(IsUndefined<Condition_>::value, "Duplicate 'condition'");
+    return create<Arg_, Value_>(
+        std::move(k_),
+        std::move(context_),
+        std::move(condition),
+        lock_);
+  }
+
+  template <typename... Args>
+  void Start(Args&&... args)
+  {
+    static_assert(
+        !IsUndefined<Condition_>::value,
+        "Undefined 'condition' (and no default)");
+
+    waitk_.wait_ = this;
+
+    if constexpr (IsUndefined<Context_>::value) {
+      condition_(waitk_, std::forward<Args>(args)...);
+    } else {
+      condition_(context_, waitk_, std::forward<Args>(args)...);
+    }
+
+    if (wait_) {
+      static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
+                    "Wait only supports 0 or 1 argument, but found > 1");
+
+      static_assert(IsUndefined<Value_>::value || sizeof...(args) == 1);
+
+      if constexpr (sizeof...(args) == 1) {
+        assert(!arg_);
+        arg_.emplace(std::forward<Args>(args)...);
+      }
+
+      waiter_.f_ = [this]() mutable {
+        wait_ = false;
+
+        // TODO(benh): submit to run on the *current* thread pool.
+        if constexpr (sizeof...(args) == 1) {
+          Start(std::move(*arg_));
+        } else {
+          Start();
+        }
+      };
+
+      lock_->Release();
+    }
+  }
+
+  template <typename... Args>
+  void Fail(Args&&... args)
+  {
+    // TODO(benh): allow override of 'fail'.
+    eventuals::fail(k_, std::forward<Args>(args)...);
+  }
+
+  void Stop()
+  {
+    // TODO(benh): allow override of 'stop'.
+    eventuals::stop(k_);
+  }
+
+  void Register(Interrupt& interrupt)
+  {
+    k_.Register(interrupt);
+  }
+
+  K_ k_;
+  Context_ context_;
+  Condition_ condition_;
+  Lock* lock_;
+  Lock::Waiter waiter_;
+  std::optional<Arg_> arg_;
+  bool wait_ = false;
+  WaitK<Wait> waitk_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
 } // namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
@@ -388,15 +602,12 @@ struct Compose<detail::Acquire<K, Value_>>
   }
 };
 
-template <typename K, typename Value_>
-struct Compose<detail::Release<K, Value_>>
+////////////////////////////////////////////////////////////////////////
+
+inline auto Acquire(Lock* lock)
 {
-  template <typename Value>
-  static auto compose(detail::Release<K, Value_> release)
-  {
-    return detail::Release<K, Value>(std::move(release.k_), release.lock_);
-  }
-};
+  return detail::Acquire<Undefined, Undefined>(Undefined(), lock);
+}
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -412,16 +623,76 @@ struct HasTerminal<
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Acquire(Lock* lock)
+template <typename K, typename Value_>
+struct Compose<detail::Release<K, Value_>>
 {
-  return detail::Acquire<Undefined, Undefined>(Undefined(), lock);
-}
+  template <typename Value>
+  static auto compose(detail::Release<K, Value_> release)
+  {
+    return detail::Release<K, Value>(std::move(release.k_), release.lock_);
+  }
+};
 
 ////////////////////////////////////////////////////////////////////////
 
 inline auto Release(Lock* lock)
 {
   return detail::Release<Undefined, Undefined>(Undefined(), lock);
+}
+
+////////////////////////////////////////////////////////////////////////
+
+template <
+  typename K,
+  typename Context,
+  typename Condition,
+  typename Arg,
+  typename Value>
+struct IsContinuation<
+  detail::Wait<K, Context, Condition, Arg, Value>> : std::true_type {};
+
+////////////////////////////////////////////////////////////////////////
+
+template <
+  typename K,
+  typename Context,
+  typename Condition,
+  typename Arg,
+  typename Value>
+struct HasTerminal<
+  detail::Wait<K, Context, Condition, Arg, Value>> : HasTerminal<K> {};
+
+////////////////////////////////////////////////////////////////////////
+
+template <
+  typename K,
+  typename Context,
+  typename Condition,
+  typename Arg_,
+  typename Value>
+struct Compose<detail::Wait<K, Context, Condition, Arg_, Value>>
+{
+  template <typename Arg>
+  static auto compose(detail::Wait<K, Context, Condition, Arg_, Value> wait)
+  {
+    return detail::Wait<K, Context, Condition, Arg, Value>(
+        std::move(wait.k_),
+        std::move(wait.context_),
+        std::move(wait.condition_),
+        wait.lock_);
+  }
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Value>
+auto Wait(Lock* lock)
+{
+  return detail::Wait<Undefined, Undefined, Undefined, Undefined, Value>(
+      Undefined(),
+      Undefined(),
+      Undefined(),
+      lock);
 }
 
 ////////////////////////////////////////////////////////////////////////

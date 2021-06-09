@@ -9,12 +9,15 @@
 
 namespace eventuals = stout::eventuals;
 
+using stout::Callback;
+
 using stout::eventuals::Acquire;
 using stout::eventuals::Eventual;
 using stout::eventuals::Lock;
 using stout::eventuals::Release;
 using stout::eventuals::succeed;
 using stout::eventuals::Synchronizable;
+using stout::eventuals::Wait;
 
 using stout::eventuals::FailedException;
 using stout::eventuals::StoppedException;
@@ -139,6 +142,46 @@ TEST(LockTest, Stop)
   EXPECT_THROW(eventuals::wait(t1), StoppedException);
 
   EXPECT_STREQ("t2", eventuals::run(eventuals::task(e2())));
+}
+
+
+TEST(LockTest, Wait)
+{
+  Lock lock;
+
+  Callback<> callback;
+
+  auto e1 = [&]() {
+    return Eventual<std::string>()
+      .start([](auto& k) {
+        succeed(k, "t1");
+      })
+      | Acquire(&lock)
+      | (Wait<std::string>(&lock)
+         .context(false)
+         .condition([&](auto& waited, auto& k, auto&& value) {
+           if (!waited) {
+             callback = [&k]() {
+               notify(k);
+             };
+             wait(k);
+             waited = true;
+           } else {
+             succeed(k, value);
+           }
+         }))
+      | Release(&lock);
+  };
+
+  auto t1 = eventuals::task(e1());
+
+  eventuals::start(t1);
+
+  ASSERT_TRUE(callback);
+
+  callback();
+
+  EXPECT_EQ("t1", eventuals::wait(t1));
 }
 
 
