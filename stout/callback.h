@@ -25,6 +25,9 @@ struct Callback
   Callback& operator=(F f)
   {
     static_assert(sizeof(Handler<F>) <= SIZE);
+    if (base_ != nullptr) {
+      base_->Destruct();
+    }
     new(&storage_) Handler<F>(std::move(f));
     base_ = reinterpret_cast<Handler<F>*>(&storage_);
     return *this;
