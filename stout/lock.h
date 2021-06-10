@@ -412,7 +412,7 @@ template <
   typename Value_>
 struct Wait
 {
-  using Value = Value_;
+  using Value = typename ValueFrom<K_, Value_>::type;
 
   Wait(K_ k, Context_ context, Condition_ condition, Lock* lock)
     : k_(std::move(k)),
