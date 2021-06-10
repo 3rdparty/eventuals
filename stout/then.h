@@ -70,7 +70,7 @@ template <
   typename... Errors_>
 struct Then
 {
-  using Value = Value_;
+  using Value = typename ValueFrom<K_, Value_>::type;
 
   Then(K_ k, E_ e, Context_ context, Start_ start)
     : k_(std::move(k)),
@@ -248,9 +248,13 @@ struct HasTerminal<
     Errors...>> : HasTerminal<K> {};
 
 
-template <typename Value, typename... Errors, typename E>
+template <typename... Errors, typename E>
 auto Then(E e)
 {
+  using Result = typename InvokeResultUnknownArgs<E>::type;
+
+  using Value = typename Result::Value;
+
   return detail::Then<
     Undefined,
     E,
