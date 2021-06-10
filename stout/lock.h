@@ -524,7 +524,7 @@ struct Wait
       static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
                     "Wait only supports 0 or 1 argument, but found > 1");
 
-      static_assert(IsUndefined<Value_>::value || sizeof...(args) == 1);
+      static_assert(IsUndefined<Arg_>::value || sizeof...(args) == 1);
 
       if constexpr (sizeof...(args) == 1) {
         assert(!arg_);
