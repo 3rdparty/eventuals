@@ -403,5 +403,16 @@ auto Repeated(E e)
       Undefined());
 }
 
+
+inline auto Repeated()
+{
+  return Repeated([]() {
+    return Eventual<void>()
+      .start([](auto& k) {
+        succeed(k);
+      });
+  });
+}
+
 } // namespace eventuals {
 } // namespace stout {
