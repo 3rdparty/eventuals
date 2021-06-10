@@ -197,7 +197,7 @@ TEST(RepeatedTest, Map)
   auto r = []() {
     return Repeated()
       | Map(Eventual<int>()
-            .start([](auto& k) {
+            .start([](auto& k, auto&& /* iteration */) {
               succeed(k, 1);
             }))
       | (Loop<int>()
