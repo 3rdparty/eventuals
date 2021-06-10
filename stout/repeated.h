@@ -407,10 +407,9 @@ auto Repeated(E e)
 inline auto Repeated()
 {
   return Repeated([]() {
-    return Eventual<uint64_t>()
-      .context(uint64_t(0))
-      .start([](auto& i, auto& k) {
-        succeed(k, ++i);
+    return Eventual<void>()
+      .start([](auto& k) {
+        succeed(k);
       });
   });
 }

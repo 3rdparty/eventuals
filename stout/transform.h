@@ -313,10 +313,10 @@ struct Transform
 };
 
 
-template <typename K_, typename E_, typename Arg_>
+template <typename K_, typename E_>
 struct Map
 {
-  using Value = typename E_::Value;
+  using Value = typename ValueFrom<K_, typename E_::Value>::type;
 
   Map(K_ k, E_ e)
     : k_(std::move(k)), e_(std::move(e)) {}
@@ -324,7 +324,7 @@ struct Map
   template <typename K, typename E>
   static auto create(K k, E e)
   {
-    return Map<K, E, Arg_>(std::move(k), std::move(e));
+    return Map<K, E>(std::move(k), std::move(e));
   }
 
   template <typename K>
@@ -389,14 +389,14 @@ struct Map
     k_.Register(interrupt);
   }
 
-  static auto terminal(Callback<K_&, Arg_>* body_, K_* k_)
+  static auto terminal(Callback<K_&, typename E_::Value>* body_, K_* k_)
   {
     // NOTE: need to use constexpr here because compiler needs to
     // deduce function return type before K_ is fully determined.
     if constexpr (HasTerminal<K_>::value) {
       return eventuals::Terminal()
-        .start([body_, k_](auto&& arg) {
-          (*body_)(*k_, std::forward<decltype(arg)>(arg));
+        .start([body_, k_](auto&&... values) {
+          (*body_)(*k_, std::forward<decltype(values)>(values)...);
         })
         .fail([k_](auto&&... errors) {
           eventuals::fail(*k_, std::forward<decltype(errors)>(errors)...);
@@ -412,7 +412,7 @@ struct Map
   K_ k_;
   E_ e_;
 
-  Callback<K_&, Arg_> body_;
+  Callback<K_&, typename E_::Value> body_;
 
   using ETerminal_ = decltype(std::move(e_).k(terminal(nullptr, nullptr)));
 
@@ -577,39 +577,27 @@ auto map(F f)
 }
 
 
-template <typename K, typename E, typename Arg>
+template <typename K, typename E>
 struct IsTransform<
-  detail::Map<K, E, Arg>> : std::true_type {};
+  detail::Map<K, E>> : std::true_type {};
 
-template <typename K, typename E, typename Arg>
+template <typename K, typename E>
 struct IsContinuation<
-  detail::Map<K, E, Arg>> : std::true_type {};
+  detail::Map<K, E>> : std::true_type {};
 
-template <typename K, typename E, typename Arg>
+template <typename K, typename E>
 struct HasLoop<
-  detail::Map<K, E, Arg>> : HasLoop<K> {};
+  detail::Map<K, E>> : HasLoop<K> {};
 
-template <typename K, typename E, typename Arg>
+template <typename K, typename E>
 struct HasTerminal<
-  detail::Map<K, E, Arg>> : HasTerminal<K> {};
+  detail::Map<K, E>> : HasTerminal<K> {};
 
-template <typename K, typename E, typename Arg_>
-struct Compose<
-  detail::Map<K, E, Arg_>>
-{
-  template <typename Arg>
-  static auto compose(detail::Map<K, E, Arg_> map)
-  {
-    return detail::Map<K, E, Arg>(
-        std::move(map.k_),
-        std::move(map.e_));
-  }
-};
 
 template <typename E>
 auto Map(E e)
 {
-  return detail::Map<Undefined, E, Undefined>(Undefined(), std::move(e));
+  return detail::Map<Undefined, E>(Undefined(), std::move(e));
 }
 
 } // namespace eventuals {
