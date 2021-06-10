@@ -8,6 +8,10 @@
 namespace stout {
 namespace eventuals {
 
+// Forward declaration to break circular dependency with stream.h.
+template <typename K>
+void next(K& k);
+
 namespace detail {
 
 template <
@@ -217,7 +221,6 @@ struct Transform
         std::move(interrupt));
   }
 
-
   template <typename... Args>
   void Start(Args&&... args)
   {
@@ -307,6 +310,115 @@ struct Transform
       ended_(context_, k_);
     }
   }
+};
+
+
+template <typename K_, typename E_>
+struct Map
+{
+  using Value = typename E_::Value;
+
+  Map(K_ k, E_ e)
+    : k_(std::move(k)), e_(std::move(e)) {}
+
+  template <typename K, typename E>
+  static auto create(K k, E e)
+  {
+    return Map<K, E>(std::move(k), std::move(e));
+  }
+
+  template <typename K>
+  auto k(K k) &&
+  {
+    return create(
+        [&]() {
+          if constexpr (!IsUndefined<K_>::value) {
+            return std::move(k_) | std::move(k);
+          } else {
+            return std::move(k);
+          }
+        }(),
+        std::move(e_));
+  }
+
+  template <typename... Args>
+  void Start(Args&&... args)
+  {
+    eventuals::succeed(k_, std::forward<Args>(args)...);
+  }
+
+  template <typename... Args>
+  void Fail(Args&&... args)
+  {
+    // TODO(benh): do we need to fail via the eventual?
+    eventuals::fail(k_, std::forward<Args>(args)...);
+  }
+
+  void Stop()
+  {
+    // TODO(benh): do we need to stop via the eventual?
+    eventuals::stop(k_);
+  }
+
+  template <typename K, typename... Args>
+  void Body(K& k, Args&&... args)
+  {
+    if (!eterminal_) {
+      body_ = [&k](auto& k_, auto value) {
+        eventuals::body(k_, k, std::move(value));
+      };
+
+      eterminal_.emplace(std::move(e_).k(terminal(&body_, &k_)));
+
+      if (interrupt_ != nullptr) {
+        eterminal_->Register(*interrupt_);
+      }
+    }
+
+    eventuals::succeed(*eterminal_, std::forward<Args>(args)...);
+  }
+
+  void Ended()
+  {
+    eventuals::ended(k_);
+  }
+
+  void Register(Interrupt& interrupt)
+  {
+    interrupt_ = &interrupt;
+    k_.Register(interrupt);
+  }
+
+  static auto terminal(Callback<K_&, typename E_::Value>* body_, K_* k_)
+  {
+    // NOTE: need to use constexpr here because compiler needs to
+    // deduce function return type before K_ is fully determined.
+    if constexpr (HasTerminal<K_>::value) {
+      return eventuals::Terminal()
+        .start([body_, k_](auto&&... values) {
+          (*body_)(*k_, std::forward<decltype(values)>(values)...);
+        })
+        .fail([k_](auto&&... errors) {
+          eventuals::fail(*k_, std::forward<decltype(errors)>(errors)...);
+        })
+        .stop([k_]() {
+          eventuals::stop(*k_);
+        });
+    } else {
+      return eventuals::Terminal();
+    }
+  }
+
+  K_ k_;
+  E_ e_;
+
+  Callback<K_&, typename E_::Value> body_;
+
+  using ETerminal_ = decltype(std::move(e_).k(terminal(nullptr, nullptr)));
+
+  std::optional<ETerminal_> eterminal_;
+
+  Interrupt* interrupt_ = nullptr;
 };
 
 } // namespace detail {
@@ -462,6 +574,30 @@ auto map(F f)
     .stop([](auto&, auto& k) {
       stop(k);
     });
+}
+
+
+template <typename K, typename E>
+struct IsTransform<
+  detail::Map<K, E>> : std::true_type {};
+
+template <typename K, typename E>
+struct IsContinuation<
+  detail::Map<K, E>> : std::true_type {};
+
+template <typename K, typename E>
+struct HasLoop<
+  detail::Map<K, E>> : HasLoop<K> {};
+
+template <typename K, typename E>
+struct HasTerminal<
+  detail::Map<K, E>> : HasTerminal<K> {};
+
+
+template <typename E>
+auto Map(E e)
+{
+  return detail::Map<Undefined, E>(Undefined(), std::move(e));
 }
 
 } // namespace eventuals {

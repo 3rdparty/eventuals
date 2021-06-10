@@ -7,14 +7,17 @@
 
 #include "stout/repeated.h"
 #include "stout/task.h"
+#include "stout/transform.h"
 
 namespace eventuals = stout::eventuals;
 
 using std::deque;
 using std::string;
 
+using stout::eventuals::done;
 using stout::eventuals::Eventual;
 using stout::eventuals::Loop;
+using stout::eventuals::Map;
 using stout::eventuals::repeat;
 using stout::eventuals::Repeated;
 using stout::eventuals::succeed;
@@ -186,4 +189,31 @@ TEST(RepeatedTest, Interrupt)
   eventuals::start(t);
 
   EXPECT_THROW(eventuals::wait(t), StoppedException);
+}
+
+
+TEST(RepeatedTest, Map)
+{
+  auto r = []() {
+    return Repeated()
+      | Map(Eventual<int>()
+            .start([](auto& k) {
+              succeed(k, 1);
+            }))
+      | (Loop<int>()
+         .context(0)
+         .body([](auto&& count, auto& repeated, auto&& value) {
+           count += value;
+           if (count >= 5) {
+             done(repeated);
+           } else {
+             next(repeated);
+           }
+         })
+         .ended([](auto& count, auto& k) {
+           succeed(k, std::move(count));
+         }));
+  };
+
+  EXPECT_EQ(5, eventuals::run(eventuals::task(r())));
 }

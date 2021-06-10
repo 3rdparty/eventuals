@@ -12,8 +12,10 @@ namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Context;
 using stout::eventuals::ended;
+using stout::eventuals::Eventual;
 using stout::eventuals::Loop;
 using stout::eventuals::map;
+using stout::eventuals::Map;
 using stout::eventuals::reduce;
 using stout::eventuals::Stream;
 using stout::eventuals::succeed;
@@ -333,6 +335,33 @@ TEST(StreamTest, MapReduce)
       | map<int>([](int i) {
         return i + 1;
       })
+      | reduce<int>(
+          /* sum = */ 0,
+          [](auto&& sum, auto&& value) {
+            return sum + value;
+          });
+  };
+
+  EXPECT_EQ(20, eventuals::run(eventuals::task(s())));
+}
+
+
+TEST(StreamTest, Map)
+{
+  auto s = [&]() {
+    return Stream<int>()
+      .context(5)
+      .next([](auto& count, auto& k) {
+        if (count > 0) {
+          emit(k, count--);
+        } else {
+          ended(k);
+        }
+      })
+      | Map(Eventual<int>()
+            .start([](auto& k, auto&& i) {
+              succeed(k, i + 1);
+            }))
       | reduce<int>(
           /* sum = */ 0,
           [](auto&& sum, auto&& value) {
