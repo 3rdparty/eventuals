@@ -7,6 +7,27 @@
 namespace stout {
 namespace eventuals {
 
+template <typename K, typename... Args>
+void body(K& k, Args&&... args)
+{
+  static_assert(
+      !std::is_same_v<K, Undefined>,
+      "You're using a continuation that goes nowhere!");
+
+  k.Body(std::forward<Args>(args)...);
+}
+
+
+template <typename K>
+void ended(K& k)
+{
+  static_assert(
+      !std::is_same_v<K, Undefined>,
+      "You're using a continuation that goes nowhere!");
+
+  k.Ended();
+}
+
 namespace detail {
 
 template <
