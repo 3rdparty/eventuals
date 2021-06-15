@@ -147,7 +147,7 @@ struct Terminal
   void Fail(Args&&... args)
   {
     static_assert(
-        !IsUndefined<Start_>::value,
+        !IsUndefined<Fail_>::value,
         "Undefined 'fail' (and no default)");
 
     if constexpr (IsUndefined<Context_>::value) {
@@ -160,7 +160,7 @@ struct Terminal
   void Stop()
   {
     static_assert(
-        !IsUndefined<Start_>::value,
+        !IsUndefined<Stop_>::value,
         "Undefined 'stop' (and no default)");
 
     if constexpr (IsUndefined<Context_>::value) {
