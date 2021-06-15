@@ -109,19 +109,17 @@ struct Choice
   {
     // Handle non-eventuals that are *invocable*.
     return std::move(*this).k(
-        create<decltype(f(std::declval<Value>()))>(
-            Undefined(),
-            std::move(f),
-            [](auto& f, auto& k, auto&&... args) {
-              eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
-            },
-            [](auto&, auto& k, auto&&... args) {
-              eventuals::fail(k, std::forward<decltype(args)>(args)...);
-            },
-            [](auto&, auto& k) {
-              eventuals::stop(k);
-            },
-            Undefined()));
+        eventuals::Eventual<decltype(f(std::declval<Value>()))>()
+        .context(std::move(f))
+        .start([](auto& f, auto& k, auto&&... args) {
+          eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
+        })
+        .fail([](auto&, auto& k, auto&&... args) {
+          eventuals::fail(k, std::forward<decltype(args)>(args)...);
+        })
+        .stop([](auto&, auto& k) {
+          eventuals::stop(k);
+        }));
   }
 
   template <
