@@ -106,13 +106,13 @@ namespace detail {
 ////////////////////////////////////////////////////////////////////////
 
 template <
-  typename Value_,
   typename K_,
   typename Context_,
   typename Start_,
   typename Fail_,
   typename Stop_,
   typename Interrupt_,
+  typename Value_,
   typename... Errors_>
 struct Eventual
 {
@@ -150,13 +150,13 @@ struct Eventual
       Interrupt interrupt)
   {
     return Eventual<
-      Value,
       K,
       Context,
       Start,
       Fail,
       Stop,
       Interrupt,
+      Value,
       Errors...> {
       std::move(k),
       std::move(context),
@@ -363,67 +363,67 @@ struct Eventual
 ////////////////////////////////////////////////////////////////////////
 
 template <
-  typename Value,
   typename K,
   typename Context,
   typename Start,
   typename Fail,
   typename Stop,
   typename Interrupt,
+  typename Value,
   typename... Errors>
 struct IsEventual<
   detail::Eventual<
-    Value,
     K,
     Context,
     Start,
     Fail,
     Stop,
     Interrupt,
+    Value,
     Errors...>> : std::true_type {};
 
 ////////////////////////////////////////////////////////////////////////
 
 template <
-  typename Value,
   typename K,
   typename Context,
   typename Start,
   typename Fail,
   typename Stop,
   typename Interrupt,
+  typename Value,
   typename... Errors>
 struct IsContinuation<
   detail::Eventual<
-    Value,
     K,
     Context,
     Start,
     Fail,
     Stop,
     Interrupt,
+    Value,
     Errors...>> : std::true_type {};
 
 ////////////////////////////////////////////////////////////////////////
 
 template <
-  typename Value,
   typename K,
   typename Context,
   typename Start,
   typename Fail,
   typename Stop,
   typename Interrupt,
+  typename Value,
   typename... Errors>
 struct HasTerminal<
   detail::Eventual<
-    Value,
     K,
     Context,
     Start,
     Fail,
     Stop,
     Interrupt,
+    Value,
     Errors...>> : HasTerminal<K> {};
 
 ////////////////////////////////////////////////////////////////////////
@@ -433,13 +433,13 @@ auto Eventual()
 {
   static_assert(!IsUndefined<Value>::value, "Eventual of undefined value");
   return detail::Eventual<
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
     Value,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
     Errors...> {
     Undefined(),
     Undefined(),
