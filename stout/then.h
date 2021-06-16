@@ -103,12 +103,7 @@ struct Then
       IsContinuation<K>::value, int> = 0>
   auto k(K k) &&
   {
-    using Value = std::conditional_t<
-      IsTerminal<K>::value,
-      Value_,
-      typename K::Value>;
-
-    return create<Value, Errors_...>(
+    return create<Value_, Errors_...>(
         [&]() {
           if constexpr (!IsUndefined<K_>::value) {
             return std::move(k_) | std::move(k);
