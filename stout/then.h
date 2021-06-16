@@ -243,20 +243,21 @@ struct HasTerminal<
     Errors...>> : HasTerminal<K> {};
 
 
-template <typename... Errors, typename E>
+template <typename E>
 auto Then(E e)
 {
   using Result = typename InvokeResultUnknownArgs<E>::type;
 
   using Value = typename Result::Value;
 
+  // TODO(benh): Infer 'Errors' like we infer 'Value'.
+
   return detail::Then<
     Undefined,
     E,
     Undefined,
     Undefined,
-    Value,
-    Errors...>(
+    Value>(
       Undefined(),
       std::move(e),
       Undefined(),
