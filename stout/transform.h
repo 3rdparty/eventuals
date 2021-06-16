@@ -27,7 +27,7 @@ template <
   typename... Errors_>
 struct Transform
 {
-  using Value = Value_;
+  using Value = typename ValueFrom<K_, Value_>::type;
 
   K_ k_;
 
