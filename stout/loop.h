@@ -7,6 +7,10 @@
 namespace stout {
 namespace eventuals {
 
+// Forward declaration to break circular dependency with stream.h.
+template <typename K>
+void next(K& k);
+
 template <typename K, typename... Args>
 void body(K& k, Args&&... args)
 {
@@ -248,8 +252,8 @@ struct Loop
         std::move(interrupt));
   }
 
-  template <typename... Args>
-  void Start(Args&&... args)
+  template <typename K, typename... Args>
+  void Start(K& k, Args&&... args)
   {
     auto interrupted = [this]() mutable {
       if (handler_) {
@@ -264,11 +268,11 @@ struct Loop
       handler_->Invoke();
     } else {
       if constexpr (IsUndefined<Start_>::value) {
-        next(std::forward<Args>(args)...);
+        eventuals::next(k);
       } else if constexpr (IsUndefined<Context_>::value) {
-        start_(std::forward<Args>(args)...);
+        start_(k, std::forward<Args>(args)...);
       } else {
-        start_(context_, std::forward<Args>(args)...);
+        start_(context_, k, std::forward<Args>(args)...);
       }
     }
   }
@@ -315,7 +319,7 @@ struct Loop
   void Body(K& k, Args&&... args)
   {
     if constexpr (IsUndefined<Body_>::value) {
-      next(k);
+      eventuals::next(k);
     } else if constexpr (IsUndefined<Context_>::value) {
       body_(k, std::forward<Args>(args)...);
     } else {
