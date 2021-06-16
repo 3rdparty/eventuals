@@ -21,7 +21,8 @@ cc_library(
         "stout/callback.h",
         "stout/return.h",
         "stout/conditional.h",
-        "stout/invoke-result-unknown-args.h",
+        "stout/lambda.h",
+        "stout/invoke-result.h",
     ],
     visibility = ["//visibility:public"],
 )

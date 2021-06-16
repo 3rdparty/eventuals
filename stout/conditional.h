@@ -1,7 +1,7 @@
 #pragma once
 
 #include "stout/choice.h"
-#include "stout/invoke-result-unknown-args.h"
+#include "stout/invoke-result.h"
 
 namespace stout {
 namespace eventuals {

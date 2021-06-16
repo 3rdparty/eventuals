@@ -10,7 +10,7 @@ cc_test(
         "repeated.cc",
         "then.cc",
         "conditional.cc",
-        "invoke-result-unknown-args.cc",
+        "invoke-result.cc",
     ],
     deps = [
         "//:eventuals",
