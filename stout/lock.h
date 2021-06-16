@@ -6,6 +6,7 @@
 #include "stout/eventual.h"
 #include "stout/callback.h"
 #include "stout/invoke-result.h"
+#include "stout/lambda.h"
 
 namespace stout {
 namespace eventuals {
@@ -151,19 +152,7 @@ struct Acquire
       && IsUndefined<K_>::value, int> = 0>
   auto k(F f) &&
   {
-    using Result = typename InvokeResultPossiblyUndefined<F, Value>::type;
-    return std::move(*this).k(
-        eventuals::Eventual<Result>()
-        .context(std::move(f))
-        .start([](auto& f, auto& k, auto&&... args) {
-          eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
-        })
-        .fail([](auto&, auto& k, auto&&... args) {
-          eventuals::fail(k, std::forward<decltype(args)>(args)...);
-        })
-        .stop([](auto&, auto& k) {
-          eventuals::stop(k);
-        }));
+    return std::move(*this).k(eventuals::Lambda(std::move(f)));
   }
 
   template <typename... Args>
@@ -284,19 +273,7 @@ struct Release
       && IsUndefined<K_>::value, int> = 0>
   auto k(F f) &&
   {
-    using Result = typename InvokeResultPossiblyUndefined<F, Value>::type;
-    return std::move(*this).k(
-        eventuals::Eventual<Result>()
-        .context(std::move(f))
-        .start([](auto& f, auto& k, auto&&... args) {
-          eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
-        })
-        .fail([](auto&, auto& k, auto&&... args) {
-          eventuals::fail(k, std::forward<decltype(args)>(args)...);
-        })
-        .stop([](auto&, auto& k) {
-          eventuals::stop(k);
-        }));
+    return std::move(*this).k(eventuals::Lambda(std::move(f)));
   }
 
   template <typename... Args>
@@ -421,19 +398,7 @@ struct Wait
       && IsUndefined<K_>::value, int> = 0>
   auto k(F f) &&
   {
-    using Result = typename InvokeResultPossiblyUndefined<F, Value>::type;
-    return std::move(*this).k(
-        eventuals::Eventual<Result>()
-        .context(std::move(f))
-        .start([](auto& f, auto& k, auto&&... args) {
-          eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
-        })
-        .fail([](auto&, auto& k, auto&&... args) {
-          eventuals::fail(k, std::forward<decltype(args)>(args)...);
-        })
-        .stop([](auto&, auto& k) {
-          eventuals::stop(k);
-        }));
+    return std::move(*this).k(eventuals::Lambda(std::move(f)));
   }
 
   template <typename Context>

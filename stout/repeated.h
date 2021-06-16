@@ -141,19 +141,11 @@ struct Repeated
       !IsContinuation<F>::value, int> = 0>
   auto k(F f) &&
   {
-    // Handle non-eventuals that are *invocable*.
-    return std::move(*this).k(
-        eventuals::Eventual<decltype(f(std::declval<Value>()))>()
-        .context(std::move(f))
-        .start([](auto& f, auto& k, auto&&... args) {
-          eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
-        })
-        .fail([](auto&, auto& k, auto&&... args) {
-          eventuals::fail(k, std::forward<decltype(args)>(args)...);
-        })
-        .stop([](auto&, auto& k) {
-          eventuals::stop(k);
-        }));
+    static_assert(!HasLoop<K_>::value, "Can't add *invocable* after loop");
+
+    using Value = decltype(f(std::declval<Value_>()));
+
+    return std::move(*this).k(map<Value>(std::move(f)));
   }
 
   template <
