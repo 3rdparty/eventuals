@@ -90,7 +90,6 @@ struct StreamK
 
 
 template <
-  typename Value_,
   typename K_,
   typename Context_,
   typename Start_,
@@ -99,6 +98,7 @@ template <
   typename Fail_,
   typename Stop_,
   typename Interrupt_,
+  typename Value_,
   typename... Errors_>
 struct Stream
 {
@@ -154,7 +154,6 @@ struct Stream
       Interrupt interrupt)
   {
     return Stream<
-      Value,
       K,
       Context,
       Start,
@@ -163,6 +162,7 @@ struct Stream
       Fail,
       Stop,
       Interrupt,
+      Value,
       Errors...> {
       std::move(k),
       std::move(context),
@@ -477,7 +477,6 @@ struct IsStream : std::false_type {};
 
 
 template <
-  typename Value,
   typename K,
   typename Context,
   typename Start,
@@ -486,10 +485,10 @@ template <
   typename Fail,
   typename Stop,
   typename Interrupt,
+  typename Value,
   typename... Errors>
 struct IsStream<
   detail::Stream<
-    Value,
     K,
     Context,
     Start,
@@ -498,11 +497,11 @@ struct IsStream<
     Fail,
     Stop,
     Interrupt,
+    Value,
     Errors...>> : std::true_type {};
 
 
 template <
-  typename Value,
   typename K,
   typename Context,
   typename Start,
@@ -511,10 +510,10 @@ template <
   typename Fail,
   typename Stop,
   typename Interrupt,
+  typename Value,
   typename... Errors>
 struct IsContinuation<
   detail::Stream<
-    Value,
     K,
     Context,
     Start,
@@ -523,11 +522,11 @@ struct IsContinuation<
     Fail,
     Stop,
     Interrupt,
+    Value,
     Errors...>> : std::true_type {};
 
 
 template <
-  typename Value,
   typename K,
   typename Context,
   typename Start,
@@ -536,10 +535,10 @@ template <
   typename Fail,
   typename Stop,
   typename Interrupt,
+  typename Value,
   typename... Errors>
 struct HasLoop<
   detail::Stream<
-    Value,
     K,
     Context,
     Start,
@@ -548,11 +547,11 @@ struct HasLoop<
     Fail,
     Stop,
     Interrupt,
+    Value,
     Errors...>> : HasLoop<K> {};
 
 
 template <
-  typename Value,
   typename K,
   typename Context,
   typename Start,
@@ -561,10 +560,10 @@ template <
   typename Fail,
   typename Stop,
   typename Interrupt,
+  typename Value,
   typename... Errors>
 struct HasTerminal<
   detail::Stream<
-    Value,
     K,
     Context,
     Start,
@@ -573,6 +572,7 @@ struct HasTerminal<
     Fail,
     Stop,
     Interrupt,
+    Value,
     Errors...>> : HasTerminal<K> {};
 
 
@@ -585,15 +585,15 @@ template <typename Value, typename... Errors>
 auto Stream()
 {
   return detail::Stream<
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
     Value,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
     Errors...> {
     Undefined(),
     Undefined(),

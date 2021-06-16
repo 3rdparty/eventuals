@@ -15,7 +15,6 @@ void next(K& k);
 namespace detail {
 
 template <
-  typename Value_,
   typename K_,
   typename Context_,
   typename Start_,
@@ -24,6 +23,7 @@ template <
   typename Fail_,
   typename Stop_,
   typename Interrupt_,
+  typename Value_,
   typename... Errors_>
 struct Transform
 {
@@ -63,7 +63,6 @@ struct Transform
       Interrupt interrupt)
   {
     return Transform<
-      Value,
       K,
       Context,
       Start,
@@ -72,6 +71,7 @@ struct Transform
       Fail,
       Stop,
       Interrupt,
+      Value,
       Errors...> {
       std::move(k),
       std::move(context),
@@ -429,7 +429,6 @@ struct IsTransform : std::false_type {};
 
 
 template <
-  typename Value,
   typename K,
   typename Context,
   typename Start,
@@ -438,10 +437,10 @@ template <
   typename Fail,
   typename Stop,
   typename Interrupt,
+  typename Value,
   typename... Errors>
 struct IsTransform<
   detail::Transform<
-    Value,
     K,
     Context,
     Start,
@@ -450,11 +449,11 @@ struct IsTransform<
     Fail,
     Stop,
     Interrupt,
+    Value,
     Errors...>> : std::true_type {};
 
 
 template <
-  typename Value,
   typename K,
   typename Context,
   typename Start,
@@ -463,10 +462,10 @@ template <
   typename Fail,
   typename Stop,
   typename Interrupt,
+  typename Value,
   typename... Errors>
 struct IsContinuation<
   detail::Transform<
-    Value,
     K,
     Context,
     Start,
@@ -475,11 +474,11 @@ struct IsContinuation<
     Fail,
     Stop,
     Interrupt,
+    Value,
     Errors...>> : std::true_type {};
 
 
 template <
-  typename Value,
   typename K,
   typename Context,
   typename Start,
@@ -488,10 +487,10 @@ template <
   typename Fail,
   typename Stop,
   typename Interrupt,
+  typename Value,
   typename... Errors>
 struct HasLoop<
   detail::Transform<
-    Value,
     K,
     Context,
     Start,
@@ -500,11 +499,11 @@ struct HasLoop<
     Fail,
     Stop,
     Interrupt,
+    Value,
     Errors...>> : HasLoop<K> {};
 
 
 template <
-  typename Value,
   typename K,
   typename Context,
   typename Start,
@@ -513,10 +512,10 @@ template <
   typename Fail,
   typename Stop,
   typename Interrupt,
+  typename Value,
   typename... Errors>
 struct HasTerminal<
   detail::Transform<
-    Value,
     K,
     Context,
     Start,
@@ -525,6 +524,7 @@ struct HasTerminal<
     Fail,
     Stop,
     Interrupt,
+    Value,
     Errors...>> : HasTerminal<K> {};
 
 
@@ -532,15 +532,15 @@ template <typename Value, typename... Errors>
 auto Transform()
 {
   return detail::Transform<
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
     Value,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
     Errors...> {
     Undefined(),
     Undefined(),
