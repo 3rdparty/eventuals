@@ -102,7 +102,7 @@ template <
   typename... Errors_>
 struct Stream
 {
-  using Value = Value_;
+  using Value = typename ValueFrom<K_, Value_>::type;
 
   K_ k_;
 
@@ -241,12 +241,7 @@ struct Stream
         !IsTerminal<K>::value || HasLoop<K_>::value,
         "Can't add 'Terminal' *before* 'Loop'");
 
-    using Value = std::conditional_t<
-      IsTerminal<K>::value,
-      Value_,
-      typename K::Value>;
-
-    return create<Value, Errors_...>(
+    return create<Value_, Errors_...>(
         [&]() {
           if constexpr (!IsUndefined<K_>::value) {
             return std::move(k_) | std::move(k);
