@@ -311,27 +311,27 @@ struct Loop
     }
   }
 
-  template <typename... Args>
-  void Body(Args&&... args)
+  template <typename K, typename... Args>
+  void Body(K& k, Args&&... args)
   {
-    static_assert(
-        !IsUndefined<Body_>::value,
-        "Undefined 'body' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
-      body_(std::forward<Args>(args)...);
+    if constexpr (IsUndefined<Body_>::value) {
+      next(k);
+    } else if constexpr (IsUndefined<Context_>::value) {
+      body_(k, std::forward<Args>(args)...);
     } else {
-      body_(context_, std::forward<Args>(args)...);
+      body_(context_, k, std::forward<Args>(args)...);
     }
   }
 
   void Ended()
   {
     static_assert(
-        !IsUndefined<Ended_>::value,
-        "Undefined 'ended' (and no default)");
+        !IsUndefined<Ended_>::value || IsUndefined<Value_>::value,
+        "Undefined 'ended' but 'Value' is _not_ 'Undefined'");
 
-    if constexpr (IsUndefined<Context_>::value) {
+    if constexpr (IsUndefined<Ended_>::value) {
+      eventuals::succeed(k_);
+    } else if constexpr (IsUndefined<Context_>::value) {
       ended_(k_);
     } else {
       ended_(context_, k_);
@@ -464,6 +464,30 @@ auto Loop()
     Undefined,
     Undefined,
     Errors...> {
+    Undefined(),
+    Undefined(),
+    Undefined(),
+    Undefined(),
+    Undefined(),
+    Undefined(),
+    Undefined(),
+    Undefined()
+  };
+}
+
+
+inline auto Loop()
+{
+  return detail::Loop<
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined,
+    Undefined> {
     Undefined(),
     Undefined(),
     Undefined(),

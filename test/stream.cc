@@ -292,6 +292,26 @@ TEST(StreamTest, InterruptLoop)
 }
 
 
+TEST(StreamTest, InfiniteLoop)
+{
+  auto s = []() {
+    return Stream<int>()
+      .context(5)
+      .next([](auto& count, auto& k) {
+        if (count > 0) {
+          emit(k, count--);
+        } else {
+          ended(k);
+        }
+      })
+      | [](int i) { return i + 1; }
+      | Loop();
+  };
+
+  eventuals::run(eventuals::task(s()));
+}
+
+
 TEST(StreamTest, Transform)
 {
   auto s = []() {
