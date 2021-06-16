@@ -105,7 +105,7 @@ template <
   typename... Errors_>
 struct Eventual
 {
-  using Value = Value_;
+  using Value = typename ValueFrom<K_, Value_>::type;
 
   Eventual(const Eventual& that) = default;
   Eventual(Eventual&& that) = default;
@@ -164,7 +164,7 @@ struct Eventual
   {
     // Handle non-eventuals that are *invocable*.
     return std::move(*this).k(
-        create<decltype(f(std::declval<Value>()))>(
+        create<decltype(f(std::declval<Value_>()))>(
             Undefined(),
             std::move(f),
             [](auto& f, auto& k, auto&&... args) {
@@ -189,16 +189,7 @@ struct Eventual
         !IsTerminal<K>::value || !HasTerminal<K_>::value,
         "Redundant 'Terminal'");
 
-    using Value = std::conditional_t<
-      IsTerminal<K>::value,
-      Value_,
-      typename K::Value>;
-
-    static_assert(
-        !IsUndefined<Value>::value,
-        "Continuation Value is Undefined?");
-
-    return create<Value, Errors_...>(
+    return create<Value_, Errors_...>(
         [&]() {
           if constexpr (!IsUndefined<K_>::value) {
             return std::move(k_) | std::move(k);
