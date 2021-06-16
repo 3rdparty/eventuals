@@ -11,7 +11,8 @@ namespace detail {
 template <typename K_, typename F_, typename Arg_>
 struct Lambda
 {
-  using Value = typename InvokeResultPossiblyUndefined<F_, Arg_>::type;
+  using Value_ = typename InvokeResultPossiblyUndefined<F_, Arg_>::type;
+  using Value = typename ValueFrom<K_, Value_>::type;
 
   Lambda(K_ k, F_ f) : k_(std::move(k)), f_(std::move(f)) {}
 
