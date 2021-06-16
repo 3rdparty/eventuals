@@ -5,6 +5,7 @@
 
 #include "stout/eventual.h"
 #include "stout/callback.h"
+#include "stout/invoke-result.h"
 
 namespace stout {
 namespace eventuals {
@@ -108,20 +109,6 @@ private:
 ////////////////////////////////////////////////////////////////////////
 
 namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename F, typename... Values>
-struct InvokeResultPossiblyUndefined
-{
-  using type = std::invoke_result_t<F, Values...>;
-};
-
-template <typename F>
-struct InvokeResultPossiblyUndefined<F, Undefined>
-{
-  using type = std::invoke_result_t<F>;
-};
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -315,54 +302,21 @@ struct Release
   template <typename... Args>
   void Start(Args&&... args)
   {
-    // NOTE: only one of Start, Fail, or Stop *should* be getting
-    // called but being conservative here (for now).
-    bool expected = false;
-    if (released_.compare_exchange_strong(
-            expected,
-            true,
-            std::memory_order_release,
-            std::memory_order_relaxed)) {
-      lock_->Release();
-      eventuals::succeed(k_, std::forward<decltype(args)>(args)...);
-    } else {
-      std::abort();
-    }
+    lock_->Release();
+    eventuals::succeed(k_, std::forward<decltype(args)>(args)...);
   }
 
   template <typename... Args>
   void Fail(Args&&... args)
   {
-    // NOTE: only one of Start, Fail, or Stop *should* be getting
-    // called but being conservative here (for now).
-    bool expected = false;
-    if (released_.compare_exchange_strong(
-            expected,
-            true,
-            std::memory_order_release,
-            std::memory_order_relaxed)) {
-      lock_->Release();
-      eventuals::fail(k_, std::forward<Args>(args)...);
-    } else {
-      std::abort();
-    }
+    lock_->Release();
+    eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
   void Stop()
   {
-    // NOTE: only one of Start, Fail, or Stop *should* be getting
-    // called but being conservative here (for now).
-    bool expected = false;
-    if (released_.compare_exchange_strong(
-            expected,
-            true,
-            std::memory_order_release,
-            std::memory_order_relaxed)) {
-      lock_->Release();
-      eventuals::stop(k_);
-    } else {
-      std::abort();
-    }
+    lock_->Release();
+    eventuals::stop(k_);
   }
 
   void Register(Interrupt& interrupt)
@@ -598,7 +552,8 @@ struct Compose<detail::Acquire<K, Value_>>
   template <typename Value>
   static auto compose(detail::Acquire<K, Value_> acquire)
   {
-    return detail::Acquire<K, Value>(std::move(acquire.k_), acquire.lock_);
+    auto k = eventuals::compose<Value>(std::move(acquire.k_));
+    return detail::Acquire<decltype(k), Value>(std::move(k), acquire.lock_);
   }
 };
 
@@ -629,7 +584,8 @@ struct Compose<detail::Release<K, Value_>>
   template <typename Value>
   static auto compose(detail::Release<K, Value_> release)
   {
-    return detail::Release<K, Value>(std::move(release.k_), release.lock_);
+    auto k = eventuals::compose<Value>(std::move(release.k_));
+    return detail::Release<decltype(k), Value>(std::move(k), release.lock_);
   }
 };
 

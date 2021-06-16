@@ -576,29 +576,53 @@ auto map(F f)
     });
 }
 
+////////////////////////////////////////////////////////////////////////
 
 template <typename K, typename E>
 struct IsTransform<
   detail::Map<K, E>> : std::true_type {};
 
+////////////////////////////////////////////////////////////////////////
+
 template <typename K, typename E>
 struct IsContinuation<
   detail::Map<K, E>> : std::true_type {};
+
+////////////////////////////////////////////////////////////////////////
 
 template <typename K, typename E>
 struct HasLoop<
   detail::Map<K, E>> : HasLoop<K> {};
 
+////////////////////////////////////////////////////////////////////////
+
 template <typename K, typename E>
 struct HasTerminal<
   detail::Map<K, E>> : HasTerminal<K> {};
 
+////////////////////////////////////////////////////////////////////////
+
+template <typename K, typename E>
+struct Compose<detail::Map<K, E>>
+{
+  template <typename Value>
+  static auto compose(detail::Map<K, E> map)
+  {
+    auto e = eventuals::compose<Value>(std::move(map.e_));
+    auto k = eventuals::compose<typename decltype(e)::Value>(std::move(map.k_));
+    return detail::Map<decltype(k), decltype(e)>(std::move(k), std::move(e));
+  }
+};
+
+////////////////////////////////////////////////////////////////////////
 
 template <typename E>
 auto Map(E e)
 {
   return detail::Map<Undefined, E>(Undefined(), std::move(e));
 }
+
+////////////////////////////////////////////////////////////////////////
 
 } // namespace eventuals {
 } // namespace stout {

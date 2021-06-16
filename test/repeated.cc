@@ -5,6 +5,8 @@
 
 #include "gtest/gtest.h"
 
+#include "stout/lambda.h"
+#include "stout/lock.h"
 #include "stout/repeated.h"
 #include "stout/task.h"
 #include "stout/transform.h"
@@ -14,13 +16,18 @@ namespace eventuals = stout::eventuals;
 using std::deque;
 using std::string;
 
+using stout::eventuals::Acquire;
 using stout::eventuals::done;
 using stout::eventuals::Eventual;
+using stout::eventuals::Lambda;
+using stout::eventuals::Lock;
 using stout::eventuals::Loop;
 using stout::eventuals::Map;
+using stout::eventuals::Release;
 using stout::eventuals::repeat;
 using stout::eventuals::Repeated;
 using stout::eventuals::succeed;
+using stout::eventuals::Wait;
 
 using stout::eventuals::FailedException;
 using stout::eventuals::StoppedException;
@@ -200,6 +207,45 @@ TEST(RepeatedTest, Map)
             .start([](auto& k) {
               succeed(k, 1);
             }))
+      | (Loop<int>()
+         .context(0)
+         .body([](auto&& count, auto& repeated, auto&& value) {
+           count += value;
+           if (count >= 5) {
+             done(repeated);
+           } else {
+             next(repeated);
+           }
+         })
+         .ended([](auto& count, auto& k) {
+           succeed(k, std::move(count));
+         }));
+  };
+
+  EXPECT_EQ(5, eventuals::run(eventuals::task(r())));
+}
+
+
+TEST(RepeatedTest, MapAcquire)
+{
+  Lock lock;
+
+  auto r = [&]() {
+    return Repeated()
+      | Map(Eventual<int>()
+            .start([](auto& k) {
+              succeed(k, 1);
+            }))
+      | Map(
+            Acquire(&lock)
+            | (Wait<int>(&lock)
+               .condition([](auto& k, auto&& i) {
+                 succeed(k, i);
+               }))
+            | Lambda([](auto&& i) {
+              return i;
+            })
+            | Release(&lock))
       | (Loop<int>()
          .context(0)
          .body([](auto&& count, auto& repeated, auto&& value) {
