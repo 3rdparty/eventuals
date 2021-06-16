@@ -326,7 +326,6 @@ struct Release
 
   K_ k_;
   Lock* lock_;
-  std::atomic<bool> released_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////
