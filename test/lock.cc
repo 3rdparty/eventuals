@@ -59,21 +59,21 @@ TEST(LockTest, Succeed)
       | []() { return "t3"; };
   };
 
-  auto t1 = eventuals::task(e1());
-  auto t2 = eventuals::task(e2());
-  auto t3 = eventuals::task(e3());
+  auto t1 = eventuals::TaskFrom(e1());
+  auto t2 = eventuals::TaskFrom(e2());
+  auto t3 = eventuals::TaskFrom(e3());
 
-  eventuals::start(t1);
+  t1.Start();
 
-  EXPECT_EQ("t1", eventuals::wait(t1));
+  EXPECT_EQ("t1", t1.Wait());
 
-  eventuals::start(t2);
+  t2.Start();
 
-  eventuals::start(t3);
+  t3.Start();
 
-  EXPECT_STREQ("t3", eventuals::wait(t3));
+  EXPECT_STREQ("t3", t3.Wait());
 
-  EXPECT_EQ("t2", eventuals::wait(t2));
+  EXPECT_EQ("t2", t2.Wait());
 }
 
 
@@ -100,9 +100,9 @@ TEST(LockTest, Fail)
       | []() { return "t2"; };
   };
 
-  EXPECT_THROW(eventuals::run(eventuals::task(e1())), FailedException);
+  EXPECT_THROW(*e1(), FailedException);
 
-  EXPECT_STREQ("t2", eventuals::run(eventuals::task(e2())));
+  EXPECT_STREQ("t2", *e2());
 }
 
 
@@ -133,15 +133,15 @@ TEST(LockTest, Stop)
       | []() { return "t2"; };
   };
 
-  auto t1 = eventuals::task(e1());
+  auto t1 = eventuals::TaskFrom(e1());
 
-  eventuals::start(t1);
+  t1.Start();
 
-  eventuals::interrupt(t1);
+  t1.Interrupt();
 
-  EXPECT_THROW(eventuals::wait(t1), StoppedException);
+  EXPECT_THROW(t1.Wait(), StoppedException);
 
-  EXPECT_STREQ("t2", eventuals::run(eventuals::task(e2())));
+  EXPECT_STREQ("t2", *e2());
 }
 
 
@@ -173,15 +173,15 @@ TEST(LockTest, Wait)
       | Release(&lock);
   };
 
-  auto t1 = eventuals::task(e1());
+  auto t1 = eventuals::TaskFrom(e1());
 
-  eventuals::start(t1);
+  t1.Start();
 
   ASSERT_TRUE(callback);
 
   callback();
 
-  EXPECT_EQ("t1", eventuals::wait(t1));
+  EXPECT_EQ("t1", t1.Wait());
 }
 
 
@@ -213,5 +213,5 @@ TEST(LockTest, Synchronizable)
 
   Foo foo2 = std::move(foo);
 
-  EXPECT_EQ("operation", eventuals::run(eventuals::task(foo2.Operation())));
+  EXPECT_EQ("operation", *foo2.Operation());
 }

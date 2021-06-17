@@ -79,7 +79,7 @@ TEST(RepeatedTest, Succeed)
          }));
   };
 
-  auto results = eventuals::run(eventuals::task(r()));
+  auto results = *r();
 
   ASSERT_EQ(2, results.size());
 
@@ -132,7 +132,7 @@ TEST(RepeatedTest, Fail)
          }));
   };
 
-  EXPECT_THROW(eventuals::run(eventuals::task(r())), FailedException);
+  EXPECT_THROW(*r(), FailedException);
 }
 
 
@@ -186,16 +186,16 @@ TEST(RepeatedTest, Interrupt)
          }));
   };
 
-  auto t = eventuals::task(r());
+  auto t = eventuals::TaskFrom(r());
 
   EXPECT_CALL(start, Call())
     .WillOnce([&]() {
-      eventuals::interrupt(t);
+      t.Interrupt();
     });
 
-  eventuals::start(t);
+  t.Start();
 
-  EXPECT_THROW(eventuals::wait(t), StoppedException);
+  EXPECT_THROW(t.Wait(), StoppedException);
 }
 
 
@@ -222,7 +222,7 @@ TEST(RepeatedTest, Map)
          }));
   };
 
-  EXPECT_EQ(5, eventuals::run(eventuals::task(r())));
+  EXPECT_EQ(5, *r());
 }
 
 
@@ -261,5 +261,5 @@ TEST(RepeatedTest, MapAcquire)
          }));
   };
 
-  EXPECT_EQ(5, eventuals::run(eventuals::task(r())));
+  EXPECT_EQ(5, *r());
 }

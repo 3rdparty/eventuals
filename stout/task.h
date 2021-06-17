@@ -5,8 +5,12 @@
 #include <future>
 #include <sstream>
 
+////////////////////////////////////////////////////////////////////////
+
 namespace stout {
 namespace eventuals {
+
+////////////////////////////////////////////////////////////////////////
 
 template <typename S, typename T, typename = void>
 struct Streamable : std::false_type {};
@@ -18,6 +22,7 @@ struct Streamable<
   decltype(void(std::declval<S&>() << std::declval<T const&>()))>
   : std::true_type {};
 
+////////////////////////////////////////////////////////////////////////
 
 struct StoppedException : public std::exception
 {
@@ -27,6 +32,7 @@ struct StoppedException : public std::exception
   }
 };
 
+////////////////////////////////////////////////////////////////////////
 
 struct FailedException : public std::exception
 {
@@ -60,106 +66,172 @@ struct FailedException : public std::exception
   std::string message_;
 };
 
+////////////////////////////////////////////////////////////////////////
 
-template <typename E_>
-struct Task
+template <typename Value, typename E>
+auto Terminate(E e)
 {
-  using Value = std::conditional_t<
-    IsUndefined<typename E_::Value>::value,
-    void,
-    typename E_::Value>;
+  std::promise<Value> promise;
+  auto future = promise.get_future();
+  return std::tuple {
+    std::move(future),
+    std::move(e)
+      | (Terminal()
+         .context(std::move(promise))
+         .start([](auto& promise, auto&&... values) {
+           static_assert(
+               sizeof...(values) == 0 || sizeof...(values) == 1,
+               "Task only supports 0 or 1 value, but found > 1");
+           promise.set_value(std::forward<decltype(values)>(values)...);
+         })
+         .fail([](auto& promise, auto&&... errors) {
+           promise.set_exception(
+               std::make_exception_ptr(
+                   FailedException(
+                       std::forward<decltype(errors)>(errors)...)));
+         })
+         .stop([](auto& promise) {
+           promise.set_exception(
+               std::make_exception_ptr(
+                   StoppedException()));
+         }))
+  };
+}
 
-  // NOTE: task is not copyable or moveable because of 'std::future',
-  // but that's ok because once started if the task got moved that
-  // would be catastrophic since computation is already underway and
-  // expecting things to be at specific places in memory.
+////////////////////////////////////////////////////////////////////////
 
-  E_ e_;
-
-  std::future<Value> future_;
-
-  Interrupt interrupt_;
+enum TaskWaitable {
+  Waitable,
+  NotWaitable,
 };
 
+////////////////////////////////////////////////////////////////////////
 
-template <
-  typename E,
-  std::enable_if_t<
-    !HasTerminal<E>::value, int> = 0>
-auto task(E e)
+template <typename Value_, TaskWaitable waitable = Waitable>
+struct Task
 {
+  template <typename E>
+  Task(E e)
+  {
+    using Value = std::conditional_t<
+      IsUndefined<typename E::Value>::value,
+      void,
+      typename E::Value>;
+
+    static_assert(
+        std::is_convertible_v<Value, Value_>,
+        "Type of eventual can not be converted into type specified");
+
+    static_assert(
+        !HasTerminal<E>::value || waitable == NotWaitable,
+        "Eventual already has a terminal so need to toggle 'NotWaitable'");
+
+    auto make = [&, this]() {
+      if constexpr (!HasTerminal<E>::value) {
+        auto [future, t] = Terminate<Value_>(std::move(e));
+        future_ = std::move(future);
+        return std::move(t);
+      } else {
+        return std::move(e);
+      }
+    };
+
+    e_ = std::make_shared<decltype(make())>(make());
+
+    start_ = [this]() {
+      auto& e = *static_cast<decltype(make())*>(e_.get());
+      e.Register(interrupt_);
+      start(e);
+    };
+  }
+
+  void Start()
+  {
+    start_();
+  }
+
+  void Interrupt()
+  {
+    interrupt_.Trigger();
+  }
+
+  auto Wait()
+  {
+    static_assert(
+        waitable == Waitable,
+        "Task is not waitable (already has a terminal)");
+
+    if constexpr (waitable == Waitable) {
+      return future_.get();
+    }
+  }
+
+  auto Run()
+  {
+    start_();
+    return Wait();
+  }
+
+private:
+  // NOTE: using a 'shared_ptr' instead of a 'unique_ptr' so that
+  // we'll get destruction given we've type erased the eventual. Even
+  // though a 'shared_ptr' is copyable, the 'Callback' should enforce
+  // move only semantics.
+  std::shared_ptr<void> e_;
+  std::conditional_t<
+    waitable == Waitable,
+    std::future<Value_>,
+    Undefined> future_;
+  Callback<> start_;
+  class Interrupt interrupt_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename E>
+auto TaskFrom(E e)
+{
+  if constexpr (!HasTerminal<E>::value) {
+    return Task<typename E::Value>(std::move(e));
+  } else {
+    return Task<typename E::Value, NotWaitable>(std::move(e));
+  }
+}
+
+////////////////////////////////////////////////////////////////////////
+
+namespace detail {
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename E>
+auto operator*(E e)
+{
+  static_assert(
+      !HasTerminal<E>::value,
+      "Eventual already has terminal (maybe you want 'start()')");
+
   using Value = std::conditional_t<
     IsUndefined<typename E::Value>::value,
     void,
     typename E::Value>;
 
-  std::promise<Value> promise;
+  auto [future, t] = Terminate<Value>(std::move(e));
 
-  auto future = promise.get_future();
+  start(t);
 
-  auto t = std::move(e)
-    | (Terminal()
-       .context(std::move(promise))
-       .start([](auto& promise, auto&&... values) {
-         static_assert(sizeof...(values) == 0 || sizeof...(values) == 1,
-                       "Task only supports 0 or 1 value, but found > 1");
-         promise.set_value(std::forward<decltype(values)>(values)...);
-       })
-       .fail([](auto& promise, auto&&... errors) {
-         promise.set_exception(
-             std::make_exception_ptr(
-                 FailedException(std::forward<decltype(errors)>(errors)...)));
-       })
-       .stop([](auto& promise) {
-         promise.set_exception(
-             std::make_exception_ptr(
-                 StoppedException()));
-       }));
-
-  return Task<decltype(t)> {
-    std::move(t),
-    std::move(future)
-  };
+  return future.get();
+  // return run(task(std::move(e)));
 }
 
+////////////////////////////////////////////////////////////////////////
 
-template <typename E>
-Task<E>& start(Task<E>& task)
-{
-  task.e_.Register(task.interrupt_);
-  start(task.e_);
-  return task;
-}
+} // namespace detail {
 
-
-template <typename E>
-Task<E>& interrupt(Task<E>& task)
-{
-  task.interrupt_.Trigger();
-  return task;
-}
-
-
-template <typename E>
-auto wait(Task<E>& task)
-{
-  return task.future_.get();
-}
-
-
-template <typename E>
-auto run(Task<E>& task)
-{
-  return wait(start(task));
-}
-
-
-template <typename E>
-auto run(Task<E>&& task)
-{
-  return run(task);
-}
+////////////////////////////////////////////////////////////////////////
 
 } // namespace eventuals {
 } // namespace stout {
+
+////////////////////////////////////////////////////////////////////////
 

@@ -57,7 +57,7 @@ TEST(EventualTest, Succeed)
          }));
   };
 
-  EXPECT_EQ(2, eventuals::run(eventuals::task(e())));
+  EXPECT_EQ(2, *e());
 }
 
 
@@ -92,7 +92,7 @@ TEST(EventualTest, Fail)
          }));
   };
 
-  EXPECT_THROW(eventuals::run(eventuals::task(e())), FailedException);
+  EXPECT_THROW(*e(), FailedException);
 }
 
 
@@ -127,16 +127,16 @@ TEST(EventualTest, Interrupt)
          }));
   };
 
-  auto t = eventuals::task(e());
+  auto t = eventuals::TaskFrom(e());
 
   EXPECT_CALL(start, Call())
     .WillOnce([&]() {
-      eventuals::interrupt(t);
+      t.Interrupt();
     });
 
-  eventuals::start(t);
+  t.Start();
 
-  EXPECT_THROW(eventuals::wait(t), StoppedException);
+  EXPECT_THROW(t.Wait(), StoppedException);
 }
 
 

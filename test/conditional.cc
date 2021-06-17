@@ -48,7 +48,7 @@ TEST(ConditionalTest, Then)
           [&](auto&&) { return els3(); });
   };
 
-  EXPECT_EQ("then", eventuals::run(eventuals::task(c())));
+  EXPECT_EQ("then", *c());
 }
 
 
@@ -77,7 +77,7 @@ TEST(ConditionalTest, Else)
           [&](auto&&) { return els3(); });
   };
 
-  EXPECT_EQ("else", eventuals::run(eventuals::task(c())));
+  EXPECT_EQ("else", *c());
 }
 
 
@@ -113,7 +113,7 @@ TEST(ConditionalTest, Fail)
           [&](auto&&) { return els3(); });
   };
 
-  EXPECT_THROW(eventuals::run(eventuals::task(c())), FailedException);
+  EXPECT_THROW(*c(), FailedException);
 }
 
 
@@ -148,14 +148,14 @@ TEST(ConditionalTest, Interrupt)
           [&](auto&&) { return els3(); });
   };
 
-  auto t = eventuals::task(c());
+  auto t = eventuals::TaskFrom(c());
 
   EXPECT_CALL(start, Call())
     .WillOnce([&]() {
-      eventuals::interrupt(t);
+      t.Interrupt();
     });
 
-  eventuals::start(t);
+  t.Start();
 
-  EXPECT_THROW(eventuals::wait(t), StoppedException);
+  EXPECT_THROW(t.Wait(), StoppedException);
 }

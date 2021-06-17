@@ -69,7 +69,7 @@ TEST(StreamTest, Succeed)
          }));
   };
 
-  EXPECT_EQ(15, eventuals::run(eventuals::task(s())));
+  EXPECT_EQ(15, *s());
 }
 
 
@@ -113,7 +113,7 @@ TEST(StreamTest, Done)
          }));
   };
 
-  EXPECT_EQ(2, eventuals::run(eventuals::task(s())));
+  EXPECT_EQ(2, *s());
 }
 
 
@@ -159,7 +159,7 @@ TEST(StreamTest, Fail)
          }));
   };
 
-  EXPECT_THROW(eventuals::run(eventuals::task(s())), FailedException);
+  EXPECT_THROW(*s(), FailedException);
 }
 
 
@@ -217,15 +217,15 @@ TEST(StreamTest, InterruptStream)
          }));
   };
 
-  auto t = eventuals::task(s());
+  auto t = eventuals::TaskFrom(s());
 
-  eventuals::start(t);
+  t.Start();
 
-  eventuals::interrupt(t);
+  t.Interrupt();
 
   triggered.store(true);
 
-  EXPECT_THROW(eventuals::wait(t), StoppedException);
+  EXPECT_THROW(t.Wait(), StoppedException);
 }
 
 
@@ -280,15 +280,15 @@ TEST(StreamTest, InterruptLoop)
          }));
   };
 
-  auto t = eventuals::task(s());
+  auto t = eventuals::TaskFrom(s());
 
-  eventuals::start(t);
+  t.Start();
 
-  eventuals::interrupt(t);
+  t.Interrupt();
 
   triggered.store(true);
 
-  EXPECT_THROW(eventuals::wait(t), StoppedException);
+  EXPECT_THROW(t.Wait(), StoppedException);
 }
 
 
@@ -308,7 +308,7 @@ TEST(StreamTest, InfiniteLoop)
       | Loop();
   };
 
-  eventuals::run(eventuals::task(s()));
+  *s();
 }
 
 
@@ -336,7 +336,7 @@ TEST(StreamTest, Transform)
          }));
   };
 
-  EXPECT_EQ(20, eventuals::run(eventuals::task(s())));
+  EXPECT_EQ(20, *s());
 }
 
 
@@ -362,7 +362,7 @@ TEST(StreamTest, MapReduce)
           });
   };
 
-  EXPECT_EQ(20, eventuals::run(eventuals::task(s())));
+  EXPECT_EQ(20, *s());
 }
 
 
@@ -389,5 +389,5 @@ TEST(StreamTest, Map)
           });
   };
 
-  EXPECT_EQ(20, eventuals::run(eventuals::task(s())));
+  EXPECT_EQ(20, *s());
 }
