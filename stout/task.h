@@ -221,7 +221,6 @@ auto operator*(E e)
   start(t);
 
   return future.get();
-  // return run(task(std::move(e)));
 }
 
 ////////////////////////////////////////////////////////////////////////
