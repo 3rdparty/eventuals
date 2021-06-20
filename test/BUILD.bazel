@@ -16,12 +16,28 @@ cc_test(
         "multiple-hosts.cc",
         "serve-validate.cc",
         "cluster.cc",
+
+        "eventuals/build-and-start.cc",
+        "eventuals/unimplemented.cc",
+        "eventuals/cancelled-by-server.cc",
+        "eventuals/cancelled-by-client.cc",
+        "eventuals/unary.cc",
+        "eventuals/streaming.cc",
+        "eventuals/server-unavailable.cc",
+        "eventuals/client-death-test.cc",
+        "eventuals/server-death-test.cc",
+        "eventuals/multiple-hosts.cc",
+        "eventuals/serve-validate.cc",
+        "eventuals/cluster.cc",
+
+        "eventuals/deadline.cc",
+        "eventuals/broadcast-cancel.cc",
     ],
     deps = [
-      "//:grpc",
-      "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
-      "@com_github_grpc_grpc//examples/protos:keyvaluestore",
-      "@gtest//:gtest_main",
+        "//:grpc",
+        "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
+        "@com_github_grpc_grpc//examples/protos:keyvaluestore",
+        "@gtest//:gtest_main",
     ],
     # NOTE: need to add 'linkstatic = True' in order to get this to
     # link until https://github.com/grpc/grpc/issues/13856 gets

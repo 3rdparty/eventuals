@@ -26,6 +26,9 @@ protected:
 };
 
 
+class StoutEventualsGrpcTest : public StoutGrpcTest {};
+
+
 // TODO(benh): Move to stout-stringify.
 template <typename T>
 std::string stringify(const T& t)

@@ -19,6 +19,11 @@ cc_library(
         "stout/grpc/server-context.h",
         "stout/grpc/server-status.h",
         "stout/grpc/traits.h",
+
+        "stout/eventuals/grpc/client.h",
+        "stout/eventuals/grpc/handler.h",
+        "stout/eventuals/grpc/cluster.h",
+        "stout/eventuals/grpc/completion-pool.h",
     ],
     srcs = [
         "stout/grpc/client.cc",
@@ -30,6 +35,8 @@ cc_library(
     ],
     deps = [
         "@stout-borrowed-ptr//:borrowed_ptr",
+        "@stout-eventuals//:eventuals",
+        "@stout-stateful-tally//:stateful-tally",
         "@stout-notification//:notification",
         "@com_google_absl//absl/base:base",
         "@com_google_absl//absl/container:flat_hash_map",
