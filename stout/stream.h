@@ -10,6 +10,7 @@
 // TODO(benh): disallow calling 'emit()' before call to 'next()'.
 
 #include "stout/eventual.h"
+#include "stout/lambda.h"
 #include "stout/loop.h"
 #include "stout/transform.h"
 
@@ -266,9 +267,7 @@ struct Stream
   {
     static_assert(!HasLoop<K_>::value, "Can't add *invocable* after loop");
 
-    using Value = decltype(f(std::declval<Value_>()));
-
-    return std::move(*this).k(map<Value>(std::move(f)));
+    return std::move(*this) | eventuals::Map(eventuals::Lambda(std::move(f)));
   }
 
   template <typename Context>

@@ -143,9 +143,7 @@ struct Repeated
   {
     static_assert(!HasLoop<K_>::value, "Can't add *invocable* after loop");
 
-    using Value = decltype(f(std::declval<Value_>()));
-
-    return std::move(*this).k(map<Value>(std::move(f)));
+    return std::move(*this) | eventuals::Map(eventuals::Lambda(std::move(f)));
   }
 
   template <

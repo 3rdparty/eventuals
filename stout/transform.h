@@ -553,29 +553,6 @@ auto Transform()
   };
 }
 
-
-template <typename Value, typename F>
-auto map(F f)
-{
-  return Transform<Value>()
-    .context(std::move(f))
-    .start([](auto&, auto& k, auto& stream) {
-      succeed(k, stream);
-    })
-    .body([](auto& f, auto& k, auto& stream, auto&& value) {
-      body(k, stream, f(std::forward<decltype(value)>(value)));
-    })
-    .ended([](auto&, auto& k) {
-      ended(k);
-    })
-    .fail([](auto&, auto& k, auto&& error) {
-      fail(k, std::forward<decltype(error)>(error));
-    })
-    .stop([](auto&, auto& k) {
-      stop(k);
-    });
-}
-
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K, typename E>

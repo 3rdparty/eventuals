@@ -5,6 +5,7 @@
 #include "gtest/gtest.h"
 
 #include "stout/context.h"
+#include "stout/lambda.h"
 #include "stout/stream.h"
 #include "stout/task.h"
 
@@ -13,10 +14,10 @@ namespace eventuals = stout::eventuals;
 using stout::eventuals::Context;
 using stout::eventuals::ended;
 using stout::eventuals::Eventual;
+using stout::eventuals::Lambda;
 using stout::eventuals::Loop;
-using stout::eventuals::map;
 using stout::eventuals::Map;
-using stout::eventuals::reduce;
+using stout::eventuals::Reduce;
 using stout::eventuals::Stream;
 using stout::eventuals::succeed;
 
@@ -352,10 +353,10 @@ TEST(StreamTest, MapReduce)
           ended(k);
         }
       })
-      | map<int>([](int i) {
+      | Map(Lambda([](int i) {
         return i + 1;
-      })
-      | reduce<int>(
+      }))
+      | Reduce(
           /* sum = */ 0,
           [](auto&& sum, auto&& value) {
             return sum + value;
@@ -382,7 +383,7 @@ TEST(StreamTest, Map)
             .start([](auto& k, auto&& i) {
               succeed(k, i + 1);
             }))
-      | reduce<int>(
+      | Reduce(
           /* sum = */ 0,
           [](auto&& sum, auto&& value) {
             return sum + value;

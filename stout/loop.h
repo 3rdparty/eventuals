@@ -499,8 +499,8 @@ inline auto Loop()
 }
 
 
-template <typename Value, typename T, typename F>
-auto reduce(T t, F f)
+template <typename T, typename F>
+auto Reduce(T t, F f)
 {
   struct Context
   {
@@ -508,7 +508,7 @@ auto reduce(T t, F f)
     F f;
   };
 
-  return Loop<Value>()
+  return Loop<T>()
     .context(Context { std::move(t), std::move(f) })
     .start([](auto&, auto& stream) {
       next(stream);
