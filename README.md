@@ -92,7 +92,7 @@ auto status = server->Serve<RouteGuide, Stream<RouteNote>, Stream<RouteNote>>(
 
 By default a host of "*" implies all possible hosts.
 
-Each new call accepted by the server invokes the callback passed to `Serve()`. The `call` argument is a `stout::borrowed_ptr`. See [here](https://github.com/3rdparty/stout-borrowed-ptr) for more information on a `borrowed_ptr`. The salient point of a `borrowed_ptr` is it helps to extend the lifetime of the `call` argument to ensure it won't get deleted even after the call has finished.
+Each new call accepted by the server invokes the callback passed to `Serve()`. The `call` argument is a `std::unique_ptr` but with a custom deleter so we can extend the lifetime of the `call` argument to ensure it won't get deleted until after the call has finished even if you don't hold on to the `std::unique_ptr` yourself.
 
 You can access the `grpc::ServerContext` by invoking the `context()` function, for example, to determine if the call has been cancelled:
 
@@ -192,46 +192,36 @@ auto status = server->Serve<RouteGuide, Rectangle, Stream<Feature>>(
 
 ### Client
 
-Construct a client similar to how you might construct a channel with gRPC:
+The client side of the library uses (`stout-eventuals`)[[https://github.com/3rdparty/stout-eventuals] (eventually the server side will too).
+
+Construct a client similar to how you might construct a channel with gRPC, except you also need a `CompletionPool`:
 
 ```cpp
-stout::grpc::Client client("localhost:50051", grpc::InsecureChannelCredentials());
+using stout::eventuals::grpc;
+
+borrowable<CompletionPool> pool;
+Client client("localhost:50051", grpc::InsecureChannelCredentials(), pool.borrow());
 ```
 
-You then start a call with:
+You then build a call with:
 
 ```cpp
-client.Call<RouteGuide, Stream<Point>, RouteSummary>(
-    "RecordRoute",
-    [&](auto&& call, bool ok) {
-      if (ok) {
-        // Connected, start reading/writing.
-      } else {
-        // Failed to connect.
-      }
-    });
+auto call = client.Call<RouteGuide, Stream<Point>, RouteSummary>("RecordRoute")
+  | (Handler<grpc::Status>()
+     .ready([](auto& call) {
+       // Ready to write. 
+     })
+     .body([](auto& call, auto&& response) {
+       // Read a response, when 'response' is no longer
+       // borrowed another response will attempt to be read.
+     }));
 ```
 
-Similar to the server the `call` argument here is a `stout::borrowed_ptr`. Also similar to the server you can set up an `OnRead()` handler to read responses from the server.
+With `stout-eventuals` you need to *start* the call explicitly. In tests you can use the`*` operator, but see `stout-eventuals` for more information about starting and running asynchronous computations.
 
-You write requests via the `Write*()` family of functions. Like the server, these functions all have overloads that take a callback indicating when the write has actually succeeded for failed.
+The `response` argument  in the `.body()` callback is a `stout::borrowed_ptr`. As long as `response` remains borrowed no other responses will be read from the stream. This is to ensure explicit flow control and back pressure.
 
-There is a syntactic sugar" overload of `Client::Call()` that lets you specify the initial request to be sent, which is useful for unary calls when there is only a single request:
-
-```cpp
-Point point;
-// ...
-client.Call<RouteGuide, Point, Feature>(
-    "GetFeature",
-    &point,
-    [](auto* call, auto&& response) {
-      // ...
-      call->Finish();
-    },
-    [](auto*, const Status& status) {
-      // Call finished with 'status'.
-    });
-```
+You write requests via the `Write*()` family of functions.
 
 ## API Reference
 
@@ -247,7 +237,7 @@ client.Call<RouteGuide, Point, Feature>(
 |   "Method",                                   | with the specified         | method (e.g., service and/or method  |
 |   "host",                                     | callback. The 'call'       | doesn't exist, incorrect             |
 |   [](auto&& call) {                           | argument is a              | request/response types, endpoint     |
-|     // ...                                    | 'stout::borrowed_ptr'.     | already being served, etc).          |
+|     // ...                                    | 'std::unique_ptr'.         | already being served, etc).          |
 |   });                                         |                            |                                      |
 |                                               | You can omit host and it   |                                      |
 |                                               | defaults to "*".           |                                      |
@@ -265,7 +255,7 @@ client.Call<RouteGuide, Point, Feature>(
 |   },                                          |                            |                                      |
 |   [](auto* call, bool cancelled) {            | Note: this overload never  |                                      |
 |     // OnDone                                 | has access to the          |                                      |
-|   });                                         | 'stout::borrowed_ptr'.     |                                      |
+|   });                                         | 'std::unique_ptr'.         |                                      |
 +-----------------------------------------------+----------------------------+--------------------------------------+
 | call->OnRead([](auto* call, auto&& request) { | Starts reading requests.   | ServerCallStatus::Ok on              |
 |   if (request) {                              |                            | success, otherwise the               |
@@ -280,8 +270,8 @@ client.Call<RouteGuide, Point, Feature>(
 |                                               | should not be used after   |                                      |
 | call->OnDone([](auto* call, bool cancelled) { | your handler is invoked    |                                      |
 |   // ...                                      | unless you haven't yet     |                                      |
-| });                                           | relinquished the           |                                      |
-|                                               | borrowed_ptr from the      |                                      |
+| });                                           | released     the           |                                      |
+|                                               | unique_ptr from the        |                                      |
 |                                               | initial call.              |                                      |
 +-----------------------------------------------+----------------------------+--------------------------------------+
 | auto status = grpc::Status::OK;               | Writes a response to the   | ServerCallStatus::Ok means           |
@@ -376,7 +366,7 @@ client.Call<RouteGuide, Point, Feature>(
 |   "host",                                      | with the specified         | method (e.g., service and/or method  |
 |   [](auto&& call) {                            | callback. The 'call'       | doesn't exist, incorrect             |
 |     // ...                                     | argument is a              | request/response types, etc)         |
-|   });                                          | 'stout::borrowed_ptr'.     | or a connectivity issue.             |
+|   });                                          | 'std::unique_ptr'.         | or a connectivity issue.             |
 |                                                |                            |                                      |
 |                                                | You can omit host.         |                                      |
 +------------------------------------------------+----------------------------+--------------------------------------+
@@ -394,7 +384,7 @@ client.Call<RouteGuide, Point, Feature>(
 |   [](auto* call, const grpc::Status& s) {      |                            |                                      |
 |     // OnFinished                              | Note: this overload never  |                                      |
 |   });                                          | has access to the          |                                      |
-|                                                | 'stout::borrowed_ptr'.     |                                      |
+|                                                | 'std::unique_ptr'.         |                                      |
 +------------------------------------------------+----------------------------+--------------------------------------+
 | call->OnRead([](auto* call, auto&& response) { | Starts reading responses.  | ClientCallStatus::Ok on              |
 |   if (response) {                              |                            | success, otherwise the               |
@@ -409,8 +399,8 @@ client.Call<RouteGuide, Point, Feature>(
 |                                                | should not be used after   |                                      |
 | call->OnFinished(                              | your handler is invoked    |                                      |
 |     [](auto* call, const grpc::Status& s) {    | unless you haven't yet     |                                      |
-|       // ...                                   | relinquished the           |                                      |
-|     });                                        | borrowed_ptr passed to     |                                      |
+|       // ...                                   | released the               |                                      |
+|     });                                        | unique_ptr passed to       |                                      |
 |                                                | the initial 'Client::Call' |                                      |
 |                                                | handler.                   |                                      |
 +------------------------------------------------+----------------------------+--------------------------------------+
