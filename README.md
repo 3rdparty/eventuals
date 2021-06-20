@@ -57,7 +57,7 @@ You can then depend on `@stout-eventuals//:eventuals` in your Bazel targets.
 
 #### "Building" an Eventual
 
-An `Eventual` provides **explicit** control of performing a simple asynchronous computation. First you "build" an eventual by specifying the type of the value that it will eventually compute and override callbacks necessary for performing the computation:
+An `Eventual` provides **explicit** control of performing a simple asynchronous computation. First you "build" an eventual by specifying the type of the value that it will eventually compute and override the `.start()` callback for performing the computation:
 
 ```cpp
 auto e = Eventual<Result>()
@@ -92,6 +92,8 @@ auto e = Eventual<Result>()
     // Handle stopped computation.
   })
 ```
+
+Each callback takes the ***continuation*** `k` which you can use to either `succeed(k, result)` the computation, `fail(k, error)` the computation, or `stop(k)` the computation.
 
 You can also override the `.context()` callback which allows you to "capture" data that you can use in each other callback:
 
