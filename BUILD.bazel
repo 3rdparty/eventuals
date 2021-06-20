@@ -23,6 +23,7 @@ cc_library(
         "stout/conditional.h",
         "stout/lambda.h",
         "stout/invoke-result.h",
+        "stout/raise.h",
     ],
     visibility = ["//visibility:public"],
 )

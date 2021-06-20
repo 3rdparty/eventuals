@@ -431,7 +431,6 @@ struct HasTerminal<
 template <typename Value, typename... Errors>
 auto Eventual()
 {
-  static_assert(!IsUndefined<Value>::value, "Eventual of undefined value");
   return detail::Eventual<
     Undefined,
     Undefined,

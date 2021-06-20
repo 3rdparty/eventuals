@@ -5,11 +5,15 @@
 #include "gtest/gtest.h"
 
 #include "stout/eventual.h"
+#include "stout/raise.h"
+#include "stout/return.h"
 #include "stout/task.h"
 
 namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Eventual;
+using stout::eventuals::Raise;
+using stout::eventuals::Return;
 using stout::eventuals::succeed;
 using stout::eventuals::Terminal;
 
@@ -202,4 +206,22 @@ TEST(EventualTest, Reuse)
   EXPECT_EQ(3, future.get());
 
   delete o;
+}
+
+TEST(EventualTest, Return)
+{
+  auto e = []() {
+    return Return(42);
+  };
+
+  EXPECT_EQ(42, *e());
+}
+
+TEST(EventualTest, Raise)
+{
+  auto e = []() {
+    return Raise("error");
+  };
+
+  EXPECT_THROW(*e(), FailedException);
 }
