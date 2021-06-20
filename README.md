@@ -225,7 +225,7 @@ You write requests via the `Write*()` family of functions.
 
 ## API Reference
 
-| API tables below generated with (Tables Generator)[https://www.tablesgenerator.com]
+> API tables below generated with [Tables Generator](https://www.tablesgenerator.com)
 
 ### Server
 
