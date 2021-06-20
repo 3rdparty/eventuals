@@ -385,7 +385,7 @@ Sometimes you need to "wait" for a specific condition to become true while holdi
 
 ```cpp
 auto e = Synchronized(
-    Wait<std::string>()
+    Wait<std::string>() // NOTE: need to specify `&lock` when not using `Synchronized()`.
       .condition([this](auto& k) {
         if (...) {
           auto callback = [&k]() { notify(k); };
