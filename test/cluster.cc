@@ -61,7 +61,7 @@ TEST_F(StoutGrpcTest, Cluster)
               ServerCallStatus::Ok,
               call->WriteAndFinish(reply, grpc::Status::OK));
         },
-        [&](auto*, bool cancelled) {
+        [](auto*, bool cancelled) {
           EXPECT_FALSE(cancelled);
         });
 
