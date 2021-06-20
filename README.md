@@ -339,9 +339,9 @@ auto e = Return(1)
         });
 ```
 
-### Mutual Exclusion
+### Synchronization
 
-Mutual exclusion is just as necessary with asynchronous code as with synchronous, except you can't use existing abstractions like `std::mutex` because these are blocking! Instead, you need to use `Lock`, `Acquire`, and `Release`:
+Synchronization is just as necessary with asynchronous code as with synchronous code, except you can't use existing abstractions like `std::mutex` because these are blocking! Instead, you need to use asynchronous aware versions:
 
 
 ```cpp
@@ -361,9 +361,7 @@ auto e = Acquire(&lock)
   | Release(&lock);
 ```
 
-This is often used when capturing `this` to use as part of some asynchronous computation.
-
-To simplify this pattern you can actually extend your classes with `Synchronizable` and then do:
+This is often used when capturing `this` to use as part of some asynchronous computation. To simplify this common pattern you can actually extend your classes with `Synchronizable` and then do:
 
 ```cpp
 auto e = Synchronized(
