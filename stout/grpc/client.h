@@ -12,7 +12,6 @@
 
 #include "grpcpp/generic/generic_stub.h"
 
-#include "stout/borrowed_ptr.h"
 #include "stout/notification.h"
 
 #include "stout/grpc/client-call.h"
@@ -329,12 +328,17 @@ public:
         std::move(stream),
         [call, handler = std::forward<Handler>(handler)](
             bool ok, Notification<bool>* finished) {
-          handler(borrow(call, [finished](auto* call) {
+          auto deleter = [finished](auto* call) {
             finished->Watch([call](bool) {
               delete call;
             });
-          }),
-          ok);
+          };
+
+          handler(
+              std::unique_ptr<ClientCall<Request, Response>, decltype(deleter)>(
+                  call,
+                  std::move(deleter)),
+              ok);
         });
 
     return ClientStatus::Ok();

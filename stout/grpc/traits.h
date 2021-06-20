@@ -150,7 +150,7 @@ struct IsFinishedHandler
 template <typename F, typename Call, typename... Args>
 struct IsCallHandler
   : std::is_constructible<
-      std::function<void(borrowed_ptr<Call>&&, Args...)>,
+      std::function<void(std::unique_ptr<Call>&&, Args...)>,
       F> {};
 
 } // namespace grpc {

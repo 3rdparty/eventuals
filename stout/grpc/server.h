@@ -13,7 +13,6 @@
 #include "grpcpp/completion_queue.h"
 #include "grpcpp/server.h"
 
-#include "stout/borrowed_ptr.h"
 #include "stout/notification.h"
 
 #include "stout/grpc/logging.h"
@@ -263,24 +262,22 @@ std::enable_if_t<
 
   endpoint->serve = [handler = std::forward<Handler>(handler)](
       std::unique_ptr<ServerContext>&& context) {
-    // NOTE: we let the handler "borrow" the call because we need it
-    // to stick around until 'OnDone' because the gRPC subsystem needs
-    // the server context and stream (stored in 'context'). Said
-    // another way, if we passed a std::unique_ptr then we also need
-    // to have the client keep that around until an 'OnDone' call and
-    // requiring everyone to do that is unnecessary copying, so we
-    // give them a borrowed_ptr and handle the delete for them!
-    //
-    // TODO(benh): Provide an allocator for calls.
-    auto call = borrow(
+    // NOTE: we use a std::unique_ptr with a custom deleter so we can
+    // handle proper cleanup because the gRPC subsystem needs the
+    // server context and stream (stored in 'context') to still be
+    // present for finishing.
+    auto deleter = [](auto* call) {
+      // NOTE: using private 'OnDoneDoneDone()' which gets invoked
+      // *after* all of the other 'OnDone()' handlers.
+      call->OnDoneDoneDone([call](bool) {
+        delete call;
+      });
+    };
+
+    auto call = std::unique_ptr<ServerCall<Request, Response>, decltype(deleter)>(
+        // TODO(benh): Provide an allocator for calls.
         new ServerCall<Request, Response>(std::move(context)),
-        [](auto* call) {
-          // NOTE: using private 'OnDoneDoneDone()' which gets invoked
-          // *after* all of the other 'OnDone()' handlers.
-          call->OnDoneDoneDone([call](bool) {
-            delete call;
-          });
-        });
+        std::move(deleter));
 
     handler(std::move(call));
   };

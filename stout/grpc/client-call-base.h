@@ -13,7 +13,6 @@
 
 #include "grpcpp/generic/generic_stub.h"
 
-#include "stout/borrowed_ptr.h"
 #include "stout/notification.h"
 
 #include "stout/grpc/call-base.h"
@@ -251,7 +250,7 @@ private:
 
   ::grpc::ClientContext context_;
   
-  borrowed_ptr<::grpc::GenericClientAsyncReaderWriter> stream_;
+  std::unique_ptr<::grpc::GenericClientAsyncReaderWriter> stream_;
 
   std::function<void(bool, void*)> start_callback_;
 
