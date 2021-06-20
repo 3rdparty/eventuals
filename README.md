@@ -211,6 +211,8 @@ start(e);
 interrupt.Trigger();
 ```
 
+Note that there may be other reasons why you want to "interrupt" an eventual, so rather than call this functionality explicitly "cancel", we chose the more broad "interrupt". When creating a general abstraction, however, error on the side of assuming that interrupt means cancel.
+
 ### `Lambda`
 
 Sometimes your continuation is ***synchronous***, i.e., it won't block the current thread. While you can still use an `Eventual` you can simplify by using a `Lambda`:
