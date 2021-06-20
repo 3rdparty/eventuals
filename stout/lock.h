@@ -623,11 +623,17 @@ public:
   Synchronizable(Lock* lock) : lock_(lock) {}
 
   template <typename E>
-  auto synchronized(E e) const
+  auto Synchronized(E e) const
   {
     return Acquire(lock_)
       | std::move(e)
       | Release(lock_);
+  }
+
+  template <typename T>
+  auto Wait()
+  {
+    return eventuals::Wait<T>(lock_);
   }
 
 private:

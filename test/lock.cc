@@ -195,9 +195,9 @@ TEST(LockTest, Synchronizable)
 
     auto Operation()
     {
-      return synchronized(
-          Eventual<std::string>()
-          .start([](auto& k) {
+      return Synchronized(
+          Wait<std::string>()
+          .condition([](auto& k) {
             auto thread = std::thread(
                 [&k]() mutable {
                   succeed(k, "operation");
