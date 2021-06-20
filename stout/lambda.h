@@ -39,6 +39,15 @@ struct Lambda
         std::move(f_));
   }
 
+  template <
+    typename F,
+    std::enable_if_t<
+      !IsContinuation<F>::value, int> = 0>
+  auto k(F f) &&
+  {
+    return std::move(*this) | create(Undefined(), std::move(f));
+  }
+
   template <typename... Args>
   void Start(Args&&... args)
   {
