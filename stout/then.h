@@ -123,7 +123,7 @@ struct Then
       !IsContinuation<F>::value, int> = 0>
   auto k(F f) &&
   {
-    return std::move(*this).k(eventuals::Lambda(std::move(f)));
+    return std::move(*this) | eventuals::Lambda(std::move(f));
   }
 
   template <typename Context>

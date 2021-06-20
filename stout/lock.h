@@ -130,8 +130,7 @@ struct Acquire
   template <
     typename K,
     std::enable_if_t<
-      IsContinuation<K>::value
-      || !IsUndefined<K_>::value, int> = 0>
+      IsContinuation<K>::value, int> = 0>
   auto k(K k) &&
   {
    return create<Value_>(
@@ -148,11 +147,10 @@ struct Acquire
   template <
     typename F,
     std::enable_if_t<
-      !IsContinuation<F>::value
-      && IsUndefined<K_>::value, int> = 0>
+      !IsContinuation<F>::value, int> = 0>
   auto k(F f) &&
   {
-    return std::move(*this).k(eventuals::Lambda(std::move(f)));
+    return std::move(*this) | eventuals::Lambda(std::move(f));
   }
 
   template <typename... Args>
@@ -251,8 +249,7 @@ struct Release
   template <
     typename K,
     std::enable_if_t<
-      IsContinuation<K>::value
-      || !IsUndefined<K_>::value, int> = 0>
+      IsContinuation<K>::value, int> = 0>
   auto k(K k) &&
   {
    return create<Value_>(
@@ -269,11 +266,10 @@ struct Release
   template <
     typename F,
     std::enable_if_t<
-      !IsContinuation<F>::value
-      && IsUndefined<K_>::value, int> = 0>
+      !IsContinuation<F>::value, int> = 0>
   auto k(F f) &&
   {
-    return std::move(*this).k(eventuals::Lambda(std::move(f)));
+    return std::move(*this) | eventuals::Lambda(std::move(f));
   }
 
   template <typename... Args>
@@ -374,8 +370,7 @@ struct Wait
   template <
     typename K,
     std::enable_if_t<
-      IsContinuation<K>::value
-      || !IsUndefined<K_>::value, int> = 0>
+      IsContinuation<K>::value, int> = 0>
   auto k(K k) &&
   {
    return create<Arg_, Value_>(
@@ -394,11 +389,10 @@ struct Wait
   template <
     typename F,
     std::enable_if_t<
-      !IsContinuation<F>::value
-      && IsUndefined<K_>::value, int> = 0>
+      !IsContinuation<F>::value, int> = 0>
   auto k(F f) &&
   {
-    return std::move(*this).k(eventuals::Lambda(std::move(f)));
+    return std::move(*this) | eventuals::Lambda(std::move(f));
   }
 
   template <typename Context>

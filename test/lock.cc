@@ -4,7 +4,9 @@
 
 #include "gtest/gtest.h"
 
+#include "stout/lambda.h"
 #include "stout/lock.h"
+#include "stout/return.h"
 #include "stout/task.h"
 
 namespace eventuals = stout::eventuals;
@@ -13,8 +15,10 @@ using stout::Callback;
 
 using stout::eventuals::Acquire;
 using stout::eventuals::Eventual;
+using stout::eventuals::Lambda;
 using stout::eventuals::Lock;
 using stout::eventuals::Release;
+using stout::eventuals::Return;
 using stout::eventuals::succeed;
 using stout::eventuals::Synchronizable;
 using stout::eventuals::Wait;
@@ -214,4 +218,29 @@ TEST(LockTest, Synchronizable)
   Foo foo2 = std::move(foo);
 
   EXPECT_EQ("operation", *foo2.Operation());
+}
+
+
+TEST(LockTest, Lambda)
+{
+  struct Foo : public Synchronizable
+  {
+    Foo() : Synchronizable(&lock) {}
+
+    Foo(Foo&& that) : Synchronizable(&lock) {}
+
+    auto Operation()
+    {
+      return Synchronized([]() { return 42; })
+        | [](auto i) {
+          return i;
+        };
+    }
+
+    Lock lock;
+  };
+
+  Foo foo;
+
+  EXPECT_EQ(42, *foo.Operation());
 }

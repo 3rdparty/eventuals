@@ -174,20 +174,20 @@ struct Eventual
   auto k(F f) &&
   {
     // Handle non-eventuals that are *invocable*.
-    return std::move(*this).k(
-        create<decltype(f(std::declval<Value_>()))>(
-            Undefined(),
-            std::move(f),
-            [](auto& f, auto& k, auto&&... args) {
-              eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
-            },
-            [](auto&, auto& k, auto&&... args) {
-              eventuals::fail(k, std::forward<decltype(args)>(args)...);
-            },
-            [](auto&, auto& k) {
-              eventuals::stop(k);
-            },
-            Undefined()));
+    return std::move(*this)
+      | create<decltype(f(std::declval<Value_>()))>(
+          Undefined(),
+          std::move(f),
+          [](auto& f, auto& k, auto&&... args) {
+            eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
+          },
+          [](auto&, auto& k, auto&&... args) {
+            eventuals::fail(k, std::forward<decltype(args)>(args)...);
+          },
+          [](auto&, auto& k) {
+            eventuals::stop(k);
+          },
+          Undefined());
   }
 
   template <

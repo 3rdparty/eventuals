@@ -5,6 +5,7 @@
 #include "gtest/gtest.h"
 
 #include "stout/eventual.h"
+#include "stout/lambda.h"
 #include "stout/raise.h"
 #include "stout/return.h"
 #include "stout/task.h"
@@ -12,6 +13,7 @@
 namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Eventual;
+using stout::eventuals::Lambda;
 using stout::eventuals::Raise;
 using stout::eventuals::Return;
 using stout::eventuals::succeed;
@@ -208,6 +210,7 @@ TEST(EventualTest, Reuse)
   delete o;
 }
 
+
 TEST(EventualTest, Return)
 {
   auto e = []() {
@@ -217,6 +220,7 @@ TEST(EventualTest, Return)
   EXPECT_EQ(42, *e());
 }
 
+
 TEST(EventualTest, Raise)
 {
   auto e = []() {
@@ -224,4 +228,20 @@ TEST(EventualTest, Raise)
   };
 
   EXPECT_THROW(*e(), FailedException);
+}
+
+
+TEST(EventualTest, Lambda)
+{
+  auto e = []() {
+    return Return(42)
+      | Lambda([](auto i) {
+        return i + 1;
+      })
+      | [](auto j) {
+        return j - 1;
+      };
+  };
+
+  EXPECT_EQ(42, *e());
 }
