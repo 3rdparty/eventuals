@@ -44,10 +44,7 @@ public:
 
   static Scheduler* Get(void** context)
   {
-    if (scheduler_ == nullptr) {
-      scheduler_ = &default_;
-    }
-
+    assert(scheduler_ != nullptr);
     *context = context_;
     return scheduler_;
   }
@@ -217,7 +214,7 @@ struct Compose<detail::Schedule<K, Arg_>>
 
 ////////////////////////////////////////////////////////////////////////
 
-detail::Schedule<Undefined, Undefined> Scheduler::Schedule(void* context)
+inline detail::Schedule<Undefined, Undefined> Scheduler::Schedule(void* context)
 {
   return detail::Schedule<Undefined, Undefined>(Undefined(), this, context);
 }
