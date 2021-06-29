@@ -3,6 +3,7 @@
 #include "stout/interrupt.h"
 #include "stout/loop.h"
 #include "stout/terminal.h"
+#include "stout/then.h"
 #include "stout/undefined.h"
 
 namespace stout {
@@ -313,7 +314,7 @@ struct Transform
 };
 
 
-template <typename K_, typename E_>
+template <typename K_, typename E_, typename Arg_>
 struct Map
 {
   using Value = typename ValueFrom<K_, typename E_::Value>::type;
@@ -321,16 +322,16 @@ struct Map
   Map(K_ k, E_ e)
     : k_(std::move(k)), e_(std::move(e)) {}
 
-  template <typename K, typename E>
+  template <typename Arg, typename K, typename E>
   static auto create(K k, E e)
   {
-    return Map<K, E>(std::move(k), std::move(e));
+    return Map<K, E, Arg>(std::move(k), std::move(e));
   }
 
   template <typename K>
   auto k(K k) &&
   {
-    return create(
+    return create<Arg_>(
         [&]() {
           if constexpr (!IsUndefined<K_>::value) {
             return std::move(k_) | std::move(k);
@@ -364,9 +365,19 @@ struct Map
   void Body(K& k, Args&&... args)
   {
     if (!eterminal_) {
-      body_ = [&k](auto& k_, auto arg) {
-        eventuals::body(k_, k, std::move(arg));
-      };
+      if constexpr (!IsUndefined<typename E_::Value>::value) {
+        body_ = [&k](auto& k_, typename E_::Value&& value, bool move) {
+          if (move) {
+            eventuals::body(k_, k, std::move(value));
+          } else {
+            eventuals::body(k_, k, value);
+          }
+        };
+      } else {
+        body_ = [&k](auto& k_) {
+          eventuals::body(k_, k);
+        };
+      }
 
       eterminal_.emplace(std::move(e_).k(terminal(&body_, &k_)));
 
@@ -389,14 +400,29 @@ struct Map
     k_.Register(interrupt);
   }
 
-  static auto terminal(Callback<K_&, typename E_::Value>* body_, K_* k_)
+  template <typename Body>
+  static auto terminal(Body* body_, K_* k_)
   {
     // NOTE: need to use constexpr here because compiler needs to
     // deduce function return type before K_ is fully determined.
     if constexpr (HasTerminal<K_>::value) {
       return eventuals::Terminal()
-        .start([body_, k_](auto&&... values) {
-          (*body_)(*k_, std::forward<decltype(values)>(values)...);
+        .start([body_, k_](auto&&... args) {
+          static_assert(
+              (IsUndefined<typename E_::Value>::value && sizeof...(args) == 0)
+              || sizeof...(args) == 1,
+              "Map only supports 0 or 1 value");
+          if constexpr (!IsUndefined<typename E_::Value>::value) {
+            // In order to have a single function signature for
+            // 'body_' we always std::move() instead of std::forward()
+            // but then if 'args' is '&' instead of '&&' then we tell
+            // 'body_' *NOT* do a std::move.
+            bool move = !std::is_lvalue_reference_v<
+              std::tuple_element<0, std::tuple<decltype(args)...>>>;
+            (*body_)(*k_, std::move(args)..., move);
+          } else {
+            (*body_)(*k_);
+          }
         })
         .fail([k_](auto&&... errors) {
           eventuals::fail(*k_, std::forward<decltype(errors)>(errors)...);
@@ -412,9 +438,15 @@ struct Map
   K_ k_;
   E_ e_;
 
-  Callback<K_&, typename E_::Value> body_;
+  using Body_ = std::conditional_t<
+    !IsUndefined<typename E_::Value>::value,
+    Callback<K_&, typename E_::Value&&, bool>,
+    Callback<K_&>>;
 
-  using ETerminal_ = decltype(std::move(e_).k(terminal(nullptr, nullptr)));
+  Body_ body_;
+
+  using ETerminal_ =
+    decltype(std::move(e_).k(terminal<Body_>(nullptr, nullptr)));
 
   std::optional<ETerminal_> eterminal_;
 
@@ -555,49 +587,64 @@ auto Transform()
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename E>
+template <typename K, typename E, typename Arg>
 struct IsTransform<
-  detail::Map<K, E>> : std::true_type {};
+  detail::Map<K, E, Arg>> : std::true_type {};
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename E>
+template <typename K, typename E, typename Arg>
 struct IsContinuation<
-  detail::Map<K, E>> : std::true_type {};
+  detail::Map<K, E, Arg>> : std::true_type {};
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename E>
+template <typename K, typename E, typename Arg>
 struct HasLoop<
-  detail::Map<K, E>> : HasLoop<K> {};
+  detail::Map<K, E, Arg>> : HasLoop<K> {};
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename E>
+template <typename K, typename E, typename Arg>
 struct HasTerminal<
-  detail::Map<K, E>> : HasTerminal<K> {};
+  detail::Map<K, E, Arg>> : HasTerminal<K> {};
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename E>
-struct Compose<detail::Map<K, E>>
+template <typename K, typename E, typename Arg_>
+struct Compose<detail::Map<K, E, Arg_>>
 {
-  template <typename Value>
-  static auto compose(detail::Map<K, E> map)
+  template <typename Arg>
+  static auto compose(detail::Map<K, E, Arg_> map)
   {
-    auto e = eventuals::compose<Value>(std::move(map.e_));
+    auto e = eventuals::compose<Arg>(std::move(map.e_));
     auto k = eventuals::compose<typename decltype(e)::Value>(std::move(map.k_));
-    return detail::Map<decltype(k), decltype(e)>(std::move(k), std::move(e));
+    return detail::Map<decltype(k), decltype(e), Arg_>(
+        std::move(k),
+        std::move(e));
   }
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E>
+template <
+  typename E,
+  std::enable_if_t<
+    IsContinuation<E>::value, int> = 0>
 auto Map(E e)
 {
-  return detail::Map<Undefined, E>(Undefined(), std::move(e));
+  return detail::Map<Undefined, E, Undefined>(Undefined(), std::move(e));
 }
+
+template <
+  typename F,
+  std::enable_if_t<
+    !IsContinuation<F>::value, int> = 0>
+auto Map(F f)
+{
+  return Map(eventuals::Then(std::move(f)));
+}
+
 
 ////////////////////////////////////////////////////////////////////////
 
