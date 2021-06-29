@@ -13,17 +13,29 @@ namespace stout {
 template <typename... Args>
 struct Callback
 {
+  // TODO(benh): Delete default constructor and force a usage pattern
+  // where a delayed initialization requires std::optional so that a
+  // user doesn't run into issues where they try and invoke a callback
+  // that doesn't go anywhere.
   Callback() {}
 
   template <typename F>
   Callback(F f)
   {
+    static_assert(
+        !std::is_same_v<Callback, std::decay_t<F>>,
+        "Not to be used as a *copy* constructor!");
+
     this->operator=(std::move(f));
   }
 
   template <typename F>
   Callback& operator=(F f)
   {
+    static_assert(
+        !std::is_same_v<Callback, std::decay_t<F>>,
+        "Not to be used as a *copy* assignment operator!");
+
     static_assert(sizeof(Handler<F>) <= SIZE);
     if (base_ != nullptr) {
       base_->Destruct();
@@ -34,11 +46,15 @@ struct Callback
   }
 
   Callback(Callback&& that)
-    : storage_(std::move(that.storage_)),
-      base_(that.base_)
   {
-    // Set 'base_' to nullptr so 'Destruct()' is only invoked once.
-    that.base_ = nullptr;
+    if (that.base_ != nullptr) {
+      base_ = that.base_->Move(&storage_);
+
+      // Set 'base_' to nullptr so 'Destruct()' is only invoked once.
+      that.base_ = nullptr;
+    } else {
+      base_ = nullptr;
+    }
   }
 
   ~Callback()
@@ -68,6 +84,8 @@ struct Callback
 
     // TODO(benh): better way to do this?
     virtual void Destruct() = 0;
+
+    virtual Base* Move(void* storage) = 0;
   };
 
   template <typename F>
@@ -81,7 +99,17 @@ struct Callback
     }
 
     // TODO(benh): better way to do this?
-    void Destruct() override { f_.~F(); }
+    void Destruct() override
+    {
+      f_.~F();
+    }
+
+    // TODO(benh): better way to do this?
+    Base* Move(void* storage) override
+    {
+      new(storage) Handler<F>(std::move(f_));
+      return reinterpret_cast<Handler<F>*>(storage);
+    }
 
     F f_;
   };
