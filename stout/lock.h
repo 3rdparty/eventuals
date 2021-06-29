@@ -192,12 +192,13 @@ struct Acquire
       // pre-allocated buffer based on tracking Errors...
       waiter_.f_ = [
           this,
-          tuple = std::make_tuple(std::forward<Args>(args)...)]() mutable {
+          tuple = new std::tuple { std::forward<Args>(args)... }]() mutable {
         // TODO(benh): submit to run on the *current* thread pool.
         std::apply([&](auto&&... args) {
           eventuals::fail(k_, std::forward<decltype(args)>(args)...);
         },
-        std::move(tuple));
+        std::move(*tuple));
+        delete tuple;
       };
       lock_->AcquireSlow(&waiter_);
     }
