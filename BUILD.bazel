@@ -23,6 +23,10 @@ cc_library(
         "stout/lambda.h",
         "stout/invoke-result.h",
         "stout/raise.h",
+        "stout/scheduler.h",
+    ],
+    srcs = [
+        "stout/scheduler.cc",
     ],
     visibility = ["//visibility:public"],
 )
