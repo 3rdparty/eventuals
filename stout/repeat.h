@@ -4,7 +4,7 @@
 #include "stout/forward.h"
 #include "stout/lambda.h"
 #include "stout/loop.h"
-#include "stout/transform.h"
+#include "stout/map.h"
 
 ////////////////////////////////////////////////////////////////////////
 

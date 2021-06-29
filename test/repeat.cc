@@ -7,6 +7,7 @@
 
 #include "stout/lambda.h"
 #include "stout/lock.h"
+#include "stout/map.h"
 #include "stout/repeat.h"
 #include "stout/task.h"
 #include "stout/transform.h"
