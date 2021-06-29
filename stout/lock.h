@@ -7,6 +7,7 @@
 #include "stout/callback.h"
 #include "stout/invoke-result.h"
 #include "stout/lambda.h"
+#include "stout/scheduler.h"
 
 namespace stout {
 namespace eventuals {
@@ -33,38 +34,38 @@ class Lock
 public:
   struct Waiter
   {
-    Callback<> f_;
-    Waiter* next_ = nullptr;
+    Callback<> f;
+    Waiter* next = nullptr;
   };
 
   bool AcquireFast(Waiter* waiter)
   {
-    assert(waiter->next_ == nullptr);
+    assert(waiter->next == nullptr);
 
-    waiter->next_ = head_.load(std::memory_order_relaxed);
+    waiter->next = head_.load(std::memory_order_relaxed);
 
-    while (waiter->next_ == nullptr) {
+    while (waiter->next == nullptr) {
       if (head_.compare_exchange_weak(
-              waiter->next_, waiter,
+              waiter->next, waiter,
               std::memory_order_release,
               std::memory_order_relaxed)) {
         return true;
       }
     }
 
-    waiter->next_ = nullptr;
+    waiter->next = nullptr;
 
     return false;
   }
 
   void AcquireSlow(Waiter* waiter)
   {
-    assert(waiter->next_ == nullptr);
+    assert(waiter->next == nullptr);
 
-    waiter->next_ = head_.load(std::memory_order_relaxed);
+    waiter->next = head_.load(std::memory_order_relaxed);
 
     while (!head_.compare_exchange_weak(
-               waiter->next_, waiter,
+               waiter->next, waiter,
                std::memory_order_release,
                std::memory_order_relaxed));
 
@@ -74,8 +75,8 @@ public:
     // been able to acquire) or *queued* (i.e., we have some waiters
     // ahead of us). If we acquired then execute the waiter's
     // continuation.
-    if (waiter->next_ == nullptr) {
-      waiter->f_();
+    if (waiter->next == nullptr) {
+      waiter->f();
     }
   }
 
@@ -87,7 +88,7 @@ public:
     // they're aren't any others waiting.
     assert(waiter != nullptr);
 
-    if (waiter->next_ == nullptr) {
+    if (waiter->next == nullptr) {
       if (!head_.compare_exchange_weak(
               waiter, nullptr,
               std::memory_order_release,
@@ -95,11 +96,11 @@ public:
         return Release(); // Try again.
       }
     } else {
-      while (waiter->next_->next_ != nullptr) {
-        waiter = waiter->next_;
+      while (waiter->next->next != nullptr) {
+        waiter = waiter->next;
       }
-      waiter->next_ = nullptr;
-      waiter->f_();
+      waiter->next = nullptr;
+      waiter->f();
     }
   }
 
@@ -169,13 +170,18 @@ struct Acquire
         value_.emplace(std::forward<Args>(args)...);
       }
 
-      waiter_.f_ = [this]() mutable {
-        // TODO(benh): submit to run on the *current* thread pool.
-        if constexpr (sizeof...(args) == 1) {
-          eventuals::succeed(k_, std::move(*value_));
-        } else {
-          eventuals::succeed(k_);
-        }
+      scheduler_ = Scheduler::Get(&context_);
+
+      waiter_.f = [this]() mutable {
+        scheduler_->Submit(
+            [this]() mutable {
+              if constexpr (sizeof...(args) == 1) {
+                eventuals::succeed(k_, std::move(*value_));
+              } else {
+                eventuals::succeed(k_);
+              }
+            },
+            context_);
       };
 
       lock_->AcquireSlow(&waiter_);
@@ -188,18 +194,30 @@ struct Acquire
     if (lock_->AcquireFast(&waiter_)) {
       eventuals::fail(k_, std::forward<Args>(args)...);
     } else {
-      // TODO(benh): avoid allocating in the heap by storing args in
-      // pre-allocated buffer based on tracking Errors...
-      waiter_.f_ = [
-          this,
-          tuple = new std::tuple { std::forward<Args>(args)... }]() mutable {
-        // TODO(benh): submit to run on the *current* thread pool.
-        std::apply([&](auto&&... args) {
-          eventuals::fail(k_, std::forward<decltype(args)>(args)...);
+      scheduler_ = Scheduler::Get(&context_);
+
+      // TODO(benh): avoid allocating on heap by storing args in
+      // pre-allocated buffer based on composing with Errors.
+      auto* tuple = new std::tuple { this, std::forward<Args>(args)... };
+
+      waiter_.f = [tuple]() mutable {
+        std::apply([tuple](auto* acquire, auto&&...) {
+          auto* scheduler_ = acquire->scheduler_;
+          auto* context_ = acquire->context_;
+          scheduler_->Submit(
+              [tuple]() mutable {
+                std::apply([](auto* acquire, auto&&... args) {
+                  auto& k_ = *acquire->k_;
+                  eventuals::fail(k_, std::forward<decltype(args)>(args)...);
+                },
+                std::move(*tuple));
+                delete tuple;
+              },
+              context_);
         },
         std::move(*tuple));
-        delete tuple;
       };
+
       lock_->AcquireSlow(&waiter_);
     }
   }
@@ -209,10 +227,16 @@ struct Acquire
     if (lock_->AcquireFast(&waiter_)) {
       eventuals::stop(k_);
     } else {
-      waiter_.f_ = [this]() mutable {
-        // TODO(benh): submit to run on the *current* thread pool.
-        eventuals::stop(k_);
+      scheduler_ = Scheduler::Get(&context_);
+
+      waiter_.f = [this]() mutable {
+        scheduler_->Submit(
+            [this]() mutable {
+              eventuals::stop(k_);
+            },
+            context_);
       };
+
       lock_->AcquireSlow(&waiter_);
     }
   }
@@ -226,6 +250,8 @@ struct Acquire
   Lock* lock_;
   Lock::Waiter waiter_;
   std::optional<Value_> value_;
+  Scheduler* scheduler_ = nullptr;
+  void* context_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -444,15 +470,20 @@ struct Wait
         arg_.emplace(std::forward<Args>(args)...);
       }
 
-      waiter_.f_ = [this]() mutable {
-        wait_ = false;
+      scheduler_ = Scheduler::Get(&scheduler_context_);
 
-        // TODO(benh): submit to run on the *current* thread pool.
-        if constexpr (sizeof...(args) == 1) {
-          Start(std::move(*arg_));
-        } else {
-          Start();
-        }
+      waiter_.f = [this]() mutable {
+        scheduler_->Submit(
+            [this]() mutable {
+              wait_ = false;
+
+              if constexpr (sizeof...(args) == 1) {
+                Start(std::move(*arg_));
+              } else {
+                Start();
+              }
+            },
+            scheduler_context_);
       };
 
       lock_->Release();
@@ -485,6 +516,8 @@ struct Wait
   std::optional<Arg_> arg_;
   bool wait_ = false;
   WaitK<Wait> waitk_;
+  Scheduler* scheduler_ = nullptr;
+  void* scheduler_context_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////
