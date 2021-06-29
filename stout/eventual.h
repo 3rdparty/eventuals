@@ -175,7 +175,7 @@ struct Eventual
   {
     // Handle non-eventuals that are *invocable*.
     return std::move(*this)
-      | create<decltype(f(std::declval<Value_>()))>(
+      | create<decltype(f(std::declval<Value>()))>(
           Undefined(),
           std::move(f),
           [](auto& f, auto& k, auto&&... args) {
