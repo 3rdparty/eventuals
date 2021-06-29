@@ -38,7 +38,7 @@ struct Callback
 
     static_assert(sizeof(Handler<F>) <= SIZE);
     if (base_ != nullptr) {
-      base_->Destruct();
+      base_->~Base();
     }
     new(&storage_) Handler<F>(std::move(f));
     base_ = reinterpret_cast<Handler<F>*>(&storage_);
@@ -50,7 +50,7 @@ struct Callback
     if (that.base_ != nullptr) {
       base_ = that.base_->Move(&storage_);
 
-      // Set 'base_' to nullptr so 'Destruct()' is only invoked once.
+      // Set 'base_' to nullptr so we only destruct once.
       that.base_ = nullptr;
     } else {
       base_ = nullptr;
@@ -59,9 +59,8 @@ struct Callback
 
   ~Callback()
   {
-    // TODO(benh): better way to do this?
     if (base_ != nullptr) {
-      base_->Destruct();
+      base_->~Base();
     }
   }
 
@@ -82,9 +81,6 @@ struct Callback
 
     virtual void Invoke(Args... args) = 0;
 
-    // TODO(benh): better way to do this?
-    virtual void Destruct() = 0;
-
     virtual Base* Move(void* storage) = 0;
   };
 
@@ -93,15 +89,11 @@ struct Callback
   {
     Handler(F f) : f_(std::move(f)) {}
 
+    virtual ~Handler() = default;
+
     void Invoke(Args... args) override
     {
       f_(std::forward<Args>(args)...);
-    }
-
-    // TODO(benh): better way to do this?
-    void Destruct() override
-    {
-      f_.~F();
     }
 
     // TODO(benh): better way to do this?

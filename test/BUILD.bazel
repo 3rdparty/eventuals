@@ -11,6 +11,7 @@ cc_test(
         "then.cc",
         "conditional.cc",
         "invoke-result.cc",
+        "callback.cc",
     ],
     deps = [
         "//:eventuals",
