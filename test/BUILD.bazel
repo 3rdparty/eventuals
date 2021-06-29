@@ -10,7 +10,6 @@ cc_test(
         "repeated.cc",
         "then.cc",
         "conditional.cc",
-        "invoke-result.cc",
         "callback.cc",
     ],
     deps = [
