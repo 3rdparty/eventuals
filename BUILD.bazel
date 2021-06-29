@@ -13,7 +13,6 @@ cc_library(
         "stout/transform.h",
         "stout/loop.h",
         "stout/context.h",
-        "stout/choice.h",
         "stout/lock.h",
         "stout/interrupt.h",
         "stout/repeated.h",
