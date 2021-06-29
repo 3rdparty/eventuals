@@ -30,6 +30,46 @@ struct ValueFrom<Undefined, Value>
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename E>
+struct ValuePossiblyUndefined
+{
+  using Value = typename E::Value;
+};
+
+template <>
+struct ValuePossiblyUndefined<Undefined>
+{
+  using Value = Undefined;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename E, typename K>
+struct EKPossiblyUndefined
+{
+  using type = decltype(std::declval<E>().template k(std::declval<K>()));
+};
+
+template <typename E>
+struct EKPossiblyUndefined<E, Undefined>
+{
+  using type = Undefined;
+};
+
+template <typename K>
+struct EKPossiblyUndefined<Undefined, K>
+{
+  using type = Undefined;
+};
+
+template <>
+struct EKPossiblyUndefined<Undefined, Undefined>
+{
+  using type = Undefined;
+};
+
+////////////////////////////////////////////////////////////////////////
+
 template <typename K>
 struct Compose
 {
