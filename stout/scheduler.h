@@ -121,7 +121,6 @@ struct Schedule
     static_assert(IsUndefined<Arg_>::value || sizeof...(args) == 1);
 
     if constexpr (sizeof...(args) == 1) {
-      assert(!arg_);
       arg_.emplace(std::forward<Args>(args)...);
     }
 
@@ -140,19 +139,17 @@ struct Schedule
   template <typename... Args>
   void Fail(Args&&... args)
   {
-    // TODO(benh): avoid allocating in the heap by storing args in
-    // pre-allocated buffer based on tracking Errors...
-    fail_ = [tuple = new std::tuple { std::forward<Args>(args)... }](K_* k_) {
-      std::apply([&](auto&&... args) {
-        eventuals::fail(*k_, std::forward<decltype(args)>(args)...);
-      },
-      std::move(*tuple));
-      delete tuple;
-    };
+    // TODO(benh): avoid allocating on heap by storing args in
+    // pre-allocated buffer based on composing with Errors.
+    auto* tuple = new std::tuple { &k_, std::forward<Args>(args)... };
 
     scheduler_->Submit(
-        [this]() {
-          fail_(&k_);
+        [tuple]() {
+          std::apply([](auto* k_, auto&&... args) {
+            eventuals::fail(*k_, std::forward<decltype(args)>(args)...);
+          },
+          std::move(*tuple));
+          delete tuple;
         },
         context_,
         /* defer = */ false); // Execute the code immediately if possible.
@@ -177,7 +174,6 @@ struct Schedule
   Scheduler* scheduler_;
   void* context_;
   std::optional<Arg_> arg_;
-  Callback<K_*> fail_;
 };
 
 ////////////////////////////////////////////////////////////////////////
