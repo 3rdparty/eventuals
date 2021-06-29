@@ -15,7 +15,7 @@ cc_library(
         "stout/context.h",
         "stout/lock.h",
         "stout/interrupt.h",
-        "stout/repeated.h",
+        "stout/repeat.h",
         "stout/then.h",
         "stout/callback.h",
         "stout/return.h",
@@ -24,6 +24,7 @@ cc_library(
         "stout/invoke-result.h",
         "stout/raise.h",
         "stout/scheduler.h",
+        "stout/until.h",
     ],
     srcs = [
         "stout/scheduler.cc",

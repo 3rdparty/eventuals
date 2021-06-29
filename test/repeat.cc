@@ -7,9 +7,10 @@
 
 #include "stout/lambda.h"
 #include "stout/lock.h"
-#include "stout/repeated.h"
+#include "stout/repeat.h"
 #include "stout/task.h"
 #include "stout/transform.h"
+#include "stout/until.h"
 
 namespace eventuals = stout::eventuals;
 
@@ -19,14 +20,16 @@ using std::string;
 using stout::eventuals::Acquire;
 using stout::eventuals::done;
 using stout::eventuals::Eventual;
+using stout::eventuals::fail;
 using stout::eventuals::Lambda;
 using stout::eventuals::Lock;
 using stout::eventuals::Loop;
 using stout::eventuals::Map;
 using stout::eventuals::Release;
-using stout::eventuals::repeat;
-using stout::eventuals::Repeated;
+using stout::eventuals::Repeat;
 using stout::eventuals::succeed;
+using stout::eventuals::stop;
+using stout::eventuals::Until;
 using stout::eventuals::Wait;
 
 using stout::eventuals::FailedException;
@@ -34,7 +37,7 @@ using stout::eventuals::StoppedException;
 
 using testing::MockFunction;
 
-TEST(RepeatedTest, Succeed)
+TEST(RepeatTest, Succeed)
 {
   auto e = [](auto s) {
     return Eventual<string>()
@@ -45,7 +48,7 @@ TEST(RepeatedTest, Succeed)
   };
 
   auto r = [&]() {
-    return Eventual<int>()
+    return Eventual<deque<string>>()
       .start([](auto& k) {
         auto thread = std::thread(
             [&k]() mutable {
@@ -53,21 +56,15 @@ TEST(RepeatedTest, Succeed)
             });
         thread.detach();
       })
-      | (Repeated([&](string s) { return e(s); })
-         .context(deque<string>())
-         .start([](auto& strings, auto& k, auto&& initializer) {
-           strings = initializer;
-           start(k);
-         })
-         .next([](auto& strings, auto& k) {
-           if (!strings.empty()) {
-             auto s = std::move(strings.front());
-             strings.pop_front();
-             repeat(k, std::move(s));
-           } else {
-             ended(k);
-           }
-         }))
+      | Repeat()
+      | Until([](auto& strings) {
+        return strings.empty();
+      })
+      | Map([&](auto&& strings) {
+        auto s = std::move(strings.front());
+        strings.pop_front();
+        return e(std::move(s));
+      })
       | (Loop<deque<string>>()
          .context(deque<string>())
          .body([](auto& results, auto& repeated, auto&& result) {
@@ -88,7 +85,7 @@ TEST(RepeatedTest, Succeed)
 }
 
 
-TEST(RepeatedTest, Fail)
+TEST(RepeatTest, Fail)
 {
   auto e = [](auto) {
     return Eventual<string>()
@@ -98,7 +95,7 @@ TEST(RepeatedTest, Fail)
   };
 
   auto r = [&]() {
-    return Eventual<int>()
+    return Eventual<deque<string>>()
       .start([](auto& k) {
         auto thread = std::thread(
             [&k]() mutable {
@@ -106,21 +103,15 @@ TEST(RepeatedTest, Fail)
             });
         thread.detach();
       })
-      | (Repeated([&](string s) { return e(s); })
-         .context(deque<string>())
-         .start([](auto& strings, auto& k, auto&& initializer) {
-           strings = initializer;
-           start(k);
-         })
-         .next([](auto& strings, auto& k) {
-           if (!strings.empty()) {
-             auto s = std::move(strings.front());
-             strings.pop_front();
-             repeat(k, std::move(s));
-           } else {
-             ended(k);
-           }
-         }))
+      | Repeat()
+      | Until([](auto& strings) {
+        return strings.empty();
+      })
+      | Map([&](auto&& strings) {
+        auto s = std::move(strings.front());
+        strings.pop_front();
+        return e(std::move(s));
+      })
       | (Loop<deque<string>>()
          .context(deque<string>())
          .body([](auto& results, auto& repeated, auto&& result) {
@@ -136,7 +127,7 @@ TEST(RepeatedTest, Fail)
 }
 
 
-TEST(RepeatedTest, Interrupt)
+TEST(RepeatTest, Interrupt)
 {
   // Using mocks to ensure start is only called once.
   MockFunction<void()> start;
@@ -152,7 +143,7 @@ TEST(RepeatedTest, Interrupt)
   };
 
   auto r = [&]() {
-    return Eventual<int>()
+    return Eventual<deque<string>>()
       .start([](auto& k) {
         auto thread = std::thread(
             [&k]() mutable {
@@ -160,21 +151,15 @@ TEST(RepeatedTest, Interrupt)
             });
         thread.detach();
       })
-      | (Repeated([&](string s) { return e(s); })
-         .context(deque<string>())
-         .start([](auto& strings, auto& k, auto&& initializer) {
-           strings = initializer;
-           eventuals::start(k);
-         })
-         .next([](auto& strings, auto& k) {
-           if (!strings.empty()) {
-             auto s = std::move(strings.front());
-             strings.pop_front();
-             repeat(k, std::move(s));
-           } else {
-             ended(k);
-           }
-         }))
+      | Repeat()
+      | Until([](auto& strings) {
+        return strings.empty();
+      })
+      | Map([&](auto&& strings) {
+        auto s = std::move(strings.front());
+        strings.pop_front();
+        return e(std::move(s));
+      })
       | (Loop<deque<string>>()
          .context(deque<string>())
          .body([](auto& results, auto& repeated, auto&& result) {
@@ -199,14 +184,14 @@ TEST(RepeatedTest, Interrupt)
 }
 
 
-TEST(RepeatedTest, Map)
+TEST(RepeatTest, Eventual)
 {
   auto r = []() {
-    return Repeated()
-      | Map(Eventual<int>()
-            .start([](auto& k) {
-              succeed(k, 1);
-            }))
+    return Repeat(
+        Eventual<int>()
+        .start([](auto& k) {
+          succeed(k, 1);
+        }))
       | (Loop<int>()
          .context(0)
          .body([](auto&& count, auto& repeated, auto&& value) {
@@ -226,16 +211,43 @@ TEST(RepeatedTest, Map)
 }
 
 
-TEST(RepeatedTest, MapAcquire)
+TEST(RepeatTest, Map)
+{
+  auto r = []() {
+    return Repeat()
+      | Map(Eventual<int>()
+        .start([](auto& k) {
+          succeed(k, 1);
+        }))
+      | (Loop<int>()
+         .context(0)
+         .body([](auto&& count, auto& repeated, auto&& value) {
+           count += value;
+           if (count >= 5) {
+             done(repeated);
+           } else {
+             next(repeated);
+           }
+         })
+         .ended([](auto& count, auto& k) {
+           succeed(k, std::move(count));
+         }));
+  };
+
+  EXPECT_EQ(5, *r());
+}
+
+
+TEST(RepeatTest, MapAcquire)
 {
   Lock lock;
 
   auto r = [&]() {
-    return Repeated()
-      | Map(Eventual<int>()
-            .start([](auto& k) {
-              succeed(k, 1);
-            }))
+    return Repeat(
+        Eventual<int>()
+        .start([](auto& k) {
+          succeed(k, 1);
+        }))
       | Map(
             Acquire(&lock)
             | (Wait<int>(&lock)

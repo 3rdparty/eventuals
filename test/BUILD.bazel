@@ -6,7 +6,7 @@ cc_test(
         "eventual.cc",
         "stream.cc",
         "lock.cc",
-        "repeated.cc",
+        "repeat.cc",
         "then.cc",
         "conditional.cc",
         "callback.cc",
