@@ -39,21 +39,16 @@ TEST(ThenTest, Succeed)
         thread.detach();
       })
       | [](int i) { return i + 1; }
-      | (Then([&](std::string s) { return e(std::move(s)); })
-         .start([](auto& k, auto&& i) {
-           if (i > 1) {
-             succeed(k, "then");
-           } else {
-             fail(k, "error");
-           }
-         }));
+      | Then([&](auto&& i) {
+        return e("then");
+      });
   };
 
   EXPECT_EQ("then", *c());
 }
 
 
-TEST(ThenTest, FailBeforeStart)
+TEST(ThenTest, Fail)
 {
   auto e = [](auto s) {
     return Eventual<std::string>()
@@ -73,49 +68,9 @@ TEST(ThenTest, FailBeforeStart)
         thread.detach();
       })
       | [](int i) { return i + 1; }
-      | (Then([&](std::string s) { return e(std::move(s)); })
-         .start([](auto& k, auto&& i) {
-           if (i > 1) {
-             succeed(k, "then");
-           } else {
-             fail(k, "error");
-           }
-         }));
-  };
-
-  EXPECT_THROW(*c(), FailedException);
-}
-
-
-TEST(ThenTest, FailAfterStart)
-{
-  auto e = [](auto s) {
-    return Eventual<std::string>()
-      .context(s)
-      .start([](auto& s, auto& k) {
-        succeed(k, std::move(s));
+      | Then([&](auto&& i) {
+        return e("then");
       });
-  };
-
-  auto c = [&]() {
-    return Eventual<int>()
-      .context(0)
-      .start([](auto& value, auto& k) {
-        auto thread = std::thread(
-            [&value, &k]() mutable {
-              succeed(k, value);
-            });
-        thread.detach();
-      })
-      | [](int i) { return i + 1; }
-      | (Then([&](std::string s) { return e(std::move(s)); })
-         .start([](auto& k, auto&& i) {
-           if (i > 1) {
-             succeed(k, "then");
-           } else {
-             fail(k, "error");
-           }
-         }));
   };
 
   EXPECT_THROW(*c(), FailedException);
@@ -143,10 +98,9 @@ TEST(ThenTest, Interrupt)
         succeed(k, 0);
       })
       | [](int i) { return i + 1; }
-      | (Then([&](std::string s) { return e(std::move(s)); })
-         .start([](auto& k, auto&&) {
-           succeed(k, "then");
-         }));
+      | Then([&](auto&& i) {
+        return e("then");
+      });
   };
 
   auto t = eventuals::TaskFrom(c());

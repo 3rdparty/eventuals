@@ -4,98 +4,32 @@
 #include "stout/invoke-result.h"
 #include "stout/lambda.h"
 
+////////////////////////////////////////////////////////////////////////
+
 namespace stout {
 namespace eventuals {
 
+////////////////////////////////////////////////////////////////////////
+
 namespace detail {
 
-template <typename Then_, typename E_, typename K_>
-struct ThenK;
+////////////////////////////////////////////////////////////////////////
 
-
-template <typename Then_, typename E_>
-struct ThenK<Then_, E_, Undefined> {};
-
-
-template <typename Then_, typename E_, typename K_>
-struct ThenK
-{
-  Then_* then_ = nullptr;
-
-  using E = typename InvokeResultUnknownArgs<E_>::type;
-  using EK_ = decltype(std::declval<E>().template k(std::declval<K_>()));
-
-  std::optional<EK_> ek_;
-
-  template <typename... Args>
-  void Start(Args&&... args)
-  {
-    ek_.emplace(
-        std::move(then_->e_)(std::forward<Args>(args)...)
-        .k(std::move(then_->k_)));
-
-    if (then_->interrupt_ != nullptr) {
-      ek_->Register(*then_->interrupt_);
-    }
-
-    eventuals::start(*ek_);
-  }
-
-  template <typename... Args>
-  void Fail(Args&&... args)
-  {
-    if (then_->interrupt_ != nullptr) {
-      then_->k_.Register(*then_->interrupt_);
-    }
-
-    eventuals::fail(then_->k_, std::forward<Args>(args)...);
-  }
-
-  void Stop()
-  {
-    if (then_->interrupt_ != nullptr) {
-      then_->k_.Register(*then_->interrupt_);
-    }
-
-    eventuals::stop(then_->k_);
-  }
-};
-
-
-template <
-  typename K_,
-  typename E_,
-  typename Context_,
-  typename Start_,
-  typename Value_,
-  typename... Errors_>
+template <typename K_, typename F_, typename Arg_>
 struct Then
 {
-  using Value = typename ValueFrom<K_, Value_>::type;
+  using E_ = typename InvokeResultPossiblyUndefined<F_, Arg_>::type;
+  using EK_ = typename EKPossiblyUndefined<E_, K_>::type;
 
-  Then(K_ k, E_ e, Context_ context, Start_ start)
-    : k_(std::move(k)),
-      e_(std::move(e)),
-      context_(std::move(context)),
-      start_(std::move(start))
-  {
-    assert(interrupt_ == nullptr);
-  }
+  using Value =
+    typename ValueFrom<EK_, typename ValuePossiblyUndefined<E_>::Value>::type;
 
-  template <
-    typename Value,
-    typename... Errors,
-    typename K,
-    typename E,
-    typename Context,
-    typename Start>
-  static auto create(K k, E e, Context context, Start start)
+  Then(K_ k, F_ f) : k_(std::move(k)), f_(std::move(f)) {}
+
+  template <typename Arg, typename K, typename F>
+  static auto create(K k, F f)
   {
-    return Then<K, E, Context, Start, Value, Errors...>(
-        std::move(k),
-        std::move(e),
-        std::move(context),
-        std::move(start));
+    return Then<K, F, Arg>(std::move(k), std::move(f));
   }
 
   template <
@@ -104,7 +38,7 @@ struct Then
       IsContinuation<K>::value, int> = 0>
   auto k(K k) &&
   {
-    return create<Value_, Errors_...>(
+    return create<Arg_>(
         [&]() {
           if constexpr (!IsUndefined<K_>::value) {
             return std::move(k_) | std::move(k);
@@ -112,9 +46,7 @@ struct Then
             return std::move(k);
           }
         }(),
-        std::move(e_),
-        std::move(context_),
-        std::move(start_));
+        std::move(f_));
   }
 
   template <
@@ -126,40 +58,18 @@ struct Then
     return std::move(*this) | eventuals::Lambda(std::move(f));
   }
 
-  template <typename Context>
-  auto context(Context context) &&
-  {
-    static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(e_),
-        std::move(context),
-        std::move(start_));
-  }
-
-  template <typename Start>
-  auto start(Start start) &&
-  {
-    static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(e_),
-        std::move(context_),
-        std::move(start));
-  }
-
   template <typename... Args>
   void Start(Args&&... args)
   {
-    thenk_.then_ = this;
+    ek_.emplace(
+        f_(std::forward<Args>(args)...)
+        .k(std::move(k_)));
 
-    if constexpr (IsUndefined<Start_>::value) {
-      eventuals::succeed(thenk_, std::forward<decltype(args)>(args)...);
-    } else if constexpr (IsUndefined<Context_>::value) {
-      start_(thenk_, std::forward<Args>(args)...);
-    } else {
-      start_(context_, thenk_, std::forward<Args>(args)...);
+    if (interrupt_ != nullptr) {
+      ek_->Register(*interrupt_);
     }
+
+    eventuals::start(*ek_);
   }
 
   template <typename... Args>
@@ -186,72 +96,66 @@ struct Then
   }
 
   K_ k_;
-
-  E_ e_;
-  Context_ context_;
-  Start_ start_;
-
-  ThenK<Then, E_, K_> thenk_;
+  F_ f_;
 
   Interrupt* interrupt_ = nullptr;
+
+  std::optional<EK_> ek_;
 };
+
+////////////////////////////////////////////////////////////////////////
 
 } // namespace detail {
 
-template <
-  typename K,
-  typename E,
-  typename Context,
-  typename Start,
-  typename Value,
-  typename... Errors>
+////////////////////////////////////////////////////////////////////////
+
+template <typename K, typename F, typename Arg>
 struct IsContinuation<
-  detail::Then<
-    K,
-    E,
-    Context,
-    Start,
-    Value,
-    Errors...>> : std::true_type {};
+  detail::Then<K, F, Arg>> : std::true_type {};
 
+////////////////////////////////////////////////////////////////////////
 
-template <
-  typename K,
-  typename E,
-  typename Context,
-  typename Start,
-  typename Value,
-  typename... Errors>
+template <typename K, typename F, typename Arg>
 struct HasTerminal<
-  detail::Then<
-    K,
-    E,
-    Context,
-    Start,
-    Value,
-    Errors...>> : HasTerminal<K> {};
+  detail::Then<K, F, Arg>> : HasTerminal<K> {};
 
+////////////////////////////////////////////////////////////////////////
 
-template <typename E>
-auto Then(E e)
+template <typename K, typename F, typename Arg_>
+struct Compose<detail::Then<K, F, Arg_>>
 {
-  using Result = typename InvokeResultUnknownArgs<E>::type;
+  template <typename Arg>
+  static auto compose(detail::Then<K, F, Arg_> then)
+  {
+    if constexpr (!IsUndefined<Arg>::value) {
+      using E = decltype(std::declval<F>()(std::declval<Arg>()));
 
-  using Value = typename Result::Value;
+      static_assert(
+          IsContinuation<E>::value,
+          "expecting eventual continuation as "
+          "result of invocable passed to Then");
 
-  // TODO(benh): Infer 'Errors' like we infer 'Value'.
+      using Value = typename E::Value;
 
-  return detail::Then<
-    Undefined,
-    E,
-    Undefined,
-    Undefined,
-    Value>(
-      Undefined(),
-      std::move(e),
-      Undefined(),
-      Undefined());
+      auto k = eventuals::compose<Value>(std::move(then.k_));
+      return detail::Then<decltype(k), F, Arg>(std::move(k), std::move(then.f_));
+    } else {
+      return std::move(then);
+    }
+  }
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename F>
+auto Then(F f)
+{
+  return detail::Then<Undefined, F, Undefined>(Undefined(), std::move(f));
 }
+
+////////////////////////////////////////////////////////////////////////
 
 } // namespace eventuals {
 } // namespace stout {
+
+////////////////////////////////////////////////////////////////////////
