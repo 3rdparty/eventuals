@@ -6,7 +6,6 @@
 
 #include "stout/lambda.h"
 #include "stout/lock.h"
-#include "stout/return.h"
 #include "stout/task.h"
 
 namespace eventuals = stout::eventuals;
@@ -18,7 +17,6 @@ using stout::eventuals::Eventual;
 using stout::eventuals::Lambda;
 using stout::eventuals::Lock;
 using stout::eventuals::Release;
-using stout::eventuals::Return;
 using stout::eventuals::succeed;
 using stout::eventuals::Synchronizable;
 using stout::eventuals::Wait;
@@ -227,11 +225,12 @@ TEST(LockTest, Lambda)
   {
     Foo() : Synchronizable(&lock) {}
 
-    Foo(Foo&& that) : Synchronizable(&lock) {}
-
     auto Operation()
     {
-      return Synchronized([]() { return 42; })
+      return Synchronized(
+          []() {
+            return 42;
+          })
         | [](auto i) {
           return i;
         };
