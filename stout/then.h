@@ -1,5 +1,6 @@
 #pragma once
 
+#include "stout/adaptor.h"
 #include "stout/eventual.h"
 #include "stout/invoke-result.h"
 #include "stout/lambda.h"
@@ -19,10 +20,8 @@ template <typename K_, typename F_, typename Arg_>
 struct Then
 {
   using E_ = typename InvokeResultPossiblyUndefined<F_, Arg_>::type;
-  using EK_ = typename EKPossiblyUndefined<E_, K_>::type;
 
-  using Value =
-    typename ValueFrom<EK_, typename ValuePossiblyUndefined<E_>::Value>::type;
+  using Value = typename ValuePossiblyUndefined<E_>::Value;
 
   Then(K_ k, F_ f) : k_(std::move(k)), f_(std::move(f)) {}
 
@@ -61,31 +60,29 @@ struct Then
   template <typename... Args>
   void Start(Args&&... args)
   {
-    ek_.emplace(
-        f_(std::forward<Args>(args)...)
-        .k(std::move(k_)));
+    adaptor_.emplace(
+        f_(std::forward<Args>(args)...).k(
+            Adaptor<K_, typename E_::Value>(
+                k_,
+                [](auto& k_, auto&&... values) {
+                  eventuals::succeed(k_, std::forward<decltype(values)>(values)...);
+                })));
 
     if (interrupt_ != nullptr) {
-      ek_->Register(*interrupt_);
+      adaptor_->Register(*interrupt_);
     }
 
-    eventuals::start(*ek_);
+    eventuals::succeed(*adaptor_);
   }
 
   template <typename... Args>
   void Fail(Args&&... args)
   {
-    if (interrupt_ != nullptr) {
-      k_.Register(*interrupt_);
-    }
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
   void Stop()
   {
-    if (interrupt_ != nullptr) {
-      k_.Register(*interrupt_);
-    }
     eventuals::stop(k_);
   }
 
@@ -93,6 +90,7 @@ struct Then
   {
     assert(interrupt_ == nullptr);
     interrupt_ = &interrupt;
+    k_.Register(interrupt);
   }
 
   K_ k_;
@@ -100,7 +98,11 @@ struct Then
 
   Interrupt* interrupt_ = nullptr;
 
-  std::optional<EK_> ek_;
+  using Adaptor_ = typename EKPossiblyUndefined<
+    E_,
+    Adaptor<K_, typename ValuePossiblyUndefined<E_>::Value>>::type;
+
+  std::optional<Adaptor_> adaptor_;
 };
 
 ////////////////////////////////////////////////////////////////////////

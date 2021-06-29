@@ -1,5 +1,6 @@
 #pragma once
 
+#include "stout/adaptor.h"
 #include "stout/continuation.h"
 #include "stout/eventual.h"
 #include "stout/lambda.h"
@@ -80,44 +81,44 @@ struct Conditional
   void Start(Args&&... args)
   {
     if (condition_(std::forward<Args>(args)...)) {
-      thenk_.emplace(
-          then_(std::forward<Args>(args)...)
-          .k(std::move(k_)));
+      then_adaptor_.emplace(
+          then_(std::forward<Args>(args)...).k(
+              Adaptor<K_, ThenValue_>(
+                  k_,
+                  [](auto& k_, auto&&... values) {
+                    eventuals::succeed(k_, std::forward<decltype(values)>(values)...);
+                  })));
 
       if (interrupt_ != nullptr) {
-        thenk_->Register(*interrupt_);
+        then_adaptor_->Register(*interrupt_);
       }
 
-      eventuals::start(*thenk_);
+      eventuals::succeed(*then_adaptor_);
     } else {
-      elsek_.emplace(
-          else_(std::forward<Args>(args)...)
-          .k(std::move(k_)));
+      else_adaptor_.emplace(
+          else_(std::forward<Args>(args)...).k(
+              Adaptor<K_, ElseValue_>(
+                  k_,
+                  [](auto& k_, auto&&... values) {
+                    eventuals::succeed(k_, std::forward<decltype(values)>(values)...);
+                  })));
 
       if (interrupt_ != nullptr) {
-        elsek_->Register(*interrupt_);
+        else_adaptor_->Register(*interrupt_);
       }
 
-      eventuals::start(*elsek_);
+      eventuals::succeed(*else_adaptor_);
     }
   }
 
   template <typename... Args>
   void Fail(Args&&... args)
   {
-    if (interrupt_ != nullptr) {
-      k_.Register(*interrupt_);
-    }
-
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
   void Stop()
   {
-    if (interrupt_ != nullptr) {
-      k_.Register(*interrupt_);
-    }
-
     eventuals::stop(k_);
   }
 
@@ -125,6 +126,7 @@ struct Conditional
   {
     assert(interrupt_ == nullptr);
     interrupt_ = &interrupt;
+    k_.Register(interrupt);
   }
 
   K_ k_;
@@ -134,16 +136,22 @@ struct Conditional
 
   Interrupt* interrupt_ = nullptr;
 
-  using ThenK_ = typename EKPossiblyUndefined<
-    typename InvokeResultPossiblyUndefined<Then_, Arg_>::type,
-    K_>::type;
+  using ThenE_ = typename InvokeResultPossiblyUndefined<Then_, Arg_>::type;
+  using ElseE_ = typename InvokeResultPossiblyUndefined<Else_, Arg_>::type;
 
-  using ElseK_ = typename EKPossiblyUndefined<
-    typename InvokeResultPossiblyUndefined<Else_, Arg_>::type,
-    K_>::type;
+  using ThenValue_ = typename ValuePossiblyUndefined<ThenE_>::Value;
+  using ElseValue_ = typename ValuePossiblyUndefined<ElseE_>::Value;
 
-  std::optional<ThenK_> thenk_;
-  std::optional<ElseK_> elsek_;
+  using ThenAdaptor_ = typename EKPossiblyUndefined<
+    ThenE_,
+    Adaptor<K_, ThenValue_>>::type;
+
+  using ElseAdaptor_ = typename EKPossiblyUndefined<
+    ElseE_,
+    Adaptor<K_, ElseValue_>>::type;
+
+  std::optional<ThenAdaptor_> then_adaptor_;
+  std::optional<ElseAdaptor_> else_adaptor_;
 };
 
 ////////////////////////////////////////////////////////////////////////

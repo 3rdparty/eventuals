@@ -1,19 +1,28 @@
 #pragma once
 
+#include "stout/adaptor.h"
 #include "stout/interrupt.h"
 #include "stout/loop.h"
 #include "stout/terminal.h"
 #include "stout/then.h"
 #include "stout/undefined.h"
 
+////////////////////////////////////////////////////////////////////////
+
 namespace stout {
 namespace eventuals {
+
+////////////////////////////////////////////////////////////////////////
 
 // Forward declaration to break circular dependency with stream.h.
 template <typename K>
 void next(K& k);
 
+////////////////////////////////////////////////////////////////////////
+
 namespace detail {
+
+////////////////////////////////////////////////////////////////////////
 
 template <
   typename K_,
@@ -313,6 +322,7 @@ struct Transform
   }
 };
 
+////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename E_, typename Arg_>
 struct Map
@@ -364,29 +374,40 @@ struct Map
   template <typename K, typename... Args>
   void Body(K& k, Args&&... args)
   {
-    if (!eterminal_) {
+    if (!adaptor_) {
       if constexpr (!IsUndefined<typename E_::Value>::value) {
-        body_ = [&k](auto& k_, typename E_::Value&& value, bool move) {
-          if (move) {
-            eventuals::body(k_, k, std::move(value));
-          } else {
-            eventuals::body(k_, k, value);
-          }
-        };
+        // NOTE: in order to have a single function signature for
+        // 'body_' we assume we'll have an rvalue reference '&&'. If
+        // we wanted to support lvalue references '&' we'd need to
+        // modify 'Adaptor'. One way to do this would be to have
+        // 'Adaptor' always std::move() so that the function signature
+        // can always take an rvalue reference '&&' and then also an
+        // extra boolean that specifies whether or not the it should
+        // be moved again.
+        adaptor_.emplace(
+            std::move(e_).k(
+                Adaptor<K_, typename E_::Value>(
+                  k_,
+                  [&k](auto& k_, typename E_::Value&& value) {
+                    eventuals::body(k_, k, std::move(value));
+                  })));
       } else {
-        body_ = [&k](auto& k_) {
-          eventuals::body(k_, k);
-        };
+        adaptor_.emplace(
+            std::move(e_).k(
+                Adaptor<K_, Undefined>(
+                  k_,
+                  [&k](auto& k_) {
+                    eventuals::body(k_, k);
+                  })));
       }
 
-      eterminal_.emplace(std::move(e_).k(terminal(&body_, &k_)));
-
       if (interrupt_ != nullptr) {
-        eterminal_->Register(*interrupt_);
+        adaptor_->Register(*interrupt_);
       }
     }
 
-    eventuals::succeed(*eterminal_, std::forward<Args>(args)...);
+    assert(adaptor_);
+    eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
   }
 
   void Ended()
@@ -400,65 +421,28 @@ struct Map
     k_.Register(interrupt);
   }
 
-  template <typename Body>
-  static auto terminal(Body* body_, K_* k_)
-  {
-    // NOTE: need to use constexpr here because compiler needs to
-    // deduce function return type before K_ is fully determined.
-    if constexpr (HasTerminal<K_>::value) {
-      return eventuals::Terminal()
-        .start([body_, k_](auto&&... args) {
-          static_assert(
-              (IsUndefined<typename E_::Value>::value && sizeof...(args) == 0)
-              || sizeof...(args) == 1,
-              "Map only supports 0 or 1 value");
-          if constexpr (!IsUndefined<typename E_::Value>::value) {
-            // In order to have a single function signature for
-            // 'body_' we always std::move() instead of std::forward()
-            // but then if 'args' is '&' instead of '&&' then we tell
-            // 'body_' *NOT* do a std::move.
-            bool move = !std::is_lvalue_reference_v<
-              std::tuple_element<0, std::tuple<decltype(args)...>>>;
-            (*body_)(*k_, std::move(args)..., move);
-          } else {
-            (*body_)(*k_);
-          }
-        })
-        .fail([k_](auto&&... errors) {
-          eventuals::fail(*k_, std::forward<decltype(errors)>(errors)...);
-        })
-        .stop([k_]() {
-          eventuals::stop(*k_);
-        });
-    } else {
-      return eventuals::Terminal();
-    }
-  }
-
   K_ k_;
   E_ e_;
 
-  using Body_ = std::conditional_t<
-    !IsUndefined<typename E_::Value>::value,
-    Callback<K_&, typename E_::Value&&, bool>,
-    Callback<K_&>>;
+  using Adaptor_ = typename EKPossiblyUndefined<
+    E_,
+    Adaptor<K_, typename E_::Value>>::type;
 
-  Body_ body_;
-
-  using ETerminal_ =
-    decltype(std::move(e_).k(terminal<Body_>(nullptr, nullptr)));
-
-  std::optional<ETerminal_> eterminal_;
+  std::optional<Adaptor_> adaptor_;
 
   Interrupt* interrupt_ = nullptr;
 };
 
+////////////////////////////////////////////////////////////////////////
+
 } // namespace detail {
 
+////////////////////////////////////////////////////////////////////////
 
 template <typename>
 struct IsTransform : std::false_type {};
 
+////////////////////////////////////////////////////////////////////////
 
 template <
   typename K,
@@ -484,6 +468,7 @@ struct IsTransform<
     Value,
     Errors...>> : std::true_type {};
 
+////////////////////////////////////////////////////////////////////////
 
 template <
   typename K,
@@ -509,6 +494,7 @@ struct IsContinuation<
     Value,
     Errors...>> : std::true_type {};
 
+////////////////////////////////////////////////////////////////////////
 
 template <
   typename K,
@@ -534,6 +520,7 @@ struct HasLoop<
     Value,
     Errors...>> : HasLoop<K> {};
 
+////////////////////////////////////////////////////////////////////////
 
 template <
   typename K,
@@ -559,6 +546,7 @@ struct HasTerminal<
     Value,
     Errors...>> : HasTerminal<K> {};
 
+////////////////////////////////////////////////////////////////////////
 
 template <typename Value, typename... Errors>
 auto Transform()
@@ -645,8 +633,9 @@ auto Map(F f)
   return Map(eventuals::Then(std::move(f)));
 }
 
-
 ////////////////////////////////////////////////////////////////////////
 
 } // namespace eventuals {
 } // namespace stout {
+
+////////////////////////////////////////////////////////////////////////

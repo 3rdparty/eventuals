@@ -26,6 +26,7 @@ cc_library(
         "stout/scheduler.h",
         "stout/until.h",
         "stout/forward.h",
+        "stout/adaptor.h",
     ],
     srcs = [
         "stout/scheduler.cc",

@@ -18,41 +18,6 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename Arg_>
-struct UntilK
-{
-  using Value = Arg_;
-
-  K_* k = nullptr;
-  std::optional<Arg_>* arg = nullptr;
-  Callback<K_&, std::optional<Arg_>&, bool> body;
-
-  void Start(bool done)
-  {
-    body(*k, *arg, done);
-  }
-
-  template <typename... Args>
-  void Fail(Args&&... args)
-  {
-    eventuals::fail(*k, std::forward<Args>(args)...);
-  }
-
-  void Stop()
-  {
-    eventuals::stop(*k);
-  }
-
-  void Register(Interrupt&)
-  {
-    // Nothing to do there, alredy registered interrupt with 'k' and
-    // with the eventual that terminated here after we composed with
-    // this helper continuation.
-  }
-};
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename K_, typename F_, typename Arg_>
 struct Until
 {
@@ -141,43 +106,41 @@ struct Until
         // because in the latter we shouldn't need to
         // destruct/construct it each time but can instead just
         // save/copy the arg and pass it through via 'succeed()'.
-        euntilk_.emplace(
+        adaptor_.emplace(
             f_(*arg_).k(
-                UntilK<K_, Arg_> {
-                  &k_,
+                Adaptor<K_, bool, std::optional<Arg_>*>(
+                  k_,
                   &arg_,
-                  [&k](auto& k_, auto& arg_, bool done) {
+                  [&k](auto& k_, auto* arg_, bool done) {
                     if (done) {
                       eventuals::done(k);
                     } else {
-                      eventuals::body(k_, k, std::move(*arg_));
+                      eventuals::body(k_, k, std::move(**arg_));
                     }
-                  }
-                }));
+                  })));
       } else {
-        euntilk_.emplace(
+        adaptor_.emplace(
             f_().k(
-                UntilK<K_, Arg_> {
-                  &k_,
+                Adaptor<K_, bool, std::optional<Arg_>*>(
+                  k_,
                   nullptr,
-                  [&k](auto& k_, auto&, bool done) {
+                  [&k](auto& k_, auto*, bool done) {
                     if (done) {
                       eventuals::done(k);
                     } else {
                       eventuals::body(k_, k);
                     }
-                  }
-                }));
+                  })));
       }
 
       if (interrupt_ != nullptr) {
-        euntilk_->Register(*interrupt_);
+        adaptor_->Register(*interrupt_);
       }
 
       if constexpr (sizeof...(args) == 1) {
-        eventuals::succeed(*euntilk_, *arg_);
+        eventuals::succeed(*adaptor_, *arg_);
       } else {
-        eventuals::succeed(*euntilk_);
+        eventuals::succeed(*adaptor_);
       }
     } else {
       if (f_(args...)) {
@@ -208,19 +171,16 @@ struct Until
       type_identity<Undefined>>,
     std::invoke_result<F_, std::add_lvalue_reference_t<Arg_>>>::type;
 
-  // using Result_ = typename std::conditional_t<
-  //   !IsUndefined<Arg_>::value,
-  //   std::invoke_result<F_, std::add_lvalue_reference_t<Arg_>>,
-  //   std::invoke_result<F_>>::type;
-
   using E_ = std::conditional_t<
     IsContinuation<Result_>::value,
     Result_,
     Undefined>;
 
-  using EUntilK_ = typename EKPossiblyUndefined<E_, UntilK<K_, Arg_>>::type;
+  using Adaptor_ = typename EKPossiblyUndefined<
+    E_,
+    Adaptor<K_, bool, std::optional<Arg_>*>>::type;
 
-  std::optional<EUntilK_> euntilk_;
+  std::optional<Adaptor_> adaptor_;
 
   std::optional<Arg_> arg_;
 };
@@ -235,19 +195,11 @@ template <typename K, typename F, typename Arg>
 struct IsContinuation<
   detail::Until<K, F, Arg>> : std::true_type {};
 
-template <typename K, typename Arg>
-struct IsContinuation<
-  detail::UntilK<K, Arg>> : std::true_type {};
-
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K, typename F, typename Arg>
 struct HasTerminal<
   detail::Until<K, F, Arg>> : HasTerminal<K> {};
-
-template <typename K, typename Arg>
-struct HasTerminal<
-  detail::UntilK<K, Arg>> : HasTerminal<K> {};
 
 ////////////////////////////////////////////////////////////////////////
 
