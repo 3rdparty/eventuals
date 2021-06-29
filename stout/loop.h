@@ -118,7 +118,10 @@ struct Loop
     };
   }
 
-  template <typename K>
+  template <
+    typename K,
+    std::enable_if_t<
+      IsContinuation<K>::value, int> = 0>
   auto k(K k) &&
   {
     static_assert(
@@ -140,6 +143,15 @@ struct Loop
         std::move(fail_),
         std::move(stop_),
         std::move(interrupt_));
+  }
+
+  template <
+    typename F,
+    std::enable_if_t<
+      !IsContinuation<F>::value, int> = 0>
+  auto k(F f) &&
+  {
+    return std::move(*this) | eventuals::Lambda(std::move(f));
   }
 
   template <typename Context>
