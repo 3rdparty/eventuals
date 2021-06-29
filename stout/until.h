@@ -289,24 +289,6 @@ auto Until(E e)
       return std::move(e);
     }
   });
-  // return Map([e = std::move(e)](auto&&... args) {
-  //   return std::move(e)
-  //     | (Eventual()
-  //        .context(std::tuple { std::forward<decltype(args)>(args)... })
-  //        .start([](auto& tuple, auto& k, bool done) {
-  //          std::apply([&](auto&&... args) {
-  //            eventuals::succeed(k, done, std::forward<decltype(args)>(args)...);
-  //          },
-  //          std::move(tuple));
-  //        }));
-  // }) | (Transform()
-  //        .body([](auto& k, bool done, auto&&... args) {
-  //          if (done) {
-  //            eventuals::done(k);
-  //          } else {
-  //            eventuals::body(k, std::forward<decltype(args)>(args)...);
-  //          }
-  //        }));
 } 
 
 ////////////////////////////////////////////////////////////////////////
