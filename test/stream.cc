@@ -6,6 +6,7 @@
 
 #include "stout/context.h"
 #include "stout/lambda.h"
+#include "stout/reduce.h"
 #include "stout/stream.h"
 #include "stout/task.h"
 
@@ -341,7 +342,7 @@ TEST(StreamTest, Transform)
 }
 
 
-TEST(StreamTest, MapReduce)
+TEST(StreamTest, MapReduceLambda)
 {
   auto s = []() {
     return Stream<int>()
@@ -353,13 +354,19 @@ TEST(StreamTest, MapReduce)
           ended(k);
         }
       })
+      .done([](auto&, auto& k) {
+        ended(k);
+      })
       | Map(Lambda([](int i) {
         return i + 1;
       }))
       | Reduce(
           /* sum = */ 0,
-          [](auto&& sum, auto&& value) {
-            return sum + value;
+          [](auto& sum) {
+            return [&](auto&& value) {
+              sum += value;
+              return true;
+            };
           });
   };
 
@@ -367,7 +374,7 @@ TEST(StreamTest, MapReduce)
 }
 
 
-TEST(StreamTest, Map)
+TEST(StreamTest, MapReduceEventual)
 {
   auto s = [&]() {
     return Stream<int>()
@@ -379,14 +386,20 @@ TEST(StreamTest, Map)
           ended(k);
         }
       })
+      .done([](auto&, auto& k) {
+        ended(k);
+      })
       | Map(Eventual<int>()
             .start([](auto& k, auto&& i) {
               succeed(k, i + 1);
             }))
       | Reduce(
           /* sum = */ 0,
-          [](auto&& sum, auto&& value) {
-            return sum + value;
+          [](auto& sum) {
+            return [&](auto&& value) {
+              sum += value;
+              return true;
+            };
           });
   };
 

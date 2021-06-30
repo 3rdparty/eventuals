@@ -510,37 +510,5 @@ inline auto Loop()
   };
 }
 
-
-template <typename T, typename F>
-auto Reduce(T t, F f)
-{
-  struct Context
-  {
-    T t;
-    F f;
-  };
-
-  return Loop<T>()
-    .context(Context { std::move(t), std::move(f) })
-    .start([](auto&, auto& stream) {
-      next(stream);
-    })
-    .body([](auto& context, auto& stream, auto&& value) {
-      context.t = context.f(
-          std::move(context.t),
-          std::forward<decltype(value)>(value));
-      next(stream);
-    })
-    .ended([](auto& context, auto& k) {
-      succeed(k, std::move(context.t));
-    })
-    .fail([](auto&, auto& k, auto&& error) {
-      fail(k, std::forward<decltype(error)>(error));
-    })
-    .stop([](auto&, auto& k) {
-      stop(k);
-    });
-}
-
 } // namespace eventuals {
 } // namespace stout {
