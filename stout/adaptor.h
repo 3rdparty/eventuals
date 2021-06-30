@@ -63,6 +63,11 @@ struct Adaptor
   template <typename... Args>
   void Fail(Args&&... args)
   {
+    // TODO(benh): should the adaptor first propagate back that it's
+    // eventuals::done() before it sends on the error? Current
+    // thinking is no, that destruction should "do the right thing"
+    // rather than needing to explicitly tell the source that it can
+    // stop emitting.
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
