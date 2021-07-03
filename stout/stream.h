@@ -230,8 +230,8 @@ struct Stream
   template <
     typename K,
     std::enable_if_t<
-      IsTransform<K>::value
-      || IsTerminal<K>::value, int> = 0>
+      !IsLoop<K>::value
+      && IsContinuation<K>::value, int> = 0>
   auto k(K k) &&
   {
     static_assert(
@@ -262,10 +262,11 @@ struct Stream
   template <
     typename F,
     std::enable_if_t<
-      !IsContinuation<F>::value, int> = 0>
+      !IsLoop<F>::value
+      && !IsContinuation<F>::value, int> = 0>
   auto k(F f) &&
   {
-    static_assert(!HasLoop<K_>::value, "Can't add *invocable* after loop");
+    static_assert(!HasLoop<K_>::value, "Can't add callable before 'Loop'");
 
     return std::move(*this) | eventuals::Map(eventuals::Lambda(std::move(f)));
   }
