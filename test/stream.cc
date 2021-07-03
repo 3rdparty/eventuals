@@ -13,14 +13,20 @@
 namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Context;
+using stout::eventuals::done;
 using stout::eventuals::ended;
+using stout::eventuals::emit;
 using stout::eventuals::Eventual;
+using stout::eventuals::Interrupt;
 using stout::eventuals::Lambda;
 using stout::eventuals::Loop;
 using stout::eventuals::Map;
+using stout::eventuals::next;
 using stout::eventuals::Reduce;
+using stout::eventuals::stop;
 using stout::eventuals::Stream;
 using stout::eventuals::succeed;
+using stout::eventuals::Terminate;
 
 using stout::eventuals::FailedException;
 using stout::eventuals::StoppedException;
@@ -219,15 +225,19 @@ TEST(StreamTest, InterruptStream)
          }));
   };
 
-  auto t = eventuals::TaskFrom(s());
+  auto [future, t] = Terminate(s());
+
+  Interrupt interrupt;
+
+  t.Register(interrupt);
 
   t.Start();
 
-  t.Interrupt();
+  interrupt.Trigger();
 
   triggered.store(true);
 
-  EXPECT_THROW(t.Wait(), StoppedException);
+  EXPECT_THROW(future.get(), StoppedException);
 }
 
 
@@ -282,15 +292,19 @@ TEST(StreamTest, InterruptLoop)
          }));
   };
 
-  auto t = eventuals::TaskFrom(s());
+  auto [future, t] = Terminate(s());
+
+  Interrupt interrupt;
+
+  t.Register(interrupt);
 
   t.Start();
 
-  t.Interrupt();
+  interrupt.Trigger();
 
   triggered.store(true);
 
-  EXPECT_THROW(t.Wait(), StoppedException);
+  EXPECT_THROW(future.get(), StoppedException);
 }
 
 

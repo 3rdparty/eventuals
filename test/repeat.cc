@@ -22,14 +22,17 @@ using stout::eventuals::Acquire;
 using stout::eventuals::done;
 using stout::eventuals::Eventual;
 using stout::eventuals::fail;
+using stout::eventuals::Interrupt;
 using stout::eventuals::Lambda;
 using stout::eventuals::Lock;
 using stout::eventuals::Loop;
 using stout::eventuals::Map;
+using stout::eventuals::next;
 using stout::eventuals::Release;
 using stout::eventuals::Repeat;
-using stout::eventuals::succeed;
 using stout::eventuals::stop;
+using stout::eventuals::succeed;
+using stout::eventuals::Terminate;
 using stout::eventuals::Until;
 using stout::eventuals::Wait;
 
@@ -172,16 +175,20 @@ TEST(RepeatTest, Interrupt)
          }));
   };
 
-  auto t = eventuals::TaskFrom(r());
+  auto [future, t] = Terminate(r());
+
+  Interrupt interrupt;
+
+  t.Register(interrupt);
 
   EXPECT_CALL(start, Call())
     .WillOnce([&]() {
-      t.Interrupt();
+      interrupt.Trigger();
     });
 
   t.Start();
 
-  EXPECT_THROW(t.Wait(), StoppedException);
+  EXPECT_THROW(future.get(), StoppedException);
 }
 
 

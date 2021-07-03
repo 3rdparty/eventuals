@@ -13,11 +13,14 @@
 namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Eventual;
+using stout::eventuals::Interrupt;
 using stout::eventuals::Lambda;
 using stout::eventuals::Raise;
 using stout::eventuals::Return;
+using stout::eventuals::stop;
 using stout::eventuals::succeed;
 using stout::eventuals::Terminal;
+using stout::eventuals::Terminate;
 
 using stout::eventuals::FailedException;
 using stout::eventuals::StoppedException;
@@ -133,16 +136,20 @@ TEST(EventualTest, Interrupt)
          }));
   };
 
-  auto t = eventuals::TaskFrom(e());
+  auto [future, t] = Terminate(e());
+
+  Interrupt interrupt;
+
+  t.Register(interrupt);
 
   EXPECT_CALL(start, Call())
     .WillOnce([&]() {
-      t.Interrupt();
+      interrupt.Trigger();
     });
 
   t.Start();
 
-  EXPECT_THROW(t.Wait(), StoppedException);
+  EXPECT_THROW(future.get(), StoppedException);
 }
 
 

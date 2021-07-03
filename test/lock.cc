@@ -14,12 +14,17 @@ using stout::Callback;
 
 using stout::eventuals::Acquire;
 using stout::eventuals::Eventual;
+using stout::eventuals::Interrupt;
 using stout::eventuals::Lambda;
 using stout::eventuals::Lock;
+using stout::eventuals::notify;
 using stout::eventuals::Release;
+using stout::eventuals::stop;
 using stout::eventuals::succeed;
 using stout::eventuals::Synchronizable;
+using stout::eventuals::Terminate;
 using stout::eventuals::Wait;
+using stout::eventuals::wait;
 
 using stout::eventuals::FailedException;
 using stout::eventuals::StoppedException;
@@ -61,21 +66,21 @@ TEST(LockTest, Succeed)
       | []() { return "t3"; };
   };
 
-  auto t1 = eventuals::TaskFrom(e1());
-  auto t2 = eventuals::TaskFrom(e2());
-  auto t3 = eventuals::TaskFrom(e3());
+  auto [future1, t1] = Terminate(e1());
+  auto [future2, t2] = Terminate(e2());
+  auto [future3, t3] = Terminate(e3());
 
   t1.Start();
 
-  EXPECT_EQ("t1", t1.Wait());
+  EXPECT_EQ("t1", future1.get());
 
   t2.Start();
 
   t3.Start();
 
-  EXPECT_STREQ("t3", t3.Wait());
+  EXPECT_STREQ("t3", future3.get());
 
-  EXPECT_EQ("t2", t2.Wait());
+  EXPECT_EQ("t2", future2.get());
 }
 
 
@@ -135,13 +140,17 @@ TEST(LockTest, Stop)
       | []() { return "t2"; };
   };
 
-  auto t1 = eventuals::TaskFrom(e1());
+  auto [future1, t1] = Terminate(e1());
+
+  Interrupt interrupt;
+
+  t1.Register(interrupt);
 
   t1.Start();
 
-  t1.Interrupt();
+  interrupt.Trigger();
 
-  EXPECT_THROW(t1.Wait(), StoppedException);
+  EXPECT_THROW(future1.get(), StoppedException);
 
   EXPECT_STREQ("t2", *e2());
 }
@@ -175,7 +184,11 @@ TEST(LockTest, Wait)
       | Release(&lock);
   };
 
-  auto t1 = eventuals::TaskFrom(e1());
+  auto [future1, t1] = Terminate(e1());
+
+  Interrupt interrupt;
+
+  t1.Register(interrupt);
 
   t1.Start();
 
@@ -183,7 +196,7 @@ TEST(LockTest, Wait)
 
   callback();
 
-  EXPECT_EQ("t1", t1.Wait());
+  EXPECT_EQ("t1", future1.get());
 }
 
 

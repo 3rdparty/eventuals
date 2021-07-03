@@ -11,6 +11,7 @@ cc_test(
         "conditional.cc",
         "callback.cc",
         "scheduler.cc",
+        "task.cc",
     ],
     deps = [
         "//:eventuals",
