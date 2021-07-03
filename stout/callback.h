@@ -1,5 +1,7 @@
 #pragma once
 
+////////////////////////////////////////////////////////////////////////
+
 namespace stout {
 
 ////////////////////////////////////////////////////////////////////////
@@ -29,6 +31,24 @@ struct Callback
     this->operator=(std::move(f));
   }
 
+  Callback& operator=(Callback&& that)
+  {
+    if (base_ != nullptr) {
+      base_->~Base();
+      base_ = nullptr;
+    }
+
+    if (that.base_ != nullptr) {
+      base_ = that.base_->Move(&storage_);
+
+      // Set 'base_' to nullptr so we only destruct once.
+      that.base_ = nullptr;
+    }
+
+    return *this;
+  }
+
+
   template <typename F>
   Callback& operator=(F f)
   {
@@ -52,8 +72,6 @@ struct Callback
 
       // Set 'base_' to nullptr so we only destruct once.
       that.base_ = nullptr;
-    } else {
-      base_ = nullptr;
     }
   }
 
@@ -116,3 +134,5 @@ struct Callback
 ////////////////////////////////////////////////////////////////////////
 
 } // namespace stout {
+
+////////////////////////////////////////////////////////////////////////
