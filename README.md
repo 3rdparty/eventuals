@@ -1,6 +1,6 @@
 # Eventuals
 
-A C++ library for composing asynchronous ***continuations*** without locking or heap allocations.
+A C++ library for composing asynchronous ***continuations*** without locking or performing any dynamic heap allocations by default.
 
 **Callbacks** are the most common approach to *continue* an asynchronous computation, but they are hard to compose, don't (often) support cancellation, and are generally tricky to reason about.
 
@@ -8,7 +8,7 @@ A C++ library for composing asynchronous ***continuations*** without locking or 
 
 **Eventuals** are an approach that, much like futures/promises, support composition and cancellation, however, are **lazy**. That is, an eventual has to be explicitly *started*.
 
-Another key difference from futures/promises is that an eventual's continuation is **not** type-erased and can be directly used, saved, etc by the programmer. This allows the compiler to perform significant optimizations that are difficult to do with other lazy approaches that perform type-erasure. The tradeoff is that more code needs to be written in headers, which may lead to longer compile times. You can, however, mitgate long compile times by type-erasing eventual "pipelines" (more on this later).
+Another key difference from futures/promises is that an eventual's continuation is **not** type-erased and can be directly used, saved, etc by the programmer. This allows the compiler to perform significant optimizations that are difficult to do with other lazy approaches that perform type-erasure. The tradeoff is that more code needs to be written in headers, which may lead to longer compile times. You can, however, mitgate long compile times by using a type-erasing `Task` type (more on this later).
 
 The library provides numerous abstractions that simplify asynchronous continuations, for example a `Stream` for performing asynchronous streaming. Each of these abstractions follow a "builder" pattern for constructing them, see [Usage](#usage) below for more details.
 
@@ -274,9 +274,9 @@ auto e = Eventual<T>()
   };
 ```
 
-### `Return`
+### `Just`
 
-You can inject a value into an eventual pipeline using `Return`. This can be useful when you don't care about the result of another eventual as well as with [`Choice`](#choice) and [`Conditional`](#conditional).
+You can inject a value into an eventual pipeline using `Just`. This can be useful when you don't care about the result of another eventual as well as with [`Conditional`](#conditional).
 
 ```cpp
 auto e = Eventual<T>()
@@ -289,48 +289,23 @@ auto e = Eventual<T>()
         });
     thread.detach();
   })
-  | Return("value");
+  | Just("value");
 ```
 
 ### `Raise`
 
-While `Return` is for continuing a pipeline "successfully", `Raise` can be used to trigger the failure path. Again, this becomes very useful with constructs like [`Choice`](#choice) and [`Conditional`](#conditional) amongst others.
+While `Just` is for continuing a pipeline "successfully", `Raise` can be used to trigger the failure path. Again, this becomes very useful with constructs like [`Conditional`](#conditional) amongst others.
 
 ```cpp
 auto e = Raise(Error());
 ```
 
-### `Choice` and `Conditional`
+### `Conditional`
 
-Sometimes how you want to asynchronously continue depends on some value computed asynchrhonously. You can use 'Choice' to *choose* which eventual to continue:
-
-```cpp
-auto e = Return(1)
-  | Choice<T>(
-        [](int n) {
-          return HandleLessThan(n);
-        },
-        [](int n) {
-          return HandleEqualTo(n);
-        },
-        [](int n) {
-          return HandleGreaterThan(n);
-        })
-      .start([](auto& less, auto& equal, auto& greater, int n) {
-        if (n < 0) {
-          less(n);
-        } else if (n == 0) {
-          equal(n);
-        } else {
-          greater(n);
-        }
-      });
-```
-
-When all you need is a simple conditional, e.g., an "if else" statement, you can use `Conditional`:
+Sometimes how you want to asynchronously continue depends on some value computed asynchrhonously. You can use 'Conditional' to capture this pattern, e.g., an asynchronous "if else" statement:
 
 ```cpp
-auto e = Return(1)
+auto e = Just(1)
   | Conditional(
         [](int n) {
           return n < 0;
@@ -399,7 +374,7 @@ auto e = Synchronized(
       }));
 ```
 
-### `Stream`, `Repeated`, and `Loop`
+### `Stream`, `Repeat`, and `Loop`
 
 You can use `Stream` to "return" multiple values asynchronously. Instead of using `succeed(), `fail()`, and `stop()` as we've already seen, "streams" use `emit()` and `ended()` which emit a value on the stream and signify that there are no more values, respectively.
 
@@ -428,17 +403,17 @@ auto e = Stream<int>()
      }));
 ```
 
-You can construct a stream out of repeated asynchronous computations using `Repeated`:
+You can construct a stream out of repeated asynchronous computations using `Repeat`:
 
 ```cpp
-auto e = Repeated([]() { return Asynchronous(); });
+auto e = Repeat(Asynchronous());
 ```
 
-`Repeated` acts just like `Stream` where you can continue it with a `Loop` that calls `next()` and `done()`. By default a `Repeated` will repeat forever (i.e., for every call to `next()`) but you can override the default behavior during construction:
+`Repeat` acts just like `Stream` where you can continue it with a `Loop` that calls `next()` and `done()`. By default a `Repeat` will repeat forever (i.e., for every call to `next()`) but you can override the default behavior during construction:
 
 
 ```cpp
-auto e = Repeated([](int n) { return Asynchronous(n); })
+auto e = Repeat(Then([](int n) { return Asynchronous(n); }))
   .context(5) // Only repeat 5 times.
   .next([](auto& count, auto& k) {
     if (count-- > 0) {
@@ -492,26 +467,8 @@ auto e = SomeInfiniteStream()
 
 You can use a `Task` to type-erase your continuation or pipeline. Currently this performs heap allocation but in the future we'll provide a version that lets you do this on the stack as well.
 
-Use the helper `TaskFrom` to create a task without needing to specify any types:
-
 ```cpp
-Task<string> task = TaskFrom(Asynchronous());
+Task<string> task = Asynchronous();
 ```
 
-You can then start or interrupt a task as so:
-
-```cpp
-task.Start();
-
-task.Interrupt();
-```
-
-If the eventual didn't already have a `Terminal` then `TaskFrom()` will add one for you and enable the ability to call `Wait()`:
-
-```cpp
-task.Start();
-
-auto s = task.Wait();
-```
-
-Again, be careful as this ***blocks*** the current thread and should (likely) only be used in tests.
+You need to terminate this "eventual" just like any other kind, or in tests you can use `*` to add a terminal for you. Again, be careful as this ***blocks*** the current thread!
