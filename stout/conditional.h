@@ -82,8 +82,8 @@ struct Conditional
   {
     if (condition_(std::forward<Args>(args)...)) {
       then_adaptor_.emplace(
-          then_(std::forward<Args>(args)...).k(
-              Adaptor<K_, ThenValue_>(
+          eventuals::unify<Value_>(then_(std::forward<Args>(args)...)).k(
+              Adaptor<K_, Value_>(
                   k_,
                   [](auto& k_, auto&&... values) {
                     eventuals::succeed(k_, std::forward<decltype(values)>(values)...);
@@ -96,8 +96,8 @@ struct Conditional
       eventuals::succeed(*then_adaptor_);
     } else {
       else_adaptor_.emplace(
-          else_(std::forward<Args>(args)...).k(
-              Adaptor<K_, ElseValue_>(
+          eventuals::unify<Value_>(else_(std::forward<Args>(args)...)).k(
+              Adaptor<K_, Value_>(
                   k_,
                   [](auto& k_, auto&&... values) {
                     eventuals::succeed(k_, std::forward<decltype(values)>(values)...);
@@ -143,12 +143,12 @@ struct Conditional
   using ElseValue_ = typename ValuePossiblyUndefined<ElseE_>::Value;
 
   using ThenAdaptor_ = typename EKPossiblyUndefined<
-    ThenE_,
-    Adaptor<K_, ThenValue_>>::type;
+    decltype(eventuals::unify<Value_>(std::declval<ThenE_>())),
+    Adaptor<K_, Value_>>::type;
 
   using ElseAdaptor_ = typename EKPossiblyUndefined<
-    ElseE_,
-    Adaptor<K_, ElseValue_>>::type;
+    decltype(eventuals::unify<Value_>(std::declval<ElseE_>())),
+    Adaptor<K_, Value_>>::type;
 
   std::optional<ThenAdaptor_> then_adaptor_;
   std::optional<ElseAdaptor_> else_adaptor_;
@@ -226,18 +226,32 @@ struct Compose<detail::Conditional<K, Condition, Then, Else, Arg_, Value_>>
     using ElseValue = typename ElseE::Value;
 
     static_assert(
-        std::is_same_v<ThenValue, ElseValue>,
+        std::is_same_v<ThenValue, ElseValue>
+        || IsUndefined<ThenValue>::value
+        || IsUndefined<ElseValue>::value,
         "\"then\" and \"else\" branch of Conditional *DO NOT* return "
         "an eventual value of the same type");
 
-    using Value = ThenValue;
+    using Value = std::conditional_t<
+      !IsUndefined<ThenValue>::value,
+      ThenValue,
+      ElseValue>;
 
     auto k = eventuals::compose<Value>(std::move(conditional.k_));
-    return detail::Conditional<decltype(k), Condition, Then, Else, Arg, Value>(
+    auto then = eventuals::unify<Value>(std::move(conditional.then_));
+    auto els3 = eventuals::unify<Value>(std::move(conditional.else_));
+
+    return detail::Conditional<
+      decltype(k),
+      Condition,
+      decltype(then),
+      decltype(els3),
+      Arg,
+      Value>(
         std::move(k),
         std::move(conditional.condition_),
-        std::move(conditional.then_),
-        std::move(conditional.else_));
+        std::move(then),
+        std::move(els3));
   }
 };
 

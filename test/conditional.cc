@@ -6,6 +6,7 @@
 
 #include "stout/conditional.h"
 #include "stout/just.h"
+#include "stout/raise.h"
 #include "stout/task.h"
 
 namespace eventuals = stout::eventuals;
@@ -16,6 +17,7 @@ using stout::eventuals::Conditional;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
 using stout::eventuals::Just;
+using stout::eventuals::Raise;
 using stout::eventuals::stop;
 using stout::eventuals::succeed;
 using stout::eventuals::Terminate;
@@ -165,4 +167,19 @@ TEST(ConditionalTest, Interrupt)
   t.Start();
 
   EXPECT_THROW(future.get(), StoppedException);
+}
+
+
+TEST(ConditionalTest, Raise)
+{
+  auto c = [&]() {
+    return Just(1)
+      | [](int i) { return i + 1; }
+      | Conditional(
+          [](auto&& i) { return i > 1; },
+          [](auto&& i) { return Just(i); },
+          [](auto&& i) { return Raise("raise"); });
+  };
+
+  EXPECT_EQ(2, *c());
 }
