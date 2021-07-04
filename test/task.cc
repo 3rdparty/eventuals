@@ -4,20 +4,20 @@
 
 #include "gtest/gtest.h"
 
+#include "stout/just.h"
 #include "stout/lambda.h"
-#include "stout/return.h"
 #include "stout/task.h"
 
 namespace eventuals = stout::eventuals;
 
+using stout::eventuals::Just;
 using stout::eventuals::Lambda;
-using stout::eventuals::Return;
 using stout::eventuals::Task;
 
 TEST(TaskTest, Succeed)
 {
   auto e1 = []() -> Task<int> {
-    return Return(42);
+    return Just(42);
   };
 
   auto e2 = [&]() {

@@ -5,18 +5,18 @@
 #include "gtest/gtest.h"
 
 #include "stout/eventual.h"
+#include "stout/just.h"
 #include "stout/lambda.h"
 #include "stout/raise.h"
-#include "stout/return.h"
 #include "stout/task.h"
 
 namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
+using stout::eventuals::Just;
 using stout::eventuals::Lambda;
 using stout::eventuals::Raise;
-using stout::eventuals::Return;
 using stout::eventuals::stop;
 using stout::eventuals::succeed;
 using stout::eventuals::Terminal;
@@ -218,10 +218,10 @@ TEST(EventualTest, Reuse)
 }
 
 
-TEST(EventualTest, Return)
+TEST(EventualTest, Just)
 {
   auto e = []() {
-    return Return(42);
+    return Just(42);
   };
 
   EXPECT_EQ(42, *e());
@@ -241,7 +241,7 @@ TEST(EventualTest, Raise)
 TEST(EventualTest, Lambda)
 {
   auto e = []() {
-    return Return(42)
+    return Just(42)
       | Lambda([](auto i) {
         return i + 1;
       })

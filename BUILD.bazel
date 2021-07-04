@@ -18,7 +18,7 @@ cc_library(
         "stout/repeat.h",
         "stout/then.h",
         "stout/callback.h",
-        "stout/return.h",
+        "stout/just.h",
         "stout/conditional.h",
         "stout/lambda.h",
         "stout/invoke-result.h",

@@ -6,7 +6,7 @@ namespace stout {
 namespace eventuals {
 
 template <typename T>
-auto Return(T t)
+auto Just(T t)
 {
   return Eventual<T>()
     .context(std::move(t))

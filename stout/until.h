@@ -2,7 +2,7 @@
 
 #include "stout/eventual.h"
 #include "stout/invoke-result.h"
-#include "stout/return.h"
+#include "stout/just.h"
 #include "stout/stream.h"
 #include "stout/then.h"
 #include "stout/transform.h"
@@ -235,7 +235,7 @@ auto Until(E e)
 {
   return Until([e = std::move(e)](auto&&... args) mutable {
     if constexpr (sizeof...(args) > 0) {
-      return eventuals::Return(std::forward<decltype(args)>(args)...)
+      return Just(std::forward<decltype(args)>(args)...)
         | std::move(e);
     } else {
       return std::move(e);

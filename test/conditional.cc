@@ -5,7 +5,7 @@
 #include "gtest/gtest.h"
 
 #include "stout/conditional.h"
-#include "stout/return.h"
+#include "stout/just.h"
 #include "stout/task.h"
 
 namespace eventuals = stout::eventuals;
@@ -15,7 +15,7 @@ using std::string;
 using stout::eventuals::Conditional;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
-using stout::eventuals::Return;
+using stout::eventuals::Just;
 using stout::eventuals::stop;
 using stout::eventuals::succeed;
 using stout::eventuals::Terminate;
@@ -43,7 +43,7 @@ TEST(ConditionalTest, Then)
   };
 
   auto c = [&]() {
-    return Return(1)
+    return Just(1)
       | [](int i) { return i + 1; }
       | Conditional(
           [](auto&& i) { return i > 1; },
@@ -72,7 +72,7 @@ TEST(ConditionalTest, Else)
   };
 
   auto c = [&]() {
-    return Return(0)
+    return Just(0)
       | [](int i) { return i + 1; }
       | Conditional(
           [](auto&& i) { return i > 1; },
@@ -143,7 +143,7 @@ TEST(ConditionalTest, Interrupt)
   };
 
   auto c = [&]() {
-    return Return(1)
+    return Just(1)
       | [](int i) { return i + 1; }
       | Conditional(
           [](auto&& i) { return i > 1; },
