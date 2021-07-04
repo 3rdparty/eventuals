@@ -9,8 +9,8 @@
 #include "stout/callback.h"
 #include "stout/conditional.h"
 #include "stout/continuation.h"
+#include "stout/just.h"
 #include "stout/raise.h"
-#include "stout/return.h"
 #include "stout/undefined.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -58,6 +58,17 @@ public:
   }
 
   detail::Schedule<Undefined, Undefined> Schedule(void* context);
+
+  // TODO(benh): provide a form of "schedule" that explicitly expects
+  // that you'll _reschedule_ the current computation using the same
+  // execution resource (thread, core, etc) and therefore can perform
+  // allocation for the continuation value from the execution
+  // resources' memory resource if it so pleases (e.g., allowing a
+  // scheduler to divide up memory such that each execution resource
+  // can allocate memory without requiring locks which may provide
+  // performance gains when that memory might be more "local" to the
+  // execution resource).
+  detail::Schedule<Undefined, Undefined> Reschedule(void* context);
 
 private:
   static Scheduler default_;
@@ -173,6 +184,10 @@ struct Schedule
   K_ k_;
   Scheduler* scheduler_;
   void* context_;
+
+  // TODO(benh): if this is a "reschedule" then use the pointer to
+  // 'Arg_' that was allocated when the execution resource switch
+  // happened rather than this one.
   std::optional<Arg_> arg_;
 };
 
@@ -370,7 +385,7 @@ public:
              return Scheduler::Schedule(requirements);
           } else {
             return Scheduler::Schedule(requirements)
-              | Return(std::forward<decltype(args)>(args)...);
+              | Just(std::forward<decltype(args)>(args)...);
           }
         },
         [](auto&&... args) {
@@ -380,7 +395,7 @@ public:
             return Raise("Required core is > total cores");
           } else {
             return Raise("Required core is > total cores")
-              | Return(std::forward<decltype(args)>(args)...);
+              | Just(std::forward<decltype(args)>(args)...);
           }
         });
   }
