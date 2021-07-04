@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stout/eventual.h"
+#include "stout/lambda.h"
 
 #include <future>
 #include <sstream>
@@ -13,7 +14,7 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 // Forward declaration.
-template <typename Value>
+template <typename Value, bool terminated = false>
 struct Task;
 
 ////////////////////////////////////////////////////////////////////////
@@ -194,32 +195,59 @@ struct Task
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename Value_>
+template <typename K_, typename Value_, bool terminated_>
 struct TaskContinuation
 {
-  using Value = typename K_::Value;
+  using Value = typename ValueFrom<K_, Value_>::type;
 
-  TaskContinuation(K_ k, eventuals::Task<Value_> task)
+  TaskContinuation(K_ k, eventuals::Task<Value_, terminated_> task)
     : k_(std::move(k)), task_(std::move(task)) {}
 
-  template <typename K, typename Value>
-  static auto create(K k, eventuals::Task<Value> task)
+  template <typename K, typename Value, bool terminated>
+  static auto create(K k, eventuals::Task<Value, terminated> task)
   {
-    return TaskContinuation<K, Value>(std::move(k), std::move(task));
+    return TaskContinuation<K, Value, terminated>(
+        std::move(k),
+        std::move(task));
   }
 
-  template <typename K>
+  template <
+    typename K,
+    std::enable_if_t<
+      IsContinuation<K>::value, int> = 0>
   auto k(K k) &&
   {
+    static_assert(
+        !terminated_,
+        "Task already terminated, can't compose continuation");
+
     return create(
         [&]() {
-          return std::move(k_) | std::move(k);
+          if constexpr (!IsUndefined<K_>::value) {
+            return std::move(k_) | std::move(k);
+          } else {
+            return std::move(k);
+          }
         }(),
         std::move(task_));
   }
 
-  void Start()
+  template <
+    typename F,
+    std::enable_if_t<
+      !IsContinuation<F>::value, int> = 0>
+  auto k(F f) &&
   {
+    return std::move(*this) | eventuals::Lambda(std::move(f));
+  }
+
+  template <typename... Args>
+  void Start(Args&&...)
+  {
+    static_assert(
+        !IsUndefined<K_>::value,
+        "Trying to start a task that doesn't have a continuation!");
+
     task_.Start(
         *interrupt_,
         [this](auto&&... args) {
@@ -233,13 +261,25 @@ struct TaskContinuation
         });
   }
 
+  template <typename... Args>
+  void Fail(Args&&... args)
+  {
+    eventuals::fail(k_, std::forward<Args>(args)...);
+  }
+
+  void Stop()
+  {
+    eventuals::stop(k_);
+  }
+
   void Register(Interrupt& interrupt)
   {
     interrupt_ = &interrupt;
+    k_.Register(interrupt);
   }
 
   K_ k_;
-  eventuals::Task<Value_> task_;
+  eventuals::Task<Value_, terminated_> task_;
 
   Interrupt* interrupt_ = nullptr;
 };
@@ -250,7 +290,7 @@ struct TaskContinuation
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Value_>
+template <typename Value_, bool terminated_>
 struct Task
 {
   using Value = Value_;
@@ -258,6 +298,13 @@ struct Task
   template <typename E>
   Task(E e)
   {
+    static_assert(
+        (HasTerminal<E>::value && terminated_)
+        || (!HasTerminal<E>::value && !terminated_),
+        "You need to add 'true' as the second template "
+        "argument for already terminated eventuals, "
+        "i.e., 'Task<Value, true>'");
+
     using Value = std::conditional_t<
       IsUndefined<typename E::Value>::value,
       void,
@@ -283,14 +330,30 @@ struct Task
     };
   }
 
-  template <typename K>
+  template <
+    typename K,
+    std::enable_if_t<
+      IsContinuation<K>::value, int> = 0>
   auto k(K k) &&
   {
+    static_assert(
+        !terminated_,
+        "Task already terminated, can't compose continuation");
+
     assert(e_);
-    auto kk = compose<Value_>(std::move(k));
-    return detail::TaskContinuation<decltype(kk), Value_>(
-        std::move(kk),
+
+    return detail::TaskContinuation<K, Value_, terminated_>(
+        std::move(k),
         std::move(*this));
+  }
+
+  template <
+    typename F,
+    std::enable_if_t<
+      !IsContinuation<F>::value, int> = 0>
+  auto k(F f) &&
+  {
+    return std::move(*this) | eventuals::Lambda(std::move(f));
   }
 
   void Start(
@@ -327,15 +390,41 @@ struct HasTerminal<
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename Value>
+template <typename K, typename Value, bool terminated>
 struct IsContinuation<
-  detail::TaskContinuation<K, Value>> : std::true_type {};
+  detail::TaskContinuation<K, Value, terminated>> : std::true_type {};
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename Value>
+template <typename K, typename Value, bool terminated>
 struct HasTerminal<
-  detail::TaskContinuation<K, Value>> : HasTerminal<K> {};
+  detail::TaskContinuation<K, Value, terminated>> : HasTerminal<K> {};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Value, bool terminated>
+struct IsContinuation<
+  Task<Value, terminated>> : std::true_type {};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Value, bool terminated>
+struct HasTerminal<
+  Task<Value, terminated>> : std::bool_constant<terminated> {};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Value, bool terminated>
+struct Compose<Task<Value, terminated>>
+{
+  template <typename Arg>
+  static auto compose(Task<Value, terminated> task)
+  {
+    return detail::TaskContinuation<Undefined, Value, terminated>(
+        Undefined(),
+        std::move(task));
+  }
+};
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -348,7 +437,7 @@ auto operator*(E e)
 {
   static_assert(
       !HasTerminal<E>::value,
-      "Eventual already has terminal (maybe you want 'start()')");
+      "Eventual already has terminal (maybe you just want to start it?)");
 
   auto [future, t] = Terminate(std::move(e));
 
@@ -363,9 +452,13 @@ auto operator*(E e)
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Value>
-auto operator*(Task<Value> task)
+template <typename Value, bool terminated>
+auto operator*(Task<Value, terminated> task)
 {
+  static_assert(
+      !terminated,
+      "Task already has a terminal (maybe you just want to start it?)");
+
   auto [future, t] = Terminate(std::move(task));
 
   start(t);

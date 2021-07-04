@@ -25,9 +25,7 @@ TEST(TaskTest, Succeed)
       | Lambda([](int i) {
         return i + 1; 
       })
-      | Lambda([](int i) {
-        return i - 1; 
-      });
+      | e1();
   };
 
   EXPECT_EQ(42, *e2());
