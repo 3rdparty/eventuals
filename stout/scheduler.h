@@ -391,12 +391,7 @@ public:
         [](auto&&... args) {
           static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
                         "Schedule only supports 0 or 1 argument, but found > 1");
-          if constexpr (sizeof...(args) == 0) {
-            return Raise("Required core is > total cores");
-          } else {
-            return Raise("Required core is > total cores")
-              | Just(std::forward<decltype(args)>(args)...);
-          }
+          return Raise("Required core is > total cores");
         });
   }
 
