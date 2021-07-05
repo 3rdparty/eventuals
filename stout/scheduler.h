@@ -358,16 +358,6 @@ public:
 
   auto Schedule(Requirements* requirements)
   {
-    // return eventuals::Eventual<>()
-    //   .start([this, requirements](auto& k, auto&&... args) {
-    //     Submit([&k]() {
-    //       eventuals::succeed(k, 
-          
-    //     } else {
-    //       eventuals::fail(k, "Required core is > total cores");
-    //     }
-    //   });
-
     std::optional<unsigned int> core;
 
     if (requirements->pinned.core) {
