@@ -15,5 +15,14 @@ auto Just(T t)
     });
 }
 
+
+inline auto Just()
+{
+  return Eventual<Undefined>()
+    .start([](auto& k, auto&&...) {
+      eventuals::succeed(k);
+    });
+}
+
 } // namespace eventuals {
 } // namespace stout {

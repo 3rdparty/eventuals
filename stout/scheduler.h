@@ -11,6 +11,7 @@
 #include "stout/continuation.h"
 #include "stout/just.h"
 #include "stout/raise.h"
+#include "stout/then.h"
 #include "stout/undefined.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -82,6 +83,9 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
+// Helper struct that implements eventual 'Schedule()' logic that most
+// schedulers will want to perform. Not required to be used by all
+// schedulers but can simplify scheduler creation/development.
 template <typename K_, typename Arg_>
 struct Schedule
 {
@@ -402,11 +406,14 @@ private:
 template <typename E>
 auto StaticThreadPool::Schedulable::Schedule(E e)
 {
-  void* context = nullptr;
-  auto* scheduler = Scheduler::Get(&context);
-  return StaticThreadPool::Scheduler().Schedule(&requirements_)
-    | std::move(e)
-    | scheduler->Schedule(context);
+  return Then([this, e = std::move(e)](auto&&... args) {
+    void* context = nullptr;
+    auto* scheduler = Scheduler::Get(&context);
+    return StaticThreadPool::Scheduler().Schedule(&requirements_)
+      | Just(std::forward<decltype(args)>(args)...)
+      | std::move(e)
+      | scheduler->Schedule(context);
+  });
 }
 
 ////////////////////////////////////////////////////////////////////////
