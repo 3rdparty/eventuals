@@ -47,7 +47,7 @@ struct ValuePossiblyUndefined<Undefined>
 template <typename E, typename K>
 struct EKPossiblyUndefined
 {
-  using type = decltype(std::declval<E>().template k(std::declval<K>()));
+  using type = decltype(std::declval<E>() | std::declval<K>());
 };
 
 template <typename E>
