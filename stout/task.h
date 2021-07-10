@@ -164,8 +164,8 @@ struct Task
 {
   Task(E_ e)
     : adaptor_(
-        std::move(e).k(
-            TaskAdaptor<typename E_::Value>(&start_, &fail_, &stop_))) {}
+        std::move(e)
+        | TaskAdaptor<typename E_::Value>(&start_, &fail_, &stop_)) {}
 
   void Start(
       Interrupt& interrupt,

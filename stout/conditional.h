@@ -82,12 +82,14 @@ struct Conditional
   {
     if (condition_(std::forward<Args>(args)...)) {
       then_adaptor_.emplace(
-          eventuals::unify<Value_>(then_(std::forward<Args>(args)...)).k(
-              Adaptor<K_, Value_>(
-                  k_,
-                  [](auto& k_, auto&&... values) {
-                    eventuals::succeed(k_, std::forward<decltype(values)>(values)...);
-                  })));
+          eventuals::unify<Value_>(then_(std::forward<Args>(args)...))
+          | Adaptor<K_, Value_>(
+              k_,
+              [](auto& k_, auto&&... values) {
+                eventuals::succeed(
+                    k_,
+                    std::forward<decltype(values)>(values)...);
+              }));
 
       if (interrupt_ != nullptr) {
         then_adaptor_->Register(*interrupt_);
@@ -96,12 +98,14 @@ struct Conditional
       eventuals::succeed(*then_adaptor_);
     } else {
       else_adaptor_.emplace(
-          eventuals::unify<Value_>(else_(std::forward<Args>(args)...)).k(
-              Adaptor<K_, Value_>(
-                  k_,
-                  [](auto& k_, auto&&... values) {
-                    eventuals::succeed(k_, std::forward<decltype(values)>(values)...);
-                  })));
+          eventuals::unify<Value_>(else_(std::forward<Args>(args)...))
+          | Adaptor<K_, Value_>(
+              k_,
+              [](auto& k_, auto&&... values) {
+                eventuals::succeed(
+                    k_,
+                    std::forward<decltype(values)>(values)...);
+              }));
 
       if (interrupt_ != nullptr) {
         else_adaptor_->Register(*interrupt_);

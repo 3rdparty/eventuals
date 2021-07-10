@@ -105,16 +105,16 @@ struct Reduce
         "Expecting 'Reduce' to eventually return a bool");
 
     adaptor_.emplace(
-        std::move(e).k(
-            Adaptor<K_, bool>(
-                k_,
-                [&k](auto& k_, bool next) {
-                  if (next) {
-                    eventuals::next(k);
-                  } else {
-                    eventuals::done(k);
-                  }
-                })));
+        std::move(e)
+        | Adaptor<K_, bool>(
+            k_,
+            [&k](auto& k_, bool next) {
+              if (next) {
+                eventuals::next(k);
+              } else {
+                eventuals::done(k);
+              }
+            }));
 
     if (interrupt_ != nullptr) {
       adaptor_->Register(*interrupt_);
@@ -141,18 +141,6 @@ struct Reduce
   Interrupt* interrupt_ = nullptr;
 
   using Result_ = std::invoke_result_t<F_, std::add_lvalue_reference_t<T_>>;
-
-  // std::invoke_result<F_, std::add_lvalue_reference_t<T_>>,
-  //     type_identity<Undefined>>,
-  //   std::invoke_result<F_, std::add_lvalue_reference_t<T_>, Arg_>>::type;
-
-  // using Result_ = typename std::conditional_t<
-  //   IsUndefined<Arg_>::value,
-  //   std::conditional_t<
-  //     std::is_invocable_v<F_, std::add_lvalue_reference_t<T_>>,
-  //     std::invoke_result<F_, std::add_lvalue_reference_t<T_>>,
-  //     type_identity<Undefined>>,
-  //   std::invoke_result<F_, std::add_lvalue_reference_t<T_>, Arg_>>::type;
 
   using E_ = std::conditional_t<
     IsContinuation<Result_>::value,

@@ -93,12 +93,15 @@ struct Map
       // take an rvalue reference '&&' and then also an extra boolean
       // that specifies whether or not the it should be moved again.
         adaptor_.emplace(
-            std::move(e_).k(
-                Adaptor<K_, typename E_::Value>(
-                    k_,
-                    [&k](auto& k_, auto&&... values) {
-                      eventuals::body(k_, k, std::forward<decltype(values)>(values)...);
-                    })));
+            std::move(e_)
+            | Adaptor<K_, typename E_::Value>(
+                k_,
+                [&k](auto& k_, auto&&... values) {
+                  eventuals::body(
+                      k_,
+                      k,
+                      std::forward<decltype(values)>(values)...);
+                }));
 
       if (interrupt_ != nullptr) {
         adaptor_->Register(*interrupt_);
