@@ -1,6 +1,6 @@
 # Eventuals
 
-A C++ library for composing asynchronous ***continuations*** without locking or performing any dynamic heap allocations by default.
+A C++ library for composing asynchronous ***continuations*** without locking or requiring dynamic heap allocations.
 
 **Callbacks** are the most common approach to *continue* an asynchronous computation, but they are hard to compose, don't (often) support cancellation, and are generally tricky to reason about.
 
@@ -472,3 +472,7 @@ Task<string> task = Asynchronous();
 ```
 
 You need to terminate this "eventual" just like any other kind, or in tests you can use `*` to add a terminal for you. Again, be careful as this ***blocks*** the current thread!
+
+#### Scheduling and Memory
+
+*... to be completed ...*
