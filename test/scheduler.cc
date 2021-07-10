@@ -2,16 +2,18 @@
 
 #include "gtest/gtest.h"
 
-#include "stout/scheduler.h"
+#include "stout/static-thread-pool.h"
 #include "stout/task.h"
 
+#include "stout/just.h"
+#include "stout/loop.h"
 #include "stout/repeat.h"
 #include "stout/then.h"
-#include "stout/loop.h"
 #include "stout/until.h"
 
 namespace eventuals = stout::eventuals;
 
+using stout::eventuals::Just;
 using stout::eventuals::Pinned;
 using stout::eventuals::StaticThreadPool;
 
@@ -25,7 +27,7 @@ TEST(SchedulerTest, Schedulable)
     {
       return Schedule(
           [this]() {
-            return i;
+            return Just(i);
           })
         | [](auto i) {
           return i + 1;
@@ -53,10 +55,10 @@ TEST(SchedulerTest, PingPong)
 
       return Repeat()
         | Until(Schedule([this]() {
-          return count > 5;
+          return Just(count > 5);
         }))
         | Map(Schedule([this]() mutable {
-          return count++;
+          return Just(count++);
         }));
     }
 
@@ -72,10 +74,10 @@ TEST(SchedulerTest, PingPong)
       using namespace eventuals;
 
       return Map(
-          Schedule(Lambda([this](int i) {
+          Schedule([this](int i) {
             count++;
-            return i;
-          })))
+            return Just(i);
+          }))
         | Loop()
         | [this](auto&&...) {
           return count;

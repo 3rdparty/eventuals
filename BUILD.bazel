@@ -29,6 +29,7 @@ cc_library(
         "stout/adaptor.h",
         "stout/map.h",
         "stout/reduce.h",
+        "stout/static-thread-pool.h",
     ],
     srcs = [
         "stout/scheduler.cc",

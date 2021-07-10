@@ -1,17 +1,11 @@
 #pragma once
 
-#include <atomic>
-#include <condition_variable>
-#include <deque>
-#include <mutex>
-#include <thread>
+#include <optional>
 
 #include "stout/callback.h"
-#include "stout/conditional.h"
 #include "stout/continuation.h"
-#include "stout/just.h"
-#include "stout/raise.h"
-#include "stout/then.h"
+#include "stout/interrupt.h"
+#include "stout/lambda.h"
 #include "stout/undefined.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -22,11 +16,6 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K_, typename Arg_>
-struct Schedule;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -58,21 +47,13 @@ public:
     callback();
   }
 
-  detail::Schedule<Undefined, Undefined> Schedule(void* context);
-
-  // TODO(benh): provide a form of "schedule" that explicitly expects
-  // that you'll _reschedule_ the current computation using the same
-  // execution resource (thread, core, etc) and therefore can perform
-  // allocation for the continuation value from the execution
-  // resources' memory resource if it so pleases (e.g., allowing a
-  // scheduler to divide up memory such that each execution resource
-  // can allocate memory without requiring locks which may provide
-  // performance gains when that memory might be more "local" to the
-  // execution resource).
-  detail::Schedule<Undefined, Undefined> Reschedule(void* context);
+  // Returns an eventual which will do a 'Submit()' passing the
+  // specified context and 'defer = false' in order to continue
+  // execution using the execution resource associated with context.
+  auto Reschedule(void* context);
 
 private:
-  static Scheduler default_;
+  static Scheduler* default_;
   static thread_local Scheduler* scheduler_;
   static thread_local void* context_;
 };
@@ -83,21 +64,18 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-// Helper struct that implements eventual 'Schedule()' logic that most
-// schedulers will want to perform. Not required to be used by all
-// schedulers but can simplify scheduler creation/development.
 template <typename K_, typename Arg_>
-struct Schedule
+struct Reschedule
 {
   using Value = typename ValueFrom<K_, Arg_>::type;
 
-  Schedule(K_ k, Scheduler* scheduler, void* context)
+  Reschedule(K_ k, Scheduler* scheduler, void* context)
     : k_(std::move(k)), scheduler_(scheduler), context_(context) {}
 
   template <typename Arg, typename K>
   static auto create(K k, Scheduler* scheduler, void* context)
   {
-    return Schedule<K, Arg>(std::move(k), scheduler, context);
+    return Reschedule<K, Arg>(std::move(k), scheduler, context);
   }
 
   template <
@@ -106,7 +84,7 @@ struct Schedule
       IsContinuation<K>::value, int> = 0>
   auto k(K k) &&
   {
-   return create<Arg_>(
+    return create<Arg_>(
         [&]() {
           if constexpr (!IsUndefined<K_>::value) {
             return std::move(k_) | std::move(k);
@@ -131,7 +109,7 @@ struct Schedule
   void Start(Args&&... args)
   {
     static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
-                  "Schedule only supports 0 or 1 argument, but found > 1");
+                  "Reschedule only supports 0 or 1 argument, but found > 1");
 
     static_assert(IsUndefined<Arg_>::value || sizeof...(args) == 1);
 
@@ -189,9 +167,6 @@ struct Schedule
   Scheduler* scheduler_;
   void* context_;
 
-  // TODO(benh): if this is a "reschedule" then use the pointer to
-  // 'Arg_' that was allocated when the execution resource switch
-  // happened rather than this one.
   std::optional<Arg_> arg_;
 };
 
@@ -203,217 +178,35 @@ struct Schedule
 
 template <typename K, typename Arg>
 struct IsContinuation<
-  detail::Schedule<K, Arg>> : std::true_type {};
+  detail::Reschedule<K, Arg>> : std::true_type {};
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K, typename Arg>
 struct HasTerminal<
-  detail::Schedule<K, Arg>> : HasTerminal<K> {};
+  detail::Reschedule<K, Arg>> : HasTerminal<K> {};
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K, typename Arg_>
-struct Compose<detail::Schedule<K, Arg_>>
+struct Compose<detail::Reschedule<K, Arg_>>
 {
   template <typename Arg>
-  static auto compose(detail::Schedule<K, Arg_> schedule)
+  static auto compose(detail::Reschedule<K, Arg_> reschedule)
   {
-    auto k = eventuals::compose<Arg>(std::move(schedule.k_));
-    return detail::Schedule<decltype(k), Arg>(
+    auto k = eventuals::compose<Arg>(std::move(reschedule.k_));
+    return detail::Reschedule<decltype(k), Arg>(
         std::move(k),
-        schedule.scheduler_,
-        schedule.context_);
+        reschedule.scheduler_,
+        reschedule.context_);
   }
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-inline detail::Schedule<Undefined, Undefined> Scheduler::Schedule(void* context)
+inline auto Scheduler::Reschedule(void* context)
 {
-  return detail::Schedule<Undefined, Undefined>(Undefined(), this, context);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-struct Pinned
-{
-  Pinned() {}
-  Pinned(unsigned int core) : core(core) {}
-  Pinned(const Pinned& that) : core(that.core) {}
-
-  std::optional<unsigned int> core;
-};
-
-////////////////////////////////////////////////////////////////////////
-
-class StaticThreadPool : public Scheduler
-{
-public:
-  struct Requirements
-  {
-    Requirements() {}
-    Requirements(Pinned pinned) : pinned(pinned) {}
-
-    Pinned pinned;
-  };
-
-  class Schedulable
-  {
-  public:
-    Schedulable(Requirements requirements = Requirements())
-      : requirements_(requirements) {}
-
-    template <typename E>
-    auto Schedule(E e);
-
-  private:
-    Requirements requirements_;
-  };
-
-  static StaticThreadPool& Scheduler()
-  {
-    static StaticThreadPool pool;
-    return pool;
-  }
-
-  StaticThreadPool()
-    : concurrency_(std::thread::hardware_concurrency())
-  {
-    for (size_t i = 0; i < concurrency_; i++) {
-      mutexes_.emplace_back();
-      cvs_.emplace_back();
-      queues_.emplace_back();
-      threads_.emplace_back(
-          [this, i]() {
-            StaticThreadPool::member = true;
-            StaticThreadPool::core = i;
-
-            auto& mutex = mutexes_[i];
-            auto& cv = cvs_[i];
-            auto& queue = queues_[i];
-            std::unique_lock<std::mutex> lock(mutex);
-            do {
-              cv.wait(lock, [&]() {
-                if (shutdown_.load()) {
-                  return true;
-                } else if (queue.empty()) {
-                  return false;
-                } else {
-                  return true;
-                }
-              });
-              if (!shutdown_.load()) {
-                auto& [callback, requirements] = queue.front();
-                lock.unlock();
-                Scheduler::Set(this, requirements);
-                assert(callback);
-                callback();
-                lock.lock();
-                queue.pop_front();
-              }
-            } while (!shutdown_.load());
-          });
-    }
-  }
-
-  ~StaticThreadPool()
-  {
-    shutdown_.store(true);
-    while (!threads_.empty()) {
-      auto& cv = cvs_.back();
-      cv.notify_one();
-      cvs_.pop_back();
-      auto& thread = threads_.back();
-      thread.join();
-      threads_.pop_back();
-    }
-  }
-
-  void Submit(Callback<> callback, void* context, bool defer) override
-  {
-    assert(context != nullptr);
-
-    auto* requirements = static_cast<Requirements*>(context);
-
-    auto& pinned = requirements->pinned;
-
-    if (!pinned.core) {
-      // TODO(benh): pick the least loaded core.
-      pinned.core = 0;
-    }
-
-    assert(pinned.core);
-
-    unsigned int core = pinned.core.value();
-
-    assert(core < concurrency_);
-
-    if (!defer && StaticThreadPool::core == core) {
-      callback();
-    } else {
-      std::unique_lock<std::mutex> lock(mutexes_[core]);
-
-      queues_[core].push_back(std::tuple { std::move(callback), requirements });    
-
-      cvs_[core].notify_one();
-    }
-  }
-
-  auto Schedule(Requirements* requirements)
-  {
-    std::optional<unsigned int> core;
-
-    if (requirements->pinned.core) {
-      core = requirements->pinned.core.value();
-    }
-
-    return Conditional(
-        [this, core](auto&&...) {
-          return !core || *core < concurrency_;
-        },
-        [this, requirements](auto&&... args) {
-          static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
-                        "Schedule only supports 0 or 1 argument, but found > 1");
-          if constexpr (sizeof...(args) == 0) {
-             return Scheduler::Schedule(requirements);
-          } else {
-            return Scheduler::Schedule(requirements)
-              | Just(std::forward<decltype(args)>(args)...);
-          }
-        },
-        [](auto&&... args) {
-          static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
-                        "Schedule only supports 0 or 1 argument, but found > 1");
-          return Raise("Required core is > total cores");
-        });
-  }
-
-  static thread_local bool member; // Is thread a member of the static pool?
-  static thread_local unsigned int core; // If 'member', for which core?
-
-private:
-  const unsigned int concurrency_;
-  std::deque<std::mutex> mutexes_;
-  std::deque<std::condition_variable> cvs_;
-  std::deque<std::deque<std::tuple<Callback<>, Requirements*>>> queues_;
-  std::deque<std::thread> threads_;
-  std::atomic<bool> shutdown_ = false;
-};
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename E>
-auto StaticThreadPool::Schedulable::Schedule(E e)
-{
-  return Then([this, e = std::move(e)](auto&&... args) {
-    void* context = nullptr;
-    auto* scheduler = Scheduler::Get(&context);
-    return StaticThreadPool::Scheduler().Schedule(&requirements_)
-      | Just(std::forward<decltype(args)>(args)...)
-      | std::move(e)
-      | scheduler->Schedule(context);
-  });
+  return detail::Reschedule<Undefined, Undefined>(Undefined(), this, context);
 }
 
 ////////////////////////////////////////////////////////////////////////
