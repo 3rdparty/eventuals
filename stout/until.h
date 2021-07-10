@@ -234,12 +234,8 @@ template <
 auto Until(E e)
 {
   return Until([e = std::move(e)](auto&&... args) mutable {
-    if constexpr (sizeof...(args) > 0) {
-      return Just(std::forward<decltype(args)>(args)...)
-        | std::move(e);
-    } else {
-      return std::move(e);
-    }
+    return Just(std::forward<decltype(args)>(args)...)
+      | std::move(e);
   });
 } 
 
