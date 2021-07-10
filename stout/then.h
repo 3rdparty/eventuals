@@ -21,7 +21,9 @@ struct Then
 {
   using E_ = typename InvokeResultPossiblyUndefined<F_, Arg_>::type;
 
-  using Value = typename ValuePossiblyUndefined<E_>::Value;
+  using Value = typename ValueFrom<
+    K_,
+    typename ValuePossiblyUndefined<E_>::Value>::type;
 
   Then(K_ k, F_ f) : k_(std::move(k)), f_(std::move(f)) {}
 
@@ -135,7 +137,7 @@ struct Compose<detail::Then<K, F, Arg_>>
       static_assert(
           IsContinuation<E>::value,
           "expecting eventual continuation as "
-          "result of invocable passed to Then");
+          "result of callable passed to 'Then'");
 
       using Value = typename E::Value;
 
