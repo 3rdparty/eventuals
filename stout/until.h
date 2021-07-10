@@ -18,19 +18,19 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename F_, typename Arg_>
+template <typename K_, typename Condition_, typename Arg_>
 struct Until
 {
   using Value = typename ValueFrom<K_, Arg_>::type;
 
-  Until(K_ k, F_ f)
+  Until(K_ k, Condition_ condition)
     : k_(std::move(k)),
-      f_(std::move(f)) {}
+      condition_(std::move(condition)) {}
 
-  template <typename Arg, typename K, typename F>
-  static auto create(K k, F f)
+  template <typename Arg, typename K, typename Condition>
+  static auto create(K k, Condition condition)
   {
-    return Until<K, F, Arg>(std::move(k), std::move(f));
+    return Until<K, Condition, Arg>(std::move(k), std::move(condition));
   }
 
   template <
@@ -47,7 +47,7 @@ struct Until
             return std::move(k);
           }
         }(),
-        std::move(f_));
+        std::move(condition_));
   }
 
   template <
@@ -87,11 +87,10 @@ struct Until
   template <typename K, typename... Args>
   void Body(K& k, Args&&... args)
   {
-    using E = std::invoke_result_t<F_, std::add_lvalue_reference_t<Args>...>;
-    if constexpr (IsContinuation<E>::value) {
+    if constexpr (IsContinuation<Condition_>::value) {
       static_assert(
           sizeof...(args) == 0 || sizeof...(args) == 1,
-          "Until only supports 0 or 1 value");
+          "'Until' only supports 0 or 1 value");
 
       static_assert(
           sizeof...(args) == 0
@@ -100,15 +99,13 @@ struct Until
 
       if constexpr (sizeof...(args) == 1) {
         arg_.emplace(std::forward<Args>(args)...);
+      }
 
-        // TODO(benh): differentiate between if we have a function
-        // returning an eventual or if we just have an eventual
-        // because in the latter we shouldn't need to
-        // destruct/construct it each time but can instead just
-        // save/copy the arg and pass it through via 'succeed()'.
-        adaptor_.emplace(
-            f_(*arg_).k(
-                Adaptor<K_, bool, std::optional<Arg_>*>(
+      if (!adaptor_) {
+        if constexpr (sizeof...(args) > 0) {
+          adaptor_.emplace(
+              std::move(condition_)
+              | Adaptor<K_, bool, std::optional<Arg_>*>(
                   k_,
                   &arg_,
                   [&k](auto& k_, auto* arg_, bool done) {
@@ -117,11 +114,11 @@ struct Until
                     } else {
                       eventuals::body(k_, k, std::move(**arg_));
                     }
-                  })));
-      } else {
-        adaptor_.emplace(
-            f_().k(
-                Adaptor<K_, bool, std::optional<Arg_>*>(
+                  }));
+        } else {
+          adaptor_.emplace(
+              std::move(condition_)
+              | Adaptor<K_, bool, std::optional<Arg_>*>(
                   k_,
                   nullptr,
                   [&k](auto& k_, auto*, bool done) {
@@ -130,20 +127,21 @@ struct Until
                     } else {
                       eventuals::body(k_, k);
                     }
-                  })));
+                  }));
+        }
+
+        if (interrupt_ != nullptr) {
+          adaptor_->Register(*interrupt_);
+        }
       }
 
-      if (interrupt_ != nullptr) {
-        adaptor_->Register(*interrupt_);
-      }
-
-      if constexpr (sizeof...(args) == 1) {
-        eventuals::succeed(*adaptor_, *arg_);
+      if constexpr (sizeof...(args) > 0) {
+        eventuals::succeed(*adaptor_, *arg_); // NOTE: passing '&' not '&&'.
       } else {
         eventuals::succeed(*adaptor_);
       }
     } else {
-      if (f_(args...)) {
+      if (condition_(args...)) {
         eventuals::done(k);
       } else {
         eventuals::body(k_, k, std::forward<Args>(args)...);
@@ -157,23 +155,15 @@ struct Until
   }
 
   K_ k_;
-  F_ f_;
+  Condition_ condition_;
 
   Interrupt* interrupt_ = nullptr;
 
-  // NOTE: not using InvokeResultPossiblyUndefined because need to
-  // qualify arg with '&' (via std::add_lvalue_reference).
-  using Result_ = typename std::conditional_t<
-    IsUndefined<Arg_>::value,
-    std::conditional_t<
-      std::is_invocable_v<F_>,
-      std::invoke_result<F_>,
-      type_identity<Undefined>>,
-    std::invoke_result<F_, std::add_lvalue_reference_t<Arg_>>>::type;
+  std::optional<Arg_> arg_;
 
   using E_ = std::conditional_t<
-    IsContinuation<Result_>::value,
-    Result_,
+    IsContinuation<Condition_>::value,
+    Condition_,
     Undefined>;
 
   using Adaptor_ = typename EKPossiblyUndefined<
@@ -181,8 +171,6 @@ struct Until
     Adaptor<K_, bool, std::optional<Arg_>*>>::type;
 
   std::optional<Adaptor_> adaptor_;
-
-  std::optional<Arg_> arg_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -191,53 +179,40 @@ struct Until
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename F, typename Arg>
+template <typename K, typename Condition, typename Arg>
 struct IsContinuation<
-  detail::Until<K, F, Arg>> : std::true_type {};
+  detail::Until<K, Condition, Arg>> : std::true_type {};
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename F, typename Arg>
+template <typename K, typename Condition, typename Arg>
 struct HasTerminal<
-  detail::Until<K, F, Arg>> : HasTerminal<K> {};
+  detail::Until<K, Condition, Arg>> : HasTerminal<K> {};
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename F, typename Arg_>
-struct Compose<detail::Until<K, F, Arg_>>
+template <typename K, typename Condition, typename Arg_>
+struct Compose<detail::Until<K, Condition, Arg_>>
 {
   template <typename Arg>
-  static auto compose(detail::Until<K, F, Arg_> until)
+  static auto compose(detail::Until<K, Condition, Arg_> until)
   {
     auto k = eventuals::compose<Arg>(std::move(until.k_));
-    return detail::Until<decltype(k), F, Arg>(
+    return detail::Until<decltype(k), Condition, Arg>(
         std::move(k),
-        std::move(until.f_));
+        std::move(until.condition_));
   }
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-template <
-  typename F,
-  std::enable_if_t<
-    !IsContinuation<F>::value, int> = 0>
-auto Until(F f)
+template <typename Condition>
+auto Until(Condition condition)
 {
-  return detail::Until<Undefined, F, Undefined>(Undefined(), std::move(f));
+  return detail::Until<Undefined, Condition, Undefined>(
+      Undefined(),
+      std::move(condition));
 }
-
-template <
-  typename E,
-  std::enable_if_t<
-    IsContinuation<E>::value, int> = 0>
-auto Until(E e)
-{
-  return Until([e = std::move(e)](auto&&... args) mutable {
-    return Just(std::forward<decltype(args)>(args)...)
-      | std::move(e);
-  });
-} 
 
 ////////////////////////////////////////////////////////////////////////
 
