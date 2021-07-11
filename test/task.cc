@@ -17,7 +17,7 @@ using stout::eventuals::Task;
 TEST(TaskTest, Succeed)
 {
   auto e1 = []() -> Task<int> {
-    return Just(42);
+    return [x = 42]() { return Just(x); };
   };
 
   auto e2 = [&]() {

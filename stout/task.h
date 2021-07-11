@@ -295,14 +295,36 @@ struct Task
 {
   using Value = Value_;
 
-  template <typename E>
-  Task(E e)
+  template <typename F>
+  Task(F f)
   {
+    static_assert(
+        !IsContinuation<F>::value,
+        "'Task' expects a callable "
+        "NOT an eventual continuation");
+
+    static_assert(
+        std::is_invocable_v<F>,
+        "'Task' expects a callable that "
+        "takes no arguments");
+
+    static_assert(
+        sizeof(f) <= sizeof(void*),
+        "'Task' expects a callable that "
+        "can be captured in a 'Callback'");
+
+    using E = decltype(f());
+
+    static_assert(
+        IsContinuation<E>::value,
+        "'Task' expects a callable that returns "
+        "an eventual continuation");
+
     static_assert(
         (HasTerminal<E>::value && terminated_)
         || (!HasTerminal<E>::value && !terminated_),
         "You need to add 'true' as the second template "
-        "argument for already terminated eventuals, "
+        "argument for eventuals that are terminated, "
         "i.e., 'Task<Value, true>'");
 
     using Value = std::conditional_t<
@@ -314,19 +336,22 @@ struct Task
         std::is_convertible_v<Value, Value_>,
         "Type of eventual can not be converted into type specified");
 
-    e_ = std::unique_ptr<void, Callback<void*>>(
-        new detail::Task<E>(std::move(e)),
-        [](void* e) {
-          delete static_cast<detail::Task<E>*>(e);
-        });
-
-    start_ = [&e = *static_cast<detail::Task<E>*>(e_.get())](
+    start_ = [f = std::move(f)](
+        std::unique_ptr<void, Callback<void*>>& e_,
         class Interrupt& interrupt,
         Callback<Value>&& start,
         Callback<std::exception_ptr>&& fail,
         Callback<>&& stop) {
 
-      e.Start(interrupt, std::move(start), std::move(fail), std::move(stop));
+      e_ = std::unique_ptr<void, Callback<void*>>(
+          new detail::Task<E>(f()),
+          [](void* e) {
+            delete static_cast<detail::Task<E>*>(e);
+          });
+
+      auto* e = static_cast<detail::Task<E>*>(e_.get());
+
+      e->Start(interrupt, std::move(start), std::move(fail), std::move(stop));
     };
   }
 
@@ -339,8 +364,6 @@ struct Task
     static_assert(
         !terminated_,
         "Task already terminated, can't compose continuation");
-
-    assert(e_);
 
     return detail::TaskContinuation<K, Value_, terminated_>(
         std::move(k),
@@ -362,14 +385,14 @@ struct Task
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop)
   {
-    assert(e_);
-    start_(interrupt, std::move(start), std::move(fail), std::move(stop));
+    start_(e_, interrupt, std::move(start), std::move(fail), std::move(stop));
   }
 
 private:
   std::unique_ptr<void, Callback<void*>> e_;
 
   Callback<
+    std::unique_ptr<void, Callback<void*>>&,
     class Interrupt&,
     Callback<Value_>&&,
     Callback<std::exception_ptr>&&,
