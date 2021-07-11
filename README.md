@@ -465,13 +465,13 @@ auto e = SomeInfiniteStream()
 
 ### `Task`
 
-You can use a `Task` to type-erase your continuation or pipeline. Currently this performs heap allocation but in the future we'll provide a version that lets you do this on the stack as well.
+You can use a `Task` to type-erase your continuation or pipeline. Currently this performs dynamic heap allocation but in the future we'll likely provide a 'SizedTask' version that lets you specify the size such that you can type-erase without requiring dynamic heap allocation. Not however, that 'Task' requires a callable/lambda in order to delay the dynamic heap allocation until the task is started so that the current scheduler has a chance of optimizing the allocation based on the current execution resource being used (e.g., using the current execution resources' *local* memory resource).
 
 ```cpp
-Task<string> task = Asynchronous();
+Task<string> task = []() { return Asynchronous(); };
 ```
 
-You need to terminate this "eventual" just like any other kind, or in tests you can use `*` to add a terminal for you. Again, be careful as this ***blocks*** the current thread!
+If the eventual returned from the the callable/lambda has not already been terminted then you need to terminate it just like any other eventual. In tests you can use `*` to add a terminal for you, but again, be careful as this ***blocks*** the current thread!
 
 #### Scheduling and Memory
 
