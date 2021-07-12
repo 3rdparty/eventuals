@@ -408,14 +408,14 @@ StaticThreadPool::StaticThreadPool()
   semaphores_.reserve(concurrency);
   heads_.reserve(concurrency);
   threads_.reserve(concurrency);
-  for (size_t i = 0; i < concurrency; i++) {
+  for (size_t core = 0; core < concurrency; core++) {
     semaphores_.emplace_back();
     heads_.emplace_back();
     ready_.emplace_back();
     threads_.emplace_back(
-        [this, i]() {
+        [this, core]() {
           StaticThreadPool::member = true;
-          StaticThreadPool::core = i;
+          StaticThreadPool::core = core;
 
           // NOTE: we store each 'semaphore' and 'head' in each thread
           // so as to hopefully get less false sharing when other
@@ -423,10 +423,10 @@ StaticThreadPool::StaticThreadPool()
           Semaphore semaphore;
           std::atomic<Waiter*> head = nullptr;
 
-          semaphores_[i] = &semaphore;
-          heads_[i] = &head;
+          semaphores_[core] = &semaphore;
+          heads_[core] = &head;
 
-          ready_[i].Signal();
+          ready_[core].Signal();
 
           do {
             semaphore.Wait();
@@ -464,8 +464,8 @@ StaticThreadPool::StaticThreadPool()
         });
   }
 
-  for (size_t i = 0; i < concurrency; i++) {
-    ready_[i].Wait();
+  for (size_t core = 0; core < concurrency; core++) {
+    ready_[core].Wait();
   }
 }
 
