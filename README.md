@@ -42,23 +42,21 @@ Once installed, you can upgrade to a newer version of Bazel using the following 
 
     $ brew upgrade bazel
 
- 
+Then make an empty directory and clone all files from the following link:
 
-    
+    $ git clone https://github.com/3rdparty/stout-eventuals.git
 
-You can build the library with:
+Now you are ready to build this lib:
 
-```sh
-$ bazel build :eventuals
-...
-```
+    $ bazel build :eventuals
 
-You can build and run the tests with:
+After the running command above make sure that tou have directory *bazel-bin* which includes *libeventuals.a* and *libeventuals.so*.
 
-```sh
-$ bazel test test:eventuals
-...
-```
+Then you can build and run tests with:
+
+    $ bazel test test:eventuals
+
+***
 
 ## Usage
 
