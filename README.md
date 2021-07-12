@@ -23,7 +23,8 @@ Please reach out to `stout@3rdparty.dev` for any questions or if you're looking 
 Currently we only support [Bazel](https://bazel.build) and expect/use C++17 (some work could likely make this C++14).
 
 #macOS
-...
+
+On mac ...
 
 You can build the library with:
 
