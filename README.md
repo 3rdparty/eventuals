@@ -22,9 +22,14 @@ Please reach out to `stout@3rdparty.dev` for any questions or if you're looking 
 
 Currently we only support [Bazel](https://bazel.build) and expect/use C++17 (some work could likely make this C++14).
 
-###macOS###
+## macOS
+* * *
 
-On mac ...
+First of all make sure that you have installed Bazel. You can check Bazel version using the following command in your terminal:
+
+    bazel --version
+
+
 
 You can build the library with:
 
