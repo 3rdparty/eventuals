@@ -1,13 +1,13 @@
 #pragma once
 
 #include <atomic>
-#include <condition_variable>
 #include <deque>
-#include <mutex>
 #include <thread>
+#include <vector>
 
 #include "stout/just.h"
 #include "stout/scheduler.h"
+#include "stout/semaphore.h"
 #include "stout/then.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -106,11 +106,18 @@ public:
     } else {
       waiter->callback = std::move(callback);
 
-      std::unique_lock<std::mutex> lock(mutexes_[core]);
+      auto* head = heads_[core];
 
-      queues_[core].push_back(waiter);
+      waiter->next = head->load(std::memory_order_relaxed);
 
-      cvs_[core].notify_one();
+      while (!head->compare_exchange_weak(
+                 waiter->next, waiter,
+                 std::memory_order_release,
+                 std::memory_order_relaxed));
+
+      auto* semaphore = semaphores_[core];
+
+      semaphore->Signal();
     }
   }
 
@@ -118,10 +125,13 @@ public:
   auto Schedule(Requirements* requirements, F f);
 
 private:
-  std::deque<std::mutex> mutexes_;
-  std::deque<std::condition_variable> cvs_;
-  std::deque<std::deque<Waiter*>> queues_;
-  std::deque<std::thread> threads_;
+  // NOTE: in case there is a future debate on why we use semaphore vs
+  // something like eventfd for "signalling" the thread see
+  // https://stackoverflow.com/q/9826919
+  std::vector<Semaphore*> semaphores_;
+  std::vector<std::atomic<Waiter*>*> heads_;
+  std::deque<Semaphore> ready_;
+  std::vector<std::thread> threads_;
   std::atomic<bool> shutdown_ = false;
 };
 
@@ -205,7 +215,7 @@ struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
 
     if (!pinned.core) {
       // TODO(benh): pick the least loaded core. This will require
-      // iterating through and checking the sizes of all the queues
+      // iterating through and checking the sizes of all the "queues"
       // and then atomically incrementing which ever queue we pick
       // since we don't want to hold a lock here.
       pinned.core = 0;
@@ -395,40 +405,67 @@ struct Compose<detail::StaticThreadPoolSchedule<K, F, Arg_>>
 StaticThreadPool::StaticThreadPool()
   : concurrency(std::thread::hardware_concurrency())
 {
+  semaphores_.reserve(concurrency);
+  heads_.reserve(concurrency);
+  threads_.reserve(concurrency);
   for (size_t i = 0; i < concurrency; i++) {
-    mutexes_.emplace_back();
-    cvs_.emplace_back();
-    queues_.emplace_back();
+    semaphores_.emplace_back();
+    heads_.emplace_back();
+    ready_.emplace_back();
     threads_.emplace_back(
         [this, i]() {
           StaticThreadPool::member = true;
           StaticThreadPool::core = i;
 
-          auto& mutex = mutexes_[i];
-          auto& cv = cvs_[i];
-          auto& queue = queues_[i];
-          std::unique_lock<std::mutex> lock(mutex);
+          // NOTE: we store each 'semaphore' and 'head' in each thread
+          // so as to hopefully get less false sharing when other
+          // threads are trying to enqueue a waiter.
+          Semaphore semaphore;
+          std::atomic<Waiter*> head = nullptr;
+
+          semaphores_[i] = &semaphore;
+          heads_[i] = &head;
+
+          ready_[i].Signal();
+
           do {
-            cv.wait(lock, [&]() {
-              if (shutdown_.load()) {
-                return true;
-              } else if (queue.empty()) {
-                return false;
+            semaphore.Wait();
+
+          load:
+            auto* waiter = head.load(std::memory_order_relaxed);
+
+            if (waiter != nullptr) {
+              if (waiter->next == nullptr) {
+                if (!head.compare_exchange_weak(
+                        waiter, nullptr,
+                        std::memory_order_release,
+                        std::memory_order_relaxed)) {
+                  goto load; // Try again.
+                }
               } else {
-                return true;
+                while (waiter->next->next != nullptr) {
+                  waiter = waiter->next;
+                }
+
+                assert(waiter->next != nullptr);
+
+                auto* next = waiter->next;
+                waiter->next = nullptr;
+                waiter = next;
               }
-            });
-            if (!shutdown_.load()) {
-              auto* waiter = queue.front();
-              lock.unlock();
+
+              assert(waiter->next == nullptr);
+
               Scheduler::Set(this, waiter);
               assert(waiter->callback);
               waiter->callback();
-              lock.lock();
-              queue.pop_front();
             }
           } while (!shutdown_.load());
         });
+  }
+
+  for (size_t i = 0; i < concurrency; i++) {
+    ready_[i].Wait();
   }
 }
 
@@ -438,9 +475,9 @@ StaticThreadPool::~StaticThreadPool()
 {
   shutdown_.store(true);
   while (!threads_.empty()) {
-    auto& cv = cvs_.back();
-    cv.notify_one();
-    cvs_.pop_back();
+    auto* semaphore = semaphores_.back();
+    semaphore->Signal();
+    semaphores_.pop_back();
     auto& thread = threads_.back();
     thread.join();
     threads_.pop_back();

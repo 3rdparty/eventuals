@@ -30,9 +30,13 @@ cc_library(
         "stout/map.h",
         "stout/reduce.h",
         "stout/static-thread-pool.h",
+        "stout/semaphore.h",
     ],
     srcs = [
         "stout/scheduler.cc",
+    ],
+    deps = [
+        "@com_github_google_glog//:glog",
     ],
     visibility = ["//visibility:public"],
 )
