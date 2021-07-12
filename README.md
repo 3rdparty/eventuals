@@ -22,14 +22,29 @@ Please reach out to `stout@3rdparty.dev` for any questions or if you're looking 
 
 Currently we only support [Bazel](https://bazel.build) and expect/use C++17 (some work could likely make this C++14).
 
-## macOS
+### macOS
 * * *
 
 First of all make sure that you have installed Bazel. You can check Bazel version using the following command in your terminal:
 
-    bazel --version
+    $ bazel --version
 
+If you have no Bazel then you can install it using Homebrew. ** First step: ** install Homebrew(if needed):
 
+    /bin/bash -c "$(curl -fsSL \
+https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+
+** Second step: **install the Bazel package via Homebrew as follows:
+
+    $ brew install bazel
+
+Once installed, you can upgrade to a newer version of Bazel using the following command:
+
+    $ brew upgrade bazel
+
+ 
+
+    
 
 You can build the library with:
 
