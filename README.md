@@ -29,12 +29,12 @@ First of all make sure that you have installed Bazel. You can check Bazel versio
 
     $ bazel --version
 
-If you have no Bazel then you can install it using Homebrew. ** First step: ** install Homebrew(if needed):
+If you have no Bazel then you can install it using Homebrew. **First step:** install Homebrew(if needed):
 
     /bin/bash -c "$(curl -fsSL \
-https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+    https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
 
-** Second step: **install the Bazel package via Homebrew as follows:
+**Second step:** install the Bazel package via Homebrew as follows:
 
     $ brew install bazel
 
