@@ -50,7 +50,7 @@ Now you are ready to build this lib:
 
     $ bazel build :eventuals
 
-After the running command above make sure that tou have directory *bazel-bin* which includes *libeventuals.a* and *libeventuals.so*.
+After the running command above make sure that you have directory *bazel-bin* which includes *libeventuals.a* and *libeventuals.so*.
 
 Then you can build and run tests with:
 
