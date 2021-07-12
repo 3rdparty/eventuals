@@ -14,8 +14,8 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 // Forward declaration.
-template <typename Value, bool terminated = false>
-struct Task;
+template <typename Value, bool terminated, typename... Args>
+struct TaskWith;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -160,9 +160,9 @@ struct TaskAdaptor
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E_>
-struct Task
+struct HeapTask
 {
-  Task(E_ e)
+  HeapTask(E_ e)
     : adaptor_(
         std::move(e)
         | TaskAdaptor<typename E_::Value>(&start_, &fail_, &stop_)) {}
@@ -195,18 +195,18 @@ struct Task
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename Value_, bool terminated_>
+template <typename K_, typename Value_, bool terminated_, typename... Args_>
 struct TaskContinuation
 {
   using Value = typename ValueFrom<K_, Value_>::type;
 
-  TaskContinuation(K_ k, eventuals::Task<Value_, terminated_> task)
+  TaskContinuation(K_ k, TaskWith<Value_, terminated_, Args_...> task)
     : k_(std::move(k)), task_(std::move(task)) {}
 
-  template <typename K, typename Value, bool terminated>
-  static auto create(K k, eventuals::Task<Value, terminated> task)
+  template <typename Value, bool terminated, typename... Args, typename K>
+  static auto create(K k, TaskWith<Value, terminated, Args...> task)
   {
-    return TaskContinuation<K, Value, terminated>(
+    return TaskContinuation<K, Value, terminated, Args...>(
         std::move(k),
         std::move(task));
   }
@@ -221,7 +221,7 @@ struct TaskContinuation
         !terminated_,
         "Task already terminated, can't compose continuation");
 
-    return create(
+    return create<Value_, terminated_, Args_...>(
         [&]() {
           if constexpr (!IsUndefined<K_>::value) {
             return std::move(k_) | std::move(k);
@@ -264,11 +264,13 @@ struct TaskContinuation
   template <typename... Args>
   void Fail(Args&&... args)
   {
+    // TODO(benh): propagate through 'Task'.
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
   void Stop()
   {
+    // TODO(benh): propagate through 'Task'.
     eventuals::stop(k_);
   }
 
@@ -279,7 +281,7 @@ struct TaskContinuation
   }
 
   K_ k_;
-  eventuals::Task<Value_, terminated_> task_;
+  TaskWith<Value_, terminated_, Args_...> task_;
 
   Interrupt* interrupt_ = nullptr;
 };
@@ -290,13 +292,14 @@ struct TaskContinuation
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Value_, bool terminated_>
-struct Task
+template <typename Value_, bool terminated_, typename... Args_>
+struct TaskWith
 {
   using Value = Value_;
 
   template <typename F>
-  Task(F f)
+  TaskWith(Args_... args, F f)
+    : args_(std::move(args)...)
   {
     static_assert(
         !IsContinuation<F>::value,
@@ -304,16 +307,23 @@ struct Task
         "NOT an eventual continuation");
 
     static_assert(
-        std::is_invocable_v<F>,
+        sizeof...(args) > 0
+        || std::is_invocable_v<F>,
         "'Task' expects a callable that "
         "takes no arguments");
+
+    static_assert(
+        sizeof...(args) == 0
+        || std::is_invocable_v<F, Args_...>,
+        "'Task' expects a callable that "
+        "takes the arguments specified");
 
     static_assert(
         sizeof(f) <= sizeof(void*),
         "'Task' expects a callable that "
         "can be captured in a 'Callback'");
 
-    using E = decltype(f());
+    using E = decltype(f(std::move(args)...));
 
     static_assert(
         IsContinuation<E>::value,
@@ -337,19 +347,25 @@ struct Task
         "Type of eventual can not be converted into type specified");
 
     start_ = [f = std::move(f)](
+        Args_&&... args,
         std::unique_ptr<void, Callback<void*>>& e_,
         class Interrupt& interrupt,
         Callback<Value>&& start,
         Callback<std::exception_ptr>&& fail,
         Callback<>&& stop) {
 
-      e_ = std::unique_ptr<void, Callback<void*>>(
-          new detail::Task<E>(f()),
-          [](void* e) {
-            delete static_cast<detail::Task<E>*>(e);
-          });
+      if (!e_) {
+        e_ = std::unique_ptr<void, Callback<void*>>(
+            // TODO(benh): pass the args to 'Start()' instead so that
+            // they don't have to get copied more than once in the
+            // event that the eventual returned from 'f' copies them?
+            new detail::HeapTask<E>(f(std::move(args)...)),
+            [](void* e) {
+              delete static_cast<detail::HeapTask<E>*>(e);
+            });
+      }
 
-      auto* e = static_cast<detail::Task<E>*>(e_.get());
+      auto* e = static_cast<detail::HeapTask<E>*>(e_.get());
 
       e->Start(interrupt, std::move(start), std::move(fail), std::move(stop));
     };
@@ -365,7 +381,7 @@ struct Task
         !terminated_,
         "Task already terminated, can't compose continuation");
 
-    return detail::TaskContinuation<K, Value_, terminated_>(
+    return detail::TaskContinuation<K, Value_, terminated_, Args_...>(
         std::move(k),
         std::move(*this));
   }
@@ -385,18 +401,92 @@ struct Task
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop)
   {
-    start_(e_, interrupt, std::move(start), std::move(fail), std::move(stop));
+    std::apply(
+        [&](auto&&... args) {
+          start_(
+              std::forward<decltype(args)>(args)...,
+              e_,
+              interrupt,
+              std::move(start),
+              std::move(fail),
+              std::move(stop));
+        },
+        std::move(args_));
   }
 
-private:
+  auto operator*() &&
+  {
+    static_assert(
+        !terminated_,
+        "Task already has a terminal (maybe you just want to start it?)");
+
+    auto [future, t] = Terminate(std::move(*this));
+
+    start(t);
+
+    return future.get();
+  }
+
+  std::tuple<Args_...> args_;
+
   std::unique_ptr<void, Callback<void*>> e_;
 
   Callback<
+    Args_&&...,
     std::unique_ptr<void, Callback<void*>>&,
     class Interrupt&,
     Callback<Value_>&&,
     Callback<std::exception_ptr>&&,
     Callback<>&&> start_;
+};
+
+
+template <typename Value_, bool terminated_ = false>
+class Task
+{
+public:
+  using Value = Value_;
+
+  template <typename... Args>
+  using With = TaskWith<Value_, terminated_, Args...>;
+
+  template <typename F>
+  Task(F f)
+    : task_(std::move(f)) {}
+
+  template <typename K>
+  auto k(K k) &&
+  {
+    return std::move(task_) | std::move(k);
+  }
+
+  void Start(
+      Interrupt& interrupt,
+      Callback<Value_>&& start,
+      Callback<std::exception_ptr>&& fail,
+      Callback<>&& stop)
+  {
+    task_.Start(interrupt, std::move(start), std::move(fail), std::move(stop));
+  }
+
+  auto operator*() &&
+  {
+    static_assert(
+        !terminated_,
+        "Task already has a terminal (maybe you just want to start it?)");
+
+    auto [future, t] = Terminate(std::move(*this));
+
+    start(t);
+
+    return future.get();
+  }
+
+private:
+  template <typename>
+  friend struct Compose;
+
+  TaskWith<Value_, terminated_> task_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -413,15 +503,15 @@ struct HasTerminal<
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename Value, bool terminated>
+template <typename K, typename Value, bool terminated, typename... Args>
 struct IsContinuation<
-  detail::TaskContinuation<K, Value, terminated>> : std::true_type {};
+  detail::TaskContinuation<K, Value, terminated, Args...>> : std::true_type {};
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename Value, bool terminated>
+template <typename K, typename Value, bool terminated, typename... Args>
 struct HasTerminal<
-  detail::TaskContinuation<K, Value, terminated>> : HasTerminal<K> {};
+  detail::TaskContinuation<K, Value, terminated, Args...>> : HasTerminal<K> {};
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -444,6 +534,32 @@ struct Compose<Task<Value, terminated>>
   static auto compose(Task<Value, terminated> task)
   {
     return detail::TaskContinuation<Undefined, Value, terminated>(
+        Undefined(),
+        std::move(task.task_));
+  }
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Value, bool terminated, typename... Args>
+struct IsContinuation<
+  TaskWith<Value, terminated, Args...>> : std::true_type {};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Value, bool terminated, typename... Args>
+struct HasTerminal<
+  TaskWith<Value, terminated, Args...>> : std::bool_constant<terminated> {};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Value, bool terminated, typename... Args>
+struct Compose<TaskWith<Value, terminated, Args...>>
+{
+  template <typename Arg>
+  static auto compose(TaskWith<Value, terminated, Args...> task)
+  {
+    return detail::TaskContinuation<Undefined, Value, terminated, Args...>(
         Undefined(),
         std::move(task));
   }
@@ -472,22 +588,6 @@ auto operator*(E e)
 ////////////////////////////////////////////////////////////////////////
 
 } // namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename Value, bool terminated>
-auto operator*(Task<Value, terminated> task)
-{
-  static_assert(
-      !terminated,
-      "Task already has a terminal (maybe you just want to start it?)");
-
-  auto [future, t] = Terminate(std::move(task));
-
-  start(t);
-
-  return future.get();
-}
 
 ////////////////////////////////////////////////////////////////////////
 
