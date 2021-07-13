@@ -1,0 +1,10 @@
+# load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+# http_archive(
+#   name = "stout-eventuals",
+#   urls = ["https://github.com/3rdparty/stout-eventuals"],
+#   commit = "579b62a16da74a4e197c96b39b3ecca39c00452f",
+#   shallow_since = "1624126303 -0700",
+#   sha256 = "1624126303 -0700",
+# )
+
