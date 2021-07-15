@@ -62,8 +62,8 @@ public:
     Schedulable(Requirements requirements = Requirements())
       : requirements_(requirements) {}
 
-    template <typename F>
-    auto Schedule(F f);
+    template <typename E>
+    auto Schedule(E e);
 
   private:
     Requirements requirements_;
@@ -123,8 +123,8 @@ public:
     }
   }
 
-  template <typename F>
-  auto Schedule(Requirements* requirements, F f);
+  template <typename T>
+  auto Schedule(Requirements* requirements, T t);
 
 private:
   // NOTE: in case there is a future debate on why we use semaphore vs
@@ -143,36 +143,32 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename F_, typename Arg_>
+template <typename K_, typename E_, typename Arg_>
 struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
 {
-  using E_ = typename InvokeResultPossiblyUndefined<F_, Arg_>::type;
-
-  using Value = typename ValueFrom<
-    K_,
-    typename ValuePossiblyUndefined<E_>::Value>::type;
+  using Value = typename ValueFrom<K_, typename E_::Value>::type;
 
   StaticThreadPoolSchedule(
       K_ k,
       StaticThreadPool* pool,
       StaticThreadPool::Requirements* requirements,
-      F_ f)
+      E_ e)
     : StaticThreadPool::Waiter(pool, requirements),
       k_(std::move(k)),
-      f_(std::move(f)) {}
+      e_(std::move(e)) {}
 
-  template <typename Arg, typename K, typename F>
+  template <typename Arg, typename K, typename E>
   static auto create(
       K k,
       StaticThreadPool* pool,
       StaticThreadPool::Requirements* requirements,
-      F f)
+      E e)
   {
-    return StaticThreadPoolSchedule<K, F, Arg>(
+    return StaticThreadPoolSchedule<K, E, Arg>(
         std::move(k),
         pool,
         requirements,
-        std::move(f));
+        std::move(e));
   }
 
   template <
@@ -191,7 +187,7 @@ struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
         }(),
         pool(),
         requirements(),
-        std::move(f_));
+        std::move(e_));
   }
 
   template <
@@ -298,16 +294,18 @@ struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
   template <typename... Args>
   void AdaptAndStart(Args&&... args)
   {
-    // NOTE: for now we're assuming usage of something like 'jemalloc'
-    // so 'new' will use lock-free thread-local arenas. Also, after
-    // the initial allocation we use placement new in order to reuse
-    // the already allocated memory if/when 'Start()' is called again
-    // (which may happen, for example, if this is a continuation of a
-    // stream/generator).
     if (!adaptor_) {
       adaptor_.reset(
+          // NOTE: for now we're assuming usage of something like
+          // 'jemalloc' so 'new' should use lock-free and thread-local
+          // arenas. Ideally allocating memory during runtime should
+          // actually be *faster* because the memory should have
+          // better locality for the execution resource being used
+          // (i.e., a local NUMA node). However, we should reconsider
+          // this design decision if in practice the performance
+          // tradeoff does not emperically appear to be a benfit.
           new Adaptor_(
-              f_(std::forward<Args>(args)...)
+              std::move(e_)
               | scheduler_->Reschedule(context_)
               | Adaptor<K_, typename E_::Value>(
                   k_,
@@ -316,29 +314,17 @@ struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
                         k_,
                         std::forward<decltype(values)>(values)...);
                   })));
-    } else {
-      adaptor_->~Adaptor_();
-      new (adaptor_.get()) Adaptor_(
-          f_(std::forward<Args>(args)...)
-          | scheduler_->Reschedule(context_)
-          | Adaptor<K_, typename E_::Value>(
-              k_,
-              [](auto& k_, auto&&... values) {
-                eventuals::succeed(
-                    k_,
-                    std::forward<decltype(values)>(values)...);
-              }));
+
+      if (interrupt_ != nullptr) {
+        adaptor_->Register(*interrupt_);
+      }
     }
 
-    if (interrupt_ != nullptr) {
-      adaptor_->Register(*interrupt_);
-    }
-
-    eventuals::succeed(*adaptor_);
+    eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
   }
 
   K_ k_;
-  F_ f_;
+  E_ e_;
   std::optional<Arg_> arg_;
 
   Interrupt* interrupt_ = nullptr;
@@ -351,7 +337,7 @@ struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
     E_,
     typename EKPossiblyUndefined<
       decltype(scheduler_->Reschedule(context_)),
-      Adaptor<K_, typename ValuePossiblyUndefined<E_>::Value>>::type>::type;
+      Adaptor<K_, typename E_::Value>>::type>::type;
 
   std::unique_ptr<Adaptor_> adaptor_;
 };
@@ -362,43 +348,33 @@ struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename F, typename Arg>
+template <typename K, typename E, typename Arg>
 struct IsContinuation<
-  detail::StaticThreadPoolSchedule<K, F, Arg>> : std::true_type {};
+  detail::StaticThreadPoolSchedule<K, E, Arg>> : std::true_type {};
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename F, typename Arg>
+template <typename K, typename E, typename Arg>
 struct HasTerminal<
-  detail::StaticThreadPoolSchedule<K, F, Arg>> : HasTerminal<K> {};
+  detail::StaticThreadPoolSchedule<K, E, Arg>> : HasTerminal<K> {};
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename F, typename Arg_>
-struct Compose<detail::StaticThreadPoolSchedule<K, F, Arg_>>
+template <typename K_, typename E_, typename Arg_>
+struct Compose<detail::StaticThreadPoolSchedule<K_, E_, Arg_>>
 {
   template <typename Arg>
-  static auto compose(detail::StaticThreadPoolSchedule<K, F, Arg_> schedule)
+  static auto compose(detail::StaticThreadPoolSchedule<K_, E_, Arg_> schedule)
   {
-    if constexpr (!IsUndefined<Arg>::value) {
-      using E = decltype(std::declval<F>()(std::declval<Arg>()));
-
-      static_assert(
-          IsContinuation<E>::value,
-          "expecting eventual continuation as "
-          "result of callable passed to 'Schedule'");
-
-      using Value = typename E::Value;
-
-      auto k = eventuals::compose<Value>(std::move(schedule.k_));
-      return detail::StaticThreadPoolSchedule<decltype(k), F, Arg>(
+    auto e = eventuals::compose<Arg>(std::move(schedule.e_));
+    using E = decltype(e);
+    auto k = eventuals::compose<typename E::Value>(std::move(schedule.k_));
+    using K = decltype(k);
+    return detail::StaticThreadPoolSchedule<K, E, Arg>(
         std::move(k),
         schedule.pool(),
         schedule.requirements(),
-        std::move(schedule.f_));
-    } else {
-      return std::move(schedule);
-    }
+        std::move(e));
   }
 };
 
@@ -488,29 +464,28 @@ StaticThreadPool::~StaticThreadPool()
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename F>
-auto StaticThreadPool::Schedule(Requirements* requirements, F f)
+template <typename E>
+auto StaticThreadPool::Schedule(Requirements* requirements, E e)
 {
-  static_assert(
-      !IsContinuation<F>::value,
-      "expecting a callable not an eventual continuation "
-      "to be passed to 'Schedule'");
-
-  return detail::StaticThreadPoolSchedule<Undefined, F, Undefined>(
-      Undefined(),
-      this,
-      requirements,
-      std::move(f));
+  if constexpr (!IsContinuation<E>::value) {
+    return Schedule(requirements, Then(std::move(e)));
+  } else {
+    return detail::StaticThreadPoolSchedule<Undefined, E, Undefined>(
+        Undefined(),
+        this,
+        requirements,
+        std::move(e));
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename F>
-auto StaticThreadPool::Schedulable::Schedule(F f)
+template <typename E>
+auto StaticThreadPool::Schedulable::Schedule(E e)
 {
   return StaticThreadPool::Scheduler().Schedule(
       &requirements_,
-      std::move(f));
+      std::move(e));
 }
 
 ////////////////////////////////////////////////////////////////////////
