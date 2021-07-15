@@ -148,7 +148,7 @@ struct Reduce
     Lambda<Undefined, Result_, Arg_>>;
 
   using Adaptor_ = typename EKPossiblyUndefined<
-    E_,
+    decltype(eventuals::compose<Arg_>(std::declval<E_>())),
     Adaptor<K_, bool>>::type;
 
   std::optional<Adaptor_> adaptor_;
@@ -199,10 +199,10 @@ struct Compose<detail::Reduce<K, T, F, Arg_>>
         "'Reduce' expects either a callable or an eventual continuation "
         "as the result of invoking the initial callable");
 
-  return detail::Reduce<K, T, F, Arg>(
-      std::move(reduce.k_),
-      std::move(reduce.t_),
-      std::move(reduce.f_));
+    return detail::Reduce<K, T, F, Arg>(
+        std::move(reduce.k_),
+        std::move(reduce.t_),
+        std::move(reduce.f_));
   }
 };
 
