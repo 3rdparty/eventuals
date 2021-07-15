@@ -95,7 +95,9 @@ public:
 
     auto& pinned = waiter->requirements()->pinned;
 
-    assert(pinned.core);
+    if (!pinned.core) {
+      pinned.core = 0;
+    }
 
     unsigned int core = pinned.core.value();
 
@@ -141,7 +143,7 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename F_, typename Arg_ = Undefined>
+template <typename K_, typename F_, typename Arg_>
 struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
 {
   using E_ = typename InvokeResultPossiblyUndefined<F_, Arg_>::type;
@@ -489,6 +491,11 @@ StaticThreadPool::~StaticThreadPool()
 template <typename F>
 auto StaticThreadPool::Schedule(Requirements* requirements, F f)
 {
+  static_assert(
+      !IsContinuation<F>::value,
+      "expecting a callable not an eventual continuation "
+      "to be passed to 'Schedule'");
+
   return detail::StaticThreadPoolSchedule<Undefined, F, Undefined>(
       Undefined(),
       this,
