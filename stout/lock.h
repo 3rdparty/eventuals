@@ -3,6 +3,8 @@
 #include <atomic>
 #include <optional>
 
+#include "glog/logging.h"
+
 #include "stout/eventual.h"
 #include "stout/callback.h"
 #include "stout/invoke-result.h"
@@ -36,11 +38,13 @@ public:
   {
     Callback<> f;
     Waiter* next = nullptr;
+    bool acquired = false;
   };
 
   bool AcquireFast(Waiter* waiter)
   {
     assert(waiter->next == nullptr);
+    CHECK(!waiter->acquired) << "\"recursive lock acquire detected\"";
 
     waiter->next = head_.load(std::memory_order_relaxed);
 
@@ -49,6 +53,7 @@ public:
               waiter->next, waiter,
               std::memory_order_release,
               std::memory_order_relaxed)) {
+        waiter->acquired = true;
         return true;
       }
     }
@@ -61,6 +66,7 @@ public:
   void AcquireSlow(Waiter* waiter)
   {
     assert(waiter->next == nullptr);
+    CHECK(!waiter->acquired) << "Recursive lock acquire detected";
 
     waiter->next = head_.load(std::memory_order_relaxed);
 
@@ -76,6 +82,7 @@ public:
     // ahead of us). If we acquired then execute the waiter's
     // continuation.
     if (waiter->next == nullptr) {
+      waiter->acquired = true;
       waiter->f();
     }
   }
@@ -95,11 +102,16 @@ public:
               std::memory_order_relaxed)) {
         return Release(); // Try again.
       }
+      waiter->acquired = false;
     } else {
       while (waiter->next->next != nullptr) {
         waiter = waiter->next;
       }
+
+      waiter->next->acquired = false;
+
       waiter->next = nullptr;
+      waiter->acquired = true;
       waiter->f();
     }
   }
@@ -166,7 +178,6 @@ struct Acquire
       static_assert(IsUndefined<Value_>::value || sizeof...(args) == 1);
 
       if constexpr (sizeof...(args) == 1) {
-        assert(!value_);
         value_.emplace(std::forward<Args>(args)...);
       }
 
@@ -341,18 +352,31 @@ struct WaitK
     eventuals::succeed(wait_->k_, std::forward<Args>(args)...);
   }
 
+  template <typename... Args>
+  void Fail(Args&&... args)
+  {
+    eventuals::fail(wait_->k_, std::forward<Args>(args)...);
+  }
+
+  void Stop()
+  {
+    eventuals::stop(wait_->k_);
+  }
+
   void Notify()
   {
-    if (!wait_->wait_) {
-      throw std::runtime_error("Attempting to notify without waiting");
+    // Ignore signals if we're not waiting.
+    //
+    // TODO(benh): make sure *we've* acquired the lock (where 'we' is
+    // the current "eventual").
+    if (wait_->waited_) {
+      wait_->lock_->AcquireSlow(&wait_->waiter_);
     }
-
-    wait_->lock_->AcquireSlow(&wait_->waiter_);
   }
 
   void Wait()
   {
-    wait_->wait_ = true;
+    wait_->waited_ = true;
   }
 };
 
@@ -453,13 +477,15 @@ struct Wait
 
     waitk_.wait_ = this;
 
+    waited_ = false;
+
     if constexpr (IsUndefined<Context_>::value) {
       condition_(waitk_, std::forward<Args>(args)...);
     } else {
       condition_(context_, waitk_, std::forward<Args>(args)...);
     }
 
-    if (wait_) {
+    if (waited_) {
       static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
                     "Wait only supports 0 or 1 argument, but found > 1");
 
@@ -475,8 +501,6 @@ struct Wait
       waiter_.f = [this]() mutable {
         scheduler_->Submit(
             [this]() mutable {
-              wait_ = false;
-
               if constexpr (sizeof...(args) == 1) {
                 Start(std::move(*arg_));
               } else {
@@ -514,7 +538,7 @@ struct Wait
   Lock* lock_;
   Lock::Waiter waiter_;
   std::optional<Arg_> arg_;
-  bool wait_ = false;
+  bool waited_ = false;
   WaitK<Wait> waitk_;
   Scheduler* scheduler_ = nullptr;
   void* scheduler_context_ = nullptr;
