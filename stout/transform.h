@@ -94,18 +94,6 @@ struct Transform
   template <typename K>
   auto k(K k) &&
   {
-    static_assert(
-        IsLoop<K>::value || IsTerminal<K>::value,
-        "Expecting a 'Loop' or a 'Terminal'");
-
-    static_assert(
-        !IsLoop<K>::value || !HasLoop<K_>::value,
-        "Redundant 'Loop''");
-
-    static_assert(
-        !IsTerminal<K>::value || !HasTerminal<K_>::value,
-        "Redundant 'Terminal''");
-
     return create<Value_, Errors_...>(
         [&]() {
           if constexpr (!IsUndefined<K_>::value) {
@@ -294,11 +282,9 @@ struct Transform
   template <typename... Args>
   void Body(Args&&... args)
   {
-    static_assert(
-        !IsUndefined<Body_>::value,
-        "Undefined 'body' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
+    if constexpr (IsUndefined<Body_>::value) {
+      eventuals::body(k_, std::forward<Args>(args)...);
+    } else if constexpr (IsUndefined<Context_>::value) {
       body_(k_, std::forward<Args>(args)...);
     } else {
       body_(context_, k_, std::forward<Args>(args)...);
@@ -307,11 +293,9 @@ struct Transform
 
   void Ended()
   {
-    static_assert(
-        !IsUndefined<Ended_>::value,
-        "Undefined 'ended' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
+    if constexpr (IsUndefined<Ended_>::value) {
+      eventuals::ended(k_);
+    } else if constexpr (IsUndefined<Context_>::value) {
       ended_(k_);
     } else {
       ended_(context_, k_);
