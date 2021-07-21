@@ -234,14 +234,6 @@ struct Stream
       && IsContinuation<K>::value, int> = 0>
   auto k(K k) &&
   {
-    static_assert(
-        !IsTransform<K>::value || !HasLoop<K_>::value,
-        "Can't add 'Transform' *after* 'Loop'");
-
-    static_assert(
-        !IsTerminal<K>::value || HasLoop<K_>::value,
-        "Can't add 'Terminal' *before* 'Loop'");
-
     return create<Value_, Errors_...>(
         [&]() {
           if constexpr (!IsUndefined<K_>::value) {
@@ -266,8 +258,6 @@ struct Stream
       && !IsContinuation<F>::value, int> = 0>
   auto k(F f) &&
   {
-    static_assert(!HasLoop<K_>::value, "Can't add callable before 'Loop'");
-
     return std::move(*this) | eventuals::Map(eventuals::Lambda(std::move(f)));
   }
 
