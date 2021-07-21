@@ -1,5 +1,7 @@
 #pragma once
 
+#include "glog/logging.h"
+
 #include "stout/continuation.h"
 #include "stout/interrupt.h"
 #include "stout/terminal.h"
@@ -36,6 +38,17 @@
 // TODO(benh): aggregate errors across all the eventuals.
 //
 // TODO(benh): lambda visitor for matching errors.
+
+////////////////////////////////////////////////////////////////////////
+
+inline bool StoutEventualsLog(size_t level)
+{
+  static const char* variable = std::getenv("STOUT_EVENTUALS_LOG");
+  static int value = variable != nullptr ? atoi(variable) : 0;
+  return value >= level;
+}
+
+#define STOUT_EVENTUALS_LOG(level) LOG_IF(INFO, StoutEventualsLog(level))
 
 ////////////////////////////////////////////////////////////////////////
 
