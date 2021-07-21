@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <string>
 
 #include "stout/callback.h"
 #include "stout/continuation.h"
@@ -26,36 +27,66 @@ namespace detail {
 class Scheduler
 {
 public:
-  static void Set(Scheduler* scheduler, void* context = nullptr)
+  struct Context
+  {
+    Context(std::string* name) : name_(name) {}
+
+    const std::string& name() { return *CHECK_NOTNULL(name_); }
+
+  private:
+    std::string* name_;
+  };
+
+  static Scheduler* Default()
+  {
+    return default_;
+  }
+
+  static void Set(Scheduler* scheduler, Context* context)
   {
     scheduler_ = scheduler;
     context_ = context;
   }
 
-  static Scheduler* Get(void** context)
+  static Scheduler* Get(Context** context)
   {
     assert(scheduler_ != nullptr);
     *context = context_;
     return scheduler_;
   }
 
-  virtual void Submit(Callback<> callback, void* context, bool defer = true)
+  static bool Verify(Scheduler* scheduler, Context* context)
+  {
+    return scheduler_ == scheduler && context_ == context;
+  }
+
+  static bool Verify(Context* context)
+  {
+    return context_ == context;
+  }
+
+  virtual void Submit(Callback<> callback, Context* context, bool defer = true)
   {
     // Default scheduler does not defer because it can't (unless we
     // update all calls that "wait" on tasks to execute outstanding
     // callbacks).
+    Context* parent = nullptr;
+    auto* scheduler = Scheduler::Get(&parent);
+    Scheduler::Set(this, context);
     callback();
+    CHECK(Scheduler::Verify(this, context));
+    Scheduler::Set(scheduler, parent);
   }
 
   // Returns an eventual which will do a 'Submit()' passing the
   // specified context and 'defer = false' in order to continue
   // execution using the execution resource associated with context.
-  auto Reschedule(void* context);
+  auto Reschedule(Context* context);
 
 private:
   static Scheduler* default_;
   static thread_local Scheduler* scheduler_;
-  static thread_local void* context_;
+  static thread_local Context* context_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -69,11 +100,11 @@ struct Reschedule
 {
   using Value = typename ValueFrom<K_, Arg_>::type;
 
-  Reschedule(K_ k, Scheduler* scheduler, void* context)
+  Reschedule(K_ k, Scheduler* scheduler, Scheduler::Context* context)
     : k_(std::move(k)), scheduler_(scheduler), context_(context) {}
 
   template <typename Arg, typename K>
-  static auto create(K k, Scheduler* scheduler, void* context)
+  static auto create(K k, Scheduler* scheduler, Scheduler::Context* context)
   {
     return Reschedule<K, Arg>(std::move(k), scheduler, context);
   }
@@ -116,6 +147,9 @@ struct Reschedule
     if constexpr (sizeof...(args) == 1) {
       arg_.emplace(std::forward<Args>(args)...);
     }
+
+    STOUT_EVENTUALS_LOG(1)
+      << "Reschedule submitting '" << context_->name() << "'";
 
     scheduler_->Submit(
         [this]() {
@@ -165,7 +199,7 @@ struct Reschedule
 
   K_ k_;
   Scheduler* scheduler_;
-  void* context_;
+  Scheduler::Context* context_;
 
   std::optional<Arg_> arg_;
 };
@@ -204,7 +238,7 @@ struct Compose<detail::Reschedule<K, Arg_>>
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Scheduler::Reschedule(void* context)
+inline auto Scheduler::Reschedule(Context* context)
 {
   return detail::Reschedule<Undefined, Undefined>(Undefined(), this, context);
 }
