@@ -4,6 +4,7 @@
 
 #include "gtest/gtest.h"
 
+#include "stout/just.h"
 #include "stout/lambda.h"
 #include "stout/lock.h"
 #include "stout/task.h"
@@ -15,6 +16,7 @@ using stout::Callback;
 using stout::eventuals::Acquire;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
+using stout::eventuals::Just;
 using stout::eventuals::Lambda;
 using stout::eventuals::Lock;
 using stout::eventuals::notify;
@@ -242,7 +244,7 @@ TEST(LockTest, Lambda)
     {
       return Synchronized(
           []() {
-            return 42;
+            return Just(42);
           })
         | [](auto i) {
           return i;
