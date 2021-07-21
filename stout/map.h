@@ -164,15 +164,17 @@ struct HasTerminal<
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename E>
-struct Compose<detail::Map<K, E>>
+template <typename K_, typename E_>
+struct Compose<detail::Map<K_, E_>>
 {
   template <typename Arg>
-  static auto compose(detail::Map<K, E> map)
+  static auto compose(detail::Map<K_, E_> map)
   {
     auto e = eventuals::compose<Arg>(std::move(map.e_));
-    auto k = eventuals::compose<typename decltype(e)::Value>(std::move(map.k_));
-    return detail::Map<decltype(k), decltype(e)>(std::move(k), std::move(e));
+    using E = decltype(e);
+    auto k = eventuals::compose<typename E::Value>(std::move(map.k_));
+    using K = decltype(k);
+    return detail::Map<K, E>(std::move(k), std::move(e));
   }
 };
 
