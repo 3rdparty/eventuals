@@ -3,12 +3,11 @@
 #include <atomic>
 #include <optional>
 
-#include "glog/logging.h"
-
 #include "stout/eventual.h"
 #include "stout/callback.h"
 #include "stout/invoke-result.h"
 #include "stout/lambda.h"
+#include "stout/then.h"
 #include "stout/scheduler.h"
 
 namespace stout {
@@ -43,8 +42,8 @@ public:
 
   bool AcquireFast(Waiter* waiter)
   {
-    assert(waiter->next == nullptr);
-    CHECK(!waiter->acquired) << "\"recursive lock acquire detected\"";
+    CHECK(!waiter->acquired) << "recursive lock acquire detected";
+    CHECK(waiter->next == nullptr);
 
     waiter->next = head_.load(std::memory_order_relaxed);
 
@@ -63,10 +62,10 @@ public:
     return false;
   }
 
-  void AcquireSlow(Waiter* waiter)
+  bool AcquireSlow(Waiter* waiter)
   {
-    assert(waiter->next == nullptr);
-    CHECK(!waiter->acquired) << "Recursive lock acquire detected";
+    CHECK(!waiter->acquired) << "recursive lock acquire detected";
+    CHECK(waiter->next == nullptr);
 
     waiter->next = head_.load(std::memory_order_relaxed);
 
@@ -79,12 +78,13 @@ public:
     // path it's possible that the lock was held in the fast path and
     // was released before trying the slow path, hence we might have
     // been able to acquire) or *queued* (i.e., we have some waiters
-    // ahead of us). If we acquired then execute the waiter's
-    // continuation.
+    // ahead of us).
     if (waiter->next == nullptr) {
       waiter->acquired = true;
-      waiter->f();
+      return true;
     }
+
+    return false;
   }
 
   void Release()
@@ -93,7 +93,7 @@ public:
 
     // Should have at least one waiter (who ever acquired) even if
     // they're aren't any others waiting.
-    assert(waiter != nullptr);
+    CHECK_NOTNULL(waiter);
 
     if (waiter->next == nullptr) {
       if (!head_.compare_exchange_weak(
@@ -109,11 +109,16 @@ public:
       }
 
       waiter->next->acquired = false;
-
+      // std::cout << "Released (more)" << std::endl;
       waiter->next = nullptr;
       waiter->acquired = true;
       waiter->f();
     }
+  }
+
+  bool Available()
+  {
+    return head_.load(std::memory_order_relaxed) == nullptr;
   }
 
 private:
@@ -169,7 +174,12 @@ struct Acquire
   template <typename... Args>
   void Start(Args&&... args)
   {
+    scheduler_ = Scheduler::Get(&context_);
+
+    STOUT_EVENTUALS_LOG(1) << "'" << context_->name() << "' acquiring";
+
     if (lock_->AcquireFast(&waiter_)) {
+      STOUT_EVENTUALS_LOG(1) << "'" << context_->name() << "' (fast) acquired";
       eventuals::succeed(k_, std::forward<Args>(args)...);
     } else {
       static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
@@ -181,9 +191,10 @@ struct Acquire
         value_.emplace(std::forward<Args>(args)...);
       }
 
-      scheduler_ = Scheduler::Get(&context_);
-
       waiter_.f = [this]() mutable {
+        STOUT_EVENTUALS_LOG(1)
+          << "'" << context_->name() << "' (very slow) acquired";
+
         scheduler_->Submit(
             [this]() mutable {
               if constexpr (sizeof...(args) == 1) {
@@ -195,18 +206,27 @@ struct Acquire
             context_);
       };
 
-      lock_->AcquireSlow(&waiter_);
+      if (lock_->AcquireSlow(&waiter_)) {
+        STOUT_EVENTUALS_LOG(1)
+          << "'" << context_->name() << "' (slow) acquired";
+
+        if constexpr (sizeof...(args) == 1) {
+          eventuals::succeed(k_, std::move(*value_));
+        } else {
+          eventuals::succeed(k_);
+        }
+      }
     }
   }
 
   template <typename... Args>
   void Fail(Args&&... args)
   {
+    scheduler_ = Scheduler::Get(&context_);
+
     if (lock_->AcquireFast(&waiter_)) {
       eventuals::fail(k_, std::forward<Args>(args)...);
     } else {
-      scheduler_ = Scheduler::Get(&context_);
-
       // TODO(benh): avoid allocating on heap by storing args in
       // pre-allocated buffer based on composing with Errors.
       auto* tuple = new std::tuple { this, std::forward<Args>(args)... };
@@ -229,17 +249,19 @@ struct Acquire
         std::move(*tuple));
       };
 
-      lock_->AcquireSlow(&waiter_);
+      if (lock_->AcquireSlow(&waiter_)) {
+        waiter_.f();
+      }
     }
   }
 
   void Stop()
   {
+    scheduler_ = Scheduler::Get(&context_);
+
     if (lock_->AcquireFast(&waiter_)) {
       eventuals::stop(k_);
     } else {
-      scheduler_ = Scheduler::Get(&context_);
-
       waiter_.f = [this]() mutable {
         scheduler_->Submit(
             [this]() mutable {
@@ -248,7 +270,9 @@ struct Acquire
             context_);
       };
 
-      lock_->AcquireSlow(&waiter_);
+      if (lock_->AcquireSlow(&waiter_)) {
+        waiter_.f();
+      }
     }
   }
 
@@ -262,7 +286,7 @@ struct Acquire
   Lock::Waiter waiter_;
   std::optional<Value_> value_;
   Scheduler* scheduler_ = nullptr;
-  void* context_ = nullptr;
+  Scheduler::Context* context_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -313,6 +337,7 @@ struct Release
   template <typename... Args>
   void Start(Args&&... args)
   {
+    CHECK(!lock_->Available());
     lock_->Release();
     eventuals::succeed(k_, std::forward<decltype(args)>(args)...);
   }
@@ -365,12 +390,23 @@ struct WaitK
 
   void Notify()
   {
-    // Ignore signals if we're not waiting.
+    // NOTE: we ignore notifications unless we're notifiable and we
+    // make sure we're not notifiable after the first notification so
+    // we don't try and add ourselves to the list of waiters again.
     //
     // TODO(benh): make sure *we've* acquired the lock (where 'we' is
     // the current "eventual").
-    if (wait_->waited_) {
-      wait_->lock_->AcquireSlow(&wait_->waiter_);
+    if (wait_->notifiable_) {
+      CHECK(!wait_->lock_->Available());
+
+      STOUT_EVENTUALS_LOG(1)
+        << "'" << wait_->scheduler_context_->name() << "' notified";
+
+      wait_->notifiable_ = false;
+
+      bool acquired = wait_->lock_->AcquireSlow(&wait_->waiter_);
+
+      CHECK(!acquired) << "lock should be held when notifying";
     }
   }
 
@@ -478,6 +514,9 @@ struct Wait
     waitk_.wait_ = this;
 
     waited_ = false;
+    notifiable_ = false;
+
+    CHECK(!lock_->Available()) << "expecting lock to be acquired";
 
     if constexpr (IsUndefined<Context_>::value) {
       condition_(waitk_, std::forward<Args>(args)...);
@@ -486,19 +525,30 @@ struct Wait
     }
 
     if (waited_) {
+      CHECK(!notifiable_) << "recursive wait detected (without notify)";
+
+      // Mark we've waited in case we have recursive invocations of
+      // 'Wait', e.g., when used with a stream/generator we don't want
+      // to "re-wait" (and re-release the lock below) multiple times.
+      waited_ = false;
+      notifiable_ = true;
+
       static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
                     "Wait only supports 0 or 1 argument, but found > 1");
 
       static_assert(IsUndefined<Arg_>::value || sizeof...(args) == 1);
 
       if constexpr (sizeof...(args) == 1) {
-        assert(!arg_);
+        CHECK(!arg_);
         arg_.emplace(std::forward<Args>(args)...);
       }
 
       scheduler_ = Scheduler::Get(&scheduler_context_);
 
       waiter_.f = [this]() mutable {
+        STOUT_EVENTUALS_LOG(1)
+          << "'" << scheduler_context_->name() << "' (notify) acquired";
+
         scheduler_->Submit(
             [this]() mutable {
               if constexpr (sizeof...(args) == 1) {
@@ -508,6 +558,9 @@ struct Wait
               }
             },
             scheduler_context_);
+
+        STOUT_EVENTUALS_LOG(2)
+          << "'" << scheduler_context_->name() << "' (notify) submitted";
       };
 
       lock_->Release();
@@ -539,9 +592,10 @@ struct Wait
   Lock::Waiter waiter_;
   std::optional<Arg_> arg_;
   bool waited_ = false;
+  bool notifiable_ = false;
   WaitK<Wait> waitk_;
   Scheduler* scheduler_ = nullptr;
-  void* scheduler_context_ = nullptr;
+  Scheduler::Context* scheduler_context_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -677,9 +731,13 @@ public:
   template <typename E>
   auto Synchronized(E e) const
   {
-    return Acquire(lock_)
-      | std::move(e)
-      | Release(lock_);
+    if constexpr (!IsContinuation<E>::value) {
+      return Synchronized(Then(std::move(e)));
+    } else {
+      return Acquire(lock_)
+        | std::move(e)
+        | Release(lock_);
+    }
   }
 
   template <typename T>
