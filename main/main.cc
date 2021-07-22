@@ -21,14 +21,14 @@ using ull = unsigned long long;
 class A {
 public:
     A() { cout << "A()\n"; }
-    A( const A &a ) { cout << "A&" << endl; }
-    A( A &&a ) { cout << "A&&" << endl; }
-    A operator=( const A &a ) {
+    A(const A &a) { cout << "A&" << endl; }
+    A(A &&a) { cout << "A&&" << endl; }
+    A operator=(const A &a) {
         // cout << "op=(&)\n";
         //*this = a;
         return *this;
     }
-    A operator=( A &&a ) {
+    A operator=(A &&a) {
         // cout << "op=(&&)\n";
         // *this = a;
         return *this;
@@ -43,12 +43,12 @@ A get_a() {
 
 class MyTimer {
 private:
-    decltype( std::chrono::high_resolution_clock::now() ) time_begin;
+    decltype(std::chrono::high_resolution_clock::now()) time_begin;
 
 public:
     ~MyTimer() {}
     MyTimer() {}
-    MyTimer( const MyTimer &other ) = delete;
+    MyTimer(const MyTimer &other) = delete;
 
     void start() { time_begin = std::chrono::high_resolution_clock::now(); }
 
@@ -61,43 +61,43 @@ public:
 
 int do_some_tough_calcs1() {
     cout << this_thread::get_id() << " thread started!" << endl;
-    std::this_thread::sleep_for( 2s );
+    std::this_thread::sleep_for(2s);
     cout << this_thread::get_id() << " thread finished!" << endl;
     return 1;
 }
 
 int do_some_tough_calcs2() {
     cout << this_thread::get_id() << " thread started!" << endl;
-    std::this_thread::sleep_for( 5s );
+    std::this_thread::sleep_for(5s);
     cout << this_thread::get_id() << " thread finished!" << endl;
     return 2;
 }
 
-void do_some_tough_calcs3( std::promise<int> &&p ) {
-    this_thread::sleep_for( 3.5s );
-    p.set_value( 1 );
+void do_some_tough_calcs3(std::promise<int> &&p) {
+    this_thread::sleep_for(3.5s);
+    p.set_value(1);
 }
 
 void foo() {
-    for ( int i = 0; i < 10; ++i ) { cout << i << endl; }
+    for (int i = 0; i < 10; ++i) { cout << i << endl; }
 }
 
-void find_sum_odds1( std::promise<ull> &prom ) {
+void find_sum_odds1(std::promise<ull> &prom) {
     std::cout << this_thread::get_id() << " find_sum_odds1 is working!"
               << std::endl;
     ull sum = 0;
-    for ( ull i = 0; i < 19'000'000'00; ++i ) {
-        if ( i % 2 != 0 ) { sum += i; }
+    for (ull i = 0; i < 19'000'000'00; ++i) {
+        if (i % 2 != 0) { sum += i; }
     }
-    prom.set_value( sum );
+    prom.set_value(sum);
 }
 
 auto find_sum_odds2() {
     std::cout << this_thread::get_id() << " find_sum_odds2 is working!"
               << std::endl;
     ull sum = 0;
-    for ( ull i = 0; i < 19'000'000'00; ++i ) {
-        if ( i % 2 != 0 ) { sum += i; }
+    for (ull i = 0; i < 19'000'000'00; ++i) {
+        if (i % 2 != 0) { sum += i; }
     }
     return sum;
 }
@@ -106,7 +106,7 @@ std::future<int> Foo() {
     std::promise<int> promise;
     std::future<int>  fu = promise.get_future();
 
-    std::thread       t1( do_some_tough_calcs3, std::move( promise ) );
+    std::thread       t1(do_some_tough_calcs3, std::move(promise));
     t1.join();
     cout << "done!" << endl;
 
@@ -116,7 +116,7 @@ std::future<int> Foo() {
 void async_foo() {
     std::cout << "async_foo's id = " << std::this_thread::get_id()
               << std::endl;
-    std::this_thread::sleep_for( 2.s );
+    std::this_thread::sleep_for(2.s);
     std::cout << "async_foo terminated!" << std::endl;
 }
 
@@ -131,31 +131,31 @@ auto foo_with_future_promise() {
     std::promise<int> p;
     std::future<int>  f = p.get_future();
 
-    std::thread       t( [&p]() {
-        std::this_thread::sleep_for( 3s );
-        p.set_value( 1 );
-    } );
+    std::thread       t([&p]() {
+        std::this_thread::sleep_for(3s);
+        p.set_value(1);
+    });
     t.join();
     return f;
 }
 
 auto foo_with_eventual() {
     std::cout << "foo_with_eventual started!!!" << std::endl;
-    return stout::eventuals::Eventual<int>().start( []( auto &k ) {
-        std::thread t( [&k]() {
+    return stout::eventuals::Eventual<int>().start([](auto &k) {
+        std::thread t([&k]() {
             std::cout << this_thread::get_id() << " eventual started!!!"
                       << std::endl;
-            std::this_thread::sleep_for( 3s );
-            stout::eventuals::succeed( k, 100 );
-        } );
+            std::this_thread::sleep_for(3s);
+            stout::eventuals::succeed(k, 100);
+        });
         t.detach();
-    } ) | stout::eventuals::Terminal()
-               .start( []( auto &&result ) {
+    }) | stout::eventuals::Terminal()
+               .start([](auto &&result) {
                    std::cout << "Terminated " << result << std::endl;
-               } )
-               .stop( []( auto &&result ) {
+               })
+               .stop([](auto &&result) {
                    std::cout << "stopped!" << std::endl;
-               } );
+               });
 }
 
 int main() {
@@ -256,23 +256,23 @@ int main() {
     auto eventual = foo_with_eventual();
     // stout::eventuals::start(eventual);
 
-    auto ev1      = stout::eventuals::Eventual<int>().start( []( auto &k ) {
-        std::thread t( [&k]() {
-            std::this_thread::sleep_for( 1s );
-            stout::eventuals::succeed( k, 100 );
-        } );
+    auto ev1      = stout::eventuals::Eventual<int>().start([](auto &k) {
+        std::thread t([&k]() {
+            std::this_thread::sleep_for(1s);
+            stout::eventuals::succeed(k, 100);
+        });
         t.join();
-    } );
+    });
 
     auto ev2 =
-        std::move( ev1 ) |
-        stout::eventuals::Eventual<int>().start( []( auto &k, auto &&res ) {
-            std::thread t( [&k, &res]() {
-                std::this_thread::sleep_for( 1s );
-                stout::eventuals::succeed( k, res * res );
-            } );
+        std::move(ev1) |
+        stout::eventuals::Eventual<int>().start([](auto &k, auto &&res) {
+            std::thread t([&k, &res]() {
+                std::this_thread::sleep_for(1s);
+                stout::eventuals::succeed(k, res * res);
+            });
             t.join();
-        } );
+        });
     // | stout::eventuals::Terminal()
     //     .start([](auto&& result) {
     //         // Eventual pipeline succeeded!
@@ -288,10 +288,11 @@ int main() {
 
     // auto res = std::move(*foo_with_eventual());
     // cout << res << endl;
-    auto res = *std::move( ev2 );
+    auto res = *std::move(ev2);
     cout << res << endl;
-    std::this_thread::sleep_for( 5s );
+    std::this_thread::sleep_for(5s);
 
     int a[] = { 1, 2, 3 };
+    cout << a[0] << endl;
     return 0;
 }
