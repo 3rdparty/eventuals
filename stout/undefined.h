@@ -6,10 +6,10 @@ namespace stout {
 
 struct Undefined {};
 
-template <typename>
+template<typename>
 struct IsUndefined : std::false_type {};
 
-template <>
+template<>
 struct IsUndefined<Undefined> : std::true_type {};
 
-} // namespace stout {
+}   // namespace stout
