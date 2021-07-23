@@ -1,10 +1,8 @@
 #pragma once
 
 #include "stout/eventual.h"
-#include "stout/forward.h"
-#include "stout/lambda.h"
-#include "stout/loop.h"
 #include "stout/map.h"
+#include "stout/stream.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -17,48 +15,15 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename Arg_>
-struct Repeat
+template <typename K_>
+struct Repeat : public TypeErasedStream
 {
-  using Value = typename K_::Value;
-
+  // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
   Repeat(K_ k) : k_(std::move(k)) {}
 
-  template <typename Arg, typename K>
-  static auto create(K k)
-  {
-    return Repeat<K, Arg>(std::move(k));
-  }
-
-  template <
-    typename K,
-    std::enable_if_t<
-      IsContinuation<K>::value, int> = 0>
-  auto k(K k) &&
-  {
-    return create<Arg_>(
-        [&]() {
-          return std::move(k_) | std::move(k);
-        }());
-  }
-
-  template <
-    typename F,
-    std::enable_if_t<
-      !IsContinuation<F>::value, int> = 0>
-  auto k(F f) &&
-  {
-    static_assert(!HasLoop<K_>::value, "Can't add *invocable* after loop");
-
-    return std::move(*this) | eventuals::Map(eventuals::Lambda(std::move(f)));
-  }
-
   template <typename... Args>
-  void Start(Args&&... args)
+  void Start(Args&&...)
   {
-    if constexpr (!IsUndefined<Arg_>::value) {
-      arg_.emplace(std::forward<Args>(args)...);
-    }
     eventuals::succeed(k_, *this);
   }
 
@@ -78,23 +43,31 @@ struct Repeat
     k_.Register(interrupt);
   }
 
-  void Next()
+  void Next() override
   {
-    if constexpr (!IsUndefined<Arg_>::value) {
-      eventuals::body(k_, *this, std::move(*arg_));
-    } else {
-      eventuals::body(k_, *this);
-    }
+    eventuals::body(k_);
   }
 
-  void Done()
+  void Done() override
   {
     eventuals::ended(k_);
   }
 
   K_ k_;
+};
 
-  std::optional<Arg_> arg_;
+////////////////////////////////////////////////////////////////////////
+
+struct RepeatComposable
+{
+  template <typename Arg>
+  using ValueFrom = void;
+
+  template <typename Arg, typename K>
+  auto k(K k)
+  {
+    return Repeat<K> { std::move(k) };
+  }
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -103,45 +76,20 @@ struct Repeat
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename Arg>
-struct IsContinuation<
-  detail::Repeat<K, Arg>> : std::true_type {};
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K, typename Arg>
-struct HasTerminal<
-  detail::Repeat<K, Arg>> : HasTerminal<K> {};
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K, typename Arg_>
-struct Compose<detail::Repeat<K, Arg_>>
-{
-  template <typename Arg>
-  static auto compose(detail::Repeat<K, Arg_> repeat)
-  {
-    auto k = eventuals::compose<Arg>(std::move(repeat.k_));
-    return detail::Repeat<decltype(k), Arg>(std::move(k));
-  }
-};
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename E>
 auto Repeat(E e)
 {
-  static_assert(
-      IsContinuation<E>::value,
-      "expecting an eventual continuation for Repeat");
+  // static_assert(
+  //     IsContinuation<E>::value,
+  //     "expecting an eventual continuation for Repeat");
 
-  auto k = eventuals::Map(std::move(e));
-  return detail::Repeat<decltype(k), Undefined>(std::move(k));
+  return detail::RepeatComposable {}
+    | Map(std::move(e));
 }
 
 inline auto Repeat()
 {
-  return Repeat(Forward());
+  return detail::RepeatComposable {};
 }
 
 ////////////////////////////////////////////////////////////////////////

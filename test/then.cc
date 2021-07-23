@@ -4,20 +4,17 @@
 
 #include "gtest/gtest.h"
 
-#include "stout/task.h"
+#include "stout/lambda.h"
 #include "stout/then.h"
+#include "stout/terminal.h"
 
 namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Eventual;
+using stout::eventuals::Lambda;
 using stout::eventuals::Interrupt;
-using stout::eventuals::stop;
-using stout::eventuals::succeed;
 using stout::eventuals::Terminate;
 using stout::eventuals::Then;
-
-using stout::eventuals::FailedException;
-using stout::eventuals::StoppedException;
 
 using testing::MockFunction;
 
@@ -27,7 +24,7 @@ TEST(ThenTest, Succeed)
     return Eventual<std::string>()
       .context(std::move(s))
       .start([](auto& s, auto& k) {
-        succeed(k, std::move(s));
+        eventuals::succeed(k, std::move(s));
       });
   };
 
@@ -37,11 +34,11 @@ TEST(ThenTest, Succeed)
       .start([](auto& value, auto& k) {
         auto thread = std::thread(
             [&value, &k]() mutable {
-              succeed(k, value);
+              eventuals::succeed(k, value);
             });
         thread.detach();
       })
-      | [](int i) { return i + 1; }
+      | Lambda([](int i) { return i + 1; })
       | Then([&](auto&& i) {
         return e("then");
       });
@@ -57,7 +54,7 @@ TEST(ThenTest, Fail)
     return Eventual<std::string>()
       .context(s)
       .start([](auto& s, auto& k) {
-        succeed(k, std::move(s));
+        eventuals::succeed(k, std::move(s));
       });
   };
 
@@ -70,13 +67,13 @@ TEST(ThenTest, Fail)
             });
         thread.detach();
       })
-      | [](int i) { return i + 1; }
+      | Lambda([](int i) { return i + 1; })
       | Then([&](auto&& i) {
         return e("then");
       });
   };
 
-  EXPECT_THROW(*c(), FailedException);
+  EXPECT_THROW(*c(), eventuals::FailedException);
 }
 
 
@@ -91,33 +88,33 @@ TEST(ThenTest, Interrupt)
         start.Call();
       })
       .interrupt([](auto& k) {
-        stop(k);
+        eventuals::stop(k);
       });
   };
 
   auto c = [&]() {
     return Eventual<int>()
       .start([](auto& k) {
-        succeed(k, 0);
+        eventuals::succeed(k, 0);
       })
-      | [](int i) { return i + 1; }
+      | Lambda([](int i) { return i + 1; })
       | Then([&](auto&& i) {
         return e("then");
       });
   };
 
-  auto [future, t] = Terminate(c());
+  auto [future, k] = Terminate(c());
 
   Interrupt interrupt;
 
-  t.Register(interrupt);
+  k.Register(interrupt);
 
   EXPECT_CALL(start, Call())
     .WillOnce([&]() {
       interrupt.Trigger();
     });
 
-  t.Start();
+  eventuals::start(k);
 
-  EXPECT_THROW(future.get(), StoppedException);
+  EXPECT_THROW(future.get(), eventuals::StoppedException);
 }

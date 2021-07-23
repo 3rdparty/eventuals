@@ -1,9 +1,6 @@
 #pragma once
 
-#include "stout/adaptor.h"
 #include "stout/eventual.h"
-#include "stout/invoke-result.h"
-#include "stout/lambda.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -16,59 +13,50 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename K_>
+struct ThenAdaptor
+{
+  template <typename... Args>
+  void Start(Args&&... args)
+  {
+    eventuals::succeed(k_, std::forward<Args>(args)...);
+  }
+
+  template <typename... Args>
+  void Fail(Args&&... args)
+  {
+    eventuals::fail(k_, std::forward<Args>(args)...);
+  }
+
+  void Stop()
+  {
+    eventuals::stop(k_);
+  }
+
+  void Register(Interrupt&)
+  {
+    // Already registered K once in 'Then::Register()'.
+  }
+
+  K_& k_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
 template <typename K_, typename F_, typename Arg_>
 struct Then
 {
-  using E_ = typename InvokeResultPossiblyUndefined<F_, Arg_>::type;
-
-  using Value = typename ValueFrom<
-    K_,
-    typename ValuePossiblyUndefined<E_>::Value>::type;
-
-  Then(K_ k, F_ f) : k_(std::move(k)), f_(std::move(f)) {}
-
-  template <typename Arg, typename K, typename F>
-  static auto create(K k, F f)
-  {
-    return Then<K, F, Arg>(std::move(k), std::move(f));
-  }
-
-  template <
-    typename K,
-    std::enable_if_t<
-      IsContinuation<K>::value, int> = 0>
-  auto k(K k) &&
-  {
-    return create<Arg_>(
-        [&]() {
-          if constexpr (!IsUndefined<K_>::value) {
-            return std::move(k_) | std::move(k);
-          } else {
-            return std::move(k);
-          }
-        }(),
-        std::move(f_));
-  }
-
-  template <
-    typename F,
-    std::enable_if_t<
-      !IsContinuation<F>::value, int> = 0>
-  auto k(F f) &&
-  {
-    return std::move(*this) | eventuals::Lambda(std::move(f));
-  }
+  using E_ = typename std::conditional_t<
+    std::is_void_v<Arg_>,
+    std::invoke_result<F_>,
+    std::invoke_result<F_, Arg_>>::type;
 
   template <typename... Args>
   void Start(Args&&... args)
   {
     adaptor_.emplace(
-        f_(std::forward<Args>(args)...).k(
-            Adaptor<K_, typename E_::Value>(
-                k_,
-                [](auto& k_, auto&&... values) {
-                  eventuals::succeed(k_, std::forward<decltype(values)>(values)...);
-                })));
+        f_(std::forward<Args>(args)...)
+          .template k<void>(ThenAdaptor<K_> { k_}));
 
     if (interrupt_ != nullptr) {
       adaptor_->Register(*interrupt_);
@@ -100,11 +88,30 @@ struct Then
 
   Interrupt* interrupt_ = nullptr;
 
-  using Adaptor_ = typename EKPossiblyUndefined<
-    E_,
-    Adaptor<K_, typename ValuePossiblyUndefined<E_>::Value>>::type;
+  using Adaptor_ = decltype(
+      std::declval<E_>().template k<void>(std::declval<ThenAdaptor<K_>>()));
 
   std::optional<Adaptor_> adaptor_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename F_>
+struct ThenComposable
+{
+  template <typename Arg>
+  using ValueFrom = typename std::conditional_t<
+    std::is_void_v<Arg>,
+    std::invoke_result<F_>,
+    std::invoke_result<F_, Arg>>::type::template ValueFrom<void>;
+
+  template <typename Arg, typename K>
+  auto k(K k) &&
+  {
+    return Then<K, F_, Arg> { std::move(k), std::move(f_) };
+  }
+
+  F_ f_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -113,48 +120,10 @@ struct Then
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename F, typename Arg>
-struct IsContinuation<
-  detail::Then<K, F, Arg>> : std::true_type {};
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K, typename F, typename Arg>
-struct HasTerminal<
-  detail::Then<K, F, Arg>> : HasTerminal<K> {};
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K, typename F, typename Arg_>
-struct Compose<detail::Then<K, F, Arg_>>
-{
-  template <typename Arg>
-  static auto compose(detail::Then<K, F, Arg_> then)
-  {
-    if constexpr (!IsUndefined<Arg>::value) {
-      using E = decltype(std::declval<F>()(std::declval<Arg>()));
-
-      static_assert(
-          IsContinuation<E>::value,
-          "expecting eventual continuation as "
-          "result of callable passed to 'Then'");
-
-      using Value = typename E::Value;
-
-      auto k = eventuals::compose<Value>(std::move(then.k_));
-      return detail::Then<decltype(k), F, Arg>(std::move(k), std::move(then.f_));
-    } else {
-      return std::move(then);
-    }
-  }
-};
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename F>
 auto Then(F f)
 {
-  return detail::Then<Undefined, F, Undefined>(Undefined(), std::move(f));
+  return detail::ThenComposable<F> { std::move(f) };
 }
 
 ////////////////////////////////////////////////////////////////////////
