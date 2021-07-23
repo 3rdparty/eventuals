@@ -4,6 +4,7 @@
 #include "stout/eventual.h"
 #include "stout/invoke-result.h"
 #include "stout/lambda.h"
+#include "stout/map.h"
 
 ////////////////////////////////////////////////////////////////////////
 
