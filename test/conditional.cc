@@ -6,8 +6,9 @@
 
 #include "stout/conditional.h"
 #include "stout/just.h"
+#include "stout/lambda.h"
 #include "stout/raise.h"
-#include "stout/task.h"
+#include "stout/terminal.h"
 
 namespace eventuals = stout::eventuals;
 
@@ -17,36 +18,31 @@ using stout::eventuals::Conditional;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
 using stout::eventuals::Just;
+using stout::eventuals::Lambda;
 using stout::eventuals::Raise;
-using stout::eventuals::stop;
-using stout::eventuals::succeed;
 using stout::eventuals::Terminate;
 
-using stout::eventuals::FailedException;
-using stout::eventuals::StoppedException;
-
 using testing::MockFunction;
-
 
 TEST(ConditionalTest, Then)
 {
   auto then = []() {
     return Eventual<std::string>()
       .start([](auto& k) {
-        succeed(k, "then");
+        eventuals::succeed(k, "then");
       });
   };
 
   auto els3 = []() {
     return Eventual<std::string>()
       .start([](auto& k) {
-        succeed(k, "else");
+        eventuals::succeed(k, "else");
       });
   };
 
   auto c = [&]() {
     return Just(1)
-      | [](int i) { return i + 1; }
+      | Lambda([](int i) { return i + 1; })
       | Conditional(
           [](auto&& i) { return i > 1; },
           [&](auto&&) { return then(); },
@@ -62,20 +58,20 @@ TEST(ConditionalTest, Else)
   auto then = []() {
     return Eventual<std::string>()
       .start([](auto& k) {
-        succeed(k, "then");
+        eventuals::succeed(k, "then");
       });
   };
 
   auto els3 = []() {
     return Eventual<std::string>()
       .start([](auto& k) {
-        succeed(k, "else");
+        eventuals::succeed(k, "else");
       });
   };
 
   auto c = [&]() {
     return Just(0)
-      | [](int i) { return i + 1; }
+      | Lambda([](int i) { return i + 1; })
       | Conditional(
           [](auto&& i) { return i > 1; },
           [&](auto&&) { return then(); },
@@ -91,14 +87,14 @@ TEST(ConditionalTest, Fail)
   auto then = []() {
     return Eventual<std::string>()
       .start([](auto& k) {
-        succeed(k, "then");
+        eventuals::succeed(k, "then");
       });
   };
 
   auto els3 = []() {
     return Eventual<std::string>()
       .start([](auto& k) {
-        succeed(k, "else");
+        eventuals::succeed(k, "else");
       });
   };
 
@@ -111,14 +107,14 @@ TEST(ConditionalTest, Fail)
             });
         thread.detach();
       })
-      | [](int i) { return i + 1; }
+      | Lambda([](int i) { return i + 1; })
       | Conditional(
           [](auto&& i) { return i > 1; },
           [&](auto&&) { return then(); },
           [&](auto&&) { return els3(); });
   };
 
-  EXPECT_THROW(*c(), FailedException);
+  EXPECT_THROW(*c(), eventuals::FailedException);
 }
 
 
@@ -133,40 +129,40 @@ TEST(ConditionalTest, Interrupt)
         start.Call();
       })
       .interrupt([](auto& k) {
-        stop(k);
+        eventuals::stop(k);
       });
   };
 
   auto els3 = []() {
     return Eventual<std::string>()
       .start([](auto& k) {
-        succeed(k, "else");
+        eventuals::succeed(k, "else");
       });
   };
 
   auto c = [&]() {
     return Just(1)
-      | [](int i) { return i + 1; }
+      | Lambda([](int i) { return i + 1; })
       | Conditional(
           [](auto&& i) { return i > 1; },
           [&](auto&&) { return then(); },
           [&](auto&&) { return els3(); });
   };
 
-  auto [future, t] = Terminate(c());
+  auto [future, k] = Terminate(c());
 
   Interrupt interrupt;
 
-  t.Register(interrupt);
+  k.Register(interrupt);
 
   EXPECT_CALL(start, Call())
     .WillOnce([&]() {
       interrupt.Trigger();
     });
 
-  t.Start();
+  eventuals::start(k);
 
-  EXPECT_THROW(future.get(), StoppedException);
+  EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
 
 
@@ -174,7 +170,7 @@ TEST(ConditionalTest, Raise)
 {
   auto c = [&]() {
     return Just(1)
-      | [](int i) { return i + 1; }
+      | Lambda([](int i) { return i + 1; })
       | Conditional(
           [](auto&& i) { return i > 1; },
           [](auto&& i) { return Just(i); },

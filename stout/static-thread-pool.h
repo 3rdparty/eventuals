@@ -358,8 +358,7 @@ struct StaticThreadPoolParallelAdaptor : public TypeErasedStream
     eventuals::stop(k_);
   }
 
-  template <typename K>
-  void Body(K& k, bool next)
+  void Body(bool next)
   {
     CHECK(next);
 

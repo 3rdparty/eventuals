@@ -1,38 +1,20 @@
 #pragma once
 
+#include "stout/eventual.h"
 #include "stout/interrupt.h"
-#include "stout/terminal.h"
+#include "stout/stream.h"
 #include "stout/undefined.h"
+
+////////////////////////////////////////////////////////////////////////
 
 namespace stout {
 namespace eventuals {
 
-// Forward declaration to break circular dependency with stream.h.
-template <typename K>
-void next(K& k);
-
-template <typename K, typename... Args>
-void body(K& k, Args&&... args)
-{
-  static_assert(
-      !std::is_same_v<K, Undefined>,
-      "You're using a continuation that goes nowhere!");
-
-  k.Body(std::forward<Args>(args)...);
-}
-
-
-template <typename K>
-void ended(K& k)
-{
-  static_assert(
-      !std::is_same_v<K, Undefined>,
-      "You're using a continuation that goes nowhere!");
-
-  k.Ended();
-}
+////////////////////////////////////////////////////////////////////////
 
 namespace detail {
+
+////////////////////////////////////////////////////////////////////////
 
 template <
   typename K_,
@@ -47,116 +29,25 @@ template <
   typename... Errors_>
 struct Loop
 {
-  using Value = typename ValueFrom<K_, Value_>::type;
-
-  K_ k_;
-
-  Context_ context_;
-  Start_ start_;
-  Body_ body_;
-  Ended_ ended_;
-  Fail_ fail_;
-  Stop_ stop_;
-  Interrupt_ interrupt_;
-
-  std::optional<Interrupt::Handler> handler_;
-
-  Loop(const Loop& that) = default;
   Loop(Loop&& that) = default;
 
-  Loop& operator=(const Loop& that) = default;
   Loop& operator=(Loop&& that)
   {
-    // TODO(benh): Change this to use 'swap' or investigate why the
-    // compiler needs us to define this in the first place and can't
-    // just resolve the move assignment operators for all the fields.
+    // TODO(benh): lambdas don't have an 'operator=()' until C++20 so
+    // we have to effectively do a "reset" and "emplace" (as though it
+    // was stored in a 'std::optional' but without the overhead of
+    // optionals everywhere).
     this->~Loop();
     new(this) Loop(std::move(that));
+
     return *this;
   }
 
-  template <
-    typename Value,
-    typename... Errors,
-    typename K,
-    typename Context,
-    typename Start,
-    typename Body,
-    typename Ended,
-    typename Fail,
-    typename Stop,
-    typename Interrupt>
-  static auto create(
-      K k,
-      Context context,
-      Start start,
-      Body body,
-      Ended ended,
-      Fail fail,
-      Stop stop,
-      Interrupt interrupt)
+  template <typename... Args>
+  void Start(TypeErasedStream& stream, Args&&... args)
   {
-    return Loop<
-      K,
-      Context,
-      Start,
-      Body,
-      Ended,
-      Fail,
-      Stop,
-      Interrupt,
-      Value,
-      Errors...> {
-      std::move(k),
-      std::move(context),
-      std::move(start),
-      std::move(body),
-      std::move(ended),
-      std::move(fail),
-      std::move(stop),
-      std::move(interrupt),
-    };
-  }
+    stream_ = &stream;
 
-  template <
-    typename K,
-    std::enable_if_t<
-      IsContinuation<K>::value, int> = 0>
-  auto k(K k) &&
-  {
-    static_assert(
-        !IsTerminal<K>::value || !HasTerminal<K_>::value,
-        "Redundant 'Terminal'");
-
-    return create<Value_, Errors_...>(
-        [&]() {
-          if constexpr (!IsUndefined<K_>::value) {
-            return std::move(k_) | std::move(k);
-          } else {
-            return std::move(k);
-          }
-        }(),
-        std::move(context_),
-        std::move(start_),
-        std::move(body_),
-        std::move(ended_),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <
-    typename F,
-    std::enable_if_t<
-      !IsContinuation<F>::value, int> = 0>
-  auto k(F f) &&
-  {
-    return std::move(*this) | eventuals::Lambda(std::move(f));
-  }
-
-  template <typename K, typename... Args>
-  void Start(K& k, Args&&... args)
-  {
     auto interrupted = [this]() mutable {
       if (handler_) {
         return !handler_->Install();
@@ -170,11 +61,11 @@ struct Loop
       handler_->Invoke();
     } else {
       if constexpr (IsUndefined<Start_>::value) {
-        eventuals::next(k);
+        eventuals::next(*stream_);
       } else if constexpr (IsUndefined<Context_>::value) {
-        start_(k, std::forward<Args>(args)...);
+        start_(*stream_, std::forward<Args>(args)...);
       } else {
-        start_(context_, k, std::forward<Args>(args)...);
+        start_(context_, *stream_, std::forward<Args>(args)...);
       }
     }
   }
@@ -217,23 +108,23 @@ struct Loop
     }
   }
 
-  template <typename K, typename... Args>
-  void Body(K& k, Args&&... args)
+  template <typename... Args>
+  void Body(Args&&... args)
   {
     if constexpr (IsUndefined<Body_>::value) {
-      eventuals::next(k);
+      eventuals::next(*stream_);
     } else if constexpr (IsUndefined<Context_>::value) {
-      body_(k, std::forward<Args>(args)...);
+      body_(*stream_, std::forward<Args>(args)...);
     } else {
-      body_(context_, k, std::forward<Args>(args)...);
+      body_(context_, *stream_, std::forward<Args>(args)...);
     }
   }
 
   void Ended()
   {
     static_assert(
-        !IsUndefined<Ended_>::value || IsUndefined<Value_>::value,
-        "Undefined 'ended' but 'Value' is _not_ 'Undefined'");
+        !IsUndefined<Ended_>::value || std::is_void_v<Value_>,
+        "Undefined 'ended' but 'Value' is _not_ void");
 
     if constexpr (IsUndefined<Ended_>::value) {
       eventuals::succeed(k_);
@@ -243,8 +134,22 @@ struct Loop
       ended_(context_, k_);
     }
   }
+
+  K_ k_;
+  Context_ context_;
+  Start_ start_;
+  Body_ body_;
+  Ended_ ended_;
+  Fail_ fail_;
+  Stop_ stop_;
+  Interrupt_ interrupt_;
+
+  TypeErasedStream* stream_ = nullptr;
+
+  std::optional<Interrupt::Handler> handler_;
 };
 
+////////////////////////////////////////////////////////////////////////
 
 template <
   typename Context_,
@@ -258,7 +163,8 @@ template <
   typename... Errors_>
 struct LoopBuilder
 {
-  using Value = Value_;
+  template <typename Arg>
+  using ValueFrom = Value_;
 
   template <
     typename Value,
@@ -299,10 +205,7 @@ struct LoopBuilder
     };
   }
 
-  template <
-    typename K,
-    std::enable_if_t<
-      IsContinuation<K>::value, int> = 0>
+  template <typename Arg, typename K>
   auto k(K k) &&
   {
     return Loop<
@@ -315,24 +218,16 @@ struct LoopBuilder
       Stop_,
       Interrupt_,
       Value_,
-      Errors_...>(
-          std::move(k),
-          std::move(context_),
-          std::move(start_),
-          std::move(body_),
-          std::move(ended_),
-          std::move(fail_),
-          std::move(stop_),
-          std::move(interrupt_));
-  }
-
-  template <
-    typename F,
-    std::enable_if_t<
-      !IsContinuation<F>::value, int> = 0>
-  auto k(F f) &&
-  {
-    return std::move(*this) | eventuals::Lambda(std::move(f));
+      Errors_...> {
+      std::move(k),
+      std::move(context_),
+      std::move(start_),
+      std::move(body_),
+      std::move(ended_),
+      std::move(fail_),
+      std::move(stop_),
+      std::move(interrupt_)
+    };
   }
 
   template <typename Context>
@@ -442,180 +337,11 @@ struct LoopBuilder
   Interrupt_ interrupt_;
 };
 
+////////////////////////////////////////////////////////////////////////
+
 } // namespace detail {
 
-
-template <typename>
-struct IsLoop : std::false_type {};
-
-
-template <
-  typename K,
-  typename Context,
-  typename Start,
-  typename Body,
-  typename Ended,
-  typename Fail,
-  typename Stop,
-  typename Interrupt,
-  typename Value,
-  typename... Errors>
-struct IsLoop<
-  detail::Loop<
-    K,
-    Context,
-    Start,
-    Body,
-    Ended,
-    Fail,
-    Stop,
-    Interrupt,
-    Value,
-    Errors...>> : std::true_type {};
-
-
-template <
-  typename K,
-  typename Context,
-  typename Start,
-  typename Body,
-  typename Ended,
-  typename Fail,
-  typename Stop,
-  typename Interrupt,
-  typename Value,
-  typename... Errors>
-struct IsContinuation<
-  detail::Loop<
-    K,
-    Context,
-    Start,
-    Body,
-    Ended,
-    Fail,
-    Stop,
-    Interrupt,
-    Value,
-    Errors...>> : std::true_type {};
-
-
-template <typename>
-struct HasLoop : std::false_type {};
-
-
-template <
-  typename K,
-  typename Context,
-  typename Start,
-  typename Body,
-  typename Ended,
-  typename Fail,
-  typename Stop,
-  typename Interrupt,
-  typename Value,
-  typename... Errors>
-struct HasLoop<
-  detail::Loop<
-    K,
-    Context,
-    Start,
-    Body,
-    Ended,
-    Fail,
-    Stop,
-    Interrupt,
-    Value,
-    Errors...>> : std::true_type {};
-
-
-template <
-  typename K,
-  typename Context,
-  typename Start,
-  typename Body,
-  typename Ended,
-  typename Fail,
-  typename Stop,
-  typename Interrupt,
-  typename Value,
-  typename... Errors>
-struct HasTerminal<
-  detail::Loop<
-    K,
-    Context,
-    Start,
-    Body,
-    Ended,
-    Fail,
-    Stop,
-    Interrupt,
-    Value,
-    Errors...>> : HasTerminal<K> {};
-
-
 ////////////////////////////////////////////////////////////////////////
-
-template <
-  typename Context,
-  typename Start,
-  typename Body,
-  typename Ended,
-  typename Fail,
-  typename Stop,
-  typename Interrupt,
-  typename Value,
-  typename... Errors>
-struct Compose<
-  detail::LoopBuilder<
-    Context,
-    Start,
-    Body,
-    Ended,
-    Fail,
-    Stop,
-    Interrupt,
-    Value,
-    Errors...>>
-{
-  template <typename Arg>
-  static auto compose(
-      detail::LoopBuilder<
-      Context,
-      Start,
-      Body,
-      Ended,
-      Fail,
-      Stop,
-      Interrupt,
-      Value,
-      Errors...> builder)
-  {
-    return detail::Loop<
-      Undefined,
-      Context,
-      Start,
-      Body,
-      Ended,
-      Fail,
-      Stop,
-      Interrupt,
-      Value,
-      Errors...> {
-      Undefined(),
-      std::move(builder.context_),
-      std::move(builder.start_),
-      std::move(builder.body_),
-      std::move(builder.ended_),
-      std::move(builder.fail_),
-      std::move(builder.stop_),
-      std::move(builder.interrupt_)
-    };
-  }
-};
-
-////////////////////////////////////////////////////////////////////////
-
-
 
 template <typename Value, typename... Errors>
 auto Loop()
@@ -629,38 +355,19 @@ auto Loop()
     Undefined,
     Undefined,
     Value,
-    Errors...> {
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined()
-  };
+    Errors...> {};
 }
 
+////////////////////////////////////////////////////////////////////////
 
 inline auto Loop()
 {
-  return detail::LoopBuilder<
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined> {
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined()
-  };
+  return Loop<void>();
 }
+
+////////////////////////////////////////////////////////////////////////
 
 } // namespace eventuals {
 } // namespace stout {
+
+////////////////////////////////////////////////////////////////////////

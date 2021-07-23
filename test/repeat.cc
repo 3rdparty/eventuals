@@ -1,133 +1,96 @@
-#include <deque>
-#include <thread>
-
 #include "gmock/gmock.h"
 
 #include "gtest/gtest.h"
 
 #include "stout/lambda.h"
 #include "stout/lock.h"
+#include "stout/loop.h"
 #include "stout/map.h"
+#include "stout/reduce.h"
 #include "stout/repeat.h"
-#include "stout/task.h"
-#include "stout/transform.h"
+#include "stout/terminal.h"
+#include "stout/then.h"
 #include "stout/until.h"
 
 namespace eventuals = stout::eventuals;
 
-using std::deque;
-using std::string;
-
 using stout::eventuals::Acquire;
-using stout::eventuals::done;
 using stout::eventuals::Eventual;
-using stout::eventuals::fail;
 using stout::eventuals::Interrupt;
 using stout::eventuals::Lambda;
 using stout::eventuals::Lock;
 using stout::eventuals::Loop;
 using stout::eventuals::Map;
-using stout::eventuals::next;
+using stout::eventuals::Reduce;
 using stout::eventuals::Release;
 using stout::eventuals::Repeat;
-using stout::eventuals::stop;
-using stout::eventuals::succeed;
 using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 using stout::eventuals::Until;
 using stout::eventuals::Wait;
-
-using stout::eventuals::FailedException;
-using stout::eventuals::StoppedException;
 
 using testing::MockFunction;
 
 TEST(RepeatTest, Succeed)
 {
-  auto e = [](auto s) {
-    return Eventual<string>()
-      .context(std::move(s))
-      .start([](auto& s, auto& k) {
-        succeed(k, std::move(s));
+  auto e = [](auto i) {
+    return Eventual<int>()
+      .context(i)
+      .start([](auto& i, auto& k) {
+        eventuals::succeed(k, std::move(i));
       });
   };
 
   auto r = [&]() {
-    return Eventual<deque<string>>()
-      .start([](auto& k) {
-        auto thread = std::thread(
-            [&k]() mutable {
-              succeed(k, deque<string> { "hello", "world" });
+    return Repeat(Lambda([i = 0]() mutable { return i++; }))
+      | Until(Lambda([](auto& i) {
+        return i == 5;
+      }))
+      | Map(Then([&](auto&& i) {
+        return e(i);
+      }))
+      | Reduce(
+          /* sum = */ 0,
+          [](auto& sum) {
+            return Lambda([&](auto&& i) {
+              sum += i;
+              return true;
             });
-        thread.detach();
-      })
-      | Repeat()
-      | Until([](auto& strings) {
-        return strings.empty();
-      })
-      | Map([&](auto&& strings) {
-        auto s = std::move(strings.front());
-        strings.pop_front();
-        return e(std::move(s));
-      })
-      | (Loop<deque<string>>()
-         .context(deque<string>())
-         .body([](auto& results, auto& repeated, auto&& result) {
-           results.push_back(result);
-           next(repeated);
-         })
-         .ended([](auto& results, auto& k) {
-           succeed(k, std::move(results));
-         }));
+          });
   };
 
-  auto results = *r();
-
-  ASSERT_EQ(2, results.size());
-
-  EXPECT_EQ("hello", results[0]);
-  EXPECT_EQ("world", results[1]);
+  EXPECT_EQ(10, *r());
 }
 
 
 TEST(RepeatTest, Fail)
 {
   auto e = [](auto) {
-    return Eventual<string>()
+    return Eventual<int>()
       .start([](auto& k) {
-        fail(k, "error");
+        eventuals::fail(k, "error");
       });
   };
 
   auto r = [&]() {
-    return Eventual<deque<string>>()
-      .start([](auto& k) {
-        auto thread = std::thread(
-            [&k]() mutable {
-              succeed(k, deque<string> { "hello", "world" });
+    return Repeat(Lambda([i = 0]() mutable { return i++; }))
+      | Until(Lambda([](auto& i) {
+        return i == 5;
+      }))
+      | Map(Then([&](auto&& i) {
+        return e(i);
+      }))
+      | Reduce(
+          /* sum = */ 0,
+          [](auto& sum) {
+            return Lambda([&](auto&& i) {
+              sum += i;
+              return true;
             });
-        thread.detach();
-      })
-      | Repeat()
-      | Until([](auto& strings) {
-        return strings.empty();
-      })
-      | Map([&](auto&& strings) {
-        auto s = std::move(strings.front());
-        strings.pop_front();
-        return e(std::move(s));
-      })
-      | (Loop<deque<string>>()
-         .context(deque<string>())
-         .body([](auto& results, auto& repeated, auto&& result) {
-           results.push_back(result);
-           next(repeated);
-         })
-         .ended([](auto& results, auto& k) {
-           succeed(k, std::move(results));
-         }));
+          });
   };
 
-  EXPECT_THROW(*r(), FailedException);
+  EXPECT_THROW(*r(), eventuals::FailedException);
 }
 
 
@@ -137,58 +100,47 @@ TEST(RepeatTest, Interrupt)
   MockFunction<void()> start;
 
   auto e = [&](auto s) {
-    return Eventual<string>()
+    return Eventual<int>()
       .start([&](auto& k) {
         start.Call();
       })
       .interrupt([](auto& k) {
-        stop(k);
+        eventuals::stop(k);
       });
   };
 
   auto r = [&]() {
-    return Eventual<deque<string>>()
-      .start([](auto& k) {
-        auto thread = std::thread(
-            [&k]() mutable {
-              succeed(k, deque<string> { "hello", "world" });
+    return Repeat(Lambda([i = 0]() mutable { return i++; }))
+      | Until(Lambda([](auto& i) {
+        return i == 5;
+      }))
+      | Map(Then([&](auto&& i) {
+        return e(i);
+      }))
+      | Reduce(
+          /* sum = */ 0,
+          [](auto& sum) {
+            return Lambda([&](auto&& i) {
+              sum += i;
+              return true;
             });
-        thread.detach();
-      })
-      | Repeat()
-      | Until([](auto& strings) {
-        return strings.empty();
-      })
-      | Map([&](auto&& strings) {
-        auto s = std::move(strings.front());
-        strings.pop_front();
-        return e(std::move(s));
-      })
-      | (Loop<deque<string>>()
-         .context(deque<string>())
-         .body([](auto& results, auto& repeated, auto&& result) {
-           results.push_back(result);
-           next(repeated);
-         })
-         .ended([](auto& results, auto& k) {
-           succeed(k, std::move(results));
-         }));
+          });
   };
 
-  auto [future, t] = Terminate(r());
+  auto [future, k] = Terminate(r());
 
   Interrupt interrupt;
 
-  t.Register(interrupt);
+  k.Register(interrupt);
 
   EXPECT_CALL(start, Call())
     .WillOnce([&]() {
       interrupt.Trigger();
     });
 
-  t.Start();
+  eventuals::start(k);
 
-  EXPECT_THROW(future.get(), StoppedException);
+  EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
 
 
@@ -198,20 +150,20 @@ TEST(RepeatTest, Eventual)
     return Repeat(
         Eventual<int>()
         .start([](auto& k) {
-          succeed(k, 1);
+          eventuals::succeed(k, 1);
         }))
       | (Loop<int>()
          .context(0)
          .body([](auto&& count, auto& repeated, auto&& value) {
            count += value;
            if (count >= 5) {
-             done(repeated);
+             eventuals::done(repeated);
            } else {
-             next(repeated);
+             eventuals::next(repeated);
            }
          })
          .ended([](auto& count, auto& k) {
-           succeed(k, std::move(count));
+           eventuals::succeed(k, std::move(count));
          }));
   };
 
@@ -224,21 +176,21 @@ TEST(RepeatTest, Map)
   auto r = []() {
     return Repeat()
       | Map(Eventual<int>()
-        .start([](auto& k) {
-          succeed(k, 1);
-        }))
+            .start([](auto& k) {
+              eventuals::succeed(k, 1);
+            }))
       | (Loop<int>()
          .context(0)
          .body([](auto&& count, auto& repeated, auto&& value) {
            count += value;
            if (count >= 5) {
-             done(repeated);
+             eventuals::done(repeated);
            } else {
-             next(repeated);
+             eventuals::next(repeated);
            }
          })
          .ended([](auto& count, auto& k) {
-           succeed(k, std::move(count));
+           eventuals::succeed(k, std::move(count));
          }));
   };
 
@@ -254,30 +206,30 @@ TEST(RepeatTest, MapAcquire)
     return Repeat(
         Eventual<int>()
         .start([](auto& k) {
-          succeed(k, 1);
+          eventuals::succeed(k, 1);
         }))
       | Map(
-            Acquire(&lock)
-            | (Wait<int>(&lock)
-               .condition([](auto& k, auto&& i) {
-                 succeed(k, i);
-               }))
-            | Lambda([](auto&& i) {
-              return i;
-            })
-            | Release(&lock))
+          Acquire(&lock)
+          | (Wait<int>(&lock)
+             .condition([](auto& k, auto&& i) {
+               eventuals::succeed(k, i);
+             }))
+          | Lambda([](auto&& i) {
+            return i;
+          })
+          | Release(&lock))
       | (Loop<int>()
          .context(0)
          .body([](auto&& count, auto& repeated, auto&& value) {
            count += value;
            if (count >= 5) {
-             done(repeated);
+             eventuals::done(repeated);
            } else {
-             next(repeated);
+             eventuals::next(repeated);
            }
          })
          .ended([](auto& count, auto& k) {
-           succeed(k, std::move(count));
+           eventuals::succeed(k, std::move(count));
          }));
   };
 

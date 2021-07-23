@@ -2,7 +2,7 @@
 
 #include "glog/logging.h"
 
-#include "stout/continuation.h"
+#include "stout/compose.h"
 #include "stout/interrupt.h"
 #include "stout/terminal.h"
 #include "stout/undefined.h"
@@ -60,14 +60,6 @@ namespace eventuals {
 template <typename K>
 void start(K& k)
 {
-  static_assert(
-      HasTerminal<K>::value,
-      "Trying to start a continuation that never terminates!");
-
-  static_assert(
-      !IsUndefined<K>::value,
-      "You're starting a continuation that goes nowhere!");
-
   k.Start();
 }
 
@@ -76,10 +68,6 @@ void start(K& k)
 template <typename K, typename... Args>
 void succeed(K& k, Args&&... args)
 {
-  static_assert(
-      !IsUndefined<K>::value,
-      "You're starting a continuation that goes nowhere!");
-
   k.Start(std::forward<Args>(args)...);
 }
 
@@ -88,10 +76,6 @@ void succeed(K& k, Args&&... args)
 template <typename K, typename... Args>
 void fail(K& k, Args&&... args)
 {
-  static_assert(
-      !IsUndefined<K>::value,
-      "You're failing a continuation that goes nowhere!");
-
   k.Fail(std::forward<Args>(args)...);
 }
 
@@ -100,10 +84,6 @@ void fail(K& k, Args&&... args)
 template <typename K>
 void stop(K& k)
 {
-  static_assert(
-      !IsUndefined<K>::value,
-      "You're stopping a continuation that goes nowhere!");
-
   k.Stop();
 }
 
@@ -129,168 +109,18 @@ template <
   typename... Errors_>
 struct Eventual
 {
-  using Value = typename ValueFrom<K_, Value_>::type;
-
-  Eventual(const Eventual& that) = default;
   Eventual(Eventual&& that) = default;
 
-  Eventual& operator=(const Eventual& that) = default;
   Eventual& operator=(Eventual&& that)
   {
-    // TODO(benh): Change this to use 'swap' or investigate why the
-    // compiler needs us to define this in the first place and can't
-    // just resolve the move assignment operators for all the fields.
+    // TODO(benh): lambdas don't have an 'operator=()' until C++20 so
+    // we have to effectively do a "reset" and "emplace" (as though it
+    // was stored in a 'std::optional' but without the overhead of
+    // optionals everywhere).
     this->~Eventual();
     new(this) Eventual(std::move(that));
+
     return *this;
-  }
-
-  template <
-    typename Value,
-    typename... Errors,
-    typename K,
-    typename Context,
-    typename Start,
-    typename Fail,
-    typename Stop,
-    typename Interrupt>
-  static auto create(
-      K k,
-      Context context,
-      Start start,
-      Fail fail,
-      Stop stop,
-      Interrupt interrupt)
-  {
-    return Eventual<
-      K,
-      Context,
-      Start,
-      Fail,
-      Stop,
-      Interrupt,
-      Value,
-      Errors...> {
-      std::move(k),
-      std::move(context),
-      std::move(start),
-      std::move(fail),
-      std::move(stop),
-      std::move(interrupt)
-    };
-  }
-
-  template <
-    typename F,
-    std::enable_if_t<
-      !IsContinuation<F>::value, int> = 0>
-  auto k(F f) &&
-  {
-    // Handle non-eventuals that are *invocable*.
-    return std::move(*this)
-      | create<decltype(f(std::declval<Value>()))>(
-          Undefined(),
-          std::move(f),
-          [](auto& f, auto& k, auto&&... args) {
-            eventuals::succeed(k, f(std::forward<decltype(args)>(args)...));
-          },
-          [](auto&, auto& k, auto&&... args) {
-            eventuals::fail(k, std::forward<decltype(args)>(args)...);
-          },
-          [](auto&, auto& k) {
-            eventuals::stop(k);
-          },
-          Undefined());
-  }
-
-  template <
-    typename K,
-    std::enable_if_t<
-      IsContinuation<K>::value, int> = 0>
-  auto k(K k) &&
-  {
-    static_assert(
-        !IsTerminal<K>::value || !HasTerminal<K_>::value,
-        "Redundant 'Terminal'");
-
-    return create<Value_, Errors_...>(
-        [&]() {
-          if constexpr (!IsUndefined<K_>::value) {
-            return std::move(k_) | std::move(k);
-          } else {
-            return std::move(k);
-          }
-        }(),
-        std::move(context_),
-        std::move(start_),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Context>
-  auto context(Context context) &&
-  {
-    static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context),
-        std::move(start_),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Start>
-  auto start(Start start) &&
-  {
-    static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Fail>
-  auto fail(Fail fail) &&
-  {
-    static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(fail),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Stop>
-  auto stop(Stop stop) &&
-  {
-    static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(fail_),
-        std::move(stop),
-        std::move(interrupt_));
-  }
-
-  template <typename Interrupt>
-  auto interrupt(Interrupt interrupt) &&
-  {
-    static_assert(IsUndefined<Interrupt_>::value, "Duplicate 'interrupt'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt));
   }
 
   template <typename... Args>
@@ -359,7 +189,6 @@ struct Eventual
   }
 
   K_ k_;
-
   Context_ context_;
   Start_ start_;
   Fail_ fail_;
@@ -371,94 +200,153 @@ struct Eventual
 
 ////////////////////////////////////////////////////////////////////////
 
+template <
+  typename Context_,
+  typename Start_,
+  typename Fail_,
+  typename Stop_,
+  typename Interrupt_,
+  typename Value_,
+  typename... Errors_>
+struct EventualBuilder
+{
+  template <typename>
+  using ValueFrom = Value_;
+
+  template <
+    typename Value,
+    typename... Errors,
+    typename Context,
+    typename Start,
+    typename Fail,
+    typename Stop,
+    typename Interrupt>
+  static auto create(
+      Context context,
+      Start start,
+      Fail fail,
+      Stop stop,
+      Interrupt interrupt)
+  {
+    return EventualBuilder<
+      Context,
+      Start,
+      Fail,
+      Stop,
+      Interrupt,
+      Value,
+      Errors...> {
+      std::move(context),
+      std::move(start),
+      std::move(fail),
+      std::move(stop),
+      std::move(interrupt)
+    };
+  }
+
+  template <typename Arg, typename K>
+  auto k(K k) &&
+  {
+    return Eventual<
+      K,
+      Context_,
+      Start_,
+      Fail_,
+      Stop_,
+      Interrupt_,
+      Value_,
+      Errors_...> {
+      std::move(k),
+      std::move(context_),
+      std::move(start_),
+      std::move(fail_),
+      std::move(stop_),
+      std::move(interrupt_)
+    };
+  }
+
+  template <typename Context>
+  auto context(Context context) &&
+  {
+    static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
+    return create<Value_, Errors_...>(
+        std::move(context),
+        std::move(start_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Start>
+  auto start(Start start) &&
+  {
+    static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Fail>
+  auto fail(Fail fail) &&
+  {
+    static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(fail),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Stop>
+  auto stop(Stop stop) &&
+  {
+    static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(fail_),
+        std::move(stop),
+        std::move(interrupt_));
+  }
+
+  template <typename Interrupt>
+  auto interrupt(Interrupt interrupt) &&
+  {
+    static_assert(IsUndefined<Interrupt_>::value, "Duplicate 'interrupt'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt));
+  }
+
+  Context_ context_;
+  Start_ start_;
+  Fail_ fail_;
+  Stop_ stop_;
+  Interrupt_ interrupt_;
+};
+
 } // namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
-template <
-  typename K,
-  typename Context,
-  typename Start,
-  typename Fail,
-  typename Stop,
-  typename Interrupt,
-  typename Value,
-  typename... Errors>
-struct IsEventual<
-  detail::Eventual<
-    K,
-    Context,
-    Start,
-    Fail,
-    Stop,
-    Interrupt,
-    Value,
-    Errors...>> : std::true_type {};
-
-////////////////////////////////////////////////////////////////////////
-
-template <
-  typename K,
-  typename Context,
-  typename Start,
-  typename Fail,
-  typename Stop,
-  typename Interrupt,
-  typename Value,
-  typename... Errors>
-struct IsContinuation<
-  detail::Eventual<
-    K,
-    Context,
-    Start,
-    Fail,
-    Stop,
-    Interrupt,
-    Value,
-    Errors...>> : std::true_type {};
-
-////////////////////////////////////////////////////////////////////////
-
-template <
-  typename K,
-  typename Context,
-  typename Start,
-  typename Fail,
-  typename Stop,
-  typename Interrupt,
-  typename Value,
-  typename... Errors>
-struct HasTerminal<
-  detail::Eventual<
-    K,
-    Context,
-    Start,
-    Fail,
-    Stop,
-    Interrupt,
-    Value,
-    Errors...>> : HasTerminal<K> {};
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Value, typename... Errors>
 auto Eventual()
 {
-  return detail::Eventual<
-    Undefined,
+  return detail::EventualBuilder<
     Undefined,
     Undefined,
     Undefined,
     Undefined,
     Undefined,
     Value,
-    Errors...> {
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined()
-  };
+    Errors...> {};
 }
 
 ////////////////////////////////////////////////////////////////////////

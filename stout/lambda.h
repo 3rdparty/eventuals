@@ -1,53 +1,21 @@
 #pragma once
 
 #include "stout/eventual.h"
-#include "stout/invoke-result.h"
+
+////////////////////////////////////////////////////////////////////////
 
 namespace stout {
 namespace eventuals {
 
+////////////////////////////////////////////////////////////////////////
+
 namespace detail {
 
-template <typename K_, typename F_, typename Arg_>
+////////////////////////////////////////////////////////////////////////
+
+template <typename K_, typename F_>
 struct Lambda
 {
-  using Value_ = typename InvokeResultPossiblyUndefined<F_, Arg_>::type;
-  using Value = typename ValueFrom<K_, Value_>::type;
-
-  Lambda(K_ k, F_ f) : k_(std::move(k)), f_(std::move(f)) {}
-
-  template <typename Arg, typename K, typename F>
-  static auto create(K k, F f)
-  {
-    return Lambda<K, F, Arg>(std::move(k), std::move(f));
-  }
-
-  template <
-    typename K,
-    std::enable_if_t<
-      IsContinuation<K>::value, int> = 0>
-  auto k(K k) &&
-  {
-    return create<Arg_>(
-        [&]() {
-          if constexpr (!IsUndefined<K_>::value) {
-            return std::move(k_) | std::move(k);
-          } else {
-            return std::move(k);
-          }
-        }(),
-        std::move(f_));
-  }
-
-  template <
-    typename F,
-    std::enable_if_t<
-      !IsContinuation<F>::value, int> = 0>
-  auto k(F f) &&
-  {
-    return std::move(*this) | create(Undefined(), std::move(f));
-  }
-
   template <typename... Args>
   void Start(Args&&... args)
   {
@@ -71,46 +39,39 @@ struct Lambda
   }
 
   K_ k_;
+  F_ f_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename F_>
+struct LambdaComposable
+{
+  template <typename Arg>
+  using ValueFrom = typename std::conditional_t<
+    std::is_void_v<Arg>,
+    std::invoke_result<F_>,
+    std::invoke_result<F_, Arg>>::type;
+
+  template <typename Arg, typename K>
+  auto k(K k) &&
+  {
+    return Lambda<K, F_> { std::move(k), std::move(f_) };
+  }
 
   F_ f_;
 };
 
+////////////////////////////////////////////////////////////////////////
+
 } // namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K, typename F, typename Arg>
-struct IsContinuation<
-  detail::Lambda<K, F, Arg>> : std::true_type {};
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K, typename F, typename Arg>
-struct HasTerminal<
-  detail::Lambda<K, F, Arg>> : HasTerminal<K> {};
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K, typename F, typename Arg_>
-struct Compose<detail::Lambda<K, F, Arg_>>
-{
-  template <typename Value>
-  static auto compose(detail::Lambda<K, F, Arg_> lambda)
-  {
-    using Result = typename InvokeResultPossiblyUndefined<F, Value>::type;
-    auto k = eventuals::compose<Result>(std::move(lambda.k_));
-    return detail::Lambda<decltype(k), F, Value>(
-        std::move(k),
-        std::move(lambda.f_));
-  }
-};
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
 auto Lambda(F f)
 {
-  return detail::Lambda<Undefined, F, Undefined>(Undefined(), std::move(f));
+  return detail::LambdaComposable<F> { std::move(f) };
 }
 
 ////////////////////////////////////////////////////////////////////////
