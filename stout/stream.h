@@ -119,6 +119,24 @@ struct Stream
 
   std::optional<Interrupt::Handler> handler_;
 
+  Stream(
+      K_ k,
+      Context_ context,
+      Start_ start,
+      Next_ next,
+      Done_ done,
+      Fail_ fail,
+      Stop_ stop,
+      Interrupt_ interrupt)
+    : k_(std::move(k)),
+      context_(std::move(context)),
+      start_(std::move(start)),
+      next_(std::move(next)),
+      done_(std::move(done)),
+      fail_(std::move(fail)),
+      stop_(std::move(stop)),
+      interrupt_(std::move(interrupt)) {}
+
   Stream(const Stream& that) = default;
   Stream(Stream&& that) = default;
 
@@ -164,16 +182,15 @@ struct Stream
       Stop,
       Interrupt,
       Value,
-      Errors...> {
-      std::move(k),
-      std::move(context),
-      std::move(start),
-      std::move(next),
-      std::move(done),
-      std::move(fail),
-      std::move(stop),
-      std::move(interrupt)
-    };
+      Errors...>(
+          std::move(k),
+          std::move(context),
+          std::move(start),
+          std::move(next),
+          std::move(done),
+          std::move(fail),
+          std::move(stop),
+          std::move(interrupt));
   }
 
   template <
@@ -261,111 +278,6 @@ struct Stream
     return std::move(*this) | eventuals::Map(eventuals::Lambda(std::move(f)));
   }
 
-  template <typename Context>
-  auto context(Context context) &&
-  {
-    static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context),
-        std::move(start_),
-        std::move(next_),
-        std::move(done_),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Start>
-  auto start(Start start) &&
-  {
-    static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start),
-        std::move(next_),
-        std::move(done_),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Next>
-  auto next(Next next) &&
-  {
-    static_assert(IsUndefined<Next_>::value, "Duplicate 'next'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(next),
-        std::move(done_),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Done>
-  auto done(Done done) &&
-  {
-    static_assert(IsUndefined<Done_>::value, "Duplicate 'done'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(next_),
-        std::move(done),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Fail>
-  auto fail(Fail fail) &&
-  {
-    static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(next_),
-        std::move(done_),
-        std::move(fail),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Stop>
-  auto stop(Stop stop) &&
-  {
-    static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(next_),
-        std::move(done_),
-        std::move(fail_),
-        std::move(stop),
-        std::move(interrupt_));
-  }
-
-  template <typename Interrupt>
-  auto interrupt(Interrupt interrupt) &&
-  {
-    static_assert(IsUndefined<Interrupt_>::value, "Duplicate 'interrupt'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(next_),
-        std::move(done_),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt));
-  }
-
   template <typename... Args>
   void Start(Args&&... args)
   {
@@ -447,16 +359,226 @@ struct Stream
 
   void Done()
   {
-    static_assert(
-        !IsUndefined<Done_>::value,
-        "Undefined 'done' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
+    if constexpr (IsUndefined<Done_>::value) {
+      eventuals::ended(k_);
+    } else if constexpr (IsUndefined<Context_>::value) {
       done_(streamk_);
     } else {
       done_(context_, streamk_);
     }
   }
+};
+
+
+template <
+  typename Context_,
+  typename Start_,
+  typename Next_,
+  typename Done_,
+  typename Fail_,
+  typename Stop_,
+  typename Interrupt_,
+  typename Value_,
+  typename... Errors_>
+struct StreamBuilder
+{
+  using Value = Value_;
+
+  StreamBuilder(
+      Context_ context,
+      Start_ start,
+      Next_ next,
+      Done_ done,
+      Fail_ fail,
+      Stop_ stop,
+      Interrupt_ interrupt)
+    : context_(std::move(context)),
+      start_(std::move(start)),
+      next_(std::move(next)),
+      done_(std::move(done)),
+      fail_(std::move(fail)),
+      stop_(std::move(stop)),
+      interrupt_(std::move(interrupt)) {}
+
+  template <
+    typename Value,
+    typename... Errors,
+    typename Context,
+    typename Start,
+    typename Next,
+    typename Done,
+    typename Fail,
+    typename Stop,
+    typename Interrupt>
+  static auto create(
+      Context context,
+      Start start,
+      Next next,
+      Done done,
+      Fail fail,
+      Stop stop,
+      Interrupt interrupt)
+  {
+    return StreamBuilder<
+      Context,
+      Start,
+      Next,
+      Done,
+      Fail,
+      Stop,
+      Interrupt,
+      Value,
+      Errors...>(
+          std::move(context),
+          std::move(start),
+          std::move(next),
+          std::move(done),
+          std::move(fail),
+          std::move(stop),
+          std::move(interrupt));
+  }
+
+  template <
+    typename K,
+    std::enable_if_t<
+      IsContinuation<K>::value, int> = 0>
+  auto k(K k) &&
+  {
+    return Stream<
+      K,
+      Context_,
+      Start_,
+      Next_,
+      Done_,
+      Fail_,
+      Stop_,
+      Interrupt_,
+      Value_,
+      Errors_...>(
+          std::move(k),
+          std::move(context_),
+          std::move(start_),
+          std::move(next_),
+          std::move(done_),
+          std::move(fail_),
+          std::move(stop_),
+          std::move(interrupt_));
+  }
+
+  template <
+    typename F,
+    std::enable_if_t<
+      !IsContinuation<F>::value, int> = 0>
+  auto k(F f) &&
+  {
+    return std::move(*this) | eventuals::Map(eventuals::Lambda(std::move(f)));
+  }
+
+  template <typename Context>
+  auto context(Context context) &&
+  {
+    static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
+    return create<Value_, Errors_...>(
+        std::move(context),
+        std::move(start_),
+        std::move(next_),
+        std::move(done_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Start>
+  auto start(Start start) &&
+  {
+    static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start),
+        std::move(next_),
+        std::move(done_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Next>
+  auto next(Next next) &&
+  {
+    static_assert(IsUndefined<Next_>::value, "Duplicate 'next'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(next),
+        std::move(done_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Done>
+  auto done(Done done) &&
+  {
+    static_assert(IsUndefined<Done_>::value, "Duplicate 'done'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(next_),
+        std::move(done),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Fail>
+  auto fail(Fail fail) &&
+  {
+    static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(next_),
+        std::move(done_),
+        std::move(fail),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Stop>
+  auto stop(Stop stop) &&
+  {
+    static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(next_),
+        std::move(done_),
+        std::move(fail_),
+        std::move(stop),
+        std::move(interrupt_));
+  }
+
+  template <typename Interrupt>
+  auto interrupt(Interrupt interrupt) &&
+  {
+    static_assert(IsUndefined<Interrupt_>::value, "Duplicate 'interrupt'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(next_),
+        std::move(done_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt));
+  }
+
+  Context_ context_;
+  Start_ start_;
+  Next_ next_;
+  Done_ done_;
+  Fail_ fail_;
+  Stop_ stop_;
+  Interrupt_ interrupt_;
 };
 
 } // namespace detail {
@@ -570,12 +692,12 @@ template <typename S, typename K>
 struct HasTerminal<
   detail::StreamK<S, K>> : HasTerminal<K> {};
 
+////////////////////////////////////////////////////////////////////////
 
 template <typename Value, typename... Errors>
 auto Stream()
 {
-  return detail::Stream<
-    Undefined,
+  return detail::StreamBuilder<
     Undefined,
     Undefined,
     Undefined,
@@ -584,16 +706,14 @@ auto Stream()
     Undefined,
     Undefined,
     Value,
-    Errors...> {
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined()
-  };
+    Errors...>(
+        Undefined(),
+        Undefined(),
+        Undefined(),
+        Undefined(),
+        Undefined(),
+        Undefined(),
+        Undefined());
 }
 
 } // namespace eventuals {
