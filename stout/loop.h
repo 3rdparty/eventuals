@@ -154,111 +154,6 @@ struct Loop
     return std::move(*this) | eventuals::Lambda(std::move(f));
   }
 
-  template <typename Context>
-  auto context(Context context) &&
-  {
-    static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context),
-        std::move(start_),
-        std::move(body_),
-        std::move(ended_),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Start>
-  auto start(Start start) &&
-  {
-    static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start),
-        std::move(body_),
-        std::move(ended_),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Body>
-  auto body(Body body) &&
-  {
-    static_assert(IsUndefined<Body_>::value, "Duplicate 'body'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(body),
-        std::move(ended_),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Ended>
-  auto ended(Ended ended) &&
-  {
-    static_assert(IsUndefined<Ended_>::value, "Duplicate 'ended'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(body_),
-        std::move(ended),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Fail>
-  auto fail(Fail fail) &&
-  {
-    static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(body_),
-        std::move(ended_),
-        std::move(fail),
-        std::move(stop_),
-        std::move(interrupt_));
-  }
-
-  template <typename Stop>
-  auto stop(Stop stop) &&
-  {
-    static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(body_),
-        std::move(ended_),
-        std::move(fail_),
-        std::move(stop),
-        std::move(interrupt_));
-  }
-
-  template <typename Interrupt>
-  auto interrupt(Interrupt interrupt) &&
-  {
-    static_assert(IsUndefined<Interrupt_>::value, "Duplicate 'interrupt'");
-    return create<Value_, Errors_...>(
-        std::move(k_),
-        std::move(context_),
-        std::move(start_),
-        std::move(body_),
-        std::move(ended_),
-        std::move(fail_),
-        std::move(stop_),
-        std::move(interrupt));
-  }
-
   template <typename K, typename... Args>
   void Start(K& k, Args&&... args)
   {
@@ -348,6 +243,203 @@ struct Loop
       ended_(context_, k_);
     }
   }
+};
+
+
+template <
+  typename Context_,
+  typename Start_,
+  typename Body_,
+  typename Ended_,
+  typename Fail_,
+  typename Stop_,
+  typename Interrupt_,
+  typename Value_,
+  typename... Errors_>
+struct LoopBuilder
+{
+  using Value = Value_;
+
+  template <
+    typename Value,
+    typename... Errors,
+    typename Context,
+    typename Start,
+    typename Body,
+    typename Ended,
+    typename Fail,
+    typename Stop,
+    typename Interrupt>
+  static auto create(
+      Context context,
+      Start start,
+      Body body,
+      Ended ended,
+      Fail fail,
+      Stop stop,
+      Interrupt interrupt)
+  {
+    return LoopBuilder<
+      Context,
+      Start,
+      Body,
+      Ended,
+      Fail,
+      Stop,
+      Interrupt,
+      Value,
+      Errors...> {
+      std::move(context),
+      std::move(start),
+      std::move(body),
+      std::move(ended),
+      std::move(fail),
+      std::move(stop),
+      std::move(interrupt),
+    };
+  }
+
+  template <
+    typename K,
+    std::enable_if_t<
+      IsContinuation<K>::value, int> = 0>
+  auto k(K k) &&
+  {
+    return Loop<
+      K,
+      Context_,
+      Start_,
+      Body_,
+      Ended_,
+      Fail_,
+      Stop_,
+      Interrupt_,
+      Value_,
+      Errors_...>(
+          std::move(k),
+          std::move(context_),
+          std::move(start_),
+          std::move(body_),
+          std::move(ended_),
+          std::move(fail_),
+          std::move(stop_),
+          std::move(interrupt_));
+  }
+
+  template <
+    typename F,
+    std::enable_if_t<
+      !IsContinuation<F>::value, int> = 0>
+  auto k(F f) &&
+  {
+    return std::move(*this) | eventuals::Lambda(std::move(f));
+  }
+
+  template <typename Context>
+  auto context(Context context) &&
+  {
+    static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
+    return create<Value_, Errors_...>(
+        std::move(context),
+        std::move(start_),
+        std::move(body_),
+        std::move(ended_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Start>
+  auto start(Start start) &&
+  {
+    static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start),
+        std::move(body_),
+        std::move(ended_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Body>
+  auto body(Body body) &&
+  {
+    static_assert(IsUndefined<Body_>::value, "Duplicate 'body'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(body),
+        std::move(ended_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Ended>
+  auto ended(Ended ended) &&
+  {
+    static_assert(IsUndefined<Ended_>::value, "Duplicate 'ended'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(body_),
+        std::move(ended),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Fail>
+  auto fail(Fail fail) &&
+  {
+    static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(body_),
+        std::move(ended_),
+        std::move(fail),
+        std::move(stop_),
+        std::move(interrupt_));
+  }
+
+  template <typename Stop>
+  auto stop(Stop stop) &&
+  {
+    static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(body_),
+        std::move(ended_),
+        std::move(fail_),
+        std::move(stop),
+        std::move(interrupt_));
+  }
+
+  template <typename Interrupt>
+  auto interrupt(Interrupt interrupt) &&
+  {
+    static_assert(IsUndefined<Interrupt_>::value, "Duplicate 'interrupt'");
+    return create<Value_, Errors_...>(
+        std::move(context_),
+        std::move(start_),
+        std::move(body_),
+        std::move(ended_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt));
+  }
+
+  Context_ context_;
+  Start_ start_;
+  Body_ body_;
+  Ended_ ended_;
+  Fail_ fail_;
+  Stop_ stop_;
+  Interrupt_ interrupt_;
 };
 
 } // namespace detail {
@@ -461,11 +553,74 @@ struct HasTerminal<
     Errors...>> : HasTerminal<K> {};
 
 
+////////////////////////////////////////////////////////////////////////
+
+template <
+  typename Context,
+  typename Start,
+  typename Body,
+  typename Ended,
+  typename Fail,
+  typename Stop,
+  typename Interrupt,
+  typename Value,
+  typename... Errors>
+struct Compose<
+  detail::LoopBuilder<
+    Context,
+    Start,
+    Body,
+    Ended,
+    Fail,
+    Stop,
+    Interrupt,
+    Value,
+    Errors...>>
+{
+  template <typename Arg>
+  static auto compose(
+      detail::LoopBuilder<
+      Context,
+      Start,
+      Body,
+      Ended,
+      Fail,
+      Stop,
+      Interrupt,
+      Value,
+      Errors...> builder)
+  {
+    return detail::Loop<
+      Undefined,
+      Context,
+      Start,
+      Body,
+      Ended,
+      Fail,
+      Stop,
+      Interrupt,
+      Value,
+      Errors...> {
+      Undefined(),
+      std::move(builder.context_),
+      std::move(builder.start_),
+      std::move(builder.body_),
+      std::move(builder.ended_),
+      std::move(builder.fail_),
+      std::move(builder.stop_),
+      std::move(builder.interrupt_)
+    };
+  }
+};
+
+////////////////////////////////////////////////////////////////////////
+
+
+
 template <typename Value, typename... Errors>
 auto Loop()
 {
-  return detail::Loop<
-    Undefined,
+  return detail::LoopBuilder<
     Undefined,
     Undefined,
     Undefined,
@@ -481,7 +636,6 @@ auto Loop()
     Undefined(),
     Undefined(),
     Undefined(),
-    Undefined(),
     Undefined()
   };
 }
@@ -489,8 +643,7 @@ auto Loop()
 
 inline auto Loop()
 {
-  return detail::Loop<
-    Undefined,
+  return detail::LoopBuilder<
     Undefined,
     Undefined,
     Undefined,
@@ -499,7 +652,6 @@ inline auto Loop()
     Undefined,
     Undefined,
     Undefined> {
-    Undefined(),
     Undefined(),
     Undefined(),
     Undefined(),
