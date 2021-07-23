@@ -35,6 +35,7 @@ cc_library(
     ],
     srcs = [
         "stout/scheduler.cc",
+        "stout/static-thread-pool.cc",
     ],
     deps = [
         "@com_github_google_glog//:glog",

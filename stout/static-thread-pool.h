@@ -5,10 +5,17 @@
 #include <thread>
 #include <vector>
 
+#include "stout/closure.h"
 #include "stout/just.h"
+#include "stout/lambda.h"
+#include "stout/lock.h"
+#include "stout/reduce.h"
+#include "stout/repeat.h"
 #include "stout/scheduler.h"
 #include "stout/semaphore.h"
+#include "stout/task.h"
 #include "stout/then.h"
+#include "stout/until.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -37,17 +44,24 @@ public:
     Requirements(Pinned pinned) : pinned(pinned) {}
 
     Pinned pinned;
+
+    bool preempt = false;
+
+    std::string name;
   };
 
-  struct Waiter
+  struct Waiter : public Scheduler::Context
   {
   public:
     Waiter(StaticThreadPool* pool, Requirements* requirements)
-      : pool_(pool), requirements_(requirements) {}
+      : Scheduler::Context { &requirements->name },
+        pool_(pool),
+        requirements_(requirements) {}
 
     auto* pool() { return pool_; }
     auto* requirements() { return requirements_; }
 
+    bool waiting = false;
     Callback<> callback;
     Waiter* next = nullptr;
 
@@ -62,8 +76,12 @@ public:
     Schedulable(Requirements requirements = Requirements())
       : requirements_(requirements) {}
 
+    virtual ~Schedulable() {}
+
     template <typename E>
     auto Schedule(E e);
+
+    auto* requirements() { return &requirements_; }
 
   private:
     Requirements requirements_;
@@ -87,54 +105,24 @@ public:
 
   ~StaticThreadPool();
 
-  void Submit(Callback<> callback, void* context, bool defer = true) override
-  {
-    assert(context != nullptr);
-
-    auto* waiter = static_cast<Waiter*>(context);
-
-    auto& pinned = waiter->requirements()->pinned;
-
-    if (!pinned.core) {
-      pinned.core = 0;
-    }
-
-    unsigned int core = pinned.core.value();
-
-    assert(core < concurrency);
-
-    if (!defer && StaticThreadPool::member && StaticThreadPool::core == core) {
-      callback();
-    } else {
-      waiter->callback = std::move(callback);
-
-      auto* head = heads_[core];
-
-      waiter->next = head->load(std::memory_order_relaxed);
-
-      while (!head->compare_exchange_weak(
-                 waiter->next, waiter,
-                 std::memory_order_release,
-                 std::memory_order_relaxed));
-
-      auto* semaphore = semaphores_[core];
-
-      semaphore->Signal();
-    }
-  }
+  void Submit(Callback<> callback, Context* context, bool defer = true) override;
 
   template <typename T>
   auto Schedule(Requirements* requirements, T t);
 
+  template <typename F>
+  auto Parallel(F f);
+
 private:
-  // NOTE: in case there is a future debate on why we use semaphore vs
-  // something like eventfd for "signalling" the thread see
-  // https://stackoverflow.com/q/9826919
+  // NOTE: we use a semaphore instead of something like eventfd for
+  // "signalling" the thread because it should be faster/less overhead
+  // in the kernel: https://stackoverflow.com/q/9826919
   std::vector<Semaphore*> semaphores_;
   std::vector<std::atomic<Waiter*>*> heads_;
   std::deque<Semaphore> ready_;
   std::vector<std::thread> threads_;
   std::atomic<bool> shutdown_ = false;
+  size_t next_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -146,8 +134,7 @@ namespace detail {
 template <typename K_, typename E_, typename Arg_>
 struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
 {
-  using Value = typename ValueFrom<K_, typename E_::Value>::type;
-
+  // NOTE: explicit constructor because inheriting 'StaticThreadPool::Waiter'.
   StaticThreadPoolSchedule(
       K_ k,
       StaticThreadPool* pool,
@@ -157,57 +144,14 @@ struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
       k_(std::move(k)),
       e_(std::move(e)) {}
 
-  template <typename Arg, typename K, typename E>
-  static auto create(
-      K k,
-      StaticThreadPool* pool,
-      StaticThreadPool::Requirements* requirements,
-      E e)
-  {
-    return StaticThreadPoolSchedule<K, E, Arg>(
-        std::move(k),
-        pool,
-        requirements,
-        std::move(e));
-  }
-
-  template <
-    typename K,
-    std::enable_if_t<
-      IsContinuation<K>::value, int> = 0>
-  auto k(K k) &&
-  {
-    return create<Arg_>(
-        [&]() {
-          if constexpr (!IsUndefined<K_>::value) {
-            return std::move(k_) | std::move(k);
-          } else {
-            return std::move(k);
-          }
-        }(),
-        pool(),
-        requirements(),
-        std::move(e_));
-  }
-
-  template <
-    typename F,
-    std::enable_if_t<
-      !IsContinuation<F>::value, int> = 0>
-  auto k(F f) &&
-  {
-    return std::move(*this) | eventuals::Lambda(std::move(f));
-  }
-
   template <typename... Args>
   void Start(Args&&... args)
   {
-    // static_assert(std::is_invocable_v<decltype(f), decltype(args)...>);
+    static_assert(
+        !std::is_void_v<Arg_> || sizeof...(args) == 0,
+        "'Schedule' only supports 0 or 1 argument");
 
-    // static_assert(IsContinuation<decltype(f(args...))>::value);
-
-    static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
-                  "Schedule only supports 0 or 1 argument, but found > 1");
+    STOUT_EVENTUALS_LOG(1) << "Scheduling '" << name() << "'";
 
     auto& pinned = requirements()->pinned;
 
@@ -222,17 +166,26 @@ struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
     assert(pinned.core);
 
     if (!(*pinned.core < pool()->concurrency)) {
-      eventuals::fail(k_, "Required core is > total cores");
+      eventuals::fail(k_, "'" + name() + "' required core is > total cores");
     } else {
       // Save parent scheduler/context (even if it's us).
-      scheduler_ = Scheduler::Get(&context_);
+      // if (scheduler_ == nullptr) {
+        scheduler_ = Scheduler::Get(&context_);
+      // } else {
+      //   Context* context = nullptr;
+      //   auto* scheduler = Scheduler::Get(&context);
+      //   CHECK(scheduler_ == scheduler);
+      //   CHECK(context_ == context);
+      // }
 
       if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
         AdaptAndStart(std::forward<Args>(args)...);
       } else {
-        if constexpr (sizeof...(args) > 0) {
+        if constexpr (!std::is_void_v<Arg_>) {
           arg_.emplace(std::forward<Args>(args)...);
         }
+
+        STOUT_EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
 
         pool()->Submit(
             [this]() {
@@ -302,18 +255,12 @@ struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
           // actually be *faster* because the memory should have
           // better locality for the execution resource being used
           // (i.e., a local NUMA node). However, we should reconsider
-          // this design decision if in practice the performance
-          // tradeoff does not emperically appear to be a benfit.
+          // this design decision if in practice this performance
+          // tradeoff is not emperically a benefit.
           new Adaptor_(
-              std::move(e_)
-              | scheduler_->Reschedule(context_)
-              | Adaptor<K_, typename E_::Value>(
-                  k_,
-                  [](auto& k_, auto&&... values) {
-                    eventuals::succeed(
-                        k_,
-                        std::forward<decltype(values)>(values)...);
-                  })));
+              std::move(e_).template k<Arg_>(
+                  scheduler_->Reschedule(context_).template k<Value_>(
+                      ThenAdaptor<K_> { k_}))));
 
       if (interrupt_ != nullptr) {
         adaptor_->Register(*interrupt_);
@@ -325,21 +272,156 @@ struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
 
   K_ k_;
   E_ e_;
-  std::optional<Arg_> arg_;
+
+  std::optional<
+    std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>> arg_;
 
   Interrupt* interrupt_ = nullptr;
 
   // Parent scheduler/context.
   Scheduler* scheduler_ = nullptr;
-  void* context_ = nullptr;
+  Context* context_ = nullptr;
 
-  using Adaptor_ = typename EKPossiblyUndefined<
-    E_,
-    typename EKPossiblyUndefined<
-      decltype(scheduler_->Reschedule(context_)),
-      Adaptor<K_, typename E_::Value>>::type>::type;
+  using Value_ = typename E_::template ValueFrom<Arg_>;
+
+  using Reschedule_ = decltype(scheduler_->Reschedule(context_));
+
+  using Adaptor_ = decltype(
+      std::declval<E_>().template k<Arg_>(
+          std::declval<Reschedule_>().template k<Value_>(
+              std::declval<ThenAdaptor<K_>>())));
 
   std::unique_ptr<Adaptor_> adaptor_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename E_>
+struct StaticThreadPoolScheduleComposable
+{
+  template <typename Arg>
+  using ValueFrom = typename E_::template ValueFrom<Arg>;
+
+  template <typename Arg, typename K>
+  auto k(K k) &&
+  {
+    return StaticThreadPoolSchedule<K, E_, Arg>(
+        std::move(k),
+        pool_,
+        requirements_,
+        std::move(e_));
+  }
+
+  StaticThreadPool* pool_;
+  StaticThreadPool::Requirements* requirements_;
+  E_ e_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename K_, typename Parallel_, typename Ended_>
+struct StaticThreadPoolParallelAdaptor : public TypeErasedStream
+{
+  // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
+  StaticThreadPoolParallelAdaptor(
+      K_ k,
+      Parallel_* parallel,
+      Ended_ ended)
+    : k_(std::move(k)),
+      parallel_(parallel),
+      ended_(std::move(ended)) {}
+
+  // NOTE: explicit move-constructor because of 'std::once_flag'.
+  StaticThreadPoolParallelAdaptor(StaticThreadPoolParallelAdaptor&& that)
+    : k_(std::move(that.k_)),
+      parallel_(that.parallel_),
+      ended_(std::move(that.ended_)) {}
+
+  template <typename... Args>
+  void Start(TypeErasedStream& stream, Args&&... args)
+  {
+    stream_ = &stream;
+
+    parallel_->Start();
+
+    eventuals::succeed(k_, *this, std::forward<Args>(args)...);
+  }
+
+  template <typename... Args>
+  void Fail(Args&&... args)
+  {
+    eventuals::fail(k_, std::forward<Args>(args)...);
+  }
+
+  void Stop()
+  {
+    eventuals::stop(k_);
+  }
+
+  template <typename K>
+  void Body(K& k, bool next)
+  {
+    CHECK(next);
+
+    eventuals::next(*CHECK_NOTNULL(stream_));
+  }
+
+  void Ended()
+  {
+    eventuals::start(ended_);
+  }
+
+  void Next() override
+  {
+    // NOTE: we go "down" into egress before going "up" into ingress
+    // in order to properly set up 'egress_' so that it can be used to
+    // notify once workers start processing (which they can't do until
+    // ingress has started which won't occur until calling 'next(stream_)').
+    eventuals::body(k_);
+
+    std::call_once(next_, [this]() {
+      eventuals::next(*CHECK_NOTNULL(stream_));
+    });
+  }
+
+  void Done() override
+  {
+    eventuals::ended(k_);
+  }
+
+  void Register(Interrupt& interrupt)
+  {
+    k_.Register(interrupt);
+  }
+
+  K_ k_;
+  Parallel_* parallel_;
+  Ended_ ended_;
+
+  TypeErasedStream* stream_ = nullptr;
+
+  std::once_flag next_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Parallel_, typename Ended_>
+struct StaticThreadPoolParallelAdaptorComposable
+{
+  template <typename Arg>
+  using ValueFrom = void;
+
+  template <typename Arg, typename K>
+  auto k(K k) &&
+  {
+    return StaticThreadPoolParallelAdaptor<K, Parallel_, Ended_>(
+        std::move(k),
+        parallel_,
+        std::move(ended_));
+  }
+
+  Parallel_* parallel_;
+  Ended_ ended_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -348,134 +430,317 @@ struct StaticThreadPoolSchedule : public StaticThreadPool::Waiter
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K, typename E, typename Arg>
-struct IsContinuation<
-  detail::StaticThreadPoolSchedule<K, E, Arg>> : std::true_type {};
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K, typename E, typename Arg>
-struct HasTerminal<
-  detail::StaticThreadPoolSchedule<K, E, Arg>> : HasTerminal<K> {};
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K_, typename E_, typename Arg_>
-struct Compose<detail::StaticThreadPoolSchedule<K_, E_, Arg_>>
+template <typename Parallel, typename Ended>
+auto StaticThreadPoolParallelAdaptor(Parallel* parallel, Ended ended)
 {
-  template <typename Arg>
-  static auto compose(detail::StaticThreadPoolSchedule<K_, E_, Arg_> schedule)
+  return detail::StaticThreadPoolParallelAdaptorComposable<Parallel, Ended> {
+    parallel,
+    std::move(ended)
+  };
+}
+
+////////////////////////////////////////////////////////////////////////
+
+namespace detail {
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename F_, typename Arg_>
+struct StaticThreadPoolParallel : public Synchronizable
+{
+  StaticThreadPoolParallel(F_ f)
+    : Synchronizable(&lock_),
+      f_(std::move(f)) {}
+
+  StaticThreadPoolParallel(StaticThreadPoolParallel&& that)
+    : Synchronizable(&lock_),
+      f_(std::move(that.f_)) {}
+
+  ~StaticThreadPoolParallel()
   {
-    auto e = eventuals::compose<Arg>(std::move(schedule.e_));
-    using E = decltype(e);
-    auto k = eventuals::compose<typename E::Value>(std::move(schedule.k_));
-    using K = decltype(k);
-    return detail::StaticThreadPoolSchedule<K, E, Arg>(
-        std::move(k),
-        schedule.pool(),
-        schedule.requirements(),
-        std::move(e));
+    for (auto* worker : workers_) {
+      while (!worker->done.load()) {
+        // TODO(benh): donate this thread in case it needs to be used
+        // to resume/run a worker?
+      }
+      delete worker;
+    }
   }
+
+  void Start()
+  {
+    // Add all workers to 'workers_' *before* starting them so that
+    // 'workers_' remains read-only.
+    auto concurrency = StaticThreadPool::Scheduler().concurrency;
+    workers_.reserve(concurrency);
+    for (size_t core = 0; core < concurrency; core++) {
+      workers_.emplace_back(new Worker(core));
+    }
+
+    for (auto* worker : workers_) {
+      worker->task.emplace(
+          worker,
+          [this](auto* worker) {
+
+            // TODO(benh): allocate 'arg' and store the pointer to it
+            // so 'ingress' can use it for each item off the stream.
+
+            return eventuals::Acquire(&lock_)
+              | eventuals::Repeat(
+                  Wait<Arg_>().condition([this, worker](auto& k) mutable {
+                    CHECK(Scheduler::Verify(worker));
+                    if (!worker->started) {
+                      // Overwrite 'notify' so that we'll get
+                      // signalled properly. Initially 'notify' does
+                      // nothing so that it can get called on ingress
+                      // even before the worker has started.
+                      worker->notify = [&k]() {
+                        eventuals::notify(k);
+                      };
+                      worker->started = true;
+                    }
+
+                    if (ended_) {
+                      eventuals::stop(k);
+                    } else if (!worker->arg) {
+                      worker->waiting = true;
+                      eventuals::wait(k);
+
+                      if (++idle_ == 1) {
+                        assert(ingress_);
+                        ingress_();
+                      }
+
+                    } else {
+                      worker->waiting = false;
+                      eventuals::succeed(k, std::move(*worker->arg));
+                    }
+                  })
+                  | eventuals::Release(&lock_))
+              | f_()
+              // TODO(benh): 'Until()', 'Map()', 'Loop()' here vs 'Reduce()'?
+              | eventuals::Reduce(
+                  0,
+                  [this, worker](auto&) {
+                    return eventuals::Acquire(&lock_)
+                      | eventuals::Lambda([this, worker](auto&&... args) {
+                        values_.emplace_back(std::forward<decltype(args)>(args)...);
+
+                        assert(egress_);
+                        egress_();
+
+                        worker->arg.reset();
+                        busy_--;
+
+                        return true;
+                      });
+                  })
+              | (eventuals::Eventual<int>()
+                 .start([worker](auto&&...) {
+                   // handle done, the only way we got here is if 'f_()' did a 'done()'
+                   worker->done.store(true);
+                 })
+                 .fail([worker](auto&&...) {
+                   // handle done, the only way we got here is if 'f_()' did a 'done()'
+                   worker->done.store(true);
+                 })
+                 .stop([worker](auto&&...) {
+                   // handle done, the only way we got here is if 'f_()' did a 'done()'
+                   worker->done.store(true);
+                 }));
+          });
+
+      StaticThreadPool::Scheduler().Submit(
+          [worker]() {
+            assert(worker->task);
+            worker->task->Start(
+                worker->interrupt,
+                [](auto&&... args) {},
+                [](std::exception_ptr) {},
+                []() {});
+          },
+          worker);
+    }
+  }
+
+  StaticThreadPool::Requirements ingress_requirements_;
+
+  auto Ingress()
+  {
+    ingress_requirements_.preempt = true;
+    ingress_requirements_.name = "ingress";
+    return eventuals::Map(
+        StaticThreadPool::Scheduler().Schedule( // TODO(benh): Preempt() which should not cause the parent scheduler to be 'rescheduled' after executing because there isn't anything to reschedule (it just falls through instead).
+            &ingress_requirements_,
+            Synchronized(
+                // Wait([this](auto notify) {
+                //   ingress_ = notify;
+                //   return [this]() {
+                //     return idle_ == 0 ...;
+                //   };
+                // })
+                Wait<bool>().condition([this](auto& k, auto&&... args) mutable {
+                  if (!started_) {
+                    ingress_ = [&k]() {
+                      eventuals::notify(k);
+                    };
+                    started_ = false;
+                  }
+
+                  CHECK(!ended_);
+
+                  if (idle_ == 0) {
+                    return eventuals::wait(k);
+                  } else {
+                    bool assigned = false;
+                    for (auto* worker : workers_) {
+                      if (worker->waiting && !worker->arg) {
+                        worker->arg.emplace(std::forward<decltype(args)>(args)...);
+                        worker->notify();
+                        assigned = true;
+                        break;
+                      }
+                    }
+                    CHECK(assigned);
+
+                    idle_--;
+                    busy_++;
+
+                    eventuals::succeed(k, true);
+                  }
+                }))));
+  }
+
+  auto Egress()
+  {
+    // NOTE: we put 'Until' up here so that we don't have to copy any
+    // values which would be required if it was done after the 'Map'
+    // below (this pattern is an argumet for a 'While' construct or
+    // something similar).
+    return eventuals::Until(Synchronized(Wait<bool>().condition([this](auto& k) {
+      if (!egress_) {
+        egress_ = [&k]() {
+          eventuals::notify(k);
+        };
+      }
+
+      if (!values_.empty()) {
+        eventuals::succeed(k, false); // Not done.
+      } else if (busy_ > 0) {
+        eventuals::wait(k);
+      } else if (!ended_) {
+        eventuals::wait(k);
+      } else {
+        eventuals::succeed(k, true); // Done.
+      }
+    })))
+      | eventuals::Map(Synchronized(eventuals::Lambda([this]() {
+        CHECK(!values_.empty());
+        auto value = std::move(values_.front());
+        values_.pop_front();
+        // TODO(benh): use 'Eventual' to avoid extra moves?
+        return std::move(value);
+      })));
+  }
+
+  auto operator()()
+  {
+    return Ingress()
+      | eventuals::StaticThreadPoolParallelAdaptor(
+          this,
+          (Synchronized(eventuals::Then([this]() {
+            ended_ = true;
+            for (auto* worker : workers_) {
+              worker->notify();
+            }
+            egress_();
+            return Just();
+          }))
+            // | eventuals::Done())
+            | eventuals::Terminal().start([](){})).template k<void>())
+      | Egress();
+  }
+
+  F_ f_;
+
+  Lock lock_;
+
+  // TODO(benh): consider whether to use a list, deque, or vector?
+  // Currently using a deque assuming it'll give the best performance
+  // for the continuation that wants to iterate through each value,
+  // but some performance benchmarks should be used to evaluate.
+  using Value_ = typename decltype(f_())::template ValueFrom<Arg_>;
+  std::deque<Value_> values_;
+
+  // TODO(benh): consider allocating more of worker's fields by the
+  // worker itself and/or consider memory alignment of fields in order
+  // to limit cache lines bouncing around or false sharing.
+  struct Worker : StaticThreadPool::Waiter
+  {
+    Worker(size_t core)
+      : StaticThreadPool::Waiter(
+          &StaticThreadPool::Scheduler(),
+          &requirements)
+    {
+      requirements.name = "[worker " + std::to_string(core) + "]";
+    }
+
+    StaticThreadPool::Requirements requirements;
+    std::optional<Arg_> arg;
+    Callback<> notify = [](){}; // Initially a no-op so ingress can call.
+    std::optional<Task<int>::With<Worker*>> task;
+    Interrupt interrupt;
+    bool started = false;
+    bool waiting = true; // Initially true so ingress can copy to 'arg'.
+    std::atomic<bool> done = false;
+  };
+
+  std::vector<Worker*> workers_;
+
+  size_t idle_ = 0;
+  size_t busy_ = 0;
+
+  Callback<> ingress_ = [](){}; // Initially a no-op so workers can notify.
+
+  bool started_ = false;
+
+  Callback<> egress_;
+
+  bool ended_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-StaticThreadPool::StaticThreadPool()
-  : concurrency(std::thread::hardware_concurrency())
+template <typename F_>
+struct StaticThreadPoolParallelComposable
 {
-  semaphores_.reserve(concurrency);
-  heads_.reserve(concurrency);
-  threads_.reserve(concurrency);
-  for (size_t core = 0; core < concurrency; core++) {
-    semaphores_.emplace_back();
-    heads_.emplace_back();
-    ready_.emplace_back();
-    threads_.emplace_back(
-        [this, core]() {
-          StaticThreadPool::member = true;
-          StaticThreadPool::core = core;
+  template <typename Arg>
+  using ValueFrom = typename std::invoke_result_t<F_>::template ValueFrom<Arg>;
 
-          // NOTE: we store each 'semaphore' and 'head' in each thread
-          // so as to hopefully get less false sharing when other
-          // threads are trying to enqueue a waiter.
-          Semaphore semaphore;
-          std::atomic<Waiter*> head = nullptr;
-
-          semaphores_[core] = &semaphore;
-          heads_[core] = &head;
-
-          ready_[core].Signal();
-
-          do {
-            semaphore.Wait();
-
-          load:
-            auto* waiter = head.load(std::memory_order_relaxed);
-
-            if (waiter != nullptr) {
-              if (waiter->next == nullptr) {
-                if (!head.compare_exchange_weak(
-                        waiter, nullptr,
-                        std::memory_order_release,
-                        std::memory_order_relaxed)) {
-                  goto load; // Try again.
-                }
-              } else {
-                while (waiter->next->next != nullptr) {
-                  waiter = waiter->next;
-                }
-
-                assert(waiter->next != nullptr);
-
-                auto* next = waiter->next;
-                waiter->next = nullptr;
-                waiter = next;
-              }
-
-              assert(waiter->next == nullptr);
-
-              Scheduler::Set(this, waiter);
-              assert(waiter->callback);
-              waiter->callback();
-            }
-          } while (!shutdown_.load());
-        });
+  template <typename Arg, typename K>
+  auto k(K k) &&
+  {
+    return eventuals::Closure(StaticThreadPoolParallel<F_, Arg>(std::move(f_)))
+      .template k<Arg>(std::move(k));
   }
 
-  for (size_t core = 0; core < concurrency; core++) {
-    ready_[core].Wait();
-  }
-}
+  F_ f_;
+};
 
 ////////////////////////////////////////////////////////////////////////
 
-StaticThreadPool::~StaticThreadPool()
-{
-  shutdown_.store(true);
-  while (!threads_.empty()) {
-    auto* semaphore = semaphores_.back();
-    semaphore->Signal();
-    semaphores_.pop_back();
-    auto& thread = threads_.back();
-    thread.join();
-    threads_.pop_back();
-  }
-}
+} // namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E>
 auto StaticThreadPool::Schedule(Requirements* requirements, E e)
 {
-  if constexpr (!IsContinuation<E>::value) {
-    return Schedule(requirements, Then(std::move(e)));
-  } else {
-    return detail::StaticThreadPoolSchedule<Undefined, E, Undefined>(
-        Undefined(),
-        this,
-        requirements,
-        std::move(e));
-  }
+  return detail::StaticThreadPoolScheduleComposable<E> {
+    this,
+    requirements,
+    std::move(e)
+  };
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -486,6 +751,14 @@ auto StaticThreadPool::Schedulable::Schedule(E e)
   return StaticThreadPool::Scheduler().Schedule(
       &requirements_,
       std::move(e));
+}
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename F>
+auto StaticThreadPool::Parallel(F f)
+{
+  return detail::StaticThreadPoolParallelComposable<F> { std::move(f) };
 }
 
 ////////////////////////////////////////////////////////////////////////
