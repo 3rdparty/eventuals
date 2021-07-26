@@ -2,13 +2,14 @@
 
 #ifdef __MACH__
 #include <mach/mach.h>
-#elif __WINDOWS__
+#elif _WIN32
 #else
 #include <semaphore.h>
 #endif // __MACH__
 
+#ifndef _WIN32
 #include "glog/logging.h"
-
+#endif // _WIN32
 ////////////////////////////////////////////////////////////////////////
 
 namespace stout {

@@ -1,3 +1,17 @@
 # Specific Bazel build/test options.
 
-build --cxxopt='-std=c++17'
+# bazel build --config=windows :eventuals
+# bazel build --config=windows test:eventuals
+# bazel test --config=windows test:eventuals
+build:windows --compiler="clang-cl" --cxxopt="/std:c++17"
+
+# bazel build --config=macos :eventuals
+# bazel build --config=macos test:eventuals
+# bazel test --config=macos test:eventuals
+build:macos --cxxopt=-std=c++17
+
+# TODO: toolchain is needed.
+# bazel build --config=linux :eventuals
+# bazel build --config=linux test:eventuals
+# bazel test --config=linux test:eventuals
+build:linux --cxxopt=-std=c++17

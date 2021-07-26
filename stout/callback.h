@@ -1,5 +1,9 @@
 #pragma once
 
+# if defined(_WIN32)
+#include <assert.h>
+# endif
+
 #include <type_traits> // For std::aligned_storage.
 
 ////////////////////////////////////////////////////////////////////////
