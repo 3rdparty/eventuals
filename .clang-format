@@ -1,4 +1,9 @@
 ---
+#This file was created by using the following command in the terminal:
+#clang-format -style=google -dump-config > .clang-format
+#Before using this command make sure you have installed clang-format in your system!!!
+#Please note, this command puts the resulting .clang-format file in the directory from where this command was called in the terminal
+
 Language:        Cpp
 BasedOnStyle:  Google
 AccessModifierOffset: -4
