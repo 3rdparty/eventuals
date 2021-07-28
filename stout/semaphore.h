@@ -3,6 +3,8 @@
 #ifdef __MACH__
 #include <mach/mach.h>
 #elif _WIN32
+#include <windows.h>
+#include <semaphore.h>
 #else
 #include <semaphore.h>
 #endif // __MACH__
@@ -51,7 +53,7 @@ public:
 private:
   semaphore_t semaphore;
 };
-#elif __WINDOWS__
+#elif __WIN32__
 class Semaphore
 {
 public:

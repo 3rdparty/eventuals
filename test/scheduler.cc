@@ -1,5 +1,3 @@
-#ifndef _WIN32 //temp solution for WINDOWS.
-
 #include "gmock/gmock.h"
 
 #include "gtest/gtest.h"
@@ -94,4 +92,3 @@ TEST(SchedulerTest, PingPong)
 
   EXPECT_EQ(6, *(streamer.Stream() | listener.Listen()));
 }
-#endif // _WIN32
