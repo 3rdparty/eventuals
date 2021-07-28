@@ -1,17 +1,14 @@
 #pragma once
 
+#include "glog/logging.h"
 #ifdef __MACH__
 #include <mach/mach.h>
 #elif _WIN32
 #include <windows.h>
-#include <semaphore.h>
 #else
 #include <semaphore.h>
 #endif // __MACH__
 
-#ifndef _WIN32
-#include "glog/logging.h"
-#endif // _WIN32
 ////////////////////////////////////////////////////////////////////////
 
 namespace stout {
@@ -53,7 +50,7 @@ public:
 private:
   semaphore_t semaphore;
 };
-#elif __WIN32__
+#elif _WIN32
 class Semaphore
 {
 public:
