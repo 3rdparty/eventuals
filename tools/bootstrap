@@ -1,0 +1,11 @@
+#!/bin/sh
+
+#this script allows us to make symbolic link of pre-commit file
+#the link of pre-commit file will be inserted in the following dir: .git/hooks
+
+if [ -f "pre-commit" ]; then
+        ln -s -f ../../tools/pre-commit ../.git/hooks/pre-commit
+else
+        echo "Error: file pre-commit doesn't exist in the tools directory!"
+        exit 1
+fi
