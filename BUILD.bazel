@@ -1,4 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
+load("//:variables.bzl", "COPTS")
 
 cc_library(
     name = "eventuals",
@@ -38,5 +39,6 @@ cc_library(
     deps = [
         "@com_github_google_glog//:glog",
     ],
+	copts = COPTS,
     visibility = ["//visibility:public"],
 )

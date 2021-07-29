@@ -1,4 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
+load("//:variables.bzl", "COPTS")
 
 cc_test(
     name = "eventuals",
@@ -17,4 +18,5 @@ cc_test(
         "//:eventuals",
         "@gtest//:gtest_main",
     ],
+	copts = COPTS,
 )
