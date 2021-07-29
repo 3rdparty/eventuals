@@ -10,7 +10,9 @@ http_archive(
 )
 
 ########################################################################
-
+#this library has been updated to the latest version, 
+# since the old library had a problem with compiling on Windows OS.
+# the issue details: https://github.com/google/glog/issues/472
 http_archive(
   name = "com_github_google_glog",
   sha256 = "eede71f28371bf39aa69b45de23b329d37214016e2055269b3b5e7cfd40b59f5",

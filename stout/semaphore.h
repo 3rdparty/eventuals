@@ -1,6 +1,6 @@
 #pragma once
 
-#include "glog/logging.h"
+#include "glog/logging.h"//this include file must be earlier than the file <windows.h>, since there is a conflict between them.
 #ifdef __MACH__
 #include <mach/mach.h>
 #elif _WIN32
