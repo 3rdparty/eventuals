@@ -36,9 +36,19 @@ format_file() {
   file="${1}"
   if [ -f $file ]; then
     clang-format -i ${STYLEARG} ${1}
-    git add ${1}
+    result=$(echo $?)
+    echo "code result from clang-format command = ${result}"
+
+    if [ $result == 0 ]; then
+      echo "clang-format was applied successful."
+    else
+      echo "Error: unsuccessful file formatting."
+      exit 1
+    fi
+    
   fi
 }
+
 
 case "${1}" in
   --about )
