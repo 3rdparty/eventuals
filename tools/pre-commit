@@ -1,0 +1,60 @@
+#!/bin/bash
+
+STYLE=$(git config --get hooks.clangformat.style)
+
+CUR_VERSION_CLANG="$(clang-format --version | head -n1 | cut -d" " -f3)"
+MIN_VERSION_CLANG_REQUIRED="12.0.0"
+
+echo "formatting starts..."
+
+#check if .clang-format file is in the root directory
+if [ -f .clang-format ]; then
+  echo ".clang-format found"
+else
+  echo "Error: .clang-format file is not found!"
+  exit 1
+fi
+
+#check version of clang-format
+if [ "$(printf '%s\n' "$MIN_VERSION_CLANG_REQUIRED" "$CUR_VERSION_CLANG" | sort -V | head -n1)" == "$MIN_VERSION_CLANG_REQUIRED" ]; then
+  echo "clang-format version is correct (${CUR_VERSION_CLANG})"
+  else
+    echo "Error: your version of clang-format is too old! Please, update it!"
+    exit 1
+fi
+
+#formatting files
+if [ -n "${STYLE}" ] ; then
+  STYLEARG="-style=${STYLE}"
+else
+  STYLEARG=""
+fi
+
+format_file() {
+  file="${1}"
+  if [ -f $file ]; then
+    clang-format -i ${STYLEARG} ${1}
+    result=$(echo $?)
+    echo "code result from clang-format command = ${result}"
+
+    if [ $result == 0 ]; then
+      echo "clang-format was applied successful."
+    else
+      echo "Error: unsuccessful file formatting."
+      exit 1
+    fi
+
+  fi
+}
+
+
+case "${1}" in
+  --about )
+    echo "Runs clang-format on source files"
+    ;;
+  * )
+    for file in `git diff-index --cached --name-only HEAD | grep -iE '\.(cpp|cc|h|hpp)$' ` ; do
+      format_file "${file}"
+    done
+    ;;
+esac
