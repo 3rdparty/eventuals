@@ -8,33 +8,7 @@
 #include "stout/interrupt.h"
 #include "stout/undefined.h"
 
-// TODO(benh): lifecycle management, i.e., don't let an eventual get
-// started more than once or don't let an eventual get stopped if it
-// hasn't been started. this is a little tricky because using
-// something like a 'std::atomic' makes the Eventual neither copyable
-// not moveable so we'd need some sort of wrapper around the Eventual
-// (maybe an Operation, kind of like Task but without the
-// std::promise/future). once we have lifecycle management then we can
-// also make sure that after an eventual has been started we won't let
-// it's destructor get executed until after it's terminated (i.e.,
-// it's Terminal has been completed). Related: how to make sure that
-// 'stopped()' is not called if 'succeeded()' is called? threre can be
-// an outstanding call to 'stop()' while 'start()' is still executing,
-// so is it up to the programmer to coordinate that they won't call
-// both 'succeeded()' and 'stopped()'?
-//
 // TODO(benh): catch exceptions from 'start', 'fail', 'stop', etc.
-//
-// TODO(benh): create a 'then' which is a continuation that propagates
-// 'fail' and 'stop' (note this is different then just using composing
-// with a function because a 'then' would take a continuation 'k').
-//
-// TODO(benh): composing non-continuation eventual that doesn't have a
-// 'fail' handler instead will need to propagate the failure past the
-// eventual to the continuation.
-//
-// TODO(benh): eventual/continuation with no context should allow for
-// functions that don't require a context either.
 //
 // TODO(benh): aggregate errors across all the eventuals.
 //
