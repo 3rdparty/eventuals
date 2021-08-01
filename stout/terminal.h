@@ -3,6 +3,7 @@
 #include <future>
 #include <optional>
 
+#include "stout/eventual.h"
 #include "stout/interrupt.h"
 #include "stout/undefined.h"
 
@@ -28,26 +29,26 @@ struct Terminal
   template <typename... Args>
   void Start(Args&&... args)
   {
-    static_assert(
-        !IsUndefined<Start_>::value,
-        "Undefined 'start' (and no default)");
-
-    auto interrupted = [this]() mutable {
-      if (handler_) {
-        return !handler_->Install();
-      } else {
-        return false;
-      }
-    }();
-
-    if (interrupted) {
-      assert(handler_);
-      handler_->Invoke();
+    if constexpr (IsUndefined<Start_>::value) {
+      STOUT_EVENTUALS_LOG(1) << "'Terminal::Start()' reached but undefined";
     } else {
-      if constexpr (IsUndefined<Context_>::value) {
-        start_(std::forward<Args>(args)...);
+      auto interrupted = [this]() mutable {
+        if (handler_) {
+          return !handler_->Install();
+        } else {
+          return false;
+        }
+      }();
+
+      if (interrupted) {
+        assert(handler_);
+        handler_->Invoke();
       } else {
-        start_(context_, std::forward<Args>(args)...);
+        if constexpr (IsUndefined<Context_>::value) {
+          start_(std::forward<Args>(args)...);
+        } else {
+          start_(context_, std::forward<Args>(args)...);
+        }
       }
     }
   }
@@ -55,27 +56,27 @@ struct Terminal
   template <typename... Args>
   void Fail(Args&&... args)
   {
-    static_assert(
-        !IsUndefined<Fail_>::value,
-        "Undefined 'fail' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
-      fail_(std::forward<Args>(args)...);
+    if constexpr (IsUndefined<Fail_>::value) {
+      STOUT_EVENTUALS_LOG(1) << "'Terminal::Fail()' reached but undefined";
     } else {
-      fail_(context_, std::forward<Args>(args)...);
+      if constexpr (IsUndefined<Context_>::value) {
+        fail_(std::forward<Args>(args)...);
+      } else {
+        fail_(context_, std::forward<Args>(args)...);
+      }
     }
   }
 
   void Stop()
   {
-    static_assert(
-        !IsUndefined<Stop_>::value,
-        "Undefined 'stop' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
-      stop_();
+    if constexpr (IsUndefined<Stop_>::value) {
+      STOUT_EVENTUALS_LOG(1) << "'Terminal::Stop()' reached but undefined";
     } else {
-      stop_(context_);
+      if constexpr (IsUndefined<Context_>::value) {
+        stop_();
+      } else {
+        stop_(context_);
+      }
     }
   }
 

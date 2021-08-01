@@ -14,6 +14,7 @@
 #include "stout/scheduler.h"
 #include "stout/semaphore.h"
 #include "stout/task.h"
+#include "stout/terminal.h"
 #include "stout/then.h"
 #include "stout/until.h"
 
@@ -655,8 +656,7 @@ struct StaticThreadPoolParallel : public Synchronizable
             egress_();
             return Just();
           }))
-            // | eventuals::Done())
-            | eventuals::Terminal().start([](){})).template k<void>())
+          | eventuals::Terminal()).template k<void>())
       | Egress();
   }
 
