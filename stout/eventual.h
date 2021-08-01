@@ -1,10 +1,11 @@
 #pragma once
 
+#include <optional>
+
 #include "glog/logging.h"
 
 #include "stout/compose.h"
 #include "stout/interrupt.h"
-#include "stout/terminal.h"
 #include "stout/undefined.h"
 
 // TODO(benh): lifecycle management, i.e., don't let an eventual get
