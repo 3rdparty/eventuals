@@ -1,13 +1,14 @@
 #pragma once
 
+#include "glog/logging.h" // NOTE: must be included before <windows.h>.
+
 #ifdef __MACH__
 #include <mach/mach.h>
-#elif __WINDOWS__
+#elif _WIN32
+#include <windows.h>
 #else
 #include <semaphore.h>
 #endif // __MACH__
-
-#include "glog/logging.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +51,7 @@ public:
 private:
   semaphore_t semaphore;
 };
-#elif __WINDOWS__
+#elif _WIN32
 class Semaphore
 {
 public:
