@@ -81,7 +81,7 @@ $ bazel test test:eventuals
     3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
     4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
 3. Install [Bazel](https://bazel.build).
-4. Install the latest version of the compiler [LLLM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
+4. Install the latest version of the compiler [LLVM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
 5. Install [Git](https://git-scm.com/downloads).
 6. Clone [stout-eventuals](https://github.com/3rdparty/stout-eventuals).
 7. Open the stout-eventuals folder via VS Code.
@@ -113,7 +113,7 @@ $ bazel test test:eventuals
         ```
     4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
 3. Install [Bazel](https://bazel.build). Detailed installation instructions for Windows can be found here: [Installing Bazel on Windows](https://docs.bazel.build/versions/4.1.0/install-windows.html). This is an important step. You must follow all the instructions, otherwise you will get various errors at the compilation stage.
-4. Install the latest version of the compiler [LLLM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
+4. Install the latest version of the compiler [LLVM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
 5. Install [Git](https://git-scm.com/downloads).
 6. Restart your PC. ;-)
 7. Clone [stout-eventuals](https://github.com/3rdparty/stout-eventuals).
