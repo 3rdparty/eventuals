@@ -10,7 +10,7 @@ cc_test(
         "then.cc",
         "conditional.cc",
         "callback.cc",
-        "scheduler.cc",
+        "static-thread-pool.cc",
         "task.cc",
         "closure.cc",
     ],
