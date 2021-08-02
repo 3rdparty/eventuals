@@ -1,9 +1,9 @@
 #pragma once
 
-#include "stout/adaptor.h"
-#include "stout/continuation.h"
 #include "stout/eventual.h"
-#include "stout/lambda.h"
+#include "stout/then.h" // For 'ThenAdaptor'.
+#include "stout/type-traits.h" // For 'type_identity'.
+
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -21,75 +21,26 @@ template <
   typename Condition_,
   typename Then_,
   typename Else_,
-  typename Arg_,
-  typename Value_>
+  typename Arg_>
 struct Conditional
 {
-  using Value = typename ValueFrom<K_, Value_>::type;
-
-  Conditional(K_ k, Condition_ condition, Then_ then, Else_ els3)
-    : k_(std::move(k)),
-      condition_(std::move(condition)),
-      then_(std::move(then)),
-      else_(std::move(els3)) {}
-
-  template <
-    typename Arg,
-    typename Value,
-    typename K,
-    typename Condition,
-    typename Then,
-    typename Else>
-  static auto create(K k, Condition condition, Then then, Else els3)
-  {
-    return Conditional<K, Condition, Then, Else, Arg, Value>(
-        std::move(k),
-        std::move(condition),
-        std::move(then),
-        std::move(els3));
-  }
-
-  template <
-    typename K,
-    std::enable_if_t<
-      IsContinuation<K>::value, int> = 0>
-  auto k(K k) &&
-  {
-   return create<Arg_, Value_>(
-        [&]() {
-          if constexpr (!IsUndefined<K_>::value) {
-            return std::move(k_) | std::move(k);
-          } else {
-            return std::move(k);
-          }
-        }(),
-        std::move(condition_),
-        std::move(then_),
-        std::move(else_));
-  }
-
-  template <
-    typename F,
-    std::enable_if_t<
-      !IsContinuation<F>::value, int> = 0>
-  auto k(F f) &&
-  {
-    return std::move(*this) | eventuals::Lambda(std::move(f));
-  }
-
   template <typename... Args>
   void Start(Args&&... args)
   {
+    // static_assert(
+    //     ... ThenE has template member 'ValueFrom',
+    //     "\"then\" branch of 'Conditional' "
+    //     "*DOES NOT* return an eventual continuation");
+
+    // static_assert(
+    //     ... Else has template member 'ValueFrom',
+    //     "\"else\" branch of 'Conditional' "
+    //     "*DOES NOT* return an eventual continuation");
+
     if (condition_(std::forward<Args>(args)...)) {
       then_adaptor_.emplace(
-          eventuals::unify<Value_>(then_(std::forward<Args>(args)...))
-          | Adaptor<K_, Value_>(
-              k_,
-              [](auto& k_, auto&&... values) {
-                eventuals::succeed(
-                    k_,
-                    std::forward<decltype(values)>(values)...);
-              }));
+          then_(std::forward<Args>(args)...)
+            .template k<void>(ThenAdaptor<K_> { k_}));
 
       if (interrupt_ != nullptr) {
         then_adaptor_->Register(*interrupt_);
@@ -98,14 +49,8 @@ struct Conditional
       eventuals::succeed(*then_adaptor_);
     } else {
       else_adaptor_.emplace(
-          eventuals::unify<Value_>(else_(std::forward<Args>(args)...))
-          | Adaptor<K_, Value_>(
-              k_,
-              [](auto& k_, auto&&... values) {
-                eventuals::succeed(
-                    k_,
-                    std::forward<decltype(values)>(values)...);
-              }));
+          else_(std::forward<Args>(args)...)
+            .template k<void>(ThenAdaptor<K_> { k_}));
 
       if (interrupt_ != nullptr) {
         else_adaptor_->Register(*interrupt_);
@@ -140,22 +85,70 @@ struct Conditional
 
   Interrupt* interrupt_ = nullptr;
 
-  using ThenE_ = typename InvokeResultPossiblyUndefined<Then_, Arg_>::type;
-  using ElseE_ = typename InvokeResultPossiblyUndefined<Else_, Arg_>::type;
+  using ThenE_ = std::invoke_result_t<Then_, Arg_>;
+  using ElseE_ = std::invoke_result_t<Else_, Arg_>;
 
-  using ThenValue_ = typename ValuePossiblyUndefined<ThenE_>::Value;
-  using ElseValue_ = typename ValuePossiblyUndefined<ElseE_>::Value;
+  using ThenValue_ = typename ThenE_::template ValueFrom<void>;
+  using ElseValue_ = typename ElseE_::template ValueFrom<void>;
 
-  using ThenAdaptor_ = typename EKPossiblyUndefined<
-    decltype(eventuals::unify<Value_>(std::declval<ThenE_>())),
-    Adaptor<K_, Value_>>::type;
+  static_assert(
+      std::is_same_v<ThenValue_, ElseValue_>
+      || std::is_void_v<ThenValue_>
+      || std::is_void_v<ElseValue_>,
+      "\"then\" and \"else\" branch of 'Conditional' *DO NOT* return "
+      "an eventual value of the same type");
 
-  using ElseAdaptor_ = typename EKPossiblyUndefined<
-    decltype(eventuals::unify<Value_>(std::declval<ElseE_>())),
-    Adaptor<K_, Value_>>::type;
+  using ThenAdaptor_ = decltype(
+      std::declval<ThenE_>()
+        .template k<void>(std::declval<ThenAdaptor<K_>>()));
+
+  using ElseAdaptor_ = decltype(
+      std::declval<ElseE_>()
+        .template k<void>(std::declval<ThenAdaptor<K_>>()));
 
   std::optional<ThenAdaptor_> then_adaptor_;
   std::optional<ElseAdaptor_> else_adaptor_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Condition_, typename Then_, typename Else_>
+struct ConditionalComposable
+{
+  template <typename ThenValue, typename ElseValue>
+  using Unify_ = typename std::conditional_t<
+    std::is_same_v<ThenValue, ElseValue>,
+    type_identity<ThenValue>,
+    std::conditional_t<
+      std::is_void_v<ThenValue>,
+      type_identity<ElseValue>,
+      std::enable_if<std::is_void_v<ElseValue>, ThenValue>>>::type;
+
+  template <typename Arg>
+  using ValueFrom = Unify_<
+    typename std::conditional_t<
+      std::is_void_v<Arg>,
+      std::invoke_result<Then_>,
+      std::invoke_result<Then_, Arg>>::type::template ValueFrom<void>,
+    typename std::conditional_t<
+      std::is_void_v<Arg>,
+      std::invoke_result<Else_>,
+      std::invoke_result<Else_, Arg>>::type::template ValueFrom<void>>;
+
+  template <typename Arg, typename K>
+  auto k(K k) &&
+  {
+    return Conditional<K, Condition_, Then_, Else_, Arg> {
+      std::move(k),
+      std::move(condition_),
+      std::move(then_),
+      std::move(else_)
+    };
+  }
+
+  Condition_ condition_;
+  Then_ then_;
+  Else_ else_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -164,117 +157,14 @@ struct Conditional
 
 ////////////////////////////////////////////////////////////////////////
 
-template <
-  typename K,
-  typename Condition,
-  typename Then,
-  typename Else,
-  typename Arg,
-  typename Value>
-struct IsContinuation<
-  detail::Conditional<
-    K,
-    Condition,
-    Then,
-    Else,
-    Arg,
-    Value>> : std::true_type {};
-
-////////////////////////////////////////////////////////////////////////
-
-template <
-  typename K,
-  typename Condition,
-  typename Then,
-  typename Else,
-  typename Arg,
-  typename Value>
-struct HasTerminal<
-  detail::Conditional<
-    K,
-    Condition,
-    Then,
-    Else,
-    Arg,
-    Value>> : HasTerminal<K> {};
-
-////////////////////////////////////////////////////////////////////////
-
-template <
-  typename K,
-  typename Condition,
-  typename Then,
-  typename Else,
-  typename Arg_,
-  typename Value_>
-struct Compose<detail::Conditional<K, Condition, Then, Else, Arg_, Value_>>
-{
-  template <typename Arg>
-  static auto compose(
-      detail::Conditional<K, Condition, Then, Else, Arg_, Value_> conditional)
-  {
-    using ThenE = decltype(std::declval<Then>()(std::declval<Arg>()));
-    using ElseE = decltype(std::declval<Else>()(std::declval<Arg>()));
-
-    static_assert(
-        IsContinuation<ThenE>::value,
-        "\"then\" branch of Conditional "
-        "*DOES NOT* return an eventual continuation");
-
-    static_assert(
-        IsContinuation<ElseE>::value,
-        "\"else\" branch of Conditional "
-        "*DOES NOT* return an eventual continuation");
-
-    using ThenValue = typename ThenE::Value;
-    using ElseValue = typename ElseE::Value;
-
-    static_assert(
-        std::is_same_v<ThenValue, ElseValue>
-        || IsUndefined<ThenValue>::value
-        || IsUndefined<ElseValue>::value,
-        "\"then\" and \"else\" branch of Conditional *DO NOT* return "
-        "an eventual value of the same type");
-
-    using Value = std::conditional_t<
-      !IsUndefined<ThenValue>::value,
-      ThenValue,
-      ElseValue>;
-
-    auto k = eventuals::compose<Value>(std::move(conditional.k_));
-    auto then = eventuals::unify<Value>(std::move(conditional.then_));
-    auto els3 = eventuals::unify<Value>(std::move(conditional.else_));
-
-    return detail::Conditional<
-      decltype(k),
-      Condition,
-      decltype(then),
-      decltype(els3),
-      Arg,
-      Value>(
-        std::move(k),
-        std::move(conditional.condition_),
-        std::move(then),
-        std::move(els3));
-  }
-};
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename Condition, typename Then, typename Else>
 auto Conditional(Condition condition, Then then, Else els3)
 {
-  return detail::Conditional<
-    Undefined,
-    Condition,
-    Then,
-    Else,
-    Undefined,
-    Undefined>(
-      Undefined(),
-      std::move(condition),
-      std::move(then),
-      std::move(els3));
+  return detail::ConditionalComposable<Condition, Then, Else> {
+    std::move(condition),
+    std::move(then),
+    std::move(els3)
+  };
 }
 
 ////////////////////////////////////////////////////////////////////////

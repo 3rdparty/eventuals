@@ -4,9 +4,11 @@
 
 #include "gtest/gtest.h"
 
+#include "stout/just.h"
 #include "stout/lambda.h"
 #include "stout/lock.h"
-#include "stout/task.h"
+#include "stout/terminal.h"
+#include "stout/then.h"
 
 namespace eventuals = stout::eventuals;
 
@@ -15,19 +17,14 @@ using stout::Callback;
 using stout::eventuals::Acquire;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
+using stout::eventuals::Just;
 using stout::eventuals::Lambda;
 using stout::eventuals::Lock;
-using stout::eventuals::notify;
 using stout::eventuals::Release;
-using stout::eventuals::stop;
-using stout::eventuals::succeed;
 using stout::eventuals::Synchronizable;
 using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 using stout::eventuals::Wait;
-using stout::eventuals::wait;
-
-using stout::eventuals::FailedException;
-using stout::eventuals::StoppedException;
 
 using testing::MockFunction;
 
@@ -40,12 +37,12 @@ TEST(LockTest, Succeed)
       .start([](auto& k) {
         auto thread = std::thread(
             [&k]() mutable {
-              succeed(k, "t1");
+              eventuals::succeed(k, "t1");
             });
         thread.detach();
       })
       | Acquire(&lock)
-      | [](auto&& value) { return std::move(value); };
+      | Lambda([](auto&& value) { return std::move(value); });
   };
 
   auto e2 = [&]() {
@@ -53,17 +50,17 @@ TEST(LockTest, Succeed)
       .start([](auto& k) {
         auto thread = std::thread(
             [&k]() mutable {
-              succeed(k, "t2");
+              eventuals::succeed(k, "t2");
             });
         thread.detach();
       })
       | Acquire(&lock)
-      | [](auto&& value) { return std::move(value); };
+      | Lambda([](auto&& value) { return std::move(value); });
   };
 
   auto e3 = [&]() {
     return Release(&lock)
-      | []() { return "t3"; };
+      | Lambda([]() { return "t3"; });
   };
 
   auto [future1, t1] = Terminate(e1());
@@ -99,15 +96,15 @@ TEST(LockTest, Fail)
            thread.detach();
          }))
       | Release(&lock)
-      | [](auto&& value) { return std::move(value); };
+      | Lambda([](auto&& value) { return std::move(value); });
   };
 
   auto e2 = [&]() {
     return Acquire(&lock)
-      | []() { return "t2"; };
+      | Lambda([]() { return "t2"; });
   };
 
-  EXPECT_THROW(*e1(), FailedException);
+  EXPECT_THROW(*e1(), eventuals::FailedException);
 
   EXPECT_STREQ("t2", *e2());
 }
@@ -130,27 +127,27 @@ TEST(LockTest, Stop)
            start.Call();
          })
          .interrupt([](auto& k) {
-           stop(k);
+           eventuals::stop(k);
          }))
       | Release(&lock);
   };
 
   auto e2 = [&]() {
     return Acquire(&lock)
-      | []() { return "t2"; };
+      | Lambda([]() { return "t2"; });
   };
 
-  auto [future1, t1] = Terminate(e1());
+  auto [future1, k1] = Terminate(e1());
 
   Interrupt interrupt;
 
-  t1.Register(interrupt);
+  k1.Register(interrupt);
 
-  t1.Start();
+  eventuals::start(k1);
 
   interrupt.Trigger();
 
-  EXPECT_THROW(future1.get(), StoppedException);
+  EXPECT_THROW(future1.get(), eventuals::StoppedException);
 
   EXPECT_STREQ("t2", *e2());
 }
@@ -165,7 +162,7 @@ TEST(LockTest, Wait)
   auto e1 = [&]() {
     return Eventual<std::string>()
       .start([](auto& k) {
-        succeed(k, "t1");
+        eventuals::succeed(k, "t1");
       })
       | Acquire(&lock)
       | (Wait<std::string>(&lock)
@@ -173,12 +170,12 @@ TEST(LockTest, Wait)
          .condition([&](auto& waited, auto& k, auto&& value) {
            if (!waited) {
              callback = [&k]() {
-               notify(k);
+               eventuals::notify(k);
              };
-             wait(k);
+             eventuals::wait(k);
              waited = true;
            } else {
-             succeed(k, value);
+             eventuals::succeed(k, value);
            }
          }))
       | Release(&lock);
@@ -194,13 +191,19 @@ TEST(LockTest, Wait)
 
   ASSERT_TRUE(callback);
 
+  Lock::Waiter waiter;
+
+  ASSERT_TRUE(lock.AcquireFast(&waiter));
+
   callback();
+
+  lock.Release();
 
   EXPECT_EQ("t1", future1.get());
 }
 
 
-TEST(LockTest, Synchronizable)
+TEST(LockTest, SynchronizableWait)
 {
   struct Foo : public Synchronizable
   {
@@ -215,7 +218,7 @@ TEST(LockTest, Synchronizable)
           .condition([](auto& k) {
             auto thread = std::thread(
                 [&k]() mutable {
-                  succeed(k, "operation");
+                  eventuals::succeed(k, "operation");
                 });
             thread.detach();
           }));
@@ -232,7 +235,7 @@ TEST(LockTest, Synchronizable)
 }
 
 
-TEST(LockTest, Lambda)
+TEST(LockTest, SynchronizableThen)
 {
   struct Foo : public Synchronizable
   {
@@ -241,12 +244,12 @@ TEST(LockTest, Lambda)
     auto Operation()
     {
       return Synchronized(
-          []() {
-            return 42;
-          })
-        | [](auto i) {
+          Then([]() {
+            return Just(42);
+          }))
+        | Lambda([](auto i) {
           return i;
-        };
+        });
     }
 
     Lock lock;

@@ -1,15 +1,22 @@
 #pragma once
 
+#include <future>
 #include <optional>
 
-#include "stout/continuation.h"
+#include "stout/eventual.h"
 #include "stout/interrupt.h"
 #include "stout/undefined.h"
+
+////////////////////////////////////////////////////////////////////////
 
 namespace stout {
 namespace eventuals {
 
+////////////////////////////////////////////////////////////////////////
+
 namespace detail {
+
+////////////////////////////////////////////////////////////////////////
   
 template <
   typename Context_,
@@ -19,7 +26,72 @@ template <
   typename Interrupt_>
 struct Terminal
 {
-  using Value = Undefined;
+  template <typename... Args>
+  void Start(Args&&... args)
+  {
+    if constexpr (IsUndefined<Start_>::value) {
+      STOUT_EVENTUALS_LOG(1) << "'Terminal::Start()' reached but undefined";
+    } else {
+      auto interrupted = [this]() mutable {
+        if (handler_) {
+          return !handler_->Install();
+        } else {
+          return false;
+        }
+      }();
+
+      if (interrupted) {
+        assert(handler_);
+        handler_->Invoke();
+      } else {
+        if constexpr (IsUndefined<Context_>::value) {
+          start_(std::forward<Args>(args)...);
+        } else {
+          start_(context_, std::forward<Args>(args)...);
+        }
+      }
+    }
+  }
+
+  template <typename... Args>
+  void Fail(Args&&... args)
+  {
+    if constexpr (IsUndefined<Fail_>::value) {
+      STOUT_EVENTUALS_LOG(1) << "'Terminal::Fail()' reached but undefined";
+    } else {
+      if constexpr (IsUndefined<Context_>::value) {
+        fail_(std::forward<Args>(args)...);
+      } else {
+        fail_(context_, std::forward<Args>(args)...);
+      }
+    }
+  }
+
+  void Stop()
+  {
+    if constexpr (IsUndefined<Stop_>::value) {
+      STOUT_EVENTUALS_LOG(1) << "'Terminal::Stop()' reached but undefined";
+    } else {
+      if constexpr (IsUndefined<Context_>::value) {
+        stop_();
+      } else {
+        stop_(context_);
+      }
+    }
+  }
+
+  void Register(Interrupt& interrupt)
+  {
+    if constexpr (!IsUndefined<Interrupt_>::value) {
+      handler_.emplace(&interrupt, [this]() {
+        if constexpr (IsUndefined<Context_>::value) {
+          interrupt_();
+        } else {
+          interrupt_(context_);
+        }
+      });
+    }
+  }
 
   Context_ context_;
   Start_ start_;
@@ -28,6 +100,20 @@ struct Terminal
   Interrupt_ interrupt_;
 
   std::optional<Interrupt::Handler> handler_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <
+  typename Context_,
+  typename Start_,
+  typename Fail_,
+  typename Stop_,
+  typename Interrupt_>
+struct TerminalBuilder
+{
+  template <typename...>
+  using ValueFrom = void;
 
   template <
     typename Context,
@@ -42,7 +128,7 @@ struct Terminal
       Stop stop,
       Interrupt interrupt)
   {
-    return Terminal<
+    return TerminalBuilder<
       Context,
       Start,
       Fail,
@@ -53,6 +139,27 @@ struct Terminal
       std::move(fail),
       std::move(stop),
       std::move(interrupt)
+    };
+  }
+
+  template <typename Arg, typename... K>
+  auto k(K...) &&
+  {
+    static_assert(
+        sizeof...(K) == 0,
+        "detected invalid continuation composed _after_ 'Terminal'");
+
+    return Terminal<
+      Context_,
+      Start_,
+      Fail_,
+      Stop_,
+      Interrupt_> {
+      std::move(context_),
+      std::move(start_),
+      std::move(fail_),
+      std::move(stop_),
+      std::move(interrupt_)
     };
   }
 
@@ -116,160 +223,143 @@ struct Terminal
         std::move(interrupt));
   }
 
-  template <typename... Args>
-  void Start(Args&&... args)
-  {
-    static_assert(
-        !IsUndefined<Start_>::value,
-        "Undefined 'start' (and no default)");
-
-    auto interrupted = [this]() mutable {
-      if (handler_) {
-        return !handler_->Install();
-      } else {
-        return false;
-      }
-    }();
-
-    if (interrupted) {
-      assert(handler_);
-      handler_->Invoke();
-    } else {
-      if constexpr (IsUndefined<Context_>::value) {
-        start_(std::forward<Args>(args)...);
-      } else {
-        start_(context_, std::forward<Args>(args)...);
-      }
-    }
-  }
-
-  template <typename... Args>
-  void Fail(Args&&... args)
-  {
-    static_assert(
-        !IsUndefined<Fail_>::value,
-        "Undefined 'fail' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
-      fail_(std::forward<Args>(args)...);
-    } else {
-      fail_(context_, std::forward<Args>(args)...);
-    }
-  }
-
-  void Stop()
-  {
-    static_assert(
-        !IsUndefined<Stop_>::value,
-        "Undefined 'stop' (and no default)");
-
-    if constexpr (IsUndefined<Context_>::value) {
-      stop_();
-    } else {
-      stop_(context_);
-    }
-  }
-
-  void Register(Interrupt& interrupt)
-  {
-    if constexpr (!IsUndefined<Interrupt_>::value) {
-      handler_.emplace(&interrupt, [this]() {
-        if constexpr (IsUndefined<Context_>::value) {
-          interrupt_();
-        } else {
-          interrupt_(context_);
-        }
-      });
-    }
-  }
+  Context_ context_;
+  Start_ start_;
+  Fail_ fail_;
+  Stop_ stop_;
+  Interrupt_ interrupt_;
 };
+
+////////////////////////////////////////////////////////////////////////
 
 } // namespace detail {
 
-
-template <typename>
-struct IsTerminal : std::false_type {};
-
-
-template <
-  typename Context,
-  typename Start,
-  typename Fail,
-  typename Stop,
-  typename Interrupt>
-struct IsTerminal<
-  detail::Terminal<
-    Context,
-    Start,
-    Fail,
-    Stop,
-    Interrupt>> : std::true_type {};
-
-
-template <
-  typename Context,
-  typename Start,
-  typename Fail,
-  typename Stop,
-  typename Interrupt>
-struct IsContinuation<
-  detail::Terminal<
-    Context,
-    Start,
-    Fail,
-    Stop,
-    Interrupt>> : std::true_type {};
-
+////////////////////////////////////////////////////////////////////////
 
 inline auto Terminal()
 {
-  return detail::Terminal<
+  return detail::TerminalBuilder<
     Undefined,
     Undefined,
     Undefined,
     Undefined,
-    Undefined> {
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined(),
-    Undefined()
-  };
+    Undefined> {};
 }
 
+////////////////////////////////////////////////////////////////////////
 
-template <typename>
-struct HasTerminal : std::false_type {};
-
-
-template <
-  typename Context,
-  typename Start,
-  typename Fail,
-  typename Stop,
-  typename Interrupt>
-struct HasTerminal<
-  detail::Terminal<
-    Context,
-    Start,
-    Fail,
-    Stop,
-    Interrupt>> : std::true_type {};
-
-
-template <
-  typename Context,
-  typename Start,
-  typename Fail,
-  typename Stop,
-  typename Interrupt,
-  typename Value>
-struct ValueFrom<
-  detail::Terminal<Context, Start, Fail, Stop, Interrupt>,
-  Value>
+struct StoppedException : public std::exception
 {
-  using type = Value;
+  const char* what() const throw()
+  {
+    return "Eventual computation stopped (cancelled)";
+  }
 };
+
+////////////////////////////////////////////////////////////////////////
+
+struct FailedException : public std::exception
+{
+  // Helper for determining if a type can be converted into a string
+  // by streaming using 'std::stringstream' and '<<'.
+  template <typename S, typename T, typename = void>
+  struct Streamable : std::false_type {};
+
+  template <typename S, typename T>
+  struct Streamable<
+    S,
+    T,
+    decltype(void(std::declval<S&>() << std::declval<T const&>()))>
+    : std::true_type {};
+
+  template <typename Error>
+  FailedException(const Error& error)
+  {
+    std::stringstream ss;
+    ss << "Eventual computation failed";
+    if constexpr (Streamable<std::stringstream, Error>::value) {
+      ss << ": " << error;
+    } else {
+      ss << " (error of type " << typeid(Error).name() << ")";
+    }
+    message_ = ss.str();
+  }
+
+  // NOTE: this copy constructor is necessary because the compiler
+  // might do a copy when doing a throw even though we have the move
+  // constructor below.
+  FailedException(const FailedException& that)
+    : message_(that.message_) {}
+
+  FailedException(FailedException&& that)
+    : message_(std::move(that.message_)) {}
+
+  const char* what() const throw()
+  {
+    return message_.c_str();
+  }
+
+  std::string message_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename E>
+auto Terminate(E e)
+{
+  using Value = typename E::template ValueFrom<void>;
+
+  std::promise<Value> promise;
+
+  auto future = promise.get_future();
+
+  auto k = (std::move(e)
+            | (eventuals::Terminal()
+               .context(std::move(promise))
+               .start([](auto& promise, auto&&... values) {
+                 static_assert(
+                     sizeof...(values) == 0 || sizeof...(values) == 1,
+                     "Task only supports 0 or 1 value, but found > 1");
+                 promise.set_value(std::forward<decltype(values)>(values)...);
+               })
+               .fail([](auto& promise, auto&&... errors) {
+                 promise.set_exception(
+                     std::make_exception_ptr(
+                         FailedException(
+                             std::forward<decltype(errors)>(errors)...)));
+               })
+               .stop([](auto& promise) {
+                 promise.set_exception(
+                     std::make_exception_ptr(
+                         StoppedException()));
+               }))).template k<void>();
+
+  return std::make_tuple(std::move(future), std::move(k));
+}
+
+////////////////////////////////////////////////////////////////////////
+
+namespace detail {
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename E>
+auto operator*(E e)
+{
+  auto [future, k] = Terminate(std::move(e));
+
+  start(k);
+
+  return future.get();
+}
+
+////////////////////////////////////////////////////////////////////////
+
+} // namespace detail {
+
+////////////////////////////////////////////////////////////////////////
 
 } // namespace eventuals {
 } // namespace stout {
+
+////////////////////////////////////////////////////////////////////////

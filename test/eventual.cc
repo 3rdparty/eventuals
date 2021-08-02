@@ -8,7 +8,7 @@
 #include "stout/just.h"
 #include "stout/lambda.h"
 #include "stout/raise.h"
-#include "stout/task.h"
+#include "stout/terminal.h"
 
 namespace eventuals = stout::eventuals;
 
@@ -17,13 +17,8 @@ using stout::eventuals::Interrupt;
 using stout::eventuals::Just;
 using stout::eventuals::Lambda;
 using stout::eventuals::Raise;
-using stout::eventuals::stop;
-using stout::eventuals::succeed;
 using stout::eventuals::Terminal;
 using stout::eventuals::Terminate;
-
-using stout::eventuals::FailedException;
-using stout::eventuals::StoppedException;
 
 using testing::MockFunction;
 
@@ -44,17 +39,17 @@ TEST(EventualTest, Succeed)
       .start([](auto& context, auto& k) {
         auto thread = std::thread(
             [&context, &k]() mutable {
-              succeed(k, context);
+              eventuals::succeed(k, context);
             });
         thread.detach();
       })
-      | [](int i) { return i + 2; }
+      | Lambda([](int i) { return i + 2; })
       | (Eventual<int>()
          .context(9)
          .start([](auto& context, auto& k, auto&& value) {
            auto thread = std::thread(
                [value, &context, &k]() mutable {
-                 succeed(k, context - value);
+                 eventuals::succeed(k, context - value);
                });
            thread.detach();
          })
@@ -87,11 +82,11 @@ TEST(EventualTest, Fail)
       .start([](auto& error, auto& k) {
         auto thread = std::thread(
             [&error, &k]() mutable {
-              fail(k, error);
+              eventuals::fail(k, error);
             });
         thread.detach();
       })
-      | [](int i) { return i + 2; }
+      | Lambda([](int i) { return i + 2; })
       | (Eventual<int>()
          .start([&](auto& k, auto&& value) {
            start.Call();
@@ -101,7 +96,7 @@ TEST(EventualTest, Fail)
          }));
   };
 
-  EXPECT_THROW(*e(), FailedException);
+  EXPECT_THROW(*e(), eventuals::FailedException);
 }
 
 
@@ -121,9 +116,9 @@ TEST(EventualTest, Interrupt)
         start.Call();
       })
       .interrupt([](auto&, auto& k) {
-        stop(k);
+        eventuals::stop(k);
       })
-      | [](int i) { return i + 2; }
+      | Lambda([](int i) { return i + 2; })
       | (Eventual<int>()
          .start([&](auto&, auto&&) {
            start.Call();
@@ -132,24 +127,24 @@ TEST(EventualTest, Interrupt)
            fail.Call();
          })
          .stop([](auto& k) {
-           stop(k);
+           eventuals::stop(k);
          }));
   };
 
-  auto [future, t] = Terminate(e());
+  auto [future, k] = Terminate(e());
 
   Interrupt interrupt;
 
-  t.Register(interrupt);
+  k.Register(interrupt);
 
   EXPECT_CALL(start, Call())
     .WillOnce([&]() {
       interrupt.Trigger();
     });
 
-  t.Start();
+  eventuals::start(k);
 
-  EXPECT_THROW(future.get(), StoppedException);
+  EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
 
 
@@ -161,17 +156,17 @@ TEST(EventualTest, Reuse)
             .start([](auto& context, auto& k) {
               auto thread = std::thread(
                   [&context, &k]() mutable {
-                    succeed(k, context);
+                    eventuals::succeed(k, context);
                   });
               thread.detach();
             }))
-      | [](int i) { return i + 2; }
+      | Lambda([](int i) { return i + 2; })
       | (Eventual<int>()
          .context(9)
          .start([](auto& context, auto& k, auto&& value) {
            auto thread = std::thread(
                [value, &context, &k]() mutable {
-                 succeed(k, context - value);
+                 eventuals::succeed(k, context - value);
                });
            thread.detach();
          }))
@@ -183,22 +178,23 @@ TEST(EventualTest, Reuse)
          .fail([](auto& promise, auto&& error) {
            promise.set_exception(
                std::make_exception_ptr(
-                   FailedException(std::forward<decltype(error)>(error))));
+                   eventuals::FailedException(
+                       std::forward<decltype(error)>(error))));
          })
          .stop([](auto& promise) {
            promise.set_exception(
                std::make_exception_ptr(
-                   StoppedException()));
+                   eventuals::StoppedException()));
          }));
   };
 
-  using Operation = decltype(operation(int(), std::promise<int>()));
+  using Operation = decltype(operation(int(), std::promise<int>()).k<void>());
 
   std::promise<int> promise1;
 
   auto future = promise1.get_future();
 
-  auto* o = new Operation(operation(5, std::move(promise1)));
+  auto* o = new Operation(operation(5, std::move(promise1)).k<void>());
 
   eventuals::start(*o);
 
@@ -208,7 +204,7 @@ TEST(EventualTest, Reuse)
 
   future = promise2.get_future();
 
-  *o = operation(4, std::move(promise2));
+  *o = operation(4, std::move(promise2)).k<void>();
 
   eventuals::start(*o);
 
@@ -234,7 +230,7 @@ TEST(EventualTest, Raise)
     return Raise("error");
   };
 
-  EXPECT_THROW(*e(), FailedException);
+  EXPECT_THROW(*e(), eventuals::FailedException);
 }
 
 
@@ -245,9 +241,9 @@ TEST(EventualTest, Lambda)
       | Lambda([](auto i) {
         return i + 1;
       })
-      | [](auto j) {
+      | Lambda([](auto j) {
         return j - 1;
-      };
+      });
   };
 
   EXPECT_EQ(42, *e());
