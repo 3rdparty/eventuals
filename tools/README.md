@@ -1,1 +1,7 @@
-`bootstrap` file is a simple helper script which will "install" the `pre-commit` hook automatically via `ln -s` into the `.git\hooks` directory (we want to use `ln -s` rather than just making a copy so that we can actually update it in the repository and everyone will benefit from the update). `Don't forget` to run `bootstrap` file from the `tools` directory in order to have the possibility to check `clang-format` automatically before `git commit` command executes!
+# Tools
+
+Collection of developer scripts, files, etc, for improving the developer process.
+
+You can use `bootstrap` to "install" some of these tools, e.g., the `pre-commit` hook.
+
+Note that we currently use `ln -s` to "install" git hooks rather than just making a copy so that we can actually update it in the repository and everyone will benefit from the update).
