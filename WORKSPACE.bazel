@@ -30,3 +30,11 @@ http_archive(
 )
 
 ########################################################################
+
+load("//3rdparty/bazel-rules-libuv:repos.bzl", libuv_repos="repos")
+libuv_repos()
+
+load("@com_github_3rdparty_bazel_rules_libuv//bazel:deps.bzl", libuv_deps="deps")
+libuv_deps()
+
+########################################################################

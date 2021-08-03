@@ -13,6 +13,7 @@ cc_test(
         "static-thread-pool.cc",
         "task.cc",
         "closure.cc",
+        "libuv.cc",
     ],
     deps = [
         "//:eventuals",
