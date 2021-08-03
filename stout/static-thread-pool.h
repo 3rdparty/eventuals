@@ -430,9 +430,11 @@ struct StaticThreadPoolParallelAdaptorComposable
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Parallel, typename Ended>
-auto StaticThreadPoolParallelAdaptor(Parallel* parallel, Ended ended)
+template <typename Parallel, typename E>
+auto StaticThreadPoolParallelAdaptor(Parallel* parallel, E e)
 {
+  auto ended = (std::move(e) | eventuals::Terminal()).template k<void>();
+  using Ended = decltype(ended);
   return detail::StaticThreadPoolParallelAdaptorComposable<Parallel, Ended> {
     parallel,
     std::move(ended)
@@ -648,15 +650,14 @@ struct StaticThreadPoolParallel : public Synchronizable
     return Ingress()
       | eventuals::StaticThreadPoolParallelAdaptor(
           this,
-          (Synchronized(eventuals::Then([this]() {
+          Synchronized(eventuals::Then([this]() {
             ended_ = true;
             for (auto* worker : workers_) {
               worker->notify();
             }
             egress_();
             return Just();
-          }))
-          | eventuals::Terminal()).template k<void>())
+          })))
       | Egress();
   }
 
