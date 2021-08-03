@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string>
+#include <tuple>
 
 #include "stout/eventual.h"
 #include "stout/callback.h"
