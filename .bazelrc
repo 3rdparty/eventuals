@@ -2,7 +2,7 @@
 
 build --enable_platform_specific_config
 
-build:windows --compiler="clang-cl" --cxxopt="/std:c++17"
+build:windows --compiler="clang-cl" --cxxopt="/std:c++17" --linkopt="/DYNAMICBASE WS2_32.Lib Advapi32.lib Iphlpapi.lib Userenv.lib User32.lib"
 
 build:macos --cxxopt=-std=c++17
 
