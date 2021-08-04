@@ -19,4 +19,9 @@ cc_test(
         "//:eventuals",
         "@gtest//:gtest_main",
     ],
+    linkopts = select({
+        "@bazel_tools//src/conditions:windows": [], # Windows
+        "@bazel_tools//src/conditions:darwin": [], # macOS
+        "//conditions:default": ["-ldl"], # Linux
+    }),
 )
