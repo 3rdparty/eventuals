@@ -20,7 +20,7 @@ cc_test(
         "@gtest//:gtest_main",
     ],
     linkopts = select({
-        "@bazel_tools//src/conditions:windows": [], # Windows
+        "@bazel_tools//src/conditions:windows": [ "/DYNAMICBASE WS2_32.Lib Advapi32.lib Iphlpapi.lib Userenv.lib User32.lib" ], # Windows
         "@bazel_tools//src/conditions:darwin": [], # macOS
         "//conditions:default": ["-ldl"], # Linux
     }),
