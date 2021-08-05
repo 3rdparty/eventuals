@@ -147,19 +147,19 @@ TEST(RepeatTest, Eventual) {
                    .start([](auto& k) {
                      eventuals::succeed(k, 1);
                    }))
-        | (Loop<int>()
-               .context(0)
-               .body([](auto&& count, auto& repeated, auto&& value) {
-                 count += value;
-                 if (count >= 5) {
-                   eventuals::done(repeated);
-                 } else {
-                   eventuals::next(repeated);
-                 }
-               })
-               .ended([](auto& count, auto& k) {
-                 eventuals::succeed(k, std::move(count));
-               }));
+        | Loop<int>()
+              .context(0)
+              .body([](auto&& count, auto& repeated, auto&& value) {
+                count += value;
+                if (count >= 5) {
+                  eventuals::done(repeated);
+                } else {
+                  eventuals::next(repeated);
+                }
+              })
+              .ended([](auto& count, auto& k) {
+                eventuals::succeed(k, std::move(count));
+              });
   };
 
   EXPECT_EQ(5, *r());
@@ -173,19 +173,19 @@ TEST(RepeatTest, Map) {
                   .start([](auto& k) {
                     eventuals::succeed(k, 1);
                   }))
-        | (Loop<int>()
-               .context(0)
-               .body([](auto&& count, auto& repeated, auto&& value) {
-                 count += value;
-                 if (count >= 5) {
-                   eventuals::done(repeated);
-                 } else {
-                   eventuals::next(repeated);
-                 }
-               })
-               .ended([](auto& count, auto& k) {
-                 eventuals::succeed(k, std::move(count));
-               }));
+        | Loop<int>()
+              .context(0)
+              .body([](auto&& count, auto& repeated, auto&& value) {
+                count += value;
+                if (count >= 5) {
+                  eventuals::done(repeated);
+                } else {
+                  eventuals::next(repeated);
+                }
+              })
+              .ended([](auto& count, auto& k) {
+                eventuals::succeed(k, std::move(count));
+              });
   };
 
   EXPECT_EQ(5, *r());
@@ -203,27 +203,27 @@ TEST(RepeatTest, MapAcquire) {
                    }))
         | Map(
                Acquire(&lock)
-               | (Wait<int>(&lock)
-                      .condition([](auto& k, auto&& i) {
-                        eventuals::succeed(k, i);
-                      }))
+               | Wait<int>(&lock)
+                     .condition([](auto& k, auto&& i) {
+                       eventuals::succeed(k, i);
+                     })
                | Lambda([](auto&& i) {
                    return i;
                  })
                | Release(&lock))
-        | (Loop<int>()
-               .context(0)
-               .body([](auto&& count, auto& repeated, auto&& value) {
-                 count += value;
-                 if (count >= 5) {
-                   eventuals::done(repeated);
-                 } else {
-                   eventuals::next(repeated);
-                 }
-               })
-               .ended([](auto& count, auto& k) {
-                 eventuals::succeed(k, std::move(count));
-               }));
+        | Loop<int>()
+              .context(0)
+              .body([](auto&& count, auto& repeated, auto&& value) {
+                count += value;
+                if (count >= 5) {
+                  eventuals::done(repeated);
+                } else {
+                  eventuals::next(repeated);
+                }
+              })
+              .ended([](auto& count, auto& k) {
+                eventuals::succeed(k, std::move(count));
+              });
   };
 
   EXPECT_EQ(5, *r());

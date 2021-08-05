@@ -42,21 +42,21 @@ TEST(EventualTest, Succeed) {
                  thread.detach();
                })
         | Lambda([](int i) { return i + 2; })
-        | (Eventual<int>()
-               .context(9)
-               .start([](auto& context, auto& k, auto&& value) {
-                 auto thread = std::thread(
-                     [value, &context, &k]() mutable {
-                       eventuals::succeed(k, context - value);
-                     });
-                 thread.detach();
-               })
-               .fail([&](auto&, auto&, auto&&) {
-                 fail.Call();
-               })
-               .stop([&](auto&, auto&) {
-                 stop.Call();
-               }));
+        | Eventual<int>()
+              .context(9)
+              .start([](auto& context, auto& k, auto&& value) {
+                auto thread = std::thread(
+                    [value, &context, &k]() mutable {
+                      eventuals::succeed(k, context - value);
+                    });
+                thread.detach();
+              })
+              .fail([&](auto&, auto&, auto&&) {
+                fail.Call();
+              })
+              .stop([&](auto&, auto&) {
+                stop.Call();
+              });
   };
 
   EXPECT_EQ(2, *e());
@@ -84,13 +84,13 @@ TEST(EventualTest, Fail) {
                  thread.detach();
                })
         | Lambda([](int i) { return i + 2; })
-        | (Eventual<int>()
-               .start([&](auto& k, auto&& value) {
-                 start.Call();
-               })
-               .stop([&](auto&) {
-                 stop.Call();
-               }));
+        | Eventual<int>()
+              .start([&](auto& k, auto&& value) {
+                start.Call();
+              })
+              .stop([&](auto&) {
+                stop.Call();
+              });
   };
 
   EXPECT_THROW(*e(), eventuals::FailedException);
@@ -115,16 +115,16 @@ TEST(EventualTest, Interrupt) {
                  eventuals::stop(k);
                })
         | Lambda([](int i) { return i + 2; })
-        | (Eventual<int>()
-               .start([&](auto&, auto&&) {
-                 start.Call();
-               })
-               .fail([&](auto&, auto&&) {
-                 fail.Call();
-               })
-               .stop([](auto& k) {
-                 eventuals::stop(k);
-               }));
+        | Eventual<int>()
+              .start([&](auto&, auto&&) {
+                start.Call();
+              })
+              .fail([&](auto&, auto&&) {
+                fail.Call();
+              })
+              .stop([](auto& k) {
+                eventuals::stop(k);
+              });
   };
 
   auto [future, k] = Terminate(e());
@@ -156,31 +156,31 @@ TEST(EventualTest, Reuse) {
                   thread.detach();
                 }))
         | Lambda([](int i) { return i + 2; })
-        | (Eventual<int>()
-               .context(9)
-               .start([](auto& context, auto& k, auto&& value) {
-                 auto thread = std::thread(
-                     [value, &context, &k]() mutable {
-                       eventuals::succeed(k, context - value);
-                     });
-                 thread.detach();
-               }))
-        | (Terminal()
-               .context(std::move(promise))
-               .start([](auto& promise, auto&& value) {
-                 promise.set_value(std::forward<decltype(value)>(value));
-               })
-               .fail([](auto& promise, auto&& error) {
-                 promise.set_exception(
-                     std::make_exception_ptr(
-                         eventuals::FailedException(
-                             std::forward<decltype(error)>(error))));
-               })
-               .stop([](auto& promise) {
-                 promise.set_exception(
-                     std::make_exception_ptr(
-                         eventuals::StoppedException()));
-               }));
+        | Eventual<int>()
+              .context(9)
+              .start([](auto& context, auto& k, auto&& value) {
+                auto thread = std::thread(
+                    [value, &context, &k]() mutable {
+                      eventuals::succeed(k, context - value);
+                    });
+                thread.detach();
+              })
+        | Terminal()
+              .context(std::move(promise))
+              .start([](auto& promise, auto&& value) {
+                promise.set_value(std::forward<decltype(value)>(value));
+              })
+              .fail([](auto& promise, auto&& error) {
+                promise.set_exception(
+                    std::make_exception_ptr(
+                        eventuals::FailedException(
+                            std::forward<decltype(error)>(error))));
+              })
+              .stop([](auto& promise) {
+                promise.set_exception(
+                    std::make_exception_ptr(
+                        eventuals::StoppedException()));
+              });
   };
 
   using Operation = decltype(operation(int(), std::promise<int>()).k<void>());

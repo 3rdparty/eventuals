@@ -84,14 +84,14 @@ TEST(LockTest, Fail) {
 
   auto e1 = [&]() {
     return Acquire(&lock)
-        | (Eventual<std::string>()
-               .start([](auto& k) {
-                 auto thread = std::thread(
-                     [&k]() mutable {
-                       fail(k, "error");
-                     });
-                 thread.detach();
-               }))
+        | Eventual<std::string>()
+              .start([](auto& k) {
+                auto thread = std::thread(
+                    [&k]() mutable {
+                      fail(k, "error");
+                    });
+                thread.detach();
+              })
         | Release(&lock)
         | Lambda([](auto&& value) { return std::move(value); });
   };
@@ -118,13 +118,13 @@ TEST(LockTest, Stop) {
 
   auto e1 = [&]() {
     return Acquire(&lock)
-        | (Eventual<std::string>()
-               .start([&](auto& k) {
-                 start.Call();
-               })
-               .interrupt([](auto& k) {
-                 eventuals::stop(k);
-               }))
+        | Eventual<std::string>()
+              .start([&](auto& k) {
+                start.Call();
+              })
+              .interrupt([](auto& k) {
+                eventuals::stop(k);
+              })
         | Release(&lock);
   };
 
@@ -160,19 +160,19 @@ TEST(LockTest, Wait) {
                  eventuals::succeed(k, "t1");
                })
         | Acquire(&lock)
-        | (Wait<std::string>(&lock)
-               .context(false)
-               .condition([&](auto& waited, auto& k, auto&& value) {
-                 if (!waited) {
-                   callback = [&k]() {
-                     eventuals::notify(k);
-                   };
-                   eventuals::wait(k);
-                   waited = true;
-                 } else {
-                   eventuals::succeed(k, value);
-                 }
-               }))
+        | Wait<std::string>(&lock)
+              .context(false)
+              .condition([&](auto& waited, auto& k, auto&& value) {
+                if (!waited) {
+                  callback = [&k]() {
+                    eventuals::notify(k);
+                  };
+                  eventuals::wait(k);
+                  waited = true;
+                } else {
+                  eventuals::succeed(k, value);
+                }
+              })
         | Release(&lock);
   };
 
