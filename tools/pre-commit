@@ -51,7 +51,7 @@ fi
 
 run_checks() {
   local -i status=0
-  files=`git diff-index --cached --name-only HEAD | grep -iE '\.(cc|h)$'`
+  files=`git diff --cached --name-only HEAD | grep -iE '\.(cc|h)$'`
   for file in ${files}; do
     # Check file is formatted correctly.
     clang-format --dry-run -Werror --ferror-limit=0  ${file}
