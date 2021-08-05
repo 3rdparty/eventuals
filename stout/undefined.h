@@ -12,4 +12,4 @@ struct IsUndefined : std::false_type {};
 template <>
 struct IsUndefined<Undefined> : std::true_type {};
 
-} // namespace stout {
+} // namespace stout

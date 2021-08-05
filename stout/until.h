@@ -15,10 +15,8 @@ namespace detail {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename Arg_>
-struct UntilAdaptor
-{
-  void Start(bool done)
-  {
+struct UntilAdaptor {
+  void Start(bool done) {
     if (done) {
       eventuals::done(stream_);
     } else {
@@ -27,18 +25,15 @@ struct UntilAdaptor
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
-  void Stop()
-  {
+  void Stop() {
     eventuals::stop(k_);
   }
 
-  void Register(Interrupt& interrupt)
-  {
+  void Register(Interrupt& interrupt) {
     // Already registered K once in 'Until::Register()'.
   }
 
@@ -48,10 +43,8 @@ struct UntilAdaptor
 };
 
 template <typename K_>
-struct UntilAdaptor<K_, void>
-{
-  void Start(bool done)
-  {
+struct UntilAdaptor<K_, void> {
+  void Start(bool done) {
     if (done) {
       eventuals::done(stream_);
     } else {
@@ -60,18 +53,15 @@ struct UntilAdaptor<K_, void>
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
-  void Stop()
-  {
+  void Stop() {
     eventuals::stop(k_);
   }
 
-  void Register(Interrupt& interrupt)
-  {
+  void Register(Interrupt& interrupt) {
     // Already registered K once in 'Until::Register()'.
   }
 
@@ -82,36 +72,30 @@ struct UntilAdaptor<K_, void>
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename Condition_, typename Arg_>
-struct Until
-{
+struct Until {
   template <typename... Args>
-  void Start(TypeErasedStream& stream, Args&&... args)
-  {
+  void Start(TypeErasedStream& stream, Args&&... args) {
     stream_ = &stream;
 
     eventuals::succeed(k_, stream, std::forward<Args>(args)...);
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
-  void Stop()
-  {
+  void Stop() {
     eventuals::stop(k_);
   }
 
-  void Register(Interrupt& interrupt)
-  {
+  void Register(Interrupt& interrupt) {
     interrupt_ = &interrupt;
     k_.Register(interrupt);
   }
 
   template <typename... Args>
-  void Body(Args&&... args)
-  {
+  void Body(Args&&... args) {
     static_assert(
         !std::is_void_v<Arg_> || sizeof...(args) == 0,
         "'Until' only supports 0 or 1 value");
@@ -124,13 +108,13 @@ struct Until
       if constexpr (!std::is_void_v<Arg_>) {
         adaptor_.emplace(
             std::move(condition_)
-              .template k<Arg_>(
-                  UntilAdaptor<K_, Arg_> { k_, *arg_, *stream_ }));
+                .template k<Arg_>(
+                    UntilAdaptor<K_, Arg_>{k_, *arg_, *stream_}));
       } else {
         adaptor_.emplace(
             std::move(condition_)
-              .template k<Arg_>(
-                  UntilAdaptor<K_, Arg_> { k_, *stream_ }));
+                .template k<Arg_>(
+                    UntilAdaptor<K_, Arg_>{k_, *stream_}));
       }
 
       if (interrupt_ != nullptr) {
@@ -145,8 +129,7 @@ struct Until
     }
   }
 
-  void Ended()
-  {
+  void Ended() {
     eventuals::ended(k_);
   }
 
@@ -158,11 +141,11 @@ struct Until
   Interrupt* interrupt_ = nullptr;
 
   std::optional<
-    std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>> arg_;
+      std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
+      arg_;
 
-  using Adaptor_ = decltype(
-      std::declval<Condition_>()
-        .template k<Arg_>(std::declval<UntilAdaptor<K_, Arg_>>()));
+  using Adaptor_ = decltype(std::declval<Condition_>().template k<Arg_>(
+      std::declval<UntilAdaptor<K_, Arg_>>()));
 
   std::optional<Adaptor_> adaptor_;
 };
@@ -170,15 +153,13 @@ struct Until
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Condition_>
-struct UntilComposable
-{
+struct UntilComposable {
   template <typename Arg>
   using ValueFrom = Arg;
 
   template <typename Arg, typename K>
-  auto k(K k) &&
-  {
-    return Until<K, Condition_, Arg> { std::move(k), std::move(condition_) };
+  auto k(K k) && {
+    return Until<K, Condition_, Arg>{std::move(k), std::move(condition_)};
   }
 
   Condition_ condition_;
@@ -186,19 +167,18 @@ struct UntilComposable
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Condition>
-auto Until(Condition condition)
-{
-  return detail::UntilComposable<Condition> { std::move(condition) };
+auto Until(Condition condition) {
+  return detail::UntilComposable<Condition>{std::move(condition)};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace eventuals {
-} // namespace stout {
+} // namespace eventuals
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

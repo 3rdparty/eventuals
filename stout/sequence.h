@@ -27,19 +27,13 @@ struct Sequence {
   template <typename F>
   auto Once(F f) && {
     if constexpr (IsUndefined<F_>::value) {
-      return Sequence<F, Undefined> { std::move(f), Undefined() };
+      return Sequence<F, Undefined>{std::move(f), Undefined()};
     } else if constexpr (IsUndefined<Next_>::value) {
-      auto next = Sequence<F, Undefined> { std::move(f), Undefined() };
-      return Sequence<F_, decltype(next)> {
-        std::move(f_),
-        std::move(next)
-      };
+      auto next = Sequence<F, Undefined>{std::move(f), Undefined()};
+      return Sequence<F_, decltype(next)>{std::move(f_), std::move(next)};
     } else {
       auto next = std::move(next_).Once(std::move(f));
-      return Sequence<F_, decltype(next)> {
-        std::move(f_),
-        std::move(next)
-      };
+      return Sequence<F_, decltype(next)>{std::move(f_), std::move(next)};
     }
   }
 
@@ -48,11 +42,10 @@ struct Sequence {
   bool invoked_ = false;
 };
 
-} // namespace detail {
+} // namespace detail
 
 struct Sequence : public detail::Sequence<Undefined, Undefined> {
   Sequence() {}
 };
 
-} // namespace stout {
-
+} // namespace stout

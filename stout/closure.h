@@ -15,44 +15,36 @@ namespace detail {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename F_, typename Arg_>
-struct Closure
-{
+struct Closure {
   template <typename... Args>
-  void Start(Args&&... args)
-  {
+  void Start(Args&&... args) {
     eventuals::succeed(continuation(), std::forward<Args>(args)...);
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     eventuals::fail(continuation(), std::forward<Args>(args)...);
   }
 
-  void Stop()
-  {
+  void Stop() {
     eventuals::stop(continuation());
   }
 
   template <typename... Args>
-  void Body(Args&&... args)
-  {
+  void Body(Args&&... args) {
     eventuals::body(continuation(), std::forward<Args>(args)...);
   }
 
-  void Ended()
-  {
+  void Ended() {
     eventuals::ended(continuation());
   }
 
-  void Register(Interrupt& interrupt)
-  {
+  void Register(Interrupt& interrupt) {
     assert(interrupt_ == nullptr);
     interrupt_ = &interrupt;
   }
 
-  auto& continuation()
-  {
+  auto& continuation() {
     if (!continuation_) {
       continuation_.emplace(f_().template k<Arg_>(std::move(k_)));
 
@@ -77,15 +69,13 @@ struct Closure
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F_>
-struct ClosureComposable
-{
+struct ClosureComposable {
   template <typename Arg>
   using ValueFrom = typename std::invoke_result_t<F_>::template ValueFrom<Arg>;
 
   template <typename Arg, typename K>
-  auto k(K k) &&
-  {
-    return Closure<K, F_, Arg> { std::move(k), std::move(f_) };
+  auto k(K k) && {
+    return Closure<K, F_, Arg>{std::move(k), std::move(f_)};
   }
 
   F_ f_;
@@ -93,13 +83,12 @@ struct ClosureComposable
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
-auto Closure(F f)
-{
+auto Closure(F f) {
   static_assert(
       std::is_invocable_v<F>,
       "'Closure' expects a *callable* (e.g., a lambda or functor) "
@@ -110,12 +99,12 @@ auto Closure(F f)
   //     "Expecting an eventual continuation as the "
   //     "result of the callable passed to 'Closure'");
 
-  return detail::ClosureComposable<F> { std::move(f) };
+  return detail::ClosureComposable<F>{std::move(f)};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace eventuals {
-} // namespace stout {
+} // namespace eventuals
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

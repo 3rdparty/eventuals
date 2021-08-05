@@ -14,27 +14,22 @@ namespace detail {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_>
-struct ThenAdaptor
-{
+struct ThenAdaptor {
   template <typename... Args>
-  void Start(Args&&... args)
-  {
+  void Start(Args&&... args) {
     eventuals::succeed(k_, std::forward<Args>(args)...);
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
-  void Stop()
-  {
+  void Stop() {
     eventuals::stop(k_);
   }
 
-  void Register(Interrupt&)
-  {
+  void Register(Interrupt&) {
     // Already registered K once in 'Then::Register()'.
   }
 
@@ -44,19 +39,17 @@ struct ThenAdaptor
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename F_, typename Arg_>
-struct Then
-{
+struct Then {
   using E_ = typename std::conditional_t<
-    std::is_void_v<Arg_>,
-    std::invoke_result<F_>,
-    std::invoke_result<F_, Arg_>>::type;
+      std::is_void_v<Arg_>,
+      std::invoke_result<F_>,
+      std::invoke_result<F_, Arg_>>::type;
 
   template <typename... Args>
-  void Start(Args&&... args)
-  {
+  void Start(Args&&... args) {
     adaptor_.emplace(
         f_(std::forward<Args>(args)...)
-          .template k<void>(ThenAdaptor<K_> { k_}));
+            .template k<void>(ThenAdaptor<K_>{k_}));
 
     if (interrupt_ != nullptr) {
       adaptor_->Register(*interrupt_);
@@ -66,18 +59,15 @@ struct Then
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
-  void Stop()
-  {
+  void Stop() {
     eventuals::stop(k_);
   }
 
-  void Register(Interrupt& interrupt)
-  {
+  void Register(Interrupt& interrupt) {
     assert(interrupt_ == nullptr);
     interrupt_ = &interrupt;
     k_.Register(interrupt);
@@ -88,8 +78,8 @@ struct Then
 
   Interrupt* interrupt_ = nullptr;
 
-  using Adaptor_ = decltype(
-      std::declval<E_>().template k<void>(std::declval<ThenAdaptor<K_>>()));
+  using Adaptor_ = decltype(std::declval<E_>().template k<void>(
+      std::declval<ThenAdaptor<K_>>()));
 
   std::optional<Adaptor_> adaptor_;
 };
@@ -97,18 +87,16 @@ struct Then
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F_>
-struct ThenComposable
-{
+struct ThenComposable {
   template <typename Arg>
   using ValueFrom = typename std::conditional_t<
-    std::is_void_v<Arg>,
-    std::invoke_result<F_>,
-    std::invoke_result<F_, Arg>>::type::template ValueFrom<void>;
+      std::is_void_v<Arg>,
+      std::invoke_result<F_>,
+      std::invoke_result<F_, Arg>>::type::template ValueFrom<void>;
 
   template <typename Arg, typename K>
-  auto k(K k) &&
-  {
-    return Then<K, F_, Arg> { std::move(k), std::move(f_) };
+  auto k(K k) && {
+    return Then<K, F_, Arg>{std::move(k), std::move(f_)};
   }
 
   F_ f_;
@@ -116,19 +104,18 @@ struct ThenComposable
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
-auto Then(F f)
-{
-  return detail::ThenComposable<F> { std::move(f) };
+auto Then(F f) {
+  return detail::ThenComposable<F>{std::move(f)};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace eventuals {
-} // namespace stout {
+} // namespace eventuals
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

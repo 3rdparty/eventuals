@@ -15,27 +15,22 @@ namespace detail {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_>
-struct MapAdaptor
-{
+struct MapAdaptor {
   template <typename... Args>
-  void Start(Args&&... args)
-  {
+  void Start(Args&&... args) {
     eventuals::body(k_, std::forward<Args>(args)...);
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
-  void Stop()
-  {
+  void Stop() {
     eventuals::stop(k_);
   }
 
-  void Register(Interrupt&)
-  {
+  void Register(Interrupt&) {
     // Already registered K once in 'Map::Register()'.
   }
 
@@ -45,31 +40,26 @@ struct MapAdaptor
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename E_, typename Arg_>
-struct Map
-{
-  void Start(TypeErasedStream& stream)
-  {
+struct Map {
+  void Start(TypeErasedStream& stream) {
     eventuals::succeed(k_, stream);
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     // TODO(benh): do we need to fail via the adaptor?
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
-  void Stop()
-  {
+  void Stop() {
     // TODO(benh): do we need to stop via the adaptor?
     eventuals::stop(k_);
   }
 
   template <typename... Args>
-  void Body(Args&&... args)
-  {
+  void Body(Args&&... args) {
     if (!adaptor_) {
-      adaptor_.emplace(std::move(e_).template k<Arg_>(MapAdaptor<K_> { k_ }));
+      adaptor_.emplace(std::move(e_).template k<Arg_>(MapAdaptor<K_>{k_}));
 
       if (interrupt_ != nullptr) {
         adaptor_->Register(*interrupt_);
@@ -79,13 +69,11 @@ struct Map
     eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
   }
 
-  void Ended()
-  {
+  void Ended() {
     eventuals::ended(k_);
   }
 
-  void Register(Interrupt& interrupt)
-  {
+  void Register(Interrupt& interrupt) {
     assert(interrupt_ == nullptr);
     interrupt_ = &interrupt;
     k_.Register(interrupt);
@@ -94,8 +82,8 @@ struct Map
   K_ k_;
   E_ e_;
 
-  using Adaptor_ = decltype(
-      std::declval<E_>().template k<Arg_>(std::declval<MapAdaptor<K_>>()));
+  using Adaptor_ = decltype(std::declval<E_>().template k<Arg_>(
+      std::declval<MapAdaptor<K_>>()));
 
   std::optional<Adaptor_> adaptor_;
 
@@ -105,28 +93,24 @@ struct Map
 ////////////////////////////////////////////////////////////////////////
 
 template <typename>
-struct MapTraits
-{
+struct MapTraits {
   static constexpr bool exists = false;
 };
 
 template <typename K_, typename E_, typename Arg_>
-struct MapTraits<Map<K_, E_, Arg_>>
-{
+struct MapTraits<Map<K_, E_, Arg_>> {
   static constexpr bool exists = true;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E_>
-struct MapComposable
-{
+struct MapComposable {
   template <typename Arg>
   using ValueFrom = typename E_::template ValueFrom<Arg>;
 
   template <typename Arg, typename K>
-  auto k(K k) &&
-  {
+  auto k(K k) && {
     // Optimize the case where we compose map on map to lessen the
     // template instantiation load on the compiler.
     //
@@ -137,9 +121,9 @@ struct MapComposable
     if constexpr (MapTraits<K>::exists) {
       auto e = std::move(e_) | std::move(k.e_);
       using E = decltype(e);
-      return Map<decltype(k.k_), E, Arg> { std::move(k.k_), std::move(e) };
+      return Map<decltype(k.k_), E, Arg>{std::move(k.k_), std::move(e)};
     } else {
-      return Map<K, E_, Arg> { std::move(k), std::move(e_) };
+      return Map<K, E_, Arg>{std::move(k), std::move(e_)};
     }
   }
 
@@ -148,19 +132,18 @@ struct MapComposable
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E>
-auto Map(E e)
-{
-  return detail::MapComposable<E> { std::move(e) };
+auto Map(E e) {
+  return detail::MapComposable<E>{std::move(e)};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace eventuals {
-} // namespace stout {
+} // namespace eventuals
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

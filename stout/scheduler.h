@@ -4,8 +4,8 @@
 #include <string>
 #include <tuple>
 
-#include "stout/eventual.h"
 #include "stout/callback.h"
+#include "stout/eventual.h"
 #include "stout/interrupt.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -19,53 +19,51 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
-class Scheduler
-{
-public:
-  struct Context
-  {
-    Context(std::string* name) : name_(name) {}
+class Scheduler {
+ public:
+  struct Context {
+    Context(std::string* name)
+      : name_(name) {}
 
-    const std::string& name() { return *CHECK_NOTNULL(name_); }
+    const std::string& name() {
+      return *CHECK_NOTNULL(name_);
+    }
 
-  private:
+   private:
     std::string* name_;
   };
 
-  static Scheduler* Default()
-  {
+  static Scheduler* Default() {
     return default_;
   }
 
-  static void Set(Scheduler* scheduler, Context* context)
-  {
+  static void Set(Scheduler* scheduler, Context* context) {
     scheduler_ = scheduler;
     context_ = context;
   }
 
-  static Scheduler* Get(Context** context)
-  {
+  static Scheduler* Get(Context** context) {
     assert(scheduler_ != nullptr);
     *context = context_;
     return scheduler_;
   }
 
-  static bool Verify(Scheduler* scheduler, Context* context)
-  {
+  static bool Verify(Scheduler* scheduler, Context* context) {
     return scheduler_ == scheduler && context_ == context;
   }
 
-  static bool Verify(Context* context)
-  {
+  static bool Verify(Context* context) {
     return context_ == context;
   }
 
-  virtual void Submit(Callback<> callback, Context* context, bool defer = true)
-  {
+  virtual void Submit(
+      Callback<> callback,
+      Context* context,
+      bool defer = true) {
     // Default scheduler does not defer because it can't (unless we
     // update all calls that "wait" on tasks to execute outstanding
     // callbacks).
@@ -82,7 +80,7 @@ public:
   // execution using the execution resource associated with context.
   auto Reschedule(Context* context);
 
-private:
+ private:
   static Scheduler* default_;
   static thread_local Scheduler* scheduler_;
   static thread_local Context* context_;
@@ -95,13 +93,12 @@ namespace detail {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename Arg_>
-struct Reschedule
-{
+struct Reschedule {
   template <typename... Args>
-  void Start(Args&&... args)
-  {
-    static_assert(sizeof...(args) == 0 || sizeof...(args) == 1,
-                  "Reschedule only supports 0 or 1 argument, but found > 1");
+  void Start(Args&&... args) {
+    static_assert(
+        sizeof...(args) == 0 || sizeof...(args) == 1,
+        "Reschedule only supports 0 or 1 argument, but found > 1");
 
     static_assert(std::is_void_v<Arg_> || sizeof...(args) == 1);
 
@@ -110,7 +107,7 @@ struct Reschedule
     }
 
     STOUT_EVENTUALS_LOG(1)
-      << "Reschedule submitting '" << context_->name() << "'";
+        << "Reschedule submitting '" << context_->name() << "'";
 
     scheduler_->Submit(
         [this]() {
@@ -125,26 +122,25 @@ struct Reschedule
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     // TODO(benh): avoid allocating on heap by storing args in
     // pre-allocated buffer based on composing with Errors.
-    auto* tuple = new std::tuple { &k_, std::forward<Args>(args)... };
+    auto* tuple = new std::tuple{&k_, std::forward<Args>(args)...};
 
     scheduler_->Submit(
         [tuple]() {
-          std::apply([](auto* k_, auto&&... args) {
-            eventuals::fail(*k_, std::forward<decltype(args)>(args)...);
-          },
-          std::move(*tuple));
+          std::apply(
+              [](auto* k_, auto&&... args) {
+                eventuals::fail(*k_, std::forward<decltype(args)>(args)...);
+              },
+              std::move(*tuple));
           delete tuple;
         },
         context_,
         /* defer = */ false); // Execute the code immediately if possible.
   }
 
-  void Stop()
-  {
+  void Stop() {
     scheduler_->Submit(
         [this]() {
           eventuals::stop(k_);
@@ -153,8 +149,7 @@ struct Reschedule
         /* defer = */ false); // Execute the code immediately if possible.
   }
 
-  void Register(Interrupt& interrupt)
-  {
+  void Register(Interrupt& interrupt) {
     k_.Register(interrupt);
   }
 
@@ -163,20 +158,19 @@ struct Reschedule
   Scheduler::Context* context_;
 
   std::optional<
-    std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>> arg_;
+      std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
+      arg_;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-struct RescheduleComposable
-{
+struct RescheduleComposable {
   template <typename Arg>
   using ValueFrom = Arg;
 
   template <typename Arg, typename K>
-  auto k(K k) &&
-  {
-   return Reschedule<K, Arg> { std::move(k), scheduler_, context_ };
+  auto k(K k) && {
+    return Reschedule<K, Arg>{std::move(k), scheduler_, context_};
   }
 
   Scheduler* scheduler_;
@@ -185,16 +179,15 @@ struct RescheduleComposable
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
-inline auto Scheduler::Reschedule(Context* context)
-{
-  return detail::RescheduleComposable { this, context };
+inline auto Scheduler::Reschedule(Context* context) {
+  return detail::RescheduleComposable{this, context};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace eventuals {
-} // namespace stout {
+} // namespace eventuals
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

@@ -16,21 +16,19 @@ namespace detail {
 ////////////////////////////////////////////////////////////////////////
 
 template <
-  typename K_,
-  typename Context_,
-  typename Start_,
-  typename Body_,
-  typename Ended_,
-  typename Fail_,
-  typename Stop_,
-  typename Interrupt_,
-  typename Value_,
-  typename... Errors_>
-struct Transform
-{
+    typename K_,
+    typename Context_,
+    typename Start_,
+    typename Body_,
+    typename Ended_,
+    typename Fail_,
+    typename Stop_,
+    typename Interrupt_,
+    typename Value_,
+    typename... Errors_>
+struct Transform {
   template <typename... Args>
-  void Start(Args&&... args)
-  {
+  void Start(Args&&... args) {
     auto interrupted = [this]() mutable {
       if (handler_) {
         return !handler_->Install();
@@ -54,8 +52,7 @@ struct Transform
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     if constexpr (IsUndefined<Start_>::value) {
       eventuals::fail(k_, std::forward<Args>(args)...);
     } else if constexpr (IsUndefined<Context_>::value) {
@@ -65,8 +62,7 @@ struct Transform
     }
   }
 
-  void Stop()
-  {
+  void Stop() {
     if constexpr (IsUndefined<Start_>::value) {
       eventuals::stop(k_);
     } else if constexpr (IsUndefined<Context_>::value) {
@@ -76,8 +72,7 @@ struct Transform
     }
   }
 
-  void Register(Interrupt& interrupt)
-  {
+  void Register(Interrupt& interrupt) {
     k_.Register(interrupt);
 
     if constexpr (!IsUndefined<Interrupt_>::value) {
@@ -92,8 +87,7 @@ struct Transform
   }
 
   template <typename... Args>
-  void Body(Args&&... args)
-  {
+  void Body(Args&&... args) {
     if constexpr (IsUndefined<Body_>::value) {
       eventuals::body(k_, std::forward<Args>(args)...);
     } else if constexpr (IsUndefined<Context_>::value) {
@@ -103,8 +97,7 @@ struct Transform
     }
   }
 
-  void Ended()
-  {
+  void Ended() {
     if constexpr (IsUndefined<Ended_>::value) {
       eventuals::ended(k_);
     } else if constexpr (IsUndefined<Context_>::value) {
@@ -129,30 +122,29 @@ struct Transform
 ////////////////////////////////////////////////////////////////////////
 
 template <
-  typename Context_,
-  typename Start_,
-  typename Body_,
-  typename Ended_,
-  typename Fail_,
-  typename Stop_,
-  typename Interrupt_,
-  typename Value_,
-  typename... Errors_>
-struct TransformBuilder
-{
+    typename Context_,
+    typename Start_,
+    typename Body_,
+    typename Ended_,
+    typename Fail_,
+    typename Stop_,
+    typename Interrupt_,
+    typename Value_,
+    typename... Errors_>
+struct TransformBuilder {
   template <typename Arg>
   using ValueFrom = Value_;
 
   template <
-    typename Value,
-    typename... Errors,
-    typename Context,
-    typename Start,
-    typename Body,
-    typename Ended,
-    typename Fail,
-    typename Stop,
-    typename Interrupt>
+      typename Value,
+      typename... Errors,
+      typename Context,
+      typename Start,
+      typename Body,
+      typename Ended,
+      typename Fail,
+      typename Stop,
+      typename Interrupt>
   static auto create(
       Context context,
       Start start,
@@ -160,56 +152,51 @@ struct TransformBuilder
       Ended ended,
       Fail fail,
       Stop stop,
-      Interrupt interrupt)
-  {
+      Interrupt interrupt) {
     return TransformBuilder<
-      Context,
-      Start,
-      Body,
-      Ended,
-      Fail,
-      Stop,
-      Interrupt,
-      Value,
-      Errors...> {
-      std::move(context),
-      std::move(start),
-      std::move(body),
-      std::move(ended),
-      std::move(fail),
-      std::move(stop),
-      std::move(interrupt)
-    };
+        Context,
+        Start,
+        Body,
+        Ended,
+        Fail,
+        Stop,
+        Interrupt,
+        Value,
+        Errors...>{
+        std::move(context),
+        std::move(start),
+        std::move(body),
+        std::move(ended),
+        std::move(fail),
+        std::move(stop),
+        std::move(interrupt)};
   }
 
   template <typename Arg, typename K>
-  auto k(K k) &&
-  {
+  auto k(K k) && {
     return Transform<
-      K,
-      Context_,
-      Start_,
-      Body_,
-      Ended_,
-      Fail_,
-      Stop_,
-      Interrupt_,
-      Value_,
-      Errors_...> {
-      std::move(k),
-      std::move(context_),
-      std::move(start_),
-      std::move(body_),
-      std::move(ended_),
-      std::move(fail_),
-      std::move(stop_),
-      std::move(interrupt_)
-    };
+        K,
+        Context_,
+        Start_,
+        Body_,
+        Ended_,
+        Fail_,
+        Stop_,
+        Interrupt_,
+        Value_,
+        Errors_...>{
+        std::move(k),
+        std::move(context_),
+        std::move(start_),
+        std::move(body_),
+        std::move(ended_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt_)};
   }
 
   template <typename Context>
-  auto context(Context context) &&
-  {
+  auto context(Context context) && {
     static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
     return create<Value_, Errors_...>(
         std::move(context),
@@ -222,8 +209,7 @@ struct TransformBuilder
   }
 
   template <typename Start>
-  auto start(Start start) &&
-  {
+  auto start(Start start) && {
     static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
     return create<Value_, Errors_...>(
         std::move(context_),
@@ -236,8 +222,7 @@ struct TransformBuilder
   }
 
   template <typename Body>
-  auto body(Body body) &&
-  {
+  auto body(Body body) && {
     static_assert(IsUndefined<Body_>::value, "Duplicate 'body'");
     return create<Value_, Errors_...>(
         std::move(context_),
@@ -250,8 +235,7 @@ struct TransformBuilder
   }
 
   template <typename Ended>
-  auto ended(Ended ended) &&
-  {
+  auto ended(Ended ended) && {
     static_assert(IsUndefined<Ended_>::value, "Duplicate 'ended'");
     return create<Value_, Errors_...>(
         std::move(context_),
@@ -264,8 +248,7 @@ struct TransformBuilder
   }
 
   template <typename Fail>
-  auto fail(Fail fail) &&
-  {
+  auto fail(Fail fail) && {
     static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
     return create<Value_, Errors_...>(
         std::move(context_),
@@ -278,8 +261,7 @@ struct TransformBuilder
   }
 
   template <typename Stop>
-  auto stop(Stop stop) &&
-  {
+  auto stop(Stop stop) && {
     static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
     return create<Value_, Errors_...>(
         std::move(context_),
@@ -292,8 +274,7 @@ struct TransformBuilder
   }
 
   template <typename Interrupt>
-  auto interrupt(Interrupt interrupt) &&
-  {
+  auto interrupt(Interrupt interrupt) && {
     static_assert(IsUndefined<Interrupt_>::value, "Duplicate 'interrupt'");
     return create<Value_, Errors_...>(
         std::move(context_),
@@ -316,29 +297,28 @@ struct TransformBuilder
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Value, typename... Errors>
-auto Transform()
-{
+auto Transform() {
   return detail::TransformBuilder<
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Value,
-    Errors...> {};
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Value,
+      Errors...>{};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace eventuals {
-} // namespace stout {
+} // namespace eventuals
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

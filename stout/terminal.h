@@ -17,18 +17,16 @@ namespace eventuals {
 namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
-  
+
 template <
-  typename Context_,
-  typename Start_,
-  typename Fail_,
-  typename Stop_,
-  typename Interrupt_>
-struct Terminal
-{
+    typename Context_,
+    typename Start_,
+    typename Fail_,
+    typename Stop_,
+    typename Interrupt_>
+struct Terminal {
   template <typename... Args>
-  void Start(Args&&... args)
-  {
+  void Start(Args&&... args) {
     if constexpr (IsUndefined<Start_>::value) {
       STOUT_EVENTUALS_LOG(1) << "'Terminal::Start()' reached but undefined";
     } else {
@@ -54,8 +52,7 @@ struct Terminal
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     if constexpr (IsUndefined<Fail_>::value) {
       STOUT_EVENTUALS_LOG(1) << "'Terminal::Fail()' reached but undefined";
     } else {
@@ -67,8 +64,7 @@ struct Terminal
     }
   }
 
-  void Stop()
-  {
+  void Stop() {
     if constexpr (IsUndefined<Stop_>::value) {
       STOUT_EVENTUALS_LOG(1) << "'Terminal::Stop()' reached but undefined";
     } else {
@@ -80,8 +76,7 @@ struct Terminal
     }
   }
 
-  void Register(Interrupt& interrupt)
-  {
+  void Register(Interrupt& interrupt) {
     if constexpr (!IsUndefined<Interrupt_>::value) {
       handler_.emplace(&interrupt, [this]() {
         if constexpr (IsUndefined<Context_>::value) {
@@ -105,67 +100,61 @@ struct Terminal
 ////////////////////////////////////////////////////////////////////////
 
 template <
-  typename Context_,
-  typename Start_,
-  typename Fail_,
-  typename Stop_,
-  typename Interrupt_>
-struct TerminalBuilder
-{
+    typename Context_,
+    typename Start_,
+    typename Fail_,
+    typename Stop_,
+    typename Interrupt_>
+struct TerminalBuilder {
   template <typename...>
   using ValueFrom = void;
 
   template <
-    typename Context,
-    typename Start,
-    typename Fail,
-    typename Stop,
-    typename Interrupt>
+      typename Context,
+      typename Start,
+      typename Fail,
+      typename Stop,
+      typename Interrupt>
   static auto create(
       Context context,
       Start start,
       Fail fail,
       Stop stop,
-      Interrupt interrupt)
-  {
+      Interrupt interrupt) {
     return TerminalBuilder<
-      Context,
-      Start,
-      Fail,
-      Stop,
-      Interrupt> {
-      std::move(context),
-      std::move(start),
-      std::move(fail),
-      std::move(stop),
-      std::move(interrupt)
-    };
+        Context,
+        Start,
+        Fail,
+        Stop,
+        Interrupt>{
+        std::move(context),
+        std::move(start),
+        std::move(fail),
+        std::move(stop),
+        std::move(interrupt)};
   }
 
   template <typename Arg, typename... K>
-  auto k(K...) &&
-  {
+  auto k(K...) && {
     static_assert(
         sizeof...(K) == 0,
         "detected invalid continuation composed _after_ 'Terminal'");
 
     return Terminal<
-      Context_,
-      Start_,
-      Fail_,
-      Stop_,
-      Interrupt_> {
-      std::move(context_),
-      std::move(start_),
-      std::move(fail_),
-      std::move(stop_),
-      std::move(interrupt_)
-    };
+        Context_,
+        Start_,
+        Fail_,
+        Stop_,
+        Interrupt_>{
+        std::move(context_),
+        std::move(start_),
+        std::move(fail_),
+        std::move(stop_),
+        std::move(interrupt_)};
   }
 
   template <typename Context>
-  auto context(Context context) &&
-  {
+  auto context(Context context) && {
     static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
     return create(
         std::move(context),
@@ -176,8 +165,7 @@ struct TerminalBuilder
   }
 
   template <typename Start>
-  auto start(Start start) &&
-  {
+  auto start(Start start) && {
     static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
     return create(
         std::move(context_),
@@ -188,8 +176,7 @@ struct TerminalBuilder
   }
 
   template <typename Fail>
-  auto fail(Fail fail) &&
-  {
+  auto fail(Fail fail) && {
     static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
     return create(
         std::move(context_),
@@ -200,8 +187,7 @@ struct TerminalBuilder
   }
 
   template <typename Stop>
-  auto stop(Stop stop) &&
-  {
+  auto stop(Stop stop) && {
     static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
     return create(
         std::move(context_),
@@ -212,8 +198,7 @@ struct TerminalBuilder
   }
 
   template <typename Interrupt>
-  auto interrupt(Interrupt interrupt) &&
-  {
+  auto interrupt(Interrupt interrupt) && {
     static_assert(IsUndefined<Interrupt_>::value, "Duplicate 'interrupt'");
     return create(
         std::move(context_),
@@ -232,34 +217,30 @@ struct TerminalBuilder
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Terminal()
-{
+inline auto Terminal() {
   return detail::TerminalBuilder<
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined,
-    Undefined> {};
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined>{};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-struct StoppedException : public std::exception
-{
-  const char* what() const throw()
-  {
+struct StoppedException : public std::exception {
+  const char* what() const throw() {
     return "Eventual computation stopped (cancelled)";
   }
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-struct FailedException : public std::exception
-{
+struct FailedException : public std::exception {
   // Helper for determining if a type can be converted into a string
   // by streaming using 'std::stringstream' and '<<'.
   template <typename S, typename T, typename = void>
@@ -267,14 +248,13 @@ struct FailedException : public std::exception
 
   template <typename S, typename T>
   struct Streamable<
-    S,
-    T,
-    decltype(void(std::declval<S&>() << std::declval<T const&>()))>
+      S,
+      T,
+      decltype(void(std::declval<S&>() << std::declval<T const&>()))>
     : std::true_type {};
 
   template <typename Error>
-  FailedException(const Error& error)
-  {
+  FailedException(const Error& error) {
     std::stringstream ss;
     ss << "Eventual computation failed";
     if constexpr (Streamable<std::stringstream, Error>::value) {
@@ -294,8 +274,7 @@ struct FailedException : public std::exception
   FailedException(FailedException&& that)
     : message_(std::move(that.message_)) {}
 
-  const char* what() const throw()
-  {
+  const char* what() const throw() {
     return message_.c_str();
   }
 
@@ -305,8 +284,7 @@ struct FailedException : public std::exception
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E>
-auto Terminate(E e)
-{
+auto Terminate(E e) {
   using Value = typename E::template ValueFrom<void>;
 
   std::promise<Value> promise;
@@ -315,24 +293,25 @@ auto Terminate(E e)
 
   auto k = (std::move(e)
             | (eventuals::Terminal()
-               .context(std::move(promise))
-               .start([](auto& promise, auto&&... values) {
-                 static_assert(
-                     sizeof...(values) == 0 || sizeof...(values) == 1,
-                     "Task only supports 0 or 1 value, but found > 1");
-                 promise.set_value(std::forward<decltype(values)>(values)...);
-               })
-               .fail([](auto& promise, auto&&... errors) {
-                 promise.set_exception(
-                     std::make_exception_ptr(
-                         FailedException(
-                             std::forward<decltype(errors)>(errors)...)));
-               })
-               .stop([](auto& promise) {
-                 promise.set_exception(
-                     std::make_exception_ptr(
-                         StoppedException()));
-               }))).template k<void>();
+                   .context(std::move(promise))
+                   .start([](auto& promise, auto&&... values) {
+                     static_assert(
+                         sizeof...(values) == 0 || sizeof...(values) == 1,
+                         "Task only supports 0 or 1 value, but found > 1");
+                     promise.set_value(std::forward<decltype(values)>(values)...);
+                   })
+                   .fail([](auto& promise, auto&&... errors) {
+                     promise.set_exception(
+                         std::make_exception_ptr(
+                             FailedException(
+                                 std::forward<decltype(errors)>(errors)...)));
+                   })
+                   .stop([](auto& promise) {
+                     promise.set_exception(
+                         std::make_exception_ptr(
+                             StoppedException()));
+                   })))
+               .template k<void>();
 
   return std::make_tuple(std::move(future), std::move(k));
 }
@@ -344,8 +323,7 @@ namespace detail {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E>
-auto operator*(E e)
-{
+auto operator*(E e) {
   auto [future, k] = Terminate(std::move(e));
 
   start(k);
@@ -355,11 +333,11 @@ auto operator*(E e)
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace eventuals {
-} // namespace stout {
+} // namespace eventuals
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

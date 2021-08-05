@@ -14,27 +14,22 @@ namespace detail {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename T_>
-struct Raise
-{
+struct Raise {
   template <typename... Args>
-  void Start(Args&&...)
-  {
+  void Start(Args&&...) {
     eventuals::fail(k_, std::move(t_));
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
-  void Stop()
-  {
+  void Stop() {
     eventuals::stop(k_);
   }
 
-  void Register(Interrupt& interrupt)
-  {
+  void Register(Interrupt& interrupt) {
     k_.Register(interrupt);
   }
 
@@ -45,15 +40,13 @@ struct Raise
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T_>
-struct RaiseComposable
-{
+struct RaiseComposable {
   template <typename>
   using ValueFrom = void;
 
   template <typename Arg, typename K>
-  auto k(K k) &&
-  {
-    return Raise<K, T_> { std::move(k), std::move(t_) };
+  auto k(K k) && {
+    return Raise<K, T_>{std::move(k), std::move(t_)};
   }
 
   T_ t_;
@@ -61,19 +54,18 @@ struct RaiseComposable
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-auto Raise(T t)
-{
-  return detail::RaiseComposable<T> { std::move(t) };
+auto Raise(T t) {
+  return detail::RaiseComposable<T>{std::move(t)};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace eventuals {
-} // namespace stout {
+} // namespace eventuals
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

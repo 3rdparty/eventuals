@@ -8,8 +8,7 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 StaticThreadPool::StaticThreadPool()
-  : concurrency(std::thread::hardware_concurrency())
-{
+  : concurrency(std::thread::hardware_concurrency()) {
   semaphores_.reserve(concurrency);
   heads_.reserve(concurrency);
   threads_.reserve(concurrency);
@@ -42,7 +41,8 @@ StaticThreadPool::StaticThreadPool()
             if (waiter != nullptr) {
               if (waiter->next == nullptr) {
                 if (!head.compare_exchange_weak(
-                        waiter, nullptr,
+                        waiter,
+                        nullptr,
                         std::memory_order_release,
                         std::memory_order_relaxed)) {
                   goto load; // Try again.
@@ -85,8 +85,7 @@ StaticThreadPool::StaticThreadPool()
 
 ////////////////////////////////////////////////////////////////////////
 
-StaticThreadPool::~StaticThreadPool()
-{
+StaticThreadPool::~StaticThreadPool() {
   shutdown_.store(true);
   while (!threads_.empty()) {
     auto* semaphore = semaphores_.back();
@@ -100,8 +99,10 @@ StaticThreadPool::~StaticThreadPool()
 
 ////////////////////////////////////////////////////////////////////////
 
-void StaticThreadPool::Submit(Callback<> callback, Context* context, bool defer)
-{
+void StaticThreadPool::Submit(
+    Callback<> callback,
+    Context* context,
+    bool defer) {
   assert(context != nullptr);
 
   auto* waiter = static_cast<Waiter*>(context);
@@ -158,9 +159,11 @@ void StaticThreadPool::Submit(Callback<> callback, Context* context, bool defer)
     waiter->next = head->load(std::memory_order_relaxed);
 
     while (!head->compare_exchange_weak(
-               waiter->next, waiter,
-               std::memory_order_release,
-               std::memory_order_relaxed));
+        waiter->next,
+        waiter,
+        std::memory_order_release,
+        std::memory_order_relaxed))
+      ;
 
     auto* semaphore = semaphores_[core];
 
@@ -170,7 +173,7 @@ void StaticThreadPool::Submit(Callback<> callback, Context* context, bool defer)
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace eventuals {
-} // namespace stout {
+} // namespace eventuals
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

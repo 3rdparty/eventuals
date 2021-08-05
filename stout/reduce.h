@@ -15,10 +15,8 @@ namespace detail {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_>
-struct ReduceAdaptor
-{
-  void Start(bool next)
-  {
+struct ReduceAdaptor {
+  void Start(bool next) {
     if (next) {
       eventuals::next(*stream_);
     } else {
@@ -27,18 +25,15 @@ struct ReduceAdaptor
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
-  void Stop()
-  {
+  void Stop() {
     eventuals::stop(k_);
   }
 
-  void Register(Interrupt&)
-  {
+  void Register(Interrupt&) {
     // Already registered K once in 'Reduce::Register()'.
   }
 
@@ -49,35 +44,30 @@ struct ReduceAdaptor
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename T_, typename F_, typename Arg_>
-struct Reduce
-{
-  void Start(detail::TypeErasedStream& stream)
-  {
+struct Reduce {
+  void Start(detail::TypeErasedStream& stream) {
     stream_ = &stream;
 
     eventuals::next(*stream_);
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     // TODO(benh): do we need to stop via the adaptor?
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
-  void Stop()
-  {
+  void Stop() {
     // TODO(benh): do we need to stop via the adaptor?
     eventuals::stop(k_);
   }
 
   template <typename... Args>
-  void Body(Args&&... args)
-  {
+  void Body(Args&&... args) {
     if (!adaptor_) {
       adaptor_.emplace(
           f_(static_cast<T_&>(t_))
-          .template k<Arg_>(ReduceAdaptor<K_> { k_, stream_ }));
+              .template k<Arg_>(ReduceAdaptor<K_>{k_, stream_}));
 
       if (interrupt_ != nullptr) {
         adaptor_->Register(*interrupt_);
@@ -87,13 +77,11 @@ struct Reduce
     eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
   }
 
-  void Ended()
-  {
+  void Ended() {
     eventuals::succeed(k_, std::move(t_));
   }
 
-  void Register(Interrupt& interrupt)
-  {
+  void Register(Interrupt& interrupt) {
     interrupt_ = &interrupt;
     k_.Register(interrupt);
   }
@@ -112,8 +100,8 @@ struct Reduce
       std::is_same_v<bool, typename E_::template ValueFrom<Arg_>>,
       "expecting an eventually returned bool for 'Reduce'");
 
-  using Adaptor_ = decltype(
-      std::declval<E_>().template k<Arg_>(std::declval<ReduceAdaptor<K_>>()));
+  using Adaptor_ = decltype(std::declval<E_>().template k<Arg_>(
+      std::declval<ReduceAdaptor<K_>>()));
 
   std::optional<Adaptor_> adaptor_;
 };
@@ -121,19 +109,16 @@ struct Reduce
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T_, typename F_>
-struct ReduceComposable
-{
+struct ReduceComposable {
   template <typename Arg>
   using ValueFrom = T_;
 
   template <typename Arg, typename K>
-  auto k(K k) &&
-  {
-    return Reduce<K, T_, F_, Arg> {
-      std::move(k),
-      std::move(t_),
-      std::move(f_)
-    };
+  auto k(K k) && {
+    return Reduce<K, T_, F_, Arg>{
+        std::move(k),
+        std::move(t_),
+        std::move(f_)};
   }
 
   T_ t_;
@@ -142,13 +127,12 @@ struct ReduceComposable
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T, typename F>
-auto Reduce(T t, F f)
-{
+auto Reduce(T t, F f) {
   // static_assert(
   //     !IsContinuation<F>::value
   //     && std::is_invocable_v<F, std::add_lvalue_reference_t<T>>,
@@ -156,12 +140,12 @@ auto Reduce(T t, F f)
   //     "a reference to the initial accumulator and you can "
   //     "return an eventual from the callable");
 
-  return detail::ReduceComposable<T, F> { std::move(t), std::move(f) };
+  return detail::ReduceComposable<T, F>{std::move(t), std::move(f)};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace eventuals {
-} // namespace stout {
+} // namespace eventuals
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////
