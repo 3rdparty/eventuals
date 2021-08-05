@@ -14,49 +14,47 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Arg_>
-struct TaskAdaptor {
-  TaskAdaptor(
-      Callback<Arg_>* start,
-      Callback<std::exception_ptr>* fail,
-      Callback<>* stop)
-    : start_(start),
-      fail_(fail),
-      stop_(stop) {}
-
-  template <typename... Args>
-  void Start(Args&&... args) {
-    (*start_)(std::forward<Args>(args)...);
-  }
-
-  template <typename... Args>
-  void Fail(Args&&... args) {
-    (*fail_)(
-        std::make_exception_ptr(
-            FailedException(std::forward<decltype(args)>(args)...)));
-  }
-
-  void Stop() {
-    (*stop_)();
-  }
-
-  void Register(Interrupt&) {}
-
-  Callback<Arg_>* start_;
-  Callback<std::exception_ptr>* fail_;
-  Callback<>* stop_;
-};
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename E_>
 struct HeapTask {
   using Value_ = typename E_::template ValueFrom<void>;
 
+  template <typename Arg_>
+  struct Adaptor {
+    Adaptor(
+        Callback<Arg_>* start,
+        Callback<std::exception_ptr>* fail,
+        Callback<>* stop)
+      : start_(start),
+        fail_(fail),
+        stop_(stop) {}
+
+    template <typename... Args>
+    void Start(Args&&... args) {
+      (*start_)(std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    void Fail(Args&&... args) {
+      (*fail_)(
+          std::make_exception_ptr(
+              FailedException(std::forward<decltype(args)>(args)...)));
+    }
+
+    void Stop() {
+      (*stop_)();
+    }
+
+    void Register(Interrupt&) {}
+
+    Callback<Arg_>* start_;
+    Callback<std::exception_ptr>* fail_;
+    Callback<>* stop_;
+  };
+
   HeapTask(E_ e)
     : adaptor_(
         std::move(e).template k<void>(
-            TaskAdaptor<Value_>{&start_, &fail_, &stop_})) {}
+            Adaptor<Value_>{&start_, &fail_, &stop_})) {}
 
   void Start(
       Interrupt& interrupt,
@@ -79,7 +77,7 @@ struct HeapTask {
   Callback<> stop_;
 
   using Adaptor_ = decltype(std::declval<E_>().template k<void>(
-      std::declval<TaskAdaptor<Value_>>()));
+      std::declval<Adaptor<Value_>>()));
 
   Adaptor_ adaptor_;
 };
@@ -87,7 +85,7 @@ struct HeapTask {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename Value_, typename... Args_>
-struct TaskWith {
+struct _TaskWith {
   template <typename... Args>
   void Start(Args&&...) {
     std::apply(
@@ -217,7 +215,7 @@ struct TaskWith {
   template <typename Arg, typename K>
   auto k(K k) && {
     // TODO(benh): ensure we haven't already called 'Start()'.
-    return detail::TaskWith<K, Value_, Args_...>{
+    return detail::_TaskWith<K, Value_, Args_...>{
         std::move(k),
         std::move(args_),
         std::move(start_)};
