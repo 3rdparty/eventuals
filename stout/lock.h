@@ -120,7 +120,7 @@ struct _Acquire {
   struct Continuation {
     template <typename... Args>
     void Start(Args&&... args) {
-      scheduler_ = Scheduler::Get(&context_);
+      context_ = Scheduler::Context::Get();
 
       STOUT_EVENTUALS_LOG(1)
           << "'" << context_->name() << "' acquiring";
@@ -144,7 +144,7 @@ struct _Acquire {
           STOUT_EVENTUALS_LOG(1)
               << "'" << context_->name() << "' (very slow) acquired";
 
-          scheduler_->Submit(
+          context_->scheduler()->Submit(
               [this]() mutable {
                 if constexpr (sizeof...(args) == 1) {
                   eventuals::succeed(k_, std::move(*arg_));
@@ -170,7 +170,7 @@ struct _Acquire {
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      scheduler_ = Scheduler::Get(&context_);
+      context_ = Scheduler::Context::Get();
 
       if (lock_->AcquireFast(&waiter_)) {
         eventuals::fail(k_, std::forward<Args>(args)...);
@@ -182,9 +182,8 @@ struct _Acquire {
         waiter_.f = [tuple]() mutable {
           std::apply(
               [tuple](auto* acquire, auto&&...) {
-                auto* scheduler_ = acquire->scheduler_;
                 auto* context_ = acquire->context_;
-                scheduler_->Submit(
+                context_->scheduler()->Submit(
                     [tuple]() mutable {
                       std::apply(
                           [](auto* acquire, auto&&... args) {
@@ -208,13 +207,13 @@ struct _Acquire {
     }
 
     void Stop() {
-      scheduler_ = Scheduler::Get(&context_);
+      context_ = Scheduler::Context::Get();
 
       if (lock_->AcquireFast(&waiter_)) {
         eventuals::stop(k_);
       } else {
         waiter_.f = [this]() mutable {
-          scheduler_->Submit(
+          context_->scheduler()->Submit(
               [this]() mutable {
                 eventuals::stop(k_);
               },
@@ -237,7 +236,6 @@ struct _Acquire {
     std::optional<
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
-    Scheduler* scheduler_ = nullptr;
     Scheduler::Context* context_ = nullptr;
   };
 
@@ -350,13 +348,13 @@ struct _Wait {
           arg_.emplace(std::forward<Args>(args)...);
         }
 
-        scheduler_ = Scheduler::Get(&context_);
+        context_ = Scheduler::Context::Get();
 
         waiter_.f = [this]() mutable {
           STOUT_EVENTUALS_LOG(1)
               << "'" << context_->name() << "' (notify) acquired";
 
-          scheduler_->Submit(
+          context_->scheduler()->Submit(
               [this]() mutable {
                 if constexpr (sizeof...(args) == 1) {
                   Start(std::move(*arg_));
@@ -399,7 +397,6 @@ struct _Wait {
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
     bool notifiable_ = false;
-    Scheduler* scheduler_ = nullptr;
     Scheduler::Context* context_ = nullptr;
   };
 

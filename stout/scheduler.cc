@@ -8,7 +8,7 @@ Scheduler* Scheduler::default_ = new Scheduler();
 thread_local Scheduler* Scheduler::scheduler_ = default_;
 
 thread_local Scheduler::Context* Scheduler::context_ =
-    new Scheduler::Context(new std::string("[main]"));
+    new Scheduler::Context(default_, new std::string("[main]"));
 
 } // namespace eventuals
 } // namespace stout

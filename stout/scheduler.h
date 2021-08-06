@@ -18,8 +18,24 @@ namespace eventuals {
 class Scheduler {
  public:
   struct Context {
-    Context(std::string* name)
-      : name_(name) {}
+    static Context* Get() {
+      Context* previous = nullptr;
+      auto* scheduler = Scheduler::Get(&previous);
+      CHECK_EQ(scheduler, previous->scheduler_);
+      return previous;
+    }
+
+    static Context* Switch(Context* context) {
+      Context* previous = nullptr;
+      auto* scheduler = Scheduler::Get(&previous);
+      CHECK_EQ(scheduler, previous->scheduler_) << previous->name();
+      Scheduler::Set(context->scheduler_, context);
+      return previous;
+    }
+
+    Context(Scheduler* scheduler, std::string* name)
+      : scheduler_(scheduler),
+        name_(name) {}
 
     Context(Context&& that) = delete;
 
@@ -27,7 +43,17 @@ class Scheduler {
       return *CHECK_NOTNULL(name_);
     }
 
+    // Returns an eventual which will do a 'Scheduler::Submit()' using
+    // this context and 'defer = false' in order to continue execution
+    // using the execution resource associated with this context.
+    auto Reschedule();
+
+    auto* scheduler() {
+      return scheduler_;
+    }
+
    private:
+    Scheduler* scheduler_;
     std::string* name_;
   };
 
@@ -35,23 +61,9 @@ class Scheduler {
     return default_;
   }
 
-  static void Set(Scheduler* scheduler, Context* context) {
-    scheduler_ = scheduler;
-    context_ = context;
-  }
-
-  static Scheduler* Get(Context** context) {
-    assert(scheduler_ != nullptr);
-    *context = context_;
-    return scheduler_;
-  }
-
-  static bool Verify(Scheduler* scheduler, Context* context) {
-    return scheduler_ == scheduler && context_ == context;
-  }
-
   static bool Verify(Context* context) {
-    return context_ == context;
+    return context_ == context
+        && scheduler_ == context->scheduler();
   }
 
   virtual void Submit(
@@ -61,25 +73,30 @@ class Scheduler {
     // Default scheduler does not defer because it can't (unless we
     // update all calls that "wait" on tasks to execute outstanding
     // callbacks).
-    Context* parent = nullptr;
-    auto* scheduler = Scheduler::Get(&parent);
+    Context* previous = Context::Switch(context);
 
     STOUT_EVENTUALS_LOG(1)
-        << "'" << context->name() << "' preempting '" << parent->name() << "'";
-
-    Scheduler::Set(this, context);
+        << "'" << context->name() << "' preempted '" << previous->name() << "'";
 
     callback();
 
-    CHECK(Scheduler::Verify(this, context));
+    CHECK(Scheduler::Verify(context));
 
-    Scheduler::Set(scheduler, parent);
+    Context::Switch(previous);
   }
 
-  // Returns an eventual which will do a 'Submit()' passing the
-  // specified context and 'defer = false' in order to continue
-  // execution using the execution resource associated with context.
-  auto Reschedule(Context* context);
+ protected:
+  friend struct Context;
+
+  static void Set(Scheduler* scheduler, Context* context) {
+    scheduler_ = scheduler;
+    context_ = context;
+  }
+
+  static Scheduler* Get(Context** context) {
+    *context = context_;
+    return CHECK_NOTNULL(scheduler_);
+  }
 
  private:
   static Scheduler* default_;
@@ -111,7 +128,7 @@ struct _Reschedule {
       STOUT_EVENTUALS_LOG(1)
           << "Reschedule submitting '" << context_->name() << "'";
 
-      scheduler_->Submit(
+      context_->scheduler()->Submit(
           [this]() {
             if constexpr (sizeof...(args) == 1) {
               eventuals::succeed(k_, std::move(*arg_));
@@ -129,7 +146,7 @@ struct _Reschedule {
       // pre-allocated buffer based on composing with Errors.
       auto* tuple = new std::tuple{&k_, std::forward<Args>(args)...};
 
-      scheduler_->Submit(
+      context_->scheduler()->Submit(
           [tuple]() {
             std::apply(
                 [](auto* k_, auto&&... args) {
@@ -143,7 +160,7 @@ struct _Reschedule {
     }
 
     void Stop() {
-      scheduler_->Submit(
+      context_->scheduler()->Submit(
           [this]() {
             eventuals::stop(k_);
           },
@@ -156,7 +173,6 @@ struct _Reschedule {
     }
 
     K_ k_;
-    Scheduler* scheduler_;
     Scheduler::Context* context_;
 
     std::optional<
@@ -170,10 +186,9 @@ struct _Reschedule {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Arg>{std::move(k), scheduler_, context_};
+      return Continuation<K, Arg>{std::move(k), context_};
     }
 
-    Scheduler* scheduler_;
     Scheduler::Context* context_;
   };
 };
@@ -184,8 +199,8 @@ struct _Reschedule {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Scheduler::Reschedule(Context* context) {
-  return detail::_Reschedule::Composable{this, context};
+inline auto Scheduler::Context::Reschedule() {
+  return detail::_Reschedule::Composable{this};
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -201,56 +216,50 @@ struct _Preempt {
       : k_(std::move(k)),
         e_(std::move(e)),
         name_(std::move(name)),
-        context_(&name_) {}
+        context_(Scheduler::Default(), &name_) {}
 
     Continuation(Continuation&& that)
       : k_(std::move(that.k_)),
         e_(std::move(that.e_)),
         name_(std::move(that.name_)),
-        context_(&name_) {}
+        context_(Scheduler::Default(), &name_) {}
 
     template <typename... Args>
     void Start(Args&&... args) {
       Adapt();
 
-      CHECK(Scheduler::Verify(parent_.scheduler, parent_.context));
-
-      Scheduler::Set(Scheduler::Default(), &context_);
+      auto* previous = Scheduler::Context::Switch(&context_);
+      CHECK_EQ(previous, previous_);
 
       eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
 
-      CHECK(Scheduler::Verify(Scheduler::Default(), &context_));
-
-      Scheduler::Set(parent_.scheduler, parent_.context);
+      auto* context = Scheduler::Context::Switch(previous_);
+      CHECK_EQ(context, &context_);
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
       Adapt();
 
-      CHECK(Scheduler::Verify(parent_.scheduler, parent_.context));
-
-      Scheduler::Set(Scheduler::Default(), &context_);
+      auto* previous = Scheduler::Context::Switch(&context_);
+      CHECK_EQ(previous, previous_);
 
       eventuals::fail(*adaptor_, std::forward<Args>(args)...);
 
-      CHECK(Scheduler::Verify(Scheduler::Default(), &context_));
-
-      Scheduler::Set(parent_.scheduler, parent_.context);
+      auto* context = Scheduler::Context::Switch(previous_);
+      CHECK_EQ(context, &context_);
     }
 
     void Stop() {
       Adapt();
 
-      CHECK(Scheduler::Verify(parent_.scheduler, parent_.context));
-
-      Scheduler::Set(Scheduler::Default(), &context_);
+      auto* previous = Scheduler::Context::Switch(&context_);
+      CHECK_EQ(previous, previous_);
 
       eventuals::stop(*adaptor_);
 
-      CHECK(Scheduler::Verify(Scheduler::Default(), &context_));
-
-      Scheduler::Set(parent_.scheduler, parent_.context);
+      auto* context = Scheduler::Context::Switch(previous_);
+      CHECK_EQ(context, &context_);
     }
 
     void Register(Interrupt& interrupt) {
@@ -259,11 +268,11 @@ struct _Preempt {
 
     void Adapt() {
       if (!adaptor_) {
-        // Save parent scheduler/context (even if it's us).
-        parent_.scheduler = Scheduler::Get(&parent_.context);
+        // Save previous context (even if it's us).
+        previous_ = Scheduler::Context::Get();
 
         adaptor_.emplace(std::move(e_).template k<Arg_>(
-            parent_.scheduler->Reschedule(parent_.context)
+            previous_->Reschedule()
                 .template k<Value_>(std::move(k_))));
 
         if (interrupt_ != nullptr) {
@@ -280,20 +289,13 @@ struct _Preempt {
 
     Interrupt* interrupt_ = nullptr;
 
-    struct {
-      Scheduler* scheduler = nullptr;
-      Scheduler::Context* context = nullptr;
-    } parent_;
+    Scheduler::Context* previous_ = nullptr;
 
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
-    using Reschedule_ = decltype(std::declval<Scheduler>()
-                                     .Reschedule(
-                                         std::declval<Scheduler::Context*>()));
-
     using Adaptor_ = decltype(std::declval<E_>().template k<Arg_>(
-        std::declval<Reschedule_>().template k<Value_>(
-            std::declval<K_>())));
+        (std::declval<Scheduler::Context*>()->Reschedule())
+            .template k<Value_>(std::declval<K_>())));
 
     std::optional<Adaptor_> adaptor_;
   };

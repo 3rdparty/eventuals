@@ -70,7 +70,7 @@ StaticThreadPool::StaticThreadPool()
               assert(waiter->callback);
               waiter->callback();
 
-              CHECK(Scheduler::Verify(this, waiter));
+              CHECK(Scheduler::Verify(waiter));
 
               STOUT_EVENTUALS_LOG(1) << "Switching '" << waiter->name() << "'";
             }
@@ -123,18 +123,15 @@ void StaticThreadPool::Submit(
   assert(core < concurrency);
 
   if (!defer && StaticThreadPool::member && StaticThreadPool::core == core) {
-    Context* parent = nullptr;
-    auto* scheduler = Scheduler::Get(&parent);
-
-    Scheduler::Set(this, context);
+    Context* previous = Context::Switch(context);
 
     STOUT_EVENTUALS_LOG(1) << "'" << waiter->name() << "' not deferring";
 
     callback();
 
-    CHECK(Scheduler::Verify(this, context));
+    CHECK(Scheduler::Verify(context));
 
-    Scheduler::Set(scheduler, parent);
+    Context::Switch(previous);
   } else {
     waiter->waiting = true;
 

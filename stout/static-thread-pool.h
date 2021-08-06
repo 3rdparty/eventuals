@@ -42,30 +42,29 @@ struct Pinned {
 class StaticThreadPool : public Scheduler {
  public:
   struct Requirements {
-    Requirements() {}
+    Requirements(std::string name)
+      : name(std::move(name)) {}
 
-    Requirements(Pinned pinned)
-      : pinned(pinned) {}
-
-    Pinned pinned;
+    Requirements(std::string name, Pinned pinned)
+      : name(std::move(name)),
+        pinned(pinned) {}
 
     std::string name;
+    Pinned pinned;
   };
 
   struct Waiter : public Scheduler::Context {
    public:
     Waiter(StaticThreadPool* pool, Requirements* requirements)
-      : Scheduler::Context(&requirements->name),
-        pool_(pool),
+      : Scheduler::Context(pool, &requirements->name),
         requirements_(requirements) {}
 
     Waiter(Waiter&& that)
-      : Scheduler::Context(&that.requirements_->name),
-        pool_(that.pool_),
+      : Scheduler::Context(that.scheduler(), &that.requirements_->name),
         requirements_(that.requirements_) {}
 
-    auto* pool() {
-      return pool_;
+    StaticThreadPool* pool() {
+      return static_cast<StaticThreadPool*>(scheduler());
     }
 
     auto* requirements() {
@@ -77,14 +76,16 @@ class StaticThreadPool : public Scheduler {
     Waiter* next = nullptr;
 
    private:
-    StaticThreadPool* pool_;
     Requirements* requirements_;
   };
 
   class Schedulable {
    public:
-    Schedulable(Requirements requirements = Requirements())
+    Schedulable(Requirements requirements = Requirements("[anonymous]"))
       : requirements_(requirements) {}
+
+    Schedulable(Pinned pinned)
+      : Schedulable(Requirements("[anonymous]", pinned)) {}
 
     virtual ~Schedulable() {}
 
@@ -118,7 +119,7 @@ class StaticThreadPool : public Scheduler {
 
   void Submit(
       Callback<> callback,
-      Context* context,
+      Scheduler::Context* context,
       bool defer = true) override;
 
   template <typename T>
@@ -300,9 +301,8 @@ struct _StaticThreadPoolSchedule {
 
     void Adapt() {
       if (!adaptor_) {
-        // Save parent scheduler/context (even if it's us).
-        Context* context = nullptr;
-        Scheduler* scheduler = Scheduler::Get(&context);
+        // Save previous context (even if it's us).
+        Scheduler::Context* previous = Scheduler::Context::Get();
 
         adaptor_.reset(
             // NOTE: for now we're assuming usage of something like
@@ -315,7 +315,7 @@ struct _StaticThreadPoolSchedule {
             // tradeoff is not emperically a benefit.
             new Adaptor_(
                 std::move(e_).template k<Arg_>(
-                    scheduler->Reschedule(context).template k<Value_>(
+                    previous->Reschedule().template k<Value_>(
                         _Then::Adaptor<K_>{k_}))));
 
         if (interrupt_ != nullptr) {
@@ -335,12 +335,9 @@ struct _StaticThreadPoolSchedule {
 
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
-    using Reschedule_ = decltype(std::declval<Scheduler>()
-                                     .Reschedule(std::declval<Context*>()));
-
     using Adaptor_ = decltype(std::declval<E_>().template k<Arg_>(
-        std::declval<Reschedule_>().template k<Value_>(
-            std::declval<_Then::Adaptor<K_>>())));
+        (std::declval<Scheduler::Context*>()->Reschedule())
+            .template k<Value_>(std::declval<_Then::Adaptor<K_>>())));
 
     std::unique_ptr<Adaptor_> adaptor_;
   };
@@ -526,9 +523,8 @@ struct _StaticThreadPoolParallel {
       Worker(size_t core)
         : StaticThreadPool::Waiter(
             &StaticThreadPool::Scheduler(),
-            &requirements) {
-        requirements.name = "[worker " + std::to_string(core) + "]";
-      }
+            &requirements),
+          requirements("[worker " + std::to_string(core) + "]") {}
 
       StaticThreadPool::Requirements requirements;
       std::optional<Arg_> arg;
