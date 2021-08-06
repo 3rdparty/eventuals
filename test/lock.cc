@@ -160,19 +160,18 @@ TEST(LockTest, Wait) {
                  eventuals::succeed(k, "t1");
                })
         | Acquire(&lock)
-        | Wait<std::string>(&lock)
-              .context(false)
-              .condition([&](auto& waited, auto& k, auto&& value) {
-                if (!waited) {
-                  callback = [&k]() {
-                    eventuals::notify(k);
-                  };
-                  eventuals::wait(k);
-                  waited = true;
-                } else {
-                  eventuals::succeed(k, value);
-                }
-              })
+        | Wait(&lock,
+               [&](auto notify) {
+                 callback = std::move(notify);
+                 return [waited = false](auto&& value) mutable {
+                   if (!waited) {
+                     waited = true;
+                     return true;
+                   } else {
+                     return false;
+                   }
+                 };
+               })
         | Release(&lock);
   };
 
@@ -208,14 +207,12 @@ TEST(LockTest, SynchronizableWait) {
 
     auto Operation() {
       return Synchronized(
-          Wait<std::string>()
-              .condition([](auto& k) {
-                auto thread = std::thread(
-                    [&k]() mutable {
-                      eventuals::succeed(k, "operation");
-                    });
-                thread.detach();
-              }));
+          Just("operation")
+          | Wait([](auto notify) {
+              return [](auto&&...) {
+                return false;
+              };
+            }));
     }
 
     Lock lock;

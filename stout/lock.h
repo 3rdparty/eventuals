@@ -16,20 +16,6 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K>
-void notify(K& k) {
-  k.Notify();
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K>
-void wait(K& k) {
-  k.Wait();
-}
-
-////////////////////////////////////////////////////////////////////////
-
 class Lock {
  public:
   struct Waiter {
@@ -315,78 +301,42 @@ struct _Release {
 ////////////////////////////////////////////////////////////////////////
 
 struct _Wait {
-  template <typename Wait_>
-  struct WaitK {
-    Wait_* wait_ = nullptr;
-
-    template <typename... Args>
-    void Start(Args&&... args) {
-      eventuals::succeed(wait_->k_, std::forward<Args>(args)...);
-    }
-
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      eventuals::fail(wait_->k_, std::forward<Args>(args)...);
-    }
-
-    void Stop() {
-      eventuals::stop(wait_->k_);
-    }
-
-    void Notify() {
-      // NOTE: we ignore notifications unless we're notifiable and we
-      // make sure we're not notifiable after the first notification so
-      // we don't try and add ourselves to the list of waiters again.
-      //
-      // TODO(benh): make sure *we've* acquired the lock (where 'we' is
-      // the current "eventual").
-      if (wait_->notifiable_) {
-        CHECK(!wait_->lock_->Available());
-
-        STOUT_EVENTUALS_LOG(1)
-            << "'" << wait_->scheduler_context_->name() << "' notified";
-
-        wait_->notifiable_ = false;
-
-        bool acquired = wait_->lock_->AcquireSlow(&wait_->waiter_);
-
-        CHECK(!acquired) << "lock should be held when notifying";
-      }
-    }
-
-    void Wait() {
-      wait_->waited_ = true;
-    }
-  };
-
-  template <typename K_, typename Context_, typename Condition_, typename Arg_>
+  template <typename K_, typename F_, typename Arg_>
   struct Continuation {
     template <typename... Args>
     void Start(Args&&... args) {
-      static_assert(
-          !IsUndefined<Condition_>::value,
-          "Undefined 'condition' (and no default)");
-
-      waitk_.wait_ = this;
-
-      waited_ = false;
-      notifiable_ = false;
-
       CHECK(!lock_->Available()) << "expecting lock to be acquired";
 
-      if constexpr (IsUndefined<Context_>::value) {
-        condition_(waitk_, std::forward<Args>(args)...);
-      } else {
-        condition_(context_, waitk_, std::forward<Args>(args)...);
+      notifiable_ = false;
+
+      if (!condition_) {
+        condition_.emplace(
+            f_(Callback<>([this]() {
+              // NOTE: we ignore notifications unless we're notifiable
+              // and we make sure we're not notifiable after the first
+              // notification so we don't try and add ourselves to the
+              // list of waiters again.
+              //
+              // TODO(benh): make sure *we've* acquired the lock
+              // (where 'we' is the current "eventual").
+              if (notifiable_) {
+                CHECK(!lock_->Available());
+
+                STOUT_EVENTUALS_LOG(1)
+                    << "'" << context_->name() << "' notified";
+
+                notifiable_ = false;
+
+                bool acquired = lock_->AcquireSlow(&waiter_);
+
+                CHECK(!acquired) << "lock should be held when notifying";
+              }
+            })));
       }
 
-      if (waited_) {
+      if ((*condition_)(std::forward<Args>(args)...)) {
         CHECK(!notifiable_) << "recursive wait detected (without notify)";
 
-        // Mark we've waited in case we have recursive invocations of
-        // 'Wait', e.g., when used with a stream/generator we don't want
-        // to "re-wait" (and re-release the lock below) multiple times.
-        waited_ = false;
         notifiable_ = true;
 
         static_assert(
@@ -400,11 +350,11 @@ struct _Wait {
           arg_.emplace(std::forward<Args>(args)...);
         }
 
-        scheduler_ = Scheduler::Get(&scheduler_context_);
+        scheduler_ = Scheduler::Get(&context_);
 
         waiter_.f = [this]() mutable {
           STOUT_EVENTUALS_LOG(1)
-              << "'" << scheduler_context_->name() << "' (notify) acquired";
+              << "'" << context_->name() << "' (notify) acquired";
 
           scheduler_->Submit(
               [this]() mutable {
@@ -414,24 +364,24 @@ struct _Wait {
                   Start();
                 }
               },
-              scheduler_context_);
+              context_);
 
           STOUT_EVENTUALS_LOG(2)
-              << "'" << scheduler_context_->name() << "' (notify) submitted";
+              << "'" << context_->name() << "' (notify) submitted";
         };
 
         lock_->Release();
+      } else {
+        eventuals::succeed(k_, std::forward<Args>(args)...);
       }
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      // TODO(benh): allow override of 'fail'.
       eventuals::fail(k_, std::forward<Args>(args)...);
     }
 
     void Stop() {
-      // TODO(benh): allow override of 'stop'.
       eventuals::stop(k_);
     }
 
@@ -441,58 +391,30 @@ struct _Wait {
 
     K_ k_;
     Lock* lock_;
-    Context_ context_;
-    Condition_ condition_;
+    F_ f_;
 
+    std::optional<decltype(f_(std::declval<Callback<>>()))> condition_;
     Lock::Waiter waiter_;
     std::optional<
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
-    bool waited_ = false;
     bool notifiable_ = false;
-    WaitK<Continuation> waitk_;
     Scheduler* scheduler_ = nullptr;
-    Scheduler::Context* scheduler_context_ = nullptr;
+    Scheduler::Context* context_ = nullptr;
   };
 
-  template <typename Value_, typename Context_, typename Condition_>
+  template <typename F_>
   struct Composable {
     template <typename Arg>
-    using ValueFrom = Value_;
-
-    template <typename Value, typename Context, typename Condition>
-    static auto create(Lock* lock, Context context, Condition condition) {
-      return Composable<Value, Context, Condition>{
-          lock,
-          std::move(context),
-          std::move(condition)};
-    }
+    using ValueFrom = Arg;
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Context_, Condition_, Arg>{
-          std::move(k),
-          lock_,
-          std::move(context_),
-          std::move(condition_)};
-    }
-
-    template <typename Context>
-    auto context(Context context) && {
-      static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
-      return create<Value_>(lock_, std::move(context), std::move(condition_));
-    }
-
-    template <typename Condition>
-    auto condition(Condition condition) && {
-      static_assert(IsUndefined<Condition_>::value, "Duplicate 'condition'");
-      return create<Value_>(lock_, std::move(context_), std::move(condition));
+      return Continuation<K, F_, Arg>{std::move(k), lock_, std::move(f_)};
     }
 
     Lock* lock_;
-
-    Context_ context_;
-    Condition_ condition_;
+    F_ f_;
   };
 };
 
@@ -514,9 +436,9 @@ inline auto Release(Lock* lock) {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Value>
-auto Wait(Lock* lock) {
-  return detail::_Wait::Composable<Value, Undefined, Undefined>{lock};
+template <typename F>
+auto Wait(Lock* lock, F f) {
+  return detail::_Wait::Composable<F>{lock, std::move(f)};
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -535,9 +457,9 @@ class Synchronizable {
         | Release(lock_);
   }
 
-  template <typename T>
-  auto Wait() {
-    return eventuals::Wait<T>(lock_);
+  template <typename F>
+  auto Wait(F f) {
+    return eventuals::Wait(lock_, std::move(f));
   }
 
  private:

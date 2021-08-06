@@ -534,7 +534,6 @@ struct _StaticThreadPoolParallel {
       Callback<> notify = []() {}; // Initially a no-op so ingress can call.
       std::optional<Task<int>::With<Worker*>> task;
       Interrupt interrupt;
-      bool started = false;
       bool waiting = true; // Initially true so ingress can copy to 'arg'.
       std::atomic<bool> done = false;
     };
@@ -545,8 +544,6 @@ struct _StaticThreadPoolParallel {
     size_t busy_ = 0;
 
     Callback<> ingress_ = []() {}; // Initially a no-op so workers can notify.
-
-    bool started_ = false;
 
     Callback<> egress_;
 
@@ -590,35 +587,41 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
 
           return Acquire(&lock_)
               | Repeat(
-                     Wait<Arg_>().condition([this, worker](auto& k) mutable {
-                       CHECK(Scheduler::Verify(worker));
-                       if (!worker->started) {
-                         // Overwrite 'notify' so that we'll get
-                         // signalled properly. Initially 'notify' does
-                         // nothing so that it can get called on ingress
-                         // even before the worker has started.
-                         worker->notify = [&k]() {
-                           eventuals::notify(k);
-                         };
-                         worker->started = true;
-                       }
+                     Wait([this, worker](auto notify) mutable {
+                       // Overwrite 'notify' so that we'll get
+                       // signalled properly. Initially 'notify' does
+                       // nothing so that it can get called on ingress
+                       // even before the worker has started.
+                       worker->notify = std::move(notify);
 
-                       if (ended_) {
-                         eventuals::stop(k);
-                       } else if (!worker->arg) {
-                         worker->waiting = true;
-                         eventuals::wait(k);
+                       return [this, worker]() mutable {
+                         CHECK(Scheduler::Verify(worker));
+                         if (ended_) {
+                           return false;
+                         } else if (!worker->arg) {
+                           worker->waiting = true;
 
-                         if (++idle_ == 1) {
-                           assert(ingress_);
-                           ingress_();
+                           if (++idle_ == 1) {
+                             assert(ingress_);
+                             ingress_();
+                           }
+
+                           return true;
+                         } else {
+                           worker->waiting = false;
+                           return false;
                          }
-
-                       } else {
-                         worker->waiting = false;
-                         eventuals::succeed(k, std::move(*worker->arg));
-                       }
+                       };
                      })
+                     // TODO(benh): create 'Move()' like abstraction that does:
+                     | Eventual<Arg_>()
+                           .start([this, worker](auto& k) {
+                             if (!ended_) {
+                               eventuals::succeed(k, std::move(*worker->arg));
+                             } else {
+                               eventuals::stop(k);
+                             }
+                           })
                      | Release(&lock_))
               | f_()
               // TODO(benh): 'Until()', 'Map()', 'Loop()' here vs 'Reduce()'?
@@ -686,42 +689,32 @@ auto _StaticThreadPoolParallel::Continuation<F_, Arg_>::Ingress() {
       StaticThreadPool::Scheduler().Schedule(
           &ingress_requirements_,
           Synchronized(
-              // Wait([this](auto notify) {
-              //   ingress_ = notify;
-              //   return [this]() {
-              //     return idle_ == 0 ...;
-              //   };
-              // })
-              Wait<bool>().condition([this](auto& k, auto&&... args) mutable {
-                if (!started_) {
-                  ingress_ = [&k]() {
-                    eventuals::notify(k);
-                  };
-                  started_ = false;
-                }
+              Wait([this](auto notify) mutable {
+                ingress_ = std::move(notify);
+                return [this](auto&&... args) mutable {
+                  CHECK(!ended_);
 
-                CHECK(!ended_);
-
-                if (idle_ == 0) {
-                  return eventuals::wait(k);
-                } else {
-                  bool assigned = false;
-                  for (auto* worker : workers_) {
-                    if (worker->waiting && !worker->arg) {
-                      worker->arg.emplace(
-                          std::forward<decltype(args)>(args)...);
-                      worker->notify();
-                      assigned = true;
-                      break;
+                  if (idle_ == 0) {
+                    return true;
+                  } else {
+                    bool assigned = false;
+                    for (auto* worker : workers_) {
+                      if (worker->waiting && !worker->arg) {
+                        worker->arg.emplace(
+                            std::forward<decltype(args)>(args)...);
+                        worker->notify();
+                        assigned = true;
+                        break;
+                      }
                     }
+                    CHECK(assigned);
+
+                    idle_--;
+                    busy_++;
+
+                    return false;
                   }
-                  CHECK(assigned);
-
-                  idle_--;
-                  busy_++;
-
-                  eventuals::succeed(k, true);
-                }
+                };
               }))));
 }
 
@@ -733,24 +726,23 @@ auto _StaticThreadPoolParallel::Continuation<F_, Arg_>::Egress() {
   // values which would be required if it was done after the 'Map'
   // below (this pattern is an argumet for a 'While' construct or
   // something similar).
-  return Until(Synchronized(Wait<bool>().condition(
-             [this](auto& k) {
-               if (!egress_) {
-                 egress_ = [&k]() {
-                   eventuals::notify(k);
-                 };
-               }
-
-               if (!values_.empty()) {
-                 eventuals::succeed(k, false); // Not done.
-               } else if (busy_ > 0) {
-                 eventuals::wait(k);
-               } else if (!ended_) {
-                 eventuals::wait(k);
-               } else {
-                 eventuals::succeed(k, true); // Done.
-               }
-             })))
+  return Until(
+             Synchronized(
+                 Wait([this](auto notify) {
+                   egress_ = std::move(notify);
+                   return [this]() {
+                     if (!values_.empty()) {
+                       return false;
+                     } else if (busy_ > 0 || !ended_) {
+                       return true;
+                     } else {
+                       return false;
+                     }
+                   };
+                 })
+                 | Lambda([this]() {
+                     return values_.empty() && !busy_ && ended_;
+                   })))
       | Map(Synchronized(Lambda([this]() {
            CHECK(!values_.empty());
            auto value = std::move(values_.front());

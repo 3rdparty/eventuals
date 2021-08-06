@@ -26,7 +26,6 @@ using stout::eventuals::Repeat;
 using stout::eventuals::Terminate;
 using stout::eventuals::Then;
 using stout::eventuals::Until;
-using stout::eventuals::Wait;
 
 using testing::MockFunction;
 
@@ -203,10 +202,6 @@ TEST(RepeatTest, MapAcquire) {
                    }))
         | Map(
                Acquire(&lock)
-               | Wait<int>(&lock)
-                     .condition([](auto& k, auto&& i) {
-                       eventuals::succeed(k, i);
-                     })
                | Lambda([](auto&& i) {
                    return i;
                  })
