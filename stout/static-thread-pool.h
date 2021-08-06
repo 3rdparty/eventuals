@@ -178,18 +178,9 @@ struct _StaticThreadPoolSchedule {
       if (!(*pinned.core < pool()->concurrency)) {
         eventuals::fail(k_, "'" + name() + "' required core is > total cores");
       } else {
-        // Save parent scheduler/context (even if it's us).
-        // if (scheduler_ == nullptr) {
-        scheduler_ = Scheduler::Get(&context_);
-        // } else {
-        //   Context* context = nullptr;
-        //   auto* scheduler = Scheduler::Get(&context);
-        //   CHECK(scheduler_ == scheduler);
-        //   CHECK(context_ == context);
-        // }
-
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
-          AdaptAndStart(std::forward<Args>(args)...);
+          Adapt();
+          eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
         } else {
           if constexpr (!std::is_void_v<Arg_>) {
             arg_.emplace(std::forward<Args>(args)...);
@@ -199,10 +190,11 @@ struct _StaticThreadPoolSchedule {
 
           pool()->Submit(
               [this]() {
+                Adapt();
                 if constexpr (sizeof...(args) > 0) {
-                  AdaptAndStart(std::move(*arg_));
+                  eventuals::succeed(*adaptor_, std::move(*arg_));
                 } else {
-                  AdaptAndStart();
+                  eventuals::succeed(*adaptor_);
                 }
               },
               this);
@@ -216,34 +208,86 @@ struct _StaticThreadPoolSchedule {
       // to support the use case where code wants to "catch" a failure
       // inside of a 'Schedule()' in order to either recover or
       // propagate a different failure.
-      //
-      // TODO(benh): check if we're already on the correct execution
-      // resource and can thus elide copying the arg execute the code
-      // immediately instead of doing 'Submit()'.
-      //
-      // TODO(benh): avoid allocating on heap by storing args in
-      // pre-allocated buffer based on composing with Errors.
-      // auto* tuple = new std::tuple { &k_, std::forward<Args>(args)... };
+      STOUT_EVENTUALS_LOG(1) << "Scheduling '" << name() << "'";
 
-      // scheduler_->Submit(
-      //     [tuple]() {
-      //       std::apply([](auto* k_, auto&&... args) {
-      //         eventuals::fail(*k_, std::forward<decltype(args)>(args)...);
-      //       },
-      //       std::move(*tuple));
-      //       delete tuple;
-      //     },
-      //     this,
-      //     /* defer = */ false); // Execute the code immediately if possible.
+      auto& pinned = requirements()->pinned;
+
+      if (!pinned.core) {
+        // TODO(benh): pick the least loaded core. This will require
+        // iterating through and checking the sizes of all the "queues"
+        // and then atomically incrementing which ever queue we pick
+        // since we don't want to hold a lock here.
+        pinned.core = 0;
+      }
+
+      assert(pinned.core);
+
+      if (!(*pinned.core < pool()->concurrency)) {
+        eventuals::fail(k_, "'" + name() + "' required core is > total cores");
+      } else {
+        if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
+          Adapt();
+          eventuals::fail(*adaptor_, std::forward<Args>(args)...);
+        } else {
+          // TODO(benh): avoid allocating on heap by storing args in
+          // pre-allocated buffer based on composing with Errors.
+          auto* tuple = new std::tuple{this, std::forward<Args>(args)...};
+
+          STOUT_EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
+
+          pool()->Submit(
+              [tuple]() {
+                std::apply(
+                    [](auto* schedule, auto&&... args) {
+                      schedule->Adapt();
+                      eventuals::fail(
+                          *schedule->adaptor_,
+                          std::forward<decltype(args)>(args)...);
+                    },
+                    std::move(*tuple));
+                delete tuple;
+              },
+              this);
+        }
+      }
     }
 
     void Stop() {
-      // scheduler_->Submit(
-      //     [this]() {
-      //       eventuals::stop(k_);
-      //     },
-      //     context_,
-      //     /* defer = */ false); // Execute the code immediately if possible.
+      // NOTE: rather than skip the scheduling all together we make
+      // sure to support the use case where code wants to "catch" the
+      // stop inside of a 'Schedule()' in order to do something
+      // different.
+      STOUT_EVENTUALS_LOG(1) << "Scheduling '" << name() << "'";
+
+      auto& pinned = requirements()->pinned;
+
+      if (!pinned.core) {
+        // TODO(benh): pick the least loaded core. This will require
+        // iterating through and checking the sizes of all the "queues"
+        // and then atomically incrementing which ever queue we pick
+        // since we don't want to hold a lock here.
+        pinned.core = 0;
+      }
+
+      assert(pinned.core);
+
+      if (!(*pinned.core < pool()->concurrency)) {
+        eventuals::fail(k_, "'" + name() + "' required core is > total cores");
+      } else {
+        if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
+          Adapt();
+          eventuals::stop(*adaptor_);
+        } else {
+          STOUT_EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
+
+          pool()->Submit(
+              [this]() {
+                Adapt();
+                eventuals::stop(*adaptor_);
+              },
+              this);
+        }
+      }
     }
 
     void Register(Interrupt& interrupt) {
@@ -251,9 +295,12 @@ struct _StaticThreadPoolSchedule {
       k_.Register(interrupt);
     }
 
-    template <typename... Args>
-    void AdaptAndStart(Args&&... args) {
+    void Adapt() {
       if (!adaptor_) {
+        // Save parent scheduler/context (even if it's us).
+        Context* context = nullptr;
+        Scheduler* scheduler = Scheduler::Get(&context);
+
         adaptor_.reset(
             // NOTE: for now we're assuming usage of something like
             // 'jemalloc' so 'new' should use lock-free and thread-local
@@ -265,15 +312,13 @@ struct _StaticThreadPoolSchedule {
             // tradeoff is not emperically a benefit.
             new Adaptor_(
                 std::move(e_).template k<Arg_>(
-                    scheduler_->Reschedule(context_).template k<Value_>(
+                    scheduler->Reschedule(context).template k<Value_>(
                         _Then::Adaptor<K_>{k_}))));
 
         if (interrupt_ != nullptr) {
           adaptor_->Register(*interrupt_);
         }
       }
-
-      eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
     }
 
     K_ k_;
@@ -285,13 +330,10 @@ struct _StaticThreadPoolSchedule {
 
     Interrupt* interrupt_ = nullptr;
 
-    // Parent scheduler/context.
-    Scheduler* scheduler_ = nullptr;
-    Context* context_ = nullptr;
-
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
-    using Reschedule_ = decltype(scheduler_->Reschedule(context_));
+    using Reschedule_ = decltype(std::declval<Scheduler>()
+                                     .Reschedule(std::declval<Context*>()));
 
     using Adaptor_ = decltype(std::declval<E_>().template k<Arg_>(
         std::declval<Reschedule_>().template k<Value_>(
