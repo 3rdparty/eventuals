@@ -38,3 +38,11 @@ load("@com_github_3rdparty_bazel_rules_libuv//bazel:deps.bzl", libuv_deps="deps"
 libuv_deps()
 
 ########################################################################
+
+load("//3rdparty/bazel-rules-jemalloc:repos.bzl", jemalloc_repos="repos")
+jemalloc_repos()
+
+load("@com_github_3rdparty_bazel_rules_jemalloc//bazel:deps.bzl", jemalloc_deps="deps")
+jemalloc_deps()
+
+########################################################################
