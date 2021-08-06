@@ -122,21 +122,7 @@ void StaticThreadPool::Submit(
 
   assert(core < concurrency);
 
-  // TODO(benh): should preempt be for any thread or only the members?
-  if (waiter->requirements()->preempt) { // && StaticThreadPool::member) {
-    Context* parent = nullptr;
-    auto* scheduler = Scheduler::Get(&parent);
-
-    Scheduler::Set(this, context);
-
-    STOUT_EVENTUALS_LOG(1) << "'" << waiter->name() << "' preempting";
-
-    callback();
-
-    CHECK(Scheduler::Verify(this, context));
-
-    Scheduler::Set(scheduler, parent);
-  } else if (!defer && StaticThreadPool::member && StaticThreadPool::core == core) {
+  if (!defer && StaticThreadPool::member && StaticThreadPool::core == core) {
     Context* parent = nullptr;
     auto* scheduler = Scheduler::Get(&parent);
 

@@ -21,6 +21,8 @@ class Scheduler {
     Context(std::string* name)
       : name_(name) {}
 
+    Context(Context&& that) = delete;
+
     const std::string& name() {
       return *CHECK_NOTNULL(name_);
     }
@@ -61,9 +63,16 @@ class Scheduler {
     // callbacks).
     Context* parent = nullptr;
     auto* scheduler = Scheduler::Get(&parent);
+
+    STOUT_EVENTUALS_LOG(1)
+        << "'" << context->name() << "' preempting '" << parent->name() << "'";
+
     Scheduler::Set(this, context);
+
     callback();
+
     CHECK(Scheduler::Verify(this, context));
+
     Scheduler::Set(scheduler, parent);
   }
 
@@ -173,8 +182,149 @@ struct _Reschedule {
 
 } // namespace detail
 
+////////////////////////////////////////////////////////////////////////
+
 inline auto Scheduler::Reschedule(Context* context) {
   return detail::_Reschedule::Composable{this, context};
+}
+
+////////////////////////////////////////////////////////////////////////
+
+namespace detail {
+
+////////////////////////////////////////////////////////////////////////
+
+struct _Preempt {
+  template <typename K_, typename E_, typename Arg_>
+  struct Continuation {
+    Continuation(K_ k, E_ e, std::string name)
+      : k_(std::move(k)),
+        e_(std::move(e)),
+        name_(std::move(name)),
+        context_(&name_) {}
+
+    Continuation(Continuation&& that)
+      : k_(std::move(that.k_)),
+        e_(std::move(that.e_)),
+        name_(std::move(that.name_)),
+        context_(&name_) {}
+
+    template <typename... Args>
+    void Start(Args&&... args) {
+      Adapt();
+
+      CHECK(Scheduler::Verify(parent_.scheduler, parent_.context));
+
+      Scheduler::Set(Scheduler::Default(), &context_);
+
+      eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
+
+      CHECK(Scheduler::Verify(Scheduler::Default(), &context_));
+
+      Scheduler::Set(parent_.scheduler, parent_.context);
+    }
+
+    template <typename... Args>
+    void Fail(Args&&... args) {
+      Adapt();
+
+      CHECK(Scheduler::Verify(parent_.scheduler, parent_.context));
+
+      Scheduler::Set(Scheduler::Default(), &context_);
+
+      eventuals::fail(*adaptor_, std::forward<Args>(args)...);
+
+      CHECK(Scheduler::Verify(Scheduler::Default(), &context_));
+
+      Scheduler::Set(parent_.scheduler, parent_.context);
+    }
+
+    void Stop() {
+      Adapt();
+
+      CHECK(Scheduler::Verify(parent_.scheduler, parent_.context));
+
+      Scheduler::Set(Scheduler::Default(), &context_);
+
+      eventuals::stop(*adaptor_);
+
+      CHECK(Scheduler::Verify(Scheduler::Default(), &context_));
+
+      Scheduler::Set(parent_.scheduler, parent_.context);
+    }
+
+    void Register(Interrupt& interrupt) {
+      interrupt_ = &interrupt;
+    }
+
+    void Adapt() {
+      if (!adaptor_) {
+        // Save parent scheduler/context (even if it's us).
+        parent_.scheduler = Scheduler::Get(&parent_.context);
+
+        adaptor_.emplace(std::move(e_).template k<Arg_>(
+            parent_.scheduler->Reschedule(parent_.context)
+                .template k<Value_>(std::move(k_))));
+
+        if (interrupt_ != nullptr) {
+          adaptor_->Register(*interrupt_);
+        }
+      }
+    }
+
+    K_ k_;
+    E_ e_;
+    std::string name_;
+
+    Scheduler::Context context_;
+
+    Interrupt* interrupt_ = nullptr;
+
+    struct {
+      Scheduler* scheduler = nullptr;
+      Scheduler::Context* context = nullptr;
+    } parent_;
+
+    using Value_ = typename E_::template ValueFrom<Arg_>;
+
+    using Reschedule_ = decltype(std::declval<Scheduler>()
+                                     .Reschedule(
+                                         std::declval<Scheduler::Context*>()));
+
+    using Adaptor_ = decltype(std::declval<E_>().template k<Arg_>(
+        std::declval<Reschedule_>().template k<Value_>(
+            std::declval<K_>())));
+
+    std::optional<Adaptor_> adaptor_;
+  };
+
+  template <typename E_>
+  struct Composable {
+    template <typename Arg>
+    using ValueFrom = typename E_::template ValueFrom<Arg>;
+
+    template <typename Arg, typename K>
+    auto k(K k) && {
+      return Continuation<K, E_, Arg>(
+          std::move(k),
+          std::move(e_),
+          std::move(name_));
+    }
+
+    E_ e_;
+    std::string name_;
+  };
+};
+
+////////////////////////////////////////////////////////////////////////
+
+} // namespace detail
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename E>
+auto Preempt(std::string name, E e) {
+  return detail::_Preempt::Composable<E>{std::move(e), std::move(name)};
 }
 
 ////////////////////////////////////////////////////////////////////////

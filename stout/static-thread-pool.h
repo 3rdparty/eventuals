@@ -49,17 +49,20 @@ class StaticThreadPool : public Scheduler {
 
     Pinned pinned;
 
-    bool preempt = false;
-
     std::string name;
   };
 
   struct Waiter : public Scheduler::Context {
    public:
     Waiter(StaticThreadPool* pool, Requirements* requirements)
-      : Scheduler::Context{&requirements->name},
+      : Scheduler::Context(&requirements->name),
         pool_(pool),
         requirements_(requirements) {}
+
+    Waiter(Waiter&& that)
+      : Scheduler::Context(&that.requirements_->name),
+        pool_(that.pool_),
+        requirements_(that.requirements_) {}
 
     auto* pool() {
       return pool_;
@@ -487,9 +490,7 @@ struct _StaticThreadPoolParallel {
 
     void Start();
 
-    StaticThreadPool::Requirements ingress_requirements_;
     auto Ingress();
-
     auto Egress();
 
     auto operator()() {
@@ -679,17 +680,8 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
 
 template <typename F_, typename Arg_>
 auto _StaticThreadPoolParallel::Continuation<F_, Arg_>::Ingress() {
-  ingress_requirements_.preempt = true;
-  ingress_requirements_.name = "ingress";
   return Map(
-      // TODO(benh): Preempt() which should not cause the parent
-      // scheduler to be 'rescheduled' after executing because there
-      // isn't anything to reschedule (it just falls through
-      // instead).
-      StaticThreadPool::Scheduler().Schedule(
-          &ingress_requirements_,
-          Synchronized(
-              Wait([this](auto notify) mutable {
+      Preempt("ingress", Synchronized(Wait([this](auto notify) mutable {
                 ingress_ = std::move(notify);
                 return [this](auto&&... args) mutable {
                   CHECK(!ended_);
