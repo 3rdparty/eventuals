@@ -14,90 +14,84 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename T_>
-struct JustComposable
-{
-  template <typename>
-  using ValueFrom = T_;
+struct _Just {
+  template <typename T_>
+  struct Composable {
+    template <typename>
+    using ValueFrom = T_;
 
-  template <typename Arg, typename K>
-  auto k(K k) &&
-  {
-    auto start = [t = std::move(t_)](auto& k, auto&&...) {
-      eventuals::succeed(k, std::move(t));
-    };
+    template <typename Arg, typename K>
+    auto k(K k) && {
+      auto start = [t = std::move(t_)](auto& k, auto&&...) {
+        eventuals::succeed(k, std::move(t));
+      };
 
-    return Eventual<
-      decltype(k),
-      Undefined,
-      decltype(start),
-      Undefined,
-      Undefined,
-      Undefined,
-      T_> {
-      std::move(k),
-      Undefined(),
-      std::move(start),
-      Undefined(),
-      Undefined(),
-      Undefined()
-    };
-  }
+      return _Eventual::Continuation<
+          decltype(k),
+          Undefined,
+          decltype(start),
+          Undefined,
+          Undefined,
+          Undefined,
+          T_>{
+          std::move(k),
+          Undefined(),
+          std::move(start),
+          Undefined(),
+          Undefined(),
+          Undefined()};
+    }
 
-  T_ t_;
-};
+    T_ t_;
+  };
 
-template <>
-struct JustComposable<void>
-{
-  template <typename>
-  using ValueFrom = void;
+  template <>
+  struct Composable<void> {
+    template <typename>
+    using ValueFrom = void;
 
-  template <typename Arg, typename K>
-  auto k(K k) &&
-  {
-    auto start = [](auto& k, auto&&...) {
-      eventuals::succeed(k);
-    };
+    template <typename Arg, typename K>
+    auto k(K k) && {
+      auto start = [](auto& k, auto&&...) {
+        eventuals::succeed(k);
+      };
 
-    return Eventual<
-      decltype(k),
-      Undefined,
-      decltype(start),
-      Undefined,
-      Undefined,
-      Undefined,
-      void> {
-      std::move(k),
-      Undefined(),
-      std::move(start),
-      Undefined(),
-      Undefined(),
-      Undefined()
-    };
-  }
+      return _Eventual::Continuation<
+          decltype(k),
+          Undefined,
+          decltype(start),
+          Undefined,
+          Undefined,
+          Undefined,
+          void>{
+          std::move(k),
+          Undefined(),
+          std::move(start),
+          Undefined(),
+          Undefined(),
+          Undefined()};
+    }
+  };
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-auto Just(T t)
-{
-  return detail::JustComposable<T> { std::move(t) };
+auto Just(T t) {
+  return detail::_Just::Composable<T>{std::move(t)};
 }
 
-inline auto Just()
-{
-  return detail::JustComposable<void> {};
+inline auto Just() {
+  return detail::_Just::Composable<void>{};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace eventuals {
-} // namespace stout {
+} // namespace eventuals
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

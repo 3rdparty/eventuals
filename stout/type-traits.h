@@ -8,13 +8,12 @@ namespace stout {
 
 // TODO(benh): Replace with std::type_identity from C++20.
 template <typename T>
-struct type_identity
-{
+struct type_identity {
   using type = T;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace stout {
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

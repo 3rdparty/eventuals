@@ -1,12 +1,11 @@
+#include "stout/lock.h"
+
 #include <thread>
 
 #include "gmock/gmock.h"
-
 #include "gtest/gtest.h"
-
 #include "stout/just.h"
 #include "stout/lambda.h"
-#include "stout/lock.h"
 #include "stout/terminal.h"
 #include "stout/then.h"
 
@@ -28,39 +27,38 @@ using stout::eventuals::Wait;
 
 using testing::MockFunction;
 
-TEST(LockTest, Succeed)
-{
+TEST(LockTest, Succeed) {
   Lock lock;
 
   auto e1 = [&]() {
     return Eventual<std::string>()
-      .start([](auto& k) {
-        auto thread = std::thread(
-            [&k]() mutable {
-              eventuals::succeed(k, "t1");
-            });
-        thread.detach();
-      })
-      | Acquire(&lock)
-      | Lambda([](auto&& value) { return std::move(value); });
+               .start([](auto& k) {
+                 auto thread = std::thread(
+                     [&k]() mutable {
+                       eventuals::succeed(k, "t1");
+                     });
+                 thread.detach();
+               })
+        | Acquire(&lock)
+        | Lambda([](auto&& value) { return std::move(value); });
   };
 
   auto e2 = [&]() {
     return Eventual<std::string>()
-      .start([](auto& k) {
-        auto thread = std::thread(
-            [&k]() mutable {
-              eventuals::succeed(k, "t2");
-            });
-        thread.detach();
-      })
-      | Acquire(&lock)
-      | Lambda([](auto&& value) { return std::move(value); });
+               .start([](auto& k) {
+                 auto thread = std::thread(
+                     [&k]() mutable {
+                       eventuals::succeed(k, "t2");
+                     });
+                 thread.detach();
+               })
+        | Acquire(&lock)
+        | Lambda([](auto&& value) { return std::move(value); });
   };
 
   auto e3 = [&]() {
     return Release(&lock)
-      | Lambda([]() { return "t3"; });
+        | Lambda([]() { return "t3"; });
   };
 
   auto [future1, t1] = Terminate(e1());
@@ -81,27 +79,26 @@ TEST(LockTest, Succeed)
 }
 
 
-TEST(LockTest, Fail)
-{
+TEST(LockTest, Fail) {
   Lock lock;
 
   auto e1 = [&]() {
     return Acquire(&lock)
-      | (Eventual<std::string>()
-         .start([](auto& k) {
-           auto thread = std::thread(
-               [&k]() mutable {
-                 fail(k, "error");
-               });
-           thread.detach();
-         }))
-      | Release(&lock)
-      | Lambda([](auto&& value) { return std::move(value); });
+        | Eventual<std::string>()
+              .start([](auto& k) {
+                auto thread = std::thread(
+                    [&k]() mutable {
+                      fail(k, "error");
+                    });
+                thread.detach();
+              })
+        | Release(&lock)
+        | Lambda([](auto&& value) { return std::move(value); });
   };
 
   auto e2 = [&]() {
     return Acquire(&lock)
-      | Lambda([]() { return "t2"; });
+        | Lambda([]() { return "t2"; });
   };
 
   EXPECT_THROW(*e1(), eventuals::FailedException);
@@ -110,31 +107,30 @@ TEST(LockTest, Fail)
 }
 
 
-TEST(LockTest, Stop)
-{
+TEST(LockTest, Stop) {
   // Using mocks to ensure start is only called once.
   MockFunction<void()> start;
 
   EXPECT_CALL(start, Call())
-    .Times(1);
+      .Times(1);
 
   Lock lock;
 
   auto e1 = [&]() {
     return Acquire(&lock)
-      | (Eventual<std::string>()
-         .start([&](auto& k) {
-           start.Call();
-         })
-         .interrupt([](auto& k) {
-           eventuals::stop(k);
-         }))
-      | Release(&lock);
+        | Eventual<std::string>()
+              .start([&](auto& k) {
+                start.Call();
+              })
+              .interrupt([](auto& k) {
+                eventuals::stop(k);
+              })
+        | Release(&lock);
   };
 
   auto e2 = [&]() {
     return Acquire(&lock)
-      | Lambda([]() { return "t2"; });
+        | Lambda([]() { return "t2"; });
   };
 
   auto [future1, k1] = Terminate(e1());
@@ -153,32 +149,30 @@ TEST(LockTest, Stop)
 }
 
 
-TEST(LockTest, Wait)
-{
+TEST(LockTest, Wait) {
   Lock lock;
 
   Callback<> callback;
 
   auto e1 = [&]() {
     return Eventual<std::string>()
-      .start([](auto& k) {
-        eventuals::succeed(k, "t1");
-      })
-      | Acquire(&lock)
-      | (Wait<std::string>(&lock)
-         .context(false)
-         .condition([&](auto& waited, auto& k, auto&& value) {
-           if (!waited) {
-             callback = [&k]() {
-               eventuals::notify(k);
-             };
-             eventuals::wait(k);
-             waited = true;
-           } else {
-             eventuals::succeed(k, value);
-           }
-         }))
-      | Release(&lock);
+               .start([](auto& k) {
+                 eventuals::succeed(k, "t1");
+               })
+        | Acquire(&lock)
+        | Wait(&lock,
+               [&](auto notify) {
+                 callback = std::move(notify);
+                 return [waited = false](auto&& value) mutable {
+                   if (!waited) {
+                     waited = true;
+                     return true;
+                   } else {
+                     return false;
+                   }
+                 };
+               })
+        | Release(&lock);
   };
 
   auto [future1, t1] = Terminate(e1());
@@ -203,25 +197,22 @@ TEST(LockTest, Wait)
 }
 
 
-TEST(LockTest, SynchronizableWait)
-{
-  struct Foo : public Synchronizable
-  {
-    Foo() : Synchronizable(&lock) {}
+TEST(LockTest, SynchronizableWait) {
+  struct Foo : public Synchronizable {
+    Foo()
+      : Synchronizable(&lock) {}
 
-    Foo(Foo&& that) : Synchronizable(&lock) {}
+    Foo(Foo&& that)
+      : Synchronizable(&lock) {}
 
-    auto Operation()
-    {
+    auto Operation() {
       return Synchronized(
-          Wait<std::string>()
-          .condition([](auto& k) {
-            auto thread = std::thread(
-                [&k]() mutable {
-                  eventuals::succeed(k, "operation");
-                });
-            thread.detach();
-          }));
+          Just("operation")
+          | Wait([](auto notify) {
+              return [](auto&&...) {
+                return false;
+              };
+            }));
     }
 
     Lock lock;
@@ -235,21 +226,19 @@ TEST(LockTest, SynchronizableWait)
 }
 
 
-TEST(LockTest, SynchronizableThen)
-{
-  struct Foo : public Synchronizable
-  {
-    Foo() : Synchronizable(&lock) {}
+TEST(LockTest, SynchronizableThen) {
+  struct Foo : public Synchronizable {
+    Foo()
+      : Synchronizable(&lock) {}
 
-    auto Operation()
-    {
+    auto Operation() {
       return Synchronized(
-          Then([]() {
-            return Just(42);
-          }))
-        | Lambda([](auto i) {
-          return i;
-        });
+                 Then([]() {
+                   return Just(42);
+                 }))
+          | Lambda([](auto i) {
+               return i;
+             });
     }
 
     Lock lock;

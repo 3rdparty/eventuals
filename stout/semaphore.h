@@ -19,11 +19,9 @@ namespace stout {
 // TODO(benh): Add tests!
 
 #ifdef __MACH__
-class Semaphore
-{
-public:
-  Semaphore()
-  {
+class Semaphore {
+ public:
+  Semaphore() {
     CHECK_EQ(
         KERN_SUCCESS,
         semaphore_create(mach_task_self(), &semaphore, SYNC_POLICY_FIFO, 0));
@@ -31,77 +29,65 @@ public:
 
   Semaphore(const Semaphore& other) = delete;
 
-  ~Semaphore()
-  {
+  ~Semaphore() {
     CHECK_EQ(KERN_SUCCESS, semaphore_destroy(mach_task_self(), semaphore));
   }
 
   Semaphore& operator=(const Semaphore& other) = delete;
 
-  void Wait()
-  {
+  void Wait() {
     CHECK_EQ(KERN_SUCCESS, semaphore_wait(semaphore));
   }
 
-  void Signal()
-  {
+  void Signal() {
     CHECK_EQ(KERN_SUCCESS, semaphore_signal(semaphore));
   }
 
-private:
+ private:
   semaphore_t semaphore;
 };
 #elif _WIN32
-class Semaphore
-{
-public:
-  Semaphore()
-  {
+class Semaphore {
+ public:
+  Semaphore() {
     semaphore = CHECK_NOTNULL(CreateSemaphore(nullptr, 0, LONG_MAX, nullptr));
   }
 
   Semaphore(const Semaphore& other) = delete;
 
-  ~Semaphore()
-  {
+  ~Semaphore() {
     CHECK(CloseHandle(semaphore));
   }
 
   Semaphore& operator=(const Semaphore& other) = delete;
 
-  void Wait()
-  {
+  void Wait() {
     CHECK_EQ(WAIT_OBJECT_0, WaitForSingleObject(semaphore, INFINITE));
   }
 
-  void Signal()
-  {
+  void Signal() {
     CHECK(ReleaseSemaphore(semaphore, 1, nullptr));
   }
 
-private:
+ private:
   HANDLE semaphore;
 };
 #else
-class Semaphore
-{
-public:
-  Semaphore()
-  {
+class Semaphore {
+ public:
+  Semaphore() {
     PCHECK(sem_init(&semaphore, 0, 0) == 0);
   }
 
   Semaphore(const Semaphore& other) = delete;
 
-  ~Semaphore()
-  {
+  ~Semaphore() {
     PCHECK(sem_destroy(&semaphore) == 0);
   }
 
   Semaphore& operator=(const Semaphore& other) = delete;
 
-  void Wait()
-  {
+  void Wait() {
     int result = sem_wait(&semaphore);
 
     while (result != 0 && errno == EINTR) {
@@ -111,18 +97,17 @@ public:
     PCHECK(result == 0);
   }
 
-  void Signal()
-  {
+  void Signal() {
     PCHECK(sem_post(&semaphore) == 0);
   }
 
-private:
+ private:
   sem_t semaphore;
 };
 #endif // __MACH__
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace stout {
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

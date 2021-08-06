@@ -1,22 +1,20 @@
-#include "gtest/gtest.h"
-
 #include "stout/callback.h"
+
+#include "gtest/gtest.h"
 
 using stout::Callback;
 
-TEST(Callback, Destructor)
-{
-  struct Foo
-  {
-    Foo(bool* destructed) : destructed_(destructed) {}
+TEST(Callback, Destructor) {
+  struct Foo {
+    Foo(bool* destructed)
+      : destructed_(destructed) {}
 
-    Foo(Foo&& that) : destructed_(that.destructed_)
-    {
+    Foo(Foo&& that)
+      : destructed_(that.destructed_) {
       that.destructed_ = nullptr;
     }
 
-    ~Foo()
-    {
+    ~Foo() {
       if (destructed_ != nullptr) {
         *destructed_ = true;
       }
@@ -27,7 +25,8 @@ TEST(Callback, Destructor)
   bool destructed = false;
 
   {
-    Callback<> callback = [foo = Foo { &destructed }]() {};
+    Callback<> callback = [foo = Foo{&destructed}]() {
+    };
     callback();
     EXPECT_FALSE(destructed);
   }

@@ -14,61 +14,53 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Arg_>
-struct TaskAdaptor
-{
-  TaskAdaptor(
-      Callback<Arg_>* start,
-      Callback<std::exception_ptr>* fail,
-      Callback<>* stop)
-    : start_(start),
-      fail_(fail),
-      stop_(stop) {}
-
-  template <typename... Args>
-  void Start(Args&&... args)
-  {
-    (*start_)(std::forward<Args>(args)...);
-  }
-
-  template <typename... Args>
-  void Fail(Args&&... args)
-  {
-    (*fail_)(
-        std::make_exception_ptr(
-            FailedException(std::forward<decltype(args)>(args)...)));
-  }
-
-  void Stop()
-  {
-    (*stop_)();
-  }
-
-  void Register(Interrupt&) {}
-
-  Callback<Arg_>* start_;
-  Callback<std::exception_ptr>* fail_;
-  Callback<>* stop_;
-};
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename E_>
-struct HeapTask
-{
+struct HeapTask {
   using Value_ = typename E_::template ValueFrom<void>;
+
+  template <typename Arg_>
+  struct Adaptor {
+    Adaptor(
+        Callback<Arg_>* start,
+        Callback<std::exception_ptr>* fail,
+        Callback<>* stop)
+      : start_(start),
+        fail_(fail),
+        stop_(stop) {}
+
+    template <typename... Args>
+    void Start(Args&&... args) {
+      (*start_)(std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    void Fail(Args&&... args) {
+      (*fail_)(
+          std::make_exception_ptr(
+              FailedException(std::forward<decltype(args)>(args)...)));
+    }
+
+    void Stop() {
+      (*stop_)();
+    }
+
+    void Register(Interrupt&) {}
+
+    Callback<Arg_>* start_;
+    Callback<std::exception_ptr>* fail_;
+    Callback<>* stop_;
+  };
 
   HeapTask(E_ e)
     : adaptor_(
         std::move(e).template k<void>(
-            TaskAdaptor<Value_> { &start_, &fail_, &stop_ })) {}
+            Adaptor<Value_>{&start_, &fail_, &stop_})) {}
 
   void Start(
       Interrupt& interrupt,
       Callback<Value_>&& start,
       Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop)
-  {
+      Callback<>&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -84,8 +76,8 @@ struct HeapTask
   Callback<std::exception_ptr> fail_;
   Callback<> stop_;
 
-  using Adaptor_ = decltype(
-      std::declval<E_>().template k<void>(std::declval<TaskAdaptor<Value_>>()));
+  using Adaptor_ = decltype(std::declval<E_>().template k<void>(
+      std::declval<Adaptor<Value_>>()));
 
   Adaptor_ adaptor_;
 };
@@ -93,11 +85,9 @@ struct HeapTask
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename Value_, typename... Args_>
-struct TaskWith
-{
+struct _TaskWith {
   template <typename... Args>
-  void Start(Args&&...)
-  {
+  void Start(Args&&...) {
     std::apply(
         [&](auto&&... args) {
           start_(
@@ -118,20 +108,17 @@ struct TaskWith
   }
 
   template <typename... Args>
-  void Fail(Args&&... args)
-  {
+  void Fail(Args&&... args) {
     // TODO(benh): propagate through 'Task'.
     eventuals::fail(k_, std::forward<Args>(args)...);
   }
 
-  void Stop()
-  {
+  void Stop() {
     // TODO(benh): propagate through 'Task'.
     eventuals::stop(k_);
   }
 
-  void Register(Interrupt& interrupt)
-  {
+  void Register(Interrupt& interrupt) {
     interrupt_ = &interrupt;
     k_.Register(interrupt);
   }
@@ -141,12 +128,13 @@ struct TaskWith
   std::tuple<Args_...> args_;
 
   Callback<
-    Args_&&...,
-    std::unique_ptr<void, Callback<void*>>&,
-    Interrupt&,
-    Callback<Value_>&&,
-    Callback<std::exception_ptr>&&,
-    Callback<>&&> start_;
+      Args_&&...,
+      std::unique_ptr<void, Callback<void*>>&,
+      Interrupt&,
+      Callback<Value_>&&,
+      Callback<std::exception_ptr>&&,
+      Callback<>&&>
+      start_;
 
   std::unique_ptr<void, Callback<void*>> e_;
 
@@ -155,34 +143,30 @@ struct TaskWith
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail {
+} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Value_, typename... Args_>
-struct TaskWith
-{
+struct TaskWith {
   template <typename Arg>
   using ValueFrom = Value_;
 
   template <typename F>
   TaskWith(Args_... args, F f)
-    : args_(std::move(args)...)
-  {
+    : args_(std::move(args)...) {
     // static_assert(
     //     !IsContinuation<F>::value,
     //     "'Task' expects a callable "
     //     "NOT an eventual continuation");
 
     static_assert(
-        sizeof...(args) > 0
-        || std::is_invocable_v<F>,
+        sizeof...(args) > 0 || std::is_invocable_v<F>,
         "'Task' expects a callable that "
         "takes no arguments");
 
     static_assert(
-        sizeof...(args) == 0
-        || std::is_invocable_v<F, Args_...>,
+        sizeof...(args) == 0 || std::is_invocable_v<F, Args_...>,
         "'Task' expects a callable that "
         "takes the arguments specified");
 
@@ -205,13 +189,12 @@ struct TaskWith
         "eventual result type can not be converted into type of 'Task'");
 
     start_ = [f = std::move(f)](
-        Args_&&... args,
-        std::unique_ptr<void, Callback<void*>>& e_,
-        Interrupt& interrupt,
-        Callback<Value>&& start,
-        Callback<std::exception_ptr>&& fail,
-        Callback<>&& stop) {
-
+                 Args_&&... args,
+                 std::unique_ptr<void, Callback<void*>>& e_,
+                 Interrupt& interrupt,
+                 Callback<Value>&& start,
+                 Callback<std::exception_ptr>&& fail,
+                 Callback<>&& stop) {
       if (!e_) {
         e_ = std::unique_ptr<void, Callback<void*>>(
             // TODO(benh): pass the args to 'Start()' instead so that
@@ -230,22 +213,19 @@ struct TaskWith
   }
 
   template <typename Arg, typename K>
-  auto k(K k) &&
-  {
+  auto k(K k) && {
     // TODO(benh): ensure we haven't already called 'Start()'.
-    return detail::TaskWith<K, Value_, Args_...> {
-      std::move(k),
-      std::move(args_),
-      std::move(start_)
-    };
+    return detail::_TaskWith<K, Value_, Args_...>{
+        std::move(k),
+        std::move(args_),
+        std::move(start_)};
   }
 
   void Start(
       Interrupt& interrupt,
       Callback<Value_>&& start,
       Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop)
-  {
+      Callback<>&& stop) {
     // TODO(benh): ensure we haven't already called 'k()'.
     std::apply(
         [&](auto&&... args) {
@@ -260,8 +240,7 @@ struct TaskWith
         std::move(args_));
   }
 
-  auto operator*() &&
-  {
+  auto operator*() && {
     auto [future, k] = Terminate(std::move(*this));
 
     start(k);
@@ -272,12 +251,13 @@ struct TaskWith
   std::tuple<Args_...> args_;
 
   Callback<
-    Args_&&...,
-    std::unique_ptr<void, Callback<void*>>&,
-    Interrupt&,
-    Callback<Value_>&&,
-    Callback<std::exception_ptr>&&,
-    Callback<>&&> start_;
+      Args_&&...,
+      std::unique_ptr<void, Callback<void*>>&,
+      Interrupt&,
+      Callback<Value_>&&,
+      Callback<std::exception_ptr>&&,
+      Callback<>&&>
+      start_;
 
   std::unique_ptr<void, Callback<void*>> e_;
 };
@@ -285,9 +265,8 @@ struct TaskWith
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Value_>
-class Task
-{
-public:
+class Task {
+ public:
   template <typename... Args>
   using With = TaskWith<Value_, Args...>;
 
@@ -299,8 +278,7 @@ public:
     : task_(std::move(f)) {}
 
   template <typename Arg, typename K>
-  auto k(K k) &&
-  {
+  auto k(K k) && {
     return std::move(task_).template k<Arg>(std::move(k));
   }
 
@@ -308,13 +286,11 @@ public:
       Interrupt& interrupt,
       Callback<Value_>&& start,
       Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop)
-  {
+      Callback<>&& stop) {
     task_.Start(interrupt, std::move(start), std::move(fail), std::move(stop));
   }
 
-  auto operator*() &&
-  {
+  auto operator*() && {
     auto [future, k] = Terminate(std::move(*this));
 
     start(k);
@@ -322,14 +298,13 @@ public:
     return future.get();
   }
 
-private:
+ private:
   TaskWith<Value_> task_;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace eventuals {
-} // namespace stout {
+} // namespace eventuals
+} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////
-
