@@ -10,7 +10,6 @@
 #include "stout/map.h"
 #include "stout/reduce.h"
 #include "stout/terminal.h"
-#include "stout/transform.h"
 
 namespace eventuals = stout::eventuals;
 
@@ -23,7 +22,6 @@ using stout::eventuals::Map;
 using stout::eventuals::Reduce;
 using stout::eventuals::Stream;
 using stout::eventuals::Terminate;
-using stout::eventuals::Transform;
 
 using testing::MockFunction;
 
@@ -313,51 +311,6 @@ TEST(StreamTest, InfiniteLoop) {
   };
 
   *s();
-}
-
-
-TEST(StreamTest, Transform) {
-  // Using mocks to ensure fail and stop callbacks don't get invoked.
-  MockFunction<void()> stop, fail;
-
-  EXPECT_CALL(stop, Call())
-      .Times(0);
-
-  EXPECT_CALL(fail, Call())
-      .Times(0);
-
-  auto s = [&]() {
-    return Stream<int>()
-               .context(5)
-               .next([](auto& count, auto& k) {
-                 if (count > 0) {
-                   eventuals::emit(k, count--);
-                 } else {
-                   eventuals::ended(k);
-                 }
-               })
-        | Transform<int>()
-              .body([](auto& k, int i) {
-                eventuals::body(k, i + 1);
-              })
-              .fail([&](auto& k, auto&&...) {
-                fail.Call();
-              })
-              .stop([&](auto& k) {
-                stop.Call();
-              })
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                eventuals::next(stream);
-              })
-              .ended([](auto& sum, auto& k) {
-                eventuals::succeed(k, sum);
-              });
-  };
-
-  EXPECT_EQ(20, *s());
 }
 
 

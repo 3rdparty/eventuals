@@ -279,7 +279,7 @@ auto e = Eventual<Result>()
   .interrupt([](auto& k) {
     // Try and interrupt the asynchronous computation.
   })
-  | (Terminal()
+  | Terminal()
      .start([](auto&& result) {
        // Eventual pipeline succeeded!
      })
@@ -288,7 +288,7 @@ auto e = Eventual<Result>()
      })
      .stop([](auto&& result) {
        // Eventual pipeline stopped!
-     }));
+     });
 
 Interrupt interrupt;
 
@@ -480,7 +480,7 @@ auto e = Stream<int>()
       ended(k);
     }
   })
-  | (Loop<int>()
+  | Loop<int>()
      .context(0)
      .body([](auto& sum, auto& stream, auto&& value) {
        sum += value;
@@ -488,7 +488,7 @@ auto e = Stream<int>()
      })
      .ended([](auto& sum, auto& k) {
        succeed(k, sum);
-     }));
+     });
 ```
 
 You can construct a stream out of repeated asynchronous computations using `Repeat`:
@@ -512,9 +512,9 @@ auto e = Repeat(Then([](int n) { return Asynchronous(n); }))
   });
 ```
 
-### `Transform` and `Map`
+### `Map`
 
-Often times you'll want to perform some transformations on your stream. You can do that explicitly with `Transform`, or implicitly with `Map`. Here's an example of doing a "map reduce":
+Often times you'll want to perform some transformations on your stream. You can do that with `Map`. Here's an example of doing a "map reduce":
 
 ```cpp
 auto e = Stream<int>()
@@ -530,7 +530,7 @@ auto e = Stream<int>()
         .start([](auto& k, auto&& i) {
           succeed(k, i + 1);
         }))
-  | (Loop<int>()
+  | Loop<int>()
      .context(0)
      .body([](auto& sum, auto& stream, auto&& value) {
        sum += value;
@@ -538,7 +538,7 @@ auto e = Stream<int>()
      })
      .ended([](auto& sum, auto& k) {
        succeed(k, sum);
-     }));
+     });
 ```
 
 ### Infinite `Loop`
