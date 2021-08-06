@@ -2,9 +2,9 @@
 
 #include <optional>
 
-#include "glog/logging.h"
 #include "stout/compose.h"
 #include "stout/interrupt.h"
+#include "stout/scheduler.h"
 #include "stout/undefined.h"
 
 // TODO(benh): catch exceptions from 'start', 'fail', 'stop', etc.
@@ -12,16 +12,6 @@
 // TODO(benh): aggregate errors across all the eventuals.
 //
 // TODO(benh): lambda visitor for matching errors.
-
-////////////////////////////////////////////////////////////////////////
-
-inline bool StoutEventualsLog(size_t level) {
-  static const char* variable = std::getenv("STOUT_EVENTUALS_LOG");
-  static int value = variable != nullptr ? atoi(variable) : 0;
-  return value >= level;
-}
-
-#define STOUT_EVENTUALS_LOG(level) LOG_IF(INFO, StoutEventualsLog(level))
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -105,9 +95,9 @@ struct _Eventual {
         handler_->Invoke();
       } else {
         if constexpr (IsUndefined<Context_>::value) {
-          start_(k_, std::forward<Args>(args)...);
+          start_(continuation(), std::forward<Args>(args)...);
         } else {
-          start_(context_, k_, std::forward<Args>(args)...);
+          start_(context_, continuation(), std::forward<Args>(args)...);
         }
       }
     }
@@ -115,36 +105,52 @@ struct _Eventual {
     template <typename... Args>
     void Fail(Args&&... args) {
       if constexpr (IsUndefined<Fail_>::value) {
-        eventuals::fail(k_, std::forward<Args>(args)...);
+        eventuals::fail(continuation(), std::forward<Args>(args)...);
       } else if constexpr (IsUndefined<Context_>::value) {
-        fail_(k_, std::forward<Args>(args)...);
+        fail_(continuation(), std::forward<Args>(args)...);
       } else {
-        fail_(context_, k_, std::forward<Args>(args)...);
+        fail_(context_, continuation(), std::forward<Args>(args)...);
       }
     }
 
     void Stop() {
       if constexpr (IsUndefined<Stop_>::value) {
-        eventuals::stop(k_);
+        eventuals::stop(continuation());
       } else if constexpr (IsUndefined<Context_>::value) {
-        stop_(k_);
+        stop_(continuation());
       } else {
-        stop_(context_, k_);
+        stop_(context_, continuation());
       }
     }
 
     void Register(Interrupt& interrupt) {
-      k_.Register(interrupt);
+      interrupter_ = &interrupt;
 
       if constexpr (!IsUndefined<Interrupt_>::value) {
         handler_.emplace(&interrupt, [this]() {
           if constexpr (IsUndefined<Context_>::value) {
-            interrupt_(k_);
+            interrupt_(continuation());
           } else {
-            interrupt_(context_, k_);
+            interrupt_(context_, continuation());
           }
         });
       }
+    }
+
+    auto& continuation() {
+      if (!continuation_) {
+        previous_ = Scheduler::Context::Get();
+        continuation_.emplace(
+            previous_->Reschedule().template k<Value_>(std::move(k_)));
+
+        if (interrupter_ != nullptr) {
+          continuation_->Register(*interrupter_);
+        }
+      }
+
+      CHECK_EQ(Scheduler::Context::Get(), previous_);
+
+      return *continuation_;
     }
 
     K_ k_;
@@ -155,6 +161,15 @@ struct _Eventual {
     Interrupt_ interrupt_;
 
     std::optional<Interrupt::Handler> handler_;
+
+    Interrupt* interrupter_ = nullptr;
+
+    Scheduler::Context* previous_ = nullptr;
+
+    using Continuation_ =
+        decltype(previous_->Reschedule().template k<Value_>(std::move(k_)));
+
+    std::optional<Continuation_> continuation_;
   };
 
   template <

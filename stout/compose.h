@@ -1,9 +1,52 @@
 #pragma once
 
+#include "glog/logging.h"
+
+////////////////////////////////////////////////////////////////////////
+
+inline bool StoutEventualsLog(size_t level) {
+  static const char* variable = std::getenv("STOUT_EVENTUALS_LOG");
+  static int value = variable != nullptr ? atoi(variable) : 0;
+  return value >= level;
+}
+
+#define STOUT_EVENTUALS_LOG(level) LOG_IF(INFO, StoutEventualsLog(level))
+
 ////////////////////////////////////////////////////////////////////////
 
 namespace stout {
 namespace eventuals {
+
+////////////////////////////////////////////////////////////////////////
+
+// Forward declarations to break circular dependencies.
+
+template <typename K>
+void start(K& k);
+
+template <typename K, typename... Args>
+void succeed(K& k, Args&&... args);
+
+template <typename K, typename... Args>
+void fail(K& k, Args&&... args);
+
+template <typename K>
+void stop(K& k);
+
+template <typename K, typename... Args>
+void emit(K& k, Args&&... args);
+
+template <typename K>
+void next(K& k);
+
+template <typename K>
+void done(K& k);
+
+template <typename K, typename... Args>
+void body(K& k, Args&&... args);
+
+template <typename K>
+void ended(K& k);
 
 ////////////////////////////////////////////////////////////////////////
 

@@ -24,6 +24,8 @@ struct _Repeat {
 
     template <typename... Args>
     void Start(Args&&...) {
+      previous_ = Scheduler::Context::Get();
+
       eventuals::succeed(k_, *this);
     }
 
@@ -41,14 +43,20 @@ struct _Repeat {
     }
 
     void Next() override {
-      eventuals::body(k_);
+      previous_->Continue([this]() {
+        eventuals::body(k_);
+      });
     }
 
     void Done() override {
-      eventuals::ended(k_);
+      previous_->Continue([this]() {
+        eventuals::ended(k_);
+      });
     }
 
     K_ k_;
+
+    Scheduler::Context* previous_ = nullptr;
   };
 
   struct Composable {

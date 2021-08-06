@@ -119,8 +119,10 @@ class StaticThreadPool : public Scheduler {
 
   void Submit(
       Callback<> callback,
-      Scheduler::Context* context,
+      Context* context,
       bool defer = true) override;
+
+  bool Continue(Context* context) override;
 
   template <typename T>
   auto Schedule(Requirements* requirements, T t);

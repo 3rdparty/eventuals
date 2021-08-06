@@ -5,8 +5,9 @@
 #include <tuple>
 
 #include "stout/callback.h"
-#include "stout/eventual.h"
+#include "stout/compose.h"
 #include "stout/interrupt.h"
+#include "stout/undefined.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +22,7 @@ class Scheduler {
     static Context* Get() {
       Context* previous = nullptr;
       auto* scheduler = Scheduler::Get(&previous);
-      CHECK_EQ(scheduler, previous->scheduler_);
+      CHECK_EQ(scheduler, previous->scheduler_) << previous->name();
       return previous;
     }
 
@@ -41,6 +42,33 @@ class Scheduler {
 
     const std::string& name() {
       return *CHECK_NOTNULL(name_);
+    }
+
+    template <typename F>
+    void Unblock(F f) {
+      scheduler_->Submit(std::move(f), this, /* defer = */ true);
+    }
+
+    template <typename F>
+    void Continue(F&& f) {
+      if (scheduler_->Continue(this)) {
+        auto* previous = Switch(this);
+        f();
+        Switch(previous);
+      } else {
+        scheduler_->Submit(std::move(f), this, /* defer = */ false);
+      }
+    }
+
+    template <typename F, typename G>
+    void Continue(F&& f, G&& g) {
+      if (scheduler_->Continue(this)) {
+        auto* previous = Switch(this);
+        f();
+        Switch(previous);
+      } else {
+        scheduler_->Submit(g(), this, /* defer = */ false);
+      }
     }
 
     // Returns an eventual which will do a 'Scheduler::Submit()' using
@@ -66,6 +94,10 @@ class Scheduler {
         && scheduler_ == context->scheduler();
   }
 
+  virtual bool Continue(Context* context) {
+    return scheduler_ == default_;
+  }
+
   virtual void Submit(
       Callback<> callback,
       Context* context,
@@ -73,6 +105,8 @@ class Scheduler {
     // Default scheduler does not defer because it can't (unless we
     // update all calls that "wait" on tasks to execute outstanding
     // callbacks).
+    CHECK_EQ(scheduler_, default_);
+
     Context* previous = Context::Switch(context);
 
     STOUT_EVENTUALS_LOG(1)
@@ -115,57 +149,59 @@ struct _Reschedule {
   struct Continuation {
     template <typename... Args>
     void Start(Args&&... args) {
-      static_assert(
-          sizeof...(args) == 0 || sizeof...(args) == 1,
-          "Reschedule only supports 0 or 1 argument, but found > 1");
-
-      static_assert(std::is_void_v<Arg_> || sizeof...(args) == 1);
-
-      if constexpr (!std::is_void_v<Arg_>) {
-        arg_.emplace(std::forward<Args>(args)...);
-      }
-
-      STOUT_EVENTUALS_LOG(1)
-          << "Reschedule submitting '" << context_->name() << "'";
-
-      context_->scheduler()->Submit(
-          [this]() {
-            if constexpr (sizeof...(args) == 1) {
-              eventuals::succeed(k_, std::move(*arg_));
-            } else {
-              eventuals::succeed(k_);
-            }
+      context_->Continue(
+          [&]() {
+            eventuals::succeed(k_, std::forward<Args>(args)...);
           },
-          context_,
-          /* defer = */ false); // Execute the code immediately if possible.
+          [&]() {
+            static_assert(
+                sizeof...(args) == 0 || sizeof...(args) == 1,
+                "Reschedule only supports 0 or 1 argument, but found > 1");
+
+            static_assert(std::is_void_v<Arg_> || sizeof...(args) == 1);
+
+            if constexpr (!std::is_void_v<Arg_>) {
+              arg_.emplace(std::forward<Args>(args)...);
+            }
+
+            STOUT_EVENTUALS_LOG(1)
+                << "Reschedule submitting '" << context_->name() << "'";
+
+            return [this]() {
+              if constexpr (sizeof...(args) == 1) {
+                eventuals::succeed(k_, std::move(*arg_));
+              } else {
+                eventuals::succeed(k_);
+              }
+            };
+          });
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      // TODO(benh): avoid allocating on heap by storing args in
-      // pre-allocated buffer based on composing with Errors.
-      auto* tuple = new std::tuple{&k_, std::forward<Args>(args)...};
-
-      context_->scheduler()->Submit(
-          [tuple]() {
-            std::apply(
-                [](auto* k_, auto&&... args) {
-                  eventuals::fail(*k_, std::forward<decltype(args)>(args)...);
-                },
-                std::move(*tuple));
-            delete tuple;
+      context_->Continue(
+          [&]() {
+            eventuals::fail(k_, std::forward<Args>(args)...);
           },
-          context_,
-          /* defer = */ false); // Execute the code immediately if possible.
+          [&]() {
+            // TODO(benh): avoid allocating on heap by storing args in
+            // pre-allocated buffer based on composing with Errors.
+            auto* tuple = new std::tuple{&k_, std::forward<Args>(args)...};
+            return [tuple]() {
+              std::apply(
+                  [](auto* k_, auto&&... args) {
+                    eventuals::fail(*k_, std::forward<decltype(args)>(args)...);
+                  },
+                  std::move(*tuple));
+              delete tuple;
+            };
+          });
     }
 
     void Stop() {
-      context_->scheduler()->Submit(
-          [this]() {
-            eventuals::stop(k_);
-          },
-          context_,
-          /* defer = */ false); // Execute the code immediately if possible.
+      context_->Continue([this]() {
+        eventuals::stop(k_);
+      });
     }
 
     void Register(Interrupt& interrupt) {

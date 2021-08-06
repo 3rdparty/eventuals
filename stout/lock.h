@@ -144,15 +144,13 @@ struct _Acquire {
           STOUT_EVENTUALS_LOG(1)
               << "'" << context_->name() << "' (very slow) acquired";
 
-          context_->scheduler()->Submit(
-              [this]() mutable {
-                if constexpr (sizeof...(args) == 1) {
-                  eventuals::succeed(k_, std::move(*arg_));
-                } else {
-                  eventuals::succeed(k_);
-                }
-              },
-              context_);
+          context_->Unblock([this]() mutable {
+            if constexpr (sizeof...(args) == 1) {
+              eventuals::succeed(k_, std::move(*arg_));
+            } else {
+              eventuals::succeed(k_);
+            }
+          });
         };
 
         if (lock_->AcquireSlow(&waiter_)) {
@@ -182,20 +180,17 @@ struct _Acquire {
         waiter_.f = [tuple]() mutable {
           std::apply(
               [tuple](auto* acquire, auto&&...) {
-                auto* context_ = acquire->context_;
-                context_->scheduler()->Submit(
-                    [tuple]() mutable {
-                      std::apply(
-                          [](auto* acquire, auto&&... args) {
-                            auto& k_ = *acquire->k_;
-                            eventuals::fail(
-                                k_,
-                                std::forward<decltype(args)>(args)...);
-                          },
-                          std::move(*tuple));
-                      delete tuple;
-                    },
-                    context_);
+                acquire->context_->Unblock([tuple]() mutable {
+                  std::apply(
+                      [](auto* acquire, auto&&... args) {
+                        auto& k_ = *acquire->k_;
+                        eventuals::fail(
+                            k_,
+                            std::forward<decltype(args)>(args)...);
+                      },
+                      std::move(*tuple));
+                  delete tuple;
+                });
               },
               std::move(*tuple));
         };
@@ -213,11 +208,9 @@ struct _Acquire {
         eventuals::stop(k_);
       } else {
         waiter_.f = [this]() mutable {
-          context_->scheduler()->Submit(
-              [this]() mutable {
-                eventuals::stop(k_);
-              },
-              context_);
+          context_->Unblock([this]() mutable {
+            eventuals::stop(k_);
+          });
         };
 
         if (lock_->AcquireSlow(&waiter_)) {
@@ -354,15 +347,13 @@ struct _Wait {
           STOUT_EVENTUALS_LOG(1)
               << "'" << context_->name() << "' (notify) acquired";
 
-          context_->scheduler()->Submit(
-              [this]() mutable {
-                if constexpr (sizeof...(args) == 1) {
-                  Start(std::move(*arg_));
-                } else {
-                  Start();
-                }
-              },
-              context_);
+          context_->Unblock([this]() mutable {
+            if constexpr (sizeof...(args) == 1) {
+              Start(std::move(*arg_));
+            } else {
+              Start();
+            }
+          });
 
           STOUT_EVENTUALS_LOG(2)
               << "'" << context_->name() << "' (notify) submitted";

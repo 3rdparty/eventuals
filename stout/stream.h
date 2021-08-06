@@ -68,32 +68,76 @@ struct TypeErasedStream {
 struct _Stream {
   // Helper that distinguishes when a stream's continuation needs to be
   // invoked (versus the stream being invoked as a continuation itself).
-  template <typename S_, typename K_>
+  template <typename S_, typename K_, typename Arg_>
   struct StreamK {
     S_* stream_ = nullptr;
     K_* k_ = nullptr;
+    std::optional<Arg_> arg_;
 
-    template <typename... Args>
-    void Start(Args&&... args) {
-      eventuals::succeed(*k_, *stream_, std::forward<Args>(args)...);
+    void Start() {
+      stream_->previous_->Continue([this]() {
+        eventuals::succeed(*k_, *stream_);
+      });
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(*k_, std::forward<Args>(args)...);
+      stream_->previous_->Continue(
+          [&]() {
+            eventuals::fail(*k_, std::forward<Args>(args)...);
+          },
+          [&]() {
+            // TODO(benh): avoid allocating on heap by storing args in
+            // pre-allocated buffer based on composing with Errors.
+            auto* tuple = new std::tuple{k_, std::forward<Args>(args)...};
+            return [tuple]() {
+              std::apply(
+                  [](auto* k_, auto&&... args) {
+                    eventuals::fail(*k_, std::forward<decltype(args)>(args)...);
+                  },
+                  std::move(*tuple));
+              delete tuple;
+            };
+          });
     }
 
     void Stop() {
-      eventuals::stop(*k_);
+      stream_->previous_->Continue([this]() {
+        eventuals::stop(*k_);
+      });
     }
 
     template <typename... Args>
     void Emit(Args&&... args) {
-      eventuals::body(*k_, std::forward<Args>(args)...);
+      stream_->previous_->Continue(
+          [&]() {
+            eventuals::body(*k_, std::forward<Args>(args)...);
+          },
+          [&]() {
+            static_assert(
+                sizeof...(args) == 0 || sizeof...(args) == 1,
+                "'emit()' only supports 0 or 1 argument, but found > 1");
+
+            static_assert(std::is_void_v<Arg_> || sizeof...(args) == 1);
+
+            if constexpr (!std::is_void_v<Arg_>) {
+              arg_.emplace(std::forward<Args>(args)...);
+            }
+
+            return [this]() {
+              if constexpr (sizeof...(args) == 1) {
+                eventuals::body(*k_, std::move(*arg_));
+              } else {
+                eventuals::body(*k_);
+              }
+            };
+          });
     }
 
     void Ended() {
-      eventuals::ended(*k_);
+      stream_->previous_->Continue([this]() {
+        eventuals::ended(*k_);
+      });
     }
   };
 
@@ -143,6 +187,8 @@ struct _Stream {
 
     template <typename... Args>
     void Start(Args&&... args) {
+      previous_ = Scheduler::Context::Get();
+
       streamk_.stream_ = this;
       streamk_.k_ = &k_;
 
@@ -208,21 +254,25 @@ struct _Stream {
           !IsUndefined<Next_>::value,
           "Undefined 'next' (and no default)");
 
-      if constexpr (IsUndefined<Context_>::value) {
-        next_(streamk_);
-      } else {
-        next_(context_, streamk_);
-      }
+      previous_->Continue([this]() {
+        if constexpr (IsUndefined<Context_>::value) {
+          next_(streamk_);
+        } else {
+          next_(context_, streamk_);
+        }
+      });
     }
 
     void Done() override {
-      if constexpr (IsUndefined<Done_>::value) {
-        eventuals::ended(k_);
-      } else if constexpr (IsUndefined<Context_>::value) {
-        done_(streamk_);
-      } else {
-        done_(context_, streamk_);
-      }
+      previous_->Continue([this]() {
+        if constexpr (IsUndefined<Done_>::value) {
+          eventuals::ended(k_);
+        } else if constexpr (IsUndefined<Context_>::value) {
+          done_(streamk_);
+        } else {
+          done_(context_, streamk_);
+        }
+      });
     }
 
     K_ k_;
@@ -234,7 +284,9 @@ struct _Stream {
     Stop_ stop_;
     Interrupt_ interrupt_;
 
-    StreamK<Continuation, K_> streamk_;
+    Scheduler::Context* previous_ = nullptr;
+
+    StreamK<Continuation, K_, Value_> streamk_;
 
     std::optional<Interrupt::Handler> handler_;
   };

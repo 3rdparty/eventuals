@@ -103,9 +103,7 @@ void StaticThreadPool::Submit(
     Callback<> callback,
     Context* context,
     bool defer) {
-  assert(context != nullptr);
-
-  auto* waiter = static_cast<Waiter*>(context);
+  auto* waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
 
   CHECK(!waiter->waiting);
   CHECK(waiter->next == nullptr);
@@ -152,6 +150,23 @@ void StaticThreadPool::Submit(
 
     semaphore->Signal();
   }
+}
+
+////////////////////////////////////////////////////////////////////////
+
+bool StaticThreadPool::Continue(Context* context) {
+  auto* waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
+
+  CHECK(!waiter->waiting);
+  CHECK(waiter->next == nullptr);
+
+  auto& pinned = waiter->requirements()->pinned;
+
+  CHECK(pinned.core);
+
+  unsigned int core = pinned.core.value();
+
+  return StaticThreadPool::member && StaticThreadPool::core == core;
 }
 
 ////////////////////////////////////////////////////////////////////////

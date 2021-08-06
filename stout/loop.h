@@ -42,8 +42,7 @@ struct _Loop {
       return *this;
     }
 
-    template <typename... Args>
-    void Start(TypeErasedStream& stream, Args&&... args) {
+    void Start(TypeErasedStream& stream) {
       stream_ = &stream;
 
       auto interrupted = [this]() mutable {
@@ -61,9 +60,9 @@ struct _Loop {
         if constexpr (IsUndefined<Start_>::value) {
           eventuals::next(*stream_);
         } else if constexpr (IsUndefined<Context_>::value) {
-          start_(*stream_, std::forward<Args>(args)...);
+          start_(*stream_);
         } else {
-          start_(context_, *stream_, std::forward<Args>(args)...);
+          start_(context_, *stream_);
         }
       }
     }
@@ -71,33 +70,33 @@ struct _Loop {
     template <typename... Args>
     void Fail(Args&&... args) {
       if constexpr (IsUndefined<Start_>::value) {
-        eventuals::fail(k_, std::forward<Args>(args)...);
+        eventuals::fail(continuation(), std::forward<Args>(args)...);
       } else if constexpr (IsUndefined<Context_>::value) {
-        fail_(k_, std::forward<Args>(args)...);
+        fail_(continuation(), std::forward<Args>(args)...);
       } else {
-        fail_(context_, k_, std::forward<Args>(args)...);
+        fail_(context_, continuation(), std::forward<Args>(args)...);
       }
     }
 
     void Stop() {
       if constexpr (IsUndefined<Start_>::value) {
-        eventuals::stop(k_);
+        eventuals::stop(continuation());
       } else if constexpr (IsUndefined<Context_>::value) {
-        stop_(k_);
+        stop_(continuation());
       } else {
-        stop_(context_, k_);
+        stop_(context_, continuation());
       }
     }
 
     void Register(Interrupt& interrupt) {
-      k_.Register(interrupt);
+      interrupter_ = &interrupt;
 
       if constexpr (!IsUndefined<Interrupt_>::value) {
         handler_.emplace(&interrupt, [this]() {
           if constexpr (IsUndefined<Context_>::value) {
-            interrupt_(k_);
+            interrupt_(continuation());
           } else {
-            interrupt_(context_, k_);
+            interrupt_(context_, continuation());
           }
         });
       }
@@ -120,12 +119,28 @@ struct _Loop {
           "Undefined 'ended' but 'Value' is _not_ void");
 
       if constexpr (IsUndefined<Ended_>::value) {
-        eventuals::succeed(k_);
+        eventuals::succeed(continuation());
       } else if constexpr (IsUndefined<Context_>::value) {
-        ended_(k_);
+        ended_(continuation());
       } else {
-        ended_(context_, k_);
+        ended_(context_, continuation());
       }
+    }
+
+    auto& continuation() {
+      if (!continuation_) {
+        previous_ = Scheduler::Context::Get();
+        continuation_.emplace(
+            previous_->Reschedule().template k<Value_>(std::move(k_)));
+
+        if (interrupter_ != nullptr) {
+          continuation_->Register(*interrupter_);
+        }
+      }
+
+      CHECK_EQ(Scheduler::Context::Get(), previous_);
+
+      return *continuation_;
     }
 
     K_ k_;
@@ -140,6 +155,15 @@ struct _Loop {
     TypeErasedStream* stream_ = nullptr;
 
     std::optional<Interrupt::Handler> handler_;
+
+    Interrupt* interrupter_ = nullptr;
+
+    Scheduler::Context* previous_ = nullptr;
+
+    using Continuation_ =
+        decltype(previous_->Reschedule().template k<Value_>(std::move(k_)));
+
+    std::optional<Continuation_> continuation_;
   };
 
   template <
