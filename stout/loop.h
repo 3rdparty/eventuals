@@ -70,33 +70,33 @@ struct _Loop {
     template <typename... Args>
     void Fail(Args&&... args) {
       if constexpr (IsUndefined<Start_>::value) {
-        eventuals::fail(continuation(), std::forward<Args>(args)...);
+        eventuals::fail(k_(), std::forward<Args>(args)...);
       } else if constexpr (IsUndefined<Context_>::value) {
-        fail_(continuation(), std::forward<Args>(args)...);
+        fail_(k_(), std::forward<Args>(args)...);
       } else {
-        fail_(context_, continuation(), std::forward<Args>(args)...);
+        fail_(context_, k_(), std::forward<Args>(args)...);
       }
     }
 
     void Stop() {
       if constexpr (IsUndefined<Start_>::value) {
-        eventuals::stop(continuation());
+        eventuals::stop(k_());
       } else if constexpr (IsUndefined<Context_>::value) {
-        stop_(continuation());
+        stop_(k_());
       } else {
-        stop_(context_, continuation());
+        stop_(context_, k_());
       }
     }
 
     void Register(Interrupt& interrupt) {
-      interrupter_ = &interrupt;
+      k_.Register(interrupt);
 
       if constexpr (!IsUndefined<Interrupt_>::value) {
         handler_.emplace(&interrupt, [this]() {
           if constexpr (IsUndefined<Context_>::value) {
-            interrupt_(continuation());
+            interrupt_(k_());
           } else {
-            interrupt_(context_, continuation());
+            interrupt_(context_, k_());
           }
         });
       }
@@ -119,31 +119,15 @@ struct _Loop {
           "Undefined 'ended' but 'Value' is _not_ void");
 
       if constexpr (IsUndefined<Ended_>::value) {
-        eventuals::succeed(continuation());
+        eventuals::succeed(k_());
       } else if constexpr (IsUndefined<Context_>::value) {
-        ended_(continuation());
+        ended_(k_());
       } else {
-        ended_(context_, continuation());
+        ended_(context_, k_());
       }
     }
 
-    auto& continuation() {
-      if (!continuation_) {
-        previous_ = Scheduler::Context::Get();
-        continuation_.emplace(
-            previous_->Reschedule().template k<Value_>(std::move(k_)));
-
-        if (interrupter_ != nullptr) {
-          continuation_->Register(*interrupter_);
-        }
-      }
-
-      CHECK_EQ(Scheduler::Context::Get(), previous_);
-
-      return *continuation_;
-    }
-
-    K_ k_;
+    Reschedulable<K_, Value_> k_;
     Context_ context_;
     Start_ start_;
     Body_ body_;
@@ -155,15 +139,6 @@ struct _Loop {
     TypeErasedStream* stream_ = nullptr;
 
     std::optional<Interrupt::Handler> handler_;
-
-    Interrupt* interrupter_ = nullptr;
-
-    Scheduler::Context* previous_ = nullptr;
-
-    using Continuation_ =
-        decltype(previous_->Reschedule().template k<Value_>(std::move(k_)));
-
-    std::optional<Continuation_> continuation_;
   };
 
   template <
@@ -231,7 +206,7 @@ struct _Loop {
           Interrupt_,
           Value_,
           Errors_...>{
-          std::move(k),
+          Reschedulable<K, Value_>{std::move(k)},
           std::move(context_),
           std::move(start_),
           std::move(body_),

@@ -34,7 +34,7 @@ struct _Just {
           Undefined,
           Undefined,
           T_>{
-          std::move(k),
+          Reschedulable<K, T_>{std::move(k)},
           Undefined(),
           std::move(start),
           Undefined(),
@@ -64,7 +64,7 @@ struct _Just {
           Undefined,
           Undefined,
           void>{
-          std::move(k),
+          Reschedulable<K, void>{std::move(k)},
           Undefined(),
           std::move(start),
           Undefined(),

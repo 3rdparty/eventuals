@@ -242,6 +242,45 @@ inline auto Scheduler::Context::Reschedule() {
 
 ////////////////////////////////////////////////////////////////////////
 
+// Helper for exposing continuations that might need to get
+// rescheduled before being executed.
+template <typename K_, typename Arg_>
+struct Reschedulable {
+  auto& operator()() {
+    if (!continuation_) {
+      previous_ = Scheduler::Context::Get();
+      continuation_.emplace(
+          previous_->Reschedule().template k<Arg_>(std::move(k_)));
+
+      if (interrupt_ != nullptr) {
+        continuation_->Register(*interrupt_);
+      }
+    }
+
+    CHECK_EQ(Scheduler::Context::Get(), previous_);
+
+    return *continuation_;
+  }
+
+  void Register(Interrupt& interrupt) {
+    interrupt_ = &interrupt;
+  }
+
+  K_ k_;
+
+  Interrupt* interrupt_ = nullptr;
+
+  Scheduler::Context* previous_ = nullptr;
+
+  using Continuation_ =
+      decltype(std::declval<detail::_Reschedule::Composable>()
+                   .template k<Arg_>(std::move(k_)));
+
+  std::optional<Continuation_> continuation_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
 namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
