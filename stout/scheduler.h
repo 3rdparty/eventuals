@@ -95,6 +95,7 @@ class Scheduler {
   }
 
   virtual bool Continue(Context* context) {
+    CHECK_EQ(default_, this);
     return scheduler_ == default_;
   }
 
@@ -105,7 +106,7 @@ class Scheduler {
     // Default scheduler does not defer because it can't (unless we
     // update all calls that "wait" on tasks to execute outstanding
     // callbacks).
-    CHECK_EQ(scheduler_, default_);
+    CHECK_EQ(default_, this);
 
     Context* previous = Context::Switch(context);
 
