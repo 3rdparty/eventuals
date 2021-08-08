@@ -594,7 +594,7 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
                        worker->notify = std::move(notify);
 
                        return [this, worker]() mutable {
-                         CHECK(Scheduler::Verify(worker));
+                         CHECK_EQ(worker, Scheduler::Context::Get());
                          if (ended_) {
                            return false;
                          } else if (!worker->arg) {

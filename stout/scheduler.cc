@@ -5,9 +5,7 @@ namespace eventuals {
 
 Scheduler* Scheduler::default_ = new Scheduler();
 
-thread_local Scheduler* Scheduler::scheduler_ = default_;
-
-thread_local Scheduler::Context* Scheduler::context_ =
+thread_local Scheduler::Context* Scheduler::Context::current_ =
     new Scheduler::Context(default_, new std::string("[main]"));
 
 } // namespace eventuals

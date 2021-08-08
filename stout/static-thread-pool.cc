@@ -61,7 +61,7 @@ StaticThreadPool::StaticThreadPool()
 
               assert(waiter->next == nullptr);
 
-              Scheduler::Set(this, waiter);
+              Context::Set(waiter);
 
               waiter->waiting = false;
 
@@ -70,7 +70,7 @@ StaticThreadPool::StaticThreadPool()
               assert(waiter->callback);
               waiter->callback();
 
-              CHECK(Scheduler::Verify(waiter));
+              CHECK_EQ(waiter, Context::Get());
 
               STOUT_EVENTUALS_LOG(1) << "Switching '" << waiter->name() << "'";
             }
@@ -127,7 +127,7 @@ void StaticThreadPool::Submit(
 
     callback();
 
-    CHECK(Scheduler::Verify(context));
+    CHECK_EQ(context, Context::Get());
 
     Context::Switch(previous);
   } else {

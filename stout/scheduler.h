@@ -19,18 +19,17 @@ namespace eventuals {
 class Scheduler {
  public:
   struct Context {
+    static void Set(Context* context) {
+      current_ = context;
+    }
+
     static Context* Get() {
-      Context* previous = nullptr;
-      auto* scheduler = Scheduler::Get(&previous);
-      CHECK_EQ(scheduler, previous->scheduler_) << previous->name();
-      return previous;
+      return current_;
     }
 
     static Context* Switch(Context* context) {
-      Context* previous = nullptr;
-      auto* scheduler = Scheduler::Get(&previous);
-      CHECK_EQ(scheduler, previous->scheduler_) << previous->name();
-      Scheduler::Set(context->scheduler_, context);
+      Context* previous = current_;
+      current_ = context;
       return previous;
     }
 
@@ -81,6 +80,8 @@ class Scheduler {
     }
 
    private:
+    static thread_local Context* current_;
+
     Scheduler* scheduler_;
     std::string* name_;
   };
@@ -89,14 +90,9 @@ class Scheduler {
     return default_;
   }
 
-  static bool Verify(Context* context) {
-    return context_ == context
-        && scheduler_ == context->scheduler();
-  }
-
   virtual bool Continue(Context* context) {
     CHECK_EQ(default_, this);
-    return scheduler_ == default_;
+    return Context::Get()->scheduler() == this;
   }
 
   virtual void Submit(
@@ -115,28 +111,13 @@ class Scheduler {
 
     callback();
 
-    CHECK(Scheduler::Verify(context));
+    CHECK_EQ(context, Context::Get());
 
     Context::Switch(previous);
   }
 
- protected:
-  friend struct Context;
-
-  static void Set(Scheduler* scheduler, Context* context) {
-    scheduler_ = scheduler;
-    context_ = context;
-  }
-
-  static Scheduler* Get(Context** context) {
-    *context = context_;
-    return CHECK_NOTNULL(scheduler_);
-  }
-
  private:
   static Scheduler* default_;
-  static thread_local Scheduler* scheduler_;
-  static thread_local Context* context_;
 };
 
 ////////////////////////////////////////////////////////////////////////
