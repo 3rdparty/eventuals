@@ -3,6 +3,8 @@
 #include <set>
 
 #include "gtest/gtest.h"
+#include "stout/closure.h"
+#include "stout/eventual.h"
 #include "stout/lambda.h"
 #include "stout/loop.h"
 #include "stout/reduce.h"
@@ -12,6 +14,8 @@
 
 namespace eventuals = stout::eventuals;
 
+using stout::eventuals::Closure;
+using stout::eventuals::Eventual;
 using stout::eventuals::Lambda;
 using stout::eventuals::Loop;
 using stout::eventuals::Map;
@@ -126,4 +130,34 @@ TEST(StaticThreadPoolTest, Parallel) {
   auto values = *s();
 
   EXPECT_TRUE(values.empty());
+}
+
+
+TEST(StaticThreadPoolTest, Reschedulable) {
+  StaticThreadPool::Requirements requirements("reschedulable");
+  auto e = [&]() {
+    return StaticThreadPool::Scheduler().Schedule(
+        &requirements,
+        Closure([id = std::this_thread::get_id()]() mutable {
+          EXPECT_NE(id, std::this_thread::get_id());
+          id = std::this_thread::get_id();
+          return Eventual<void>()
+                     .start([&id](auto& k) {
+                       EXPECT_EQ(id, std::this_thread::get_id());
+                       auto thread = std::thread(
+                           [&id, &k]() {
+                             EXPECT_NE(id, std::this_thread::get_id());
+                             eventuals::succeed(k);
+                           });
+                       thread.detach();
+                     })
+              | Eventual<void>()
+                    .start([&id](auto& k) {
+                      EXPECT_EQ(id, std::this_thread::get_id());
+                      eventuals::succeed(k);
+                    });
+        }));
+  };
+
+  *e();
 }
