@@ -34,8 +34,12 @@ class DefaultScheduler : public Scheduler {
  public:
   struct DefaultContext : public Context {
     DefaultContext(Scheduler* scheduler, std::string name)
-      : Context(scheduler, &name_),
+      : Context(scheduler),
         name_(std::move(name)) {}
+
+    const std::string& name() override {
+      return name_;
+    }
 
     std::string name_;
   };

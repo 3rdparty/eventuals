@@ -56,12 +56,16 @@ class StaticThreadPool : public Scheduler {
   struct Waiter : public Scheduler::Context {
    public:
     Waiter(StaticThreadPool* pool, Requirements* requirements)
-      : Scheduler::Context(pool, &requirements->name),
+      : Scheduler::Context(pool),
         requirements_(requirements) {}
 
     Waiter(Waiter&& that)
-      : Scheduler::Context(that.scheduler(), &that.requirements_->name),
+      : Scheduler::Context(that.scheduler()),
         requirements_(that.requirements_) {}
+
+    const std::string& name() override {
+      return requirements_->name;
+    }
 
     StaticThreadPool* pool() {
       return static_cast<StaticThreadPool*>(scheduler());

@@ -19,6 +19,8 @@ namespace eventuals {
 class Scheduler {
  public:
   struct Context {
+    virtual ~Context() {}
+
     static void Set(Context* context) {
       current_ = context;
     }
@@ -33,15 +35,12 @@ class Scheduler {
       return previous;
     }
 
-    Context(Scheduler* scheduler, std::string* name)
-      : scheduler_(scheduler),
-        name_(name) {}
+    Context(Scheduler* scheduler)
+      : scheduler_(scheduler) {}
 
     Context(Context&& that) = delete;
 
-    const std::string& name() {
-      return *CHECK_NOTNULL(name_);
-    }
+    virtual const std::string& name() = 0;
 
     template <typename F>
     void Unblock(F f) {
@@ -83,7 +82,6 @@ class Scheduler {
     static thread_local Context* current_;
 
     Scheduler* scheduler_;
-    std::string* name_;
   };
 
   static Scheduler* Default();
@@ -244,55 +242,59 @@ namespace detail {
 
 struct _Preempt {
   template <typename K_, typename E_, typename Arg_>
-  struct Continuation {
+  struct Continuation : public Scheduler::Context {
     Continuation(K_ k, E_ e, std::string name)
-      : k_(std::move(k)),
+      : Scheduler::Context(Scheduler::Default()),
+        k_(std::move(k)),
         e_(std::move(e)),
-        name_(std::move(name)),
-        context_(Scheduler::Default(), &name_) {}
+        name_(std::move(name)) {}
 
     Continuation(Continuation&& that)
-      : k_(std::move(that.k_)),
+      : Scheduler::Context(Scheduler::Default()),
+        k_(std::move(that.k_)),
         e_(std::move(that.e_)),
-        name_(std::move(that.name_)),
-        context_(Scheduler::Default(), &name_) {}
+        name_(std::move(that.name_)) {}
+
+    const std::string& name() override {
+      return name_;
+    }
 
     template <typename... Args>
     void Start(Args&&... args) {
       Adapt();
 
-      auto* previous = Scheduler::Context::Switch(&context_);
+      auto* previous = Scheduler::Context::Switch(this);
       CHECK_EQ(previous, previous_);
 
       eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
 
       auto* context = Scheduler::Context::Switch(previous_);
-      CHECK_EQ(context, &context_);
+      CHECK_EQ(context, this);
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
       Adapt();
 
-      auto* previous = Scheduler::Context::Switch(&context_);
+      auto* previous = Scheduler::Context::Switch(this);
       CHECK_EQ(previous, previous_);
 
       eventuals::fail(*adaptor_, std::forward<Args>(args)...);
 
       auto* context = Scheduler::Context::Switch(previous_);
-      CHECK_EQ(context, &context_);
+      CHECK_EQ(context, this);
     }
 
     void Stop() {
       Adapt();
 
-      auto* previous = Scheduler::Context::Switch(&context_);
+      auto* previous = Scheduler::Context::Switch(this);
       CHECK_EQ(previous, previous_);
 
       eventuals::stop(*adaptor_);
 
       auto* context = Scheduler::Context::Switch(previous_);
-      CHECK_EQ(context, &context_);
+      CHECK_EQ(context, this);
     }
 
     void Register(Interrupt& interrupt) {
@@ -317,8 +319,6 @@ struct _Preempt {
     K_ k_;
     E_ e_;
     std::string name_;
-
-    Scheduler::Context context_;
 
     Interrupt* interrupt_ = nullptr;
 

@@ -59,7 +59,9 @@ StaticThreadPool::StaticThreadPool()
                 waiter = next;
               }
 
-              assert(waiter->next == nullptr);
+              CHECK_NOTNULL(waiter);
+
+              CHECK_EQ(nullptr, waiter->next);
 
               Context::Set(waiter);
 
@@ -67,12 +69,15 @@ StaticThreadPool::StaticThreadPool()
 
               STOUT_EVENTUALS_LOG(1) << "Resuming '" << waiter->name() << "'";
 
-              assert(waiter->callback);
+              CHECK(waiter->callback);
               waiter->callback();
 
               CHECK_EQ(waiter, Context::Get());
 
-              STOUT_EVENTUALS_LOG(1) << "Switching '" << waiter->name() << "'";
+              ////////////////////////////////////////////////////
+              // NOTE: can't use 'waiter' at this point in time //
+              // because it might have been deallocated!        //
+              ////////////////////////////////////////////////////
             }
           } while (!shutdown_.load());
         });
