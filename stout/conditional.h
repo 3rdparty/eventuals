@@ -80,8 +80,15 @@ struct _Conditional {
 
     Interrupt* interrupt_ = nullptr;
 
-    using ThenE_ = std::invoke_result_t<Then_, Arg_>;
-    using ElseE_ = std::invoke_result_t<Else_, Arg_>;
+    using ThenE_ = typename std::conditional_t<
+        std::is_void_v<Arg_>,
+        std::invoke_result<Then_>,
+        std::invoke_result<Then_, Arg_>>::type;
+
+    using ElseE_ = typename std::conditional_t<
+        std::is_void_v<Arg_>,
+        std::invoke_result<Else_>,
+        std::invoke_result<Else_, Arg_>>::type;
 
     using ThenValue_ = typename ThenE_::template ValueFrom<void>;
     using ElseValue_ = typename ElseE_::template ValueFrom<void>;
