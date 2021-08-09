@@ -50,29 +50,32 @@ class Lock {
     CHECK(!waiter->acquired) << "recursive lock acquire detected";
     CHECK(waiter->next == nullptr);
 
+  load:
     waiter->next = head_.load(std::memory_order_relaxed);
-
-    while (!head_.compare_exchange_weak(
-        waiter->next,
-        waiter,
-        std::memory_order_release,
-        std::memory_order_relaxed))
-      ;
-
-    // Check whether we *acquired* (i.e., even though this is the slow
-    // path it's possible that the lock was held in the fast path and
-    // was released before trying the slow path, hence we might have
-    // been able to acquire) or *queued* (i.e., we have some waiters
-    // ahead of us).
+  loop:
     if (waiter->next == nullptr) {
-      waiter->acquired = true;
-      return true;
+      if (AcquireFast(waiter)) {
+        return true;
+      } else {
+        goto load;
+      }
+    } else {
+      if (head_.compare_exchange_weak(
+              waiter->next,
+              waiter,
+              std::memory_order_release,
+              std::memory_order_relaxed)) {
+        return false;
+      } else {
+        goto loop;
+      }
     }
-
-    return false;
   }
 
   void Release() {
+    STOUT_EVENTUALS_LOG(2)
+        << "'" << Scheduler::Context::Get()->name() << "' releasing";
+
     auto* waiter = head_.load(std::memory_order_relaxed);
 
     // Should have at least one waiter (who ever acquired) even if
@@ -94,8 +97,8 @@ class Lock {
       }
 
       waiter->next->acquired = false;
-      // std::cout << "Released (more)" << std::endl;
       waiter->next = nullptr;
+
       waiter->acquired = true;
       waiter->f();
     }
@@ -122,11 +125,11 @@ struct _Acquire {
     void Start(Args&&... args) {
       context_ = Scheduler::Context::Get();
 
-      STOUT_EVENTUALS_LOG(1)
+      STOUT_EVENTUALS_LOG(2)
           << "'" << context_->name() << "' acquiring";
 
       if (lock_->AcquireFast(&waiter_)) {
-        STOUT_EVENTUALS_LOG(1)
+        STOUT_EVENTUALS_LOG(2)
             << "'" << context_->name() << "' (fast) acquired";
         eventuals::succeed(k_, std::forward<Args>(args)...);
       } else {
@@ -141,7 +144,7 @@ struct _Acquire {
         }
 
         waiter_.f = [this]() mutable {
-          STOUT_EVENTUALS_LOG(1)
+          STOUT_EVENTUALS_LOG(2)
               << "'" << context_->name() << "' (very slow) acquired";
 
           context_->Unblock([this]() mutable {
@@ -154,7 +157,7 @@ struct _Acquire {
         };
 
         if (lock_->AcquireSlow(&waiter_)) {
-          STOUT_EVENTUALS_LOG(1)
+          STOUT_EVENTUALS_LOG(2)
               << "'" << context_->name() << "' (slow) acquired";
 
           if constexpr (sizeof...(args) == 1) {
@@ -196,6 +199,11 @@ struct _Acquire {
         };
 
         if (lock_->AcquireSlow(&waiter_)) {
+          // TODO(benh): while this isn't the "fast path" we'll do a
+          // Context::Unblock() here which will make it an even slower
+          // path because we'll defer continued execution rather than
+          // execute immediately unless we enhance 'Unblock()' to be
+          // able to tell it to "execute immediately if possible".
           waiter_.f();
         }
       }
@@ -214,6 +222,11 @@ struct _Acquire {
         };
 
         if (lock_->AcquireSlow(&waiter_)) {
+          // TODO(benh): while this isn't the "fast path" we'll do a
+          // Context::Unblock() here which will make it an even slower
+          // path because we'll defer continued execution rather than
+          // execute immediately unless we enhance 'Unblock()' to be
+          // able to tell it to "execute immediately if possible".
           waiter_.f();
         }
       }
@@ -313,7 +326,7 @@ struct _Wait {
               if (notifiable_) {
                 CHECK(!lock_->Available());
 
-                STOUT_EVENTUALS_LOG(1)
+                STOUT_EVENTUALS_LOG(2)
                     << "'" << context_->name() << "' notified";
 
                 notifiable_ = false;
@@ -337,14 +350,13 @@ struct _Wait {
         static_assert(std::is_void_v<Arg_> || sizeof...(args) == 1);
 
         if constexpr (!std::is_void_v<Arg_>) {
-          CHECK(!arg_);
           arg_.emplace(std::forward<Args>(args)...);
         }
 
         context_ = Scheduler::Context::Get();
 
         waiter_.f = [this]() mutable {
-          STOUT_EVENTUALS_LOG(1)
+          STOUT_EVENTUALS_LOG(2)
               << "'" << context_->name() << "' (notify) acquired";
 
           context_->Unblock([this]() mutable {
