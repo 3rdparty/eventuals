@@ -29,6 +29,7 @@ cc_library(
         "stout/semaphore.h",
         "stout/closure.h",
         "stout/compose.h",
+        "stout/catch.h",
     ],
     srcs = [
         "stout/scheduler.cc",

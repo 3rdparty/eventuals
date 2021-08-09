@@ -4,6 +4,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "stout/catch.h"
 #include "stout/just.h"
 #include "stout/lambda.h"
 #include "stout/raise.h"
@@ -11,6 +12,7 @@
 
 namespace eventuals = stout::eventuals;
 
+using stout::eventuals::Catch;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
 using stout::eventuals::Just;
@@ -220,10 +222,24 @@ TEST(EventualTest, Just) {
 
 TEST(EventualTest, Raise) {
   auto e = []() {
-    return Raise("error");
+    return Just(42)
+        | Raise("error");
   };
 
   EXPECT_THROW(*e(), eventuals::FailedException);
+}
+
+
+TEST(EventualTest, Catch) {
+  auto e = []() {
+    return Just(41)
+        | Raise("error")
+        | Catch([](auto&& error) {
+             return Just(42);
+           });
+  };
+
+  EXPECT_EQ(42, *e());
 }
 
 
