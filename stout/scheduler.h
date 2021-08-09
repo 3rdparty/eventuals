@@ -86,38 +86,14 @@ class Scheduler {
     std::string* name_;
   };
 
-  static Scheduler* Default() {
-    return default_;
-  }
+  static Scheduler* Default();
 
-  virtual bool Continue(Context* context) {
-    CHECK_EQ(default_, this);
-    return Context::Get()->scheduler() == this;
-  }
+  virtual bool Continue(Context* context) = 0;
 
   virtual void Submit(
       Callback<> callback,
       Context* context,
-      bool defer = true) {
-    // Default scheduler does not defer because it can't (unless we
-    // update all calls that "wait" on tasks to execute outstanding
-    // callbacks).
-    CHECK_EQ(default_, this);
-
-    Context* previous = Context::Switch(context);
-
-    STOUT_EVENTUALS_LOG(1)
-        << "'" << context->name() << "' preempted '" << previous->name() << "'";
-
-    callback();
-
-    CHECK_EQ(context, Context::Get());
-
-    Context::Switch(previous);
-  }
-
- private:
-  static Scheduler* default_;
+      bool defer = true) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////
