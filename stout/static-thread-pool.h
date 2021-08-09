@@ -190,7 +190,10 @@ struct _StaticThreadPoolSchedule {
       } else {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
           Adapt();
+          auto* previous = Scheduler::Context::Switch(this);
           eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
+          previous = Scheduler::Context::Switch(previous);
+          CHECK_EQ(previous, this);
         } else {
           if constexpr (!std::is_void_v<Arg_>) {
             arg_.emplace(std::forward<Args>(args)...);
@@ -237,7 +240,10 @@ struct _StaticThreadPoolSchedule {
       } else {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
           Adapt();
+          auto* previous = Scheduler::Context::Switch(this);
           eventuals::fail(*adaptor_, std::forward<Args>(args)...);
+          previous = Scheduler::Context::Switch(previous);
+          CHECK_EQ(previous, this);
         } else {
           // TODO(benh): avoid allocating on heap by storing args in
           // pre-allocated buffer based on composing with Errors.
@@ -286,7 +292,10 @@ struct _StaticThreadPoolSchedule {
       } else {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
           Adapt();
+          auto* previous = Scheduler::Context::Switch(this);
           eventuals::stop(*adaptor_);
+          previous = Scheduler::Context::Switch(previous);
+          CHECK_EQ(previous, this);
         } else {
           STOUT_EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
 
