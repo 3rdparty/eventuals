@@ -40,8 +40,8 @@ struct _Raise {
 
   template <typename T_>
   struct Composable {
-    template <typename>
-    using ValueFrom = void;
+    template <typename Arg>
+    using ValueFrom = Arg;
 
     template <typename Arg, typename K>
     auto k(K k) && {
