@@ -25,7 +25,7 @@ def repos(external = True, repo_mapping = {}):
         http_archive(
             name = "com_github_3rdparty_bazel_rules_libuv",
             url = "https://github.com/3rdparty/bazel-rules-libuv/archive/libuv-1.42.0.tar.gz",
-            sha256 = "6367f35a64c997d4c6ec869acc7c768e2cffd7bd3ae87a8c7d9eec2a9eec4d77",
+            sha256 = "dee419712e68412a804753208d2dfac055491578b860f1a6553c7d3395081c13",
             strip_prefix = "bazel-rules-libuv-libuv-1.42.0",
             repo_mapping = repo_mapping,
         )
