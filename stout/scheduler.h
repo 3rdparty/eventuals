@@ -69,11 +69,6 @@ class Scheduler {
       }
     }
 
-    // Returns an eventual which will do a 'Scheduler::Submit()' using
-    // this context and 'defer = false' in order to continue execution
-    // using the execution resource associated with this context.
-    auto Reschedule();
-
     auto* scheduler() {
       return scheduler_;
     }
@@ -191,8 +186,8 @@ struct _Reschedule {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Scheduler::Context::Reschedule() {
-  return detail::_Reschedule::Composable{this};
+inline auto Reschedule(Scheduler::Context* context) {
+  return detail::_Reschedule::Composable{context};
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -205,7 +200,7 @@ struct Reschedulable {
     if (!continuation_) {
       previous_ = Scheduler::Context::Get();
       continuation_.emplace(
-          previous_->Reschedule().template k<Arg_>(std::move(k_)));
+          Reschedule(previous_).template k<Arg_>(std::move(k_)));
 
       if (interrupt_ != nullptr) {
         continuation_->Register(*interrupt_);
@@ -307,8 +302,7 @@ struct _Preempt {
         previous_ = Scheduler::Context::Get();
 
         adaptor_.emplace(std::move(e_).template k<Arg_>(
-            previous_->Reschedule()
-                .template k<Value_>(std::move(k_))));
+            Reschedule(previous_).template k<Value_>(std::move(k_))));
 
         if (interrupt_ != nullptr) {
           adaptor_->Register(*interrupt_);
@@ -327,7 +321,7 @@ struct _Preempt {
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
     using Adaptor_ = decltype(std::declval<E_>().template k<Arg_>(
-        (std::declval<Scheduler::Context*>()->Reschedule())
+        std::declval<detail::_Reschedule::Composable>()
             .template k<Value_>(std::declval<K_>())));
 
     std::optional<Adaptor_> adaptor_;

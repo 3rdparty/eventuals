@@ -321,7 +321,7 @@ struct _StaticThreadPoolSchedule {
             // tradeoff is not emperically a benefit.
             new Adaptor_(
                 std::move(e_).template k<Arg_>(
-                    previous->Reschedule().template k<Value_>(
+                    Reschedule(previous).template k<Value_>(
                         _Then::Adaptor<K_>{k_}))));
 
         if (interrupt_ != nullptr) {
@@ -342,7 +342,7 @@ struct _StaticThreadPoolSchedule {
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
     using Adaptor_ = decltype(std::declval<E_>().template k<Arg_>(
-        (std::declval<Scheduler::Context*>()->Reschedule())
+        std::declval<detail::_Reschedule::Composable>()
             .template k<Value_>(std::declval<_Then::Adaptor<K_>>())));
 
     std::unique_ptr<Adaptor_> adaptor_;
