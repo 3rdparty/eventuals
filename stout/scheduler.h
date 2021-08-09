@@ -44,7 +44,7 @@ class Scheduler {
 
     template <typename F>
     void Unblock(F f) {
-      scheduler_->Submit(std::move(f), this, /* defer = */ true);
+      scheduler_->Submit(std::move(f), this);
     }
 
     template <typename F>
@@ -54,7 +54,7 @@ class Scheduler {
         f();
         Switch(previous);
       } else {
-        scheduler_->Submit(std::move(f), this, /* defer = */ false);
+        scheduler_->Submit(std::move(f), this);
       }
     }
 
@@ -65,7 +65,7 @@ class Scheduler {
         f();
         Switch(previous);
       } else {
-        scheduler_->Submit(g(), this, /* defer = */ false);
+        scheduler_->Submit(g(), this);
       }
     }
 
@@ -83,10 +83,7 @@ class Scheduler {
 
   virtual bool Continue(Context* context) = 0;
 
-  virtual void Submit(
-      Callback<> callback,
-      Context* context,
-      bool defer = true) = 0;
+  virtual void Submit(Callback<> callback, Context* context) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////

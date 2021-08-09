@@ -121,12 +121,9 @@ class StaticThreadPool : public Scheduler {
 
   ~StaticThreadPool();
 
-  void Submit(
-      Callback<> callback,
-      Context* context,
-      bool defer = true) override;
-
   bool Continue(Context* context) override;
+
+  void Submit(Callback<> callback, Context* context) override;
 
   template <typename T>
   auto Schedule(Requirements* requirements, T t);

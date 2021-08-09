@@ -104,10 +104,7 @@ StaticThreadPool::~StaticThreadPool() {
 
 ////////////////////////////////////////////////////////////////////////
 
-void StaticThreadPool::Submit(
-    Callback<> callback,
-    Context* context,
-    bool defer) {
+void StaticThreadPool::Submit(Callback<> callback, Context* context) {
   auto* waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
 
   CHECK(!waiter->waiting);
@@ -125,36 +122,24 @@ void StaticThreadPool::Submit(
 
   assert(core < concurrency);
 
-  if (!defer && StaticThreadPool::member && StaticThreadPool::core == core) {
-    Context* previous = Context::Switch(context);
+  waiter->waiting = true;
 
-    STOUT_EVENTUALS_LOG(1) << "'" << waiter->name() << "' not deferring";
+  waiter->callback = std::move(callback);
 
-    callback();
+  auto* head = heads_[core];
 
-    CHECK_EQ(context, Context::Get());
+  waiter->next = head->load(std::memory_order_relaxed);
 
-    Context::Switch(previous);
-  } else {
-    waiter->waiting = true;
+  while (!head->compare_exchange_weak(
+      waiter->next,
+      waiter,
+      std::memory_order_release,
+      std::memory_order_relaxed))
+    ;
 
-    waiter->callback = std::move(callback);
+  auto* semaphore = semaphores_[core];
 
-    auto* head = heads_[core];
-
-    waiter->next = head->load(std::memory_order_relaxed);
-
-    while (!head->compare_exchange_weak(
-        waiter->next,
-        waiter,
-        std::memory_order_release,
-        std::memory_order_relaxed))
-      ;
-
-    auto* semaphore = semaphores_[core];
-
-    semaphore->Signal();
-  }
+  semaphore->Signal();
 }
 
 ////////////////////////////////////////////////////////////////////////

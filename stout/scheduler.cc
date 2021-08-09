@@ -48,7 +48,7 @@ class DefaultScheduler : public Scheduler {
     return Context::Get()->scheduler() == this;
   }
 
-  void Submit(Callback<> callback, Context* context, bool defer) override {
+  void Submit(Callback<> callback, Context* context) override {
     // Default scheduler does not defer because it can't (unless we
     // update all calls that "wait" on tasks to execute outstanding
     // callbacks).
