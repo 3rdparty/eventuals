@@ -658,18 +658,19 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
                      })
               | Eventual<int>()
                     .start([worker](auto&&...) {
-                      // handle done, the only way we got here is
-                      // if 'f_()' did a 'done()'
                       worker->done.store(true);
                     })
                     .fail([worker](auto&&...) {
-                      // handle done, the only way we got here is
-                      // if 'f_()' did a 'done()'
+                      // TODO(benh): the only way we got here is if
+                      // 'f_()' did a 'fail()'; catch and propagate
+                      // the failure.
                       worker->done.store(true);
                     })
                     .stop([worker](auto&&...) {
-                      // handle done, the only way we got here is
-                      // if 'f_()' did a 'done()'
+                      // TODO(benh): the only way we got here is if
+                      // 'f_()' did a 'stop()'; propagate 'done()'
+                      // back up through the ingress and then
+                      // 'ended()' down through the egress.
                       worker->done.store(true);
                     });
         });
