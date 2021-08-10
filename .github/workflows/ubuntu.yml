@@ -1,0 +1,45 @@
+# Workflow for linux ubuntu 20
+name: ubuntu20
+
+# Controls when the action will run. 
+on:
+  push:  
+    branches: [main]
+  pull_request:
+    branches: [main]
+         
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # Build_ubuntu job
+  build_ubuntu:
+    name: build_eventuals_ubuntu
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v1
+
+      # Check brew version
+      - name: check_brew
+        run: brew --version
+       
+      # Ckeck bazel version
+      - name: check_bazel
+        run: bazel --version
+        
+      # Install LLVM
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "12.0"  
+        
+      # Building lib stout-eventuals  
+      - name: build_stout
+        run: bazel build :eventuals
+      
+      # Building and run tests
+      - name: tests
+        run: bazel test test:eventuals
