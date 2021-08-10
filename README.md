@@ -1,5 +1,10 @@
 # Eventuals
 
+*Status of the last build:*<br>
+<img src="https://github.com/3rdparty/stout-eventuals/workflows/mac/badge.svg?branch=main">
+<img src="https://github.com/3rdparty/stout-eventuals/workflows/win/badge.svg?branch=main">
+<img src="https://github.com/3rdparty/stout-eventuals/workflows/ubuntu20/badge.svg?branch=main"><br><br>
+
 A C++ library for composing asynchronous ***continuations*** without locking or requiring dynamic heap allocations.
 
 **Callbacks** are the most common approach to *continue* an asynchronous computation, but they are hard to compose, don't (often) support cancellation, and are generally tricky to reason about.
