@@ -1,0 +1,46 @@
+# Workflow for mac
+name: mac
+
+# Controls when the action will run. 
+on:
+  push:  
+    branches: [main]
+  pull_request:
+    branches: [main]
+         
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # Build_mac job
+  build_mac:
+    name: build_eventuals_mac
+    # The type of runner that the job will run on
+    runs-on: macos-latest
+
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out our repository under $GITHUB_WORKSPACE, so our job can access it
+      - uses: actions/checkout@v1
+      
+      # Check brew version
+      - name: check_brew
+        run: brew --version
+       
+      # Ckeck bazel version
+      - name: check_bazel
+        run: bazel --version
+        
+      # Building lib stout-eventuals  
+      - name: build_stout
+        run: bazel build :eventuals
+        
+      # Build and run tests
+      - name: tests
+        run: bazel test test:eventuals
+        
+      
+        
+
+      
+      
+          
