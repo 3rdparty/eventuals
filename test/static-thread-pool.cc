@@ -28,7 +28,8 @@ using stout::eventuals::Stream;
 TEST(StaticThreadPoolTest, Schedulable) {
   struct Foo : public StaticThreadPool::Schedulable {
     Foo()
-      : StaticThreadPool::Schedulable(Pinned(3)) {}
+      : StaticThreadPool::Schedulable(Pinned(
+          std::thread::hardware_concurrency() - 1)) {}
 
     auto Operation() {
       return Schedule(
