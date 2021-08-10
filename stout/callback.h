@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <type_traits> // For std::aligned_storage.
+#include <utility>
 
 ////////////////////////////////////////////////////////////////////////
 
