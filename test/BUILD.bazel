@@ -18,6 +18,6 @@ cc_test(
     ],
     deps = [
         "//:eventuals",
-        "@gtest//:gtest_main",
+        "@com_github_google_googletest//:gtest_main",
     ],
 )
