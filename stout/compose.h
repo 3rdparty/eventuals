@@ -4,7 +4,7 @@
 
 ////////////////////////////////////////////////////////////////////////
 
-inline bool StoutEventualsLog(size_t level) {
+inline bool StoutEventualsLog(int level) {
   static const char* variable = std::getenv("STOUT_EVENTUALS_LOG");
   static int value = variable != nullptr ? atoi(variable) : 0;
   return value >= level;
