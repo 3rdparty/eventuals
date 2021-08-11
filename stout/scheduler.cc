@@ -9,6 +9,10 @@
 // TODO(benh): don't use private functions from glog; currently we're
 // doing this to match glog message thread id's but this is prone to
 // breaking if glog makes any internal changes.
+#ifdef _WIN32
+using pid_t = int;
+#endif
+
 namespace google {
 namespace glog_internal_namespace_ {
 

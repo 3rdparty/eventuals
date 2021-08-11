@@ -44,34 +44,36 @@ struct _Just {
 
     T_ t_;
   };
+};
 
-  template <>
-  struct Composable<void> {
-    template <typename>
-    using ValueFrom = void;
+////////////////////////////////////////////////////////////////////////
 
-    template <typename Arg, typename K>
-    auto k(K k) && {
-      auto start = [](auto& k, auto&&...) {
-        eventuals::succeed(k);
-      };
+template <>
+struct _Just::Composable<void> {
+  template <typename>
+  using ValueFrom = void;
 
-      return _Eventual::Continuation<
-          decltype(k),
-          Undefined,
-          decltype(start),
-          Undefined,
-          Undefined,
-          Undefined,
-          void>{
-          Reschedulable<K, void>{std::move(k)},
-          Undefined(),
-          std::move(start),
-          Undefined(),
-          Undefined(),
-          Undefined()};
-    }
-  };
+  template <typename Arg, typename K>
+  auto k(K k) && {
+    auto start = [](auto& k, auto&&...) {
+      eventuals::succeed(k);
+    };
+
+    return _Eventual::Continuation<
+        decltype(k),
+        Undefined,
+        decltype(start),
+        Undefined,
+        Undefined,
+        Undefined,
+        void>{
+        Reschedulable<K, void>{std::move(k)},
+        Undefined(),
+        std::move(start),
+        Undefined(),
+        Undefined(),
+        Undefined()};
+  }
 };
 
 ////////////////////////////////////////////////////////////////////////
