@@ -30,7 +30,9 @@ struct _Terminal {
     void Start(Args&&... args) {
       if constexpr (IsUndefined<Start_>::value) {
         STOUT_EVENTUALS_LOG(1)
-            << "'Terminal::Start()' reached but undefined";
+            << "'Terminal::Start()' reached by "
+            << Scheduler::Context::Get()->name()
+            << " but undefined";
       } else {
         auto interrupted = [this]() mutable {
           if (handler_) {
@@ -57,7 +59,9 @@ struct _Terminal {
     void Fail(Args&&... args) {
       if constexpr (IsUndefined<Fail_>::value) {
         STOUT_EVENTUALS_LOG(1)
-            << "'Terminal::Fail()' reached but undefined";
+            << "'Terminal::Fail()' reached by "
+            << Scheduler::Context::Get()->name()
+            << " but undefined";
       } else {
         if constexpr (IsUndefined<Context_>::value) {
           fail_(std::forward<Args>(args)...);
@@ -70,7 +74,9 @@ struct _Terminal {
     void Stop() {
       if constexpr (IsUndefined<Stop_>::value) {
         STOUT_EVENTUALS_LOG(1)
-            << "'Terminal::Stop()' reached but undefined";
+            << "'Terminal::Stop()' reached by "
+            << Scheduler::Context::Get()->name()
+            << " but undefined";
       } else {
         if constexpr (IsUndefined<Context_>::value) {
           stop_();
