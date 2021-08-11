@@ -1,6 +1,6 @@
-<img src="https://github.com/3rdparty/stout-eventuals/workflows/macOS/badge.svg?branch=main">
-<img src="https://github.com/3rdparty/stout-eventuals/workflows/Windows/badge.svg?branch=main">
-<img src="https://github.com/3rdparty/stout-eventuals/workflows/Ubuntu/badge.svg?branch=main">
+[![macOS](https://github.com/3rdparty/stout-eventuals/workflows/macOS/badge.svg?branch=main)](https://github.com/3rdparty/stout-eventuals/actions/workflows/macos.yml)
+[![Ubuntu](https://github.com/3rdparty/stout-eventuals/workflows/Ubuntu/badge.svg?branch=main)](https://github.com/3rdparty/stout-eventuals/actions/workflows/ubuntu.yml)
+[![Windows](https://github.com/3rdparty/stout-eventuals/workflows/Windows/badge.svg?branch=main)](https://github.com/3rdparty/stout-eventuals/actions/workflows/windows.yml)
 
 # Eventuals
 
