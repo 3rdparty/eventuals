@@ -1,8 +1,8 @@
 # Eventuals
 
-<img src="https://github.com/3rdparty/stout-eventuals/workflows/macos/badge.svg?branch=main">
-<img src="https://github.com/3rdparty/stout-eventuals/workflows/windows/badge.svg?branch=main">
-<img src="https://github.com/3rdparty/stout-eventuals/workflows/ubuntu/badge.svg?branch=main"><br><br>
+<img src="https://github.com/3rdparty/stout-eventuals/workflows/macOS/badge.svg?branch=main">
+<img src="https://github.com/3rdparty/stout-eventuals/workflows/Windows/badge.svg?branch=main">
+<img src="https://github.com/3rdparty/stout-eventuals/workflows/Ubuntu/badge.svg?branch=main"><br><br>
 
 A C++ library for composing asynchronous ***continuations*** without locking or requiring dynamic heap allocations.
 
