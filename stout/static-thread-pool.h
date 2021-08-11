@@ -828,11 +828,11 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
               [worker](auto&&...) {
                 worker->done.store(true);
               },
-              [worker](std::exception_ptr) {
-                worker->done.store(true);
+              [](std::exception_ptr) {
+                LOG(FATAL) << "Unreachable";
               },
-              [worker]() {
-                worker->done.store(true);
+              []() {
+                LOG(FATAL) << "Unreachable";
               });
         },
         worker);
