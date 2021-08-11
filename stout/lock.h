@@ -186,7 +186,7 @@ struct _Acquire {
                 acquire->context_->Unblock([tuple]() mutable {
                   std::apply(
                       [](auto* acquire, auto&&... args) {
-                        auto& k_ = *acquire->k_;
+                        auto& k_ = acquire->k_;
                         eventuals::fail(
                             k_,
                             std::forward<decltype(args)>(args)...);
