@@ -107,8 +107,8 @@ StaticThreadPool::~StaticThreadPool() {
 void StaticThreadPool::Submit(Callback<> callback, Context* context) {
   auto* waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
 
-  CHECK(!waiter->waiting);
-  CHECK(waiter->next == nullptr);
+  CHECK(!waiter->waiting) << waiter->name();
+  CHECK(waiter->next == nullptr) << waiter->name();
 
   STOUT_EVENTUALS_LOG(1) << "Submitting '" << waiter->name() << "'";
 
@@ -134,8 +134,7 @@ void StaticThreadPool::Submit(Callback<> callback, Context* context) {
       waiter->next,
       waiter,
       std::memory_order_release,
-      std::memory_order_relaxed))
-    ;
+      std::memory_order_relaxed)) {}
 
   auto* semaphore = semaphores_[core];
 
@@ -147,12 +146,12 @@ void StaticThreadPool::Submit(Callback<> callback, Context* context) {
 bool StaticThreadPool::Continue(Context* context) {
   auto* waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
 
-  CHECK(!waiter->waiting);
-  CHECK(waiter->next == nullptr);
+  CHECK(!waiter->waiting) << waiter->name();
+  CHECK(waiter->next == nullptr) << waiter->name();
 
   auto& pinned = waiter->requirements()->pinned;
 
-  CHECK(pinned.core);
+  CHECK(pinned.core) << waiter->name();
 
   unsigned int core = pinned.core.value();
 
