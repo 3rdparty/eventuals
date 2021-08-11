@@ -18,7 +18,12 @@ struct _Lambda {
   struct Continuation {
     template <typename... Args>
     void Start(Args&&... args) {
-      eventuals::succeed(k_, f_(std::forward<Args>(args)...));
+      if constexpr (std::is_void_v<std::invoke_result_t<F_, Args...>>) {
+        f_(std::forward<Args>(args)...);
+        eventuals::succeed(k_);
+      } else {
+        eventuals::succeed(k_, f_(std::forward<Args>(args)...));
+      }
     }
 
     template <typename... Args>
