@@ -6,20 +6,20 @@ using stout::Callback;
 namespace stout {
 namespace uv {
 
-auto Timer(Loop& loop, uint64_t milliseconds) {
+auto Timer(Loop& loop, const std::chrono::milliseconds& milliseconds) {
   return eventuals::Eventual<void>()
       .context(uv_timer_t())
       .start([&loop, milliseconds](auto& timer, auto& k) mutable {
         uv_timer_init(loop, &timer);
         timer.data = &k;
 
-        auto start = [&timer](uint64_t milliseconds) {
+        auto start = [&timer](const std::chrono::milliseconds& milliseconds) {
           uv_timer_start(
               &timer,
               [](uv_timer_t* timer) {
                 eventuals::succeed(*(decltype(&k)) timer->data);
               },
-              milliseconds,
+              milliseconds.count(),
               0);
         };
 
