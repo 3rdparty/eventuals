@@ -1,9 +1,8 @@
-# Eventuals
+[![macOS](https://github.com/3rdparty/stout-eventuals/workflows/macOS/badge.svg?branch=main)](https://github.com/3rdparty/stout-eventuals/actions/workflows/macos.yml)
+[![Ubuntu](https://github.com/3rdparty/stout-eventuals/workflows/Ubuntu/badge.svg?branch=main)](https://github.com/3rdparty/stout-eventuals/actions/workflows/ubuntu.yml)
+[![Windows](https://github.com/3rdparty/stout-eventuals/workflows/Windows/badge.svg?branch=main)](https://github.com/3rdparty/stout-eventuals/actions/workflows/windows.yml)
 
-*Status of the last build:*<br>
-<img src="https://github.com/3rdparty/stout-eventuals/workflows/mac/badge.svg?branch=main">
-<img src="https://github.com/3rdparty/stout-eventuals/workflows/win/badge.svg?branch=main">
-<img src="https://github.com/3rdparty/stout-eventuals/workflows/ubuntu20/badge.svg?branch=main"><br><br>
+# Eventuals
 
 A C++ library for composing asynchronous ***continuations*** without locking or requiring dynamic heap allocations.
 

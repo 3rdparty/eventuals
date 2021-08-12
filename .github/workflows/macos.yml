@@ -1,5 +1,5 @@
-# Workflow for Ubuntu (latest).
-name: Ubuntu
+# Workflow for macOS (latest).
+name: macOS
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 jobs:
   build-and-test:
     name: Build and Test
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
       # Checkout the repository under $GITHUB_WORKSPACE.
@@ -18,11 +18,6 @@ jobs:
 
       - name: Check for bazel
         run: bazel --version
-
-      - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v1
-        with:
-          version: "12.0"  
 
       - name: Build
         run: bazel build :eventuals

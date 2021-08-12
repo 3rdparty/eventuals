@@ -6,10 +6,8 @@
 #include <vector>
 
 #include "stout/closure.h"
-#include "stout/just.h"
 #include "stout/lambda.h"
 #include "stout/lock.h"
-#include "stout/reduce.h"
 #include "stout/repeat.h"
 #include "stout/scheduler.h"
 #include "stout/semaphore.h"
@@ -377,57 +375,75 @@ struct _StaticThreadPoolSchedule {
 ////////////////////////////////////////////////////////////////////////
 
 struct _StaticThreadPoolParallel {
-  struct _Adaptor {
-    template <typename K_, typename Parallel_, typename Ended_>
+  struct _IngressAdaptor {
+    template <typename K_, typename Parallel_, typename Cleanup_>
     struct Continuation : public TypeErasedStream {
       // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
       Continuation(
           K_ k,
           Parallel_* parallel,
-          Ended_ ended)
+          Cleanup_ cleanup)
         : k_(std::move(k)),
           parallel_(parallel),
-          ended_(std::move(ended)) {}
+          cleanup_(std::move(cleanup)) {}
 
       // NOTE: explicit move-constructor because of 'std::once_flag'.
       Continuation(Continuation&& that)
         : k_(std::move(that.k_)),
           parallel_(that.parallel_),
-          ended_(std::move(that.ended_)) {}
+          cleanup_(std::move(that.cleanup_)) {}
 
-      template <typename... Args>
-      void Start(TypeErasedStream& stream, Args&&... args) {
+      void Start(TypeErasedStream& stream) {
         stream_ = &stream;
+
+        parallel_->done_.store(false);
 
         parallel_->Start();
 
-        eventuals::succeed(k_, *this, std::forward<Args>(args)...);
+        eventuals::succeed(k_, *this);
       }
 
       template <typename... Args>
       void Fail(Args&&... args) {
-        eventuals::fail(k_, std::forward<Args>(args)...);
+        // TODO(benh): support failure with no error arguments.
+        static_assert(
+            sizeof...(args) == 1,
+            "'Parallel' currently requires failures to include an error");
+
+        std::optional<std::exception_ptr> exception =
+            std::make_exception_ptr(std::forward<Args>(args)...);
+
+        eventuals::succeed(cleanup_, std::move(exception));
+
+        parallel_->done_.store(true);
       }
 
       void Stop() {
-        eventuals::stop(k_);
+        std::optional<std::exception_ptr> exception =
+            std::make_exception_ptr(StoppedException());
+
+        eventuals::succeed(cleanup_, std::move(exception));
+
+        parallel_->done_.store(true);
       }
 
-      void Body(bool next) {
-        CHECK(next);
-
+      template <typename... Args>
+      void Body(Args&&...) {
         eventuals::next(*CHECK_NOTNULL(stream_));
       }
 
       void Ended() {
-        eventuals::start(ended_);
+        eventuals::succeed(cleanup_, std::optional<std::exception_ptr>());
+
+        parallel_->done_.store(true);
       }
 
       void Next() override {
-        // NOTE: we go "down" into egress before going "up" into ingress
-        // in order to properly set up 'egress_' so that it can be used to
-        // notify once workers start processing (which they can't do until
-        // ingress has started which won't occur until calling 'next(stream_)').
+        // NOTE: we go "down" into egress before going "up" into
+        // ingress in order to properly set up 'egress_' so that it
+        // can be used to notify once workers start processing (which
+        // they can't do until ingress has started which won't occur
+        // until calling 'next(stream_)').
         eventuals::body(k_);
 
         std::call_once(next_, [this]() {
@@ -436,6 +452,8 @@ struct _StaticThreadPoolParallel {
       }
 
       void Done() override {
+        eventuals::done(*CHECK_NOTNULL(stream_));
+
         eventuals::ended(k_);
       }
 
@@ -445,36 +463,174 @@ struct _StaticThreadPoolParallel {
 
       K_ k_;
       Parallel_* parallel_;
-      Ended_ ended_;
+      Cleanup_ cleanup_;
 
       TypeErasedStream* stream_ = nullptr;
 
       std::once_flag next_;
     };
 
-    template <typename Parallel_, typename Ended_>
+    template <typename Parallel_, typename Cleanup_>
     struct Composable {
       template <typename Arg>
       using ValueFrom = void;
 
       template <typename Arg, typename K>
       auto k(K k) && {
-        return Continuation<K, Parallel_, Ended_>(
+        return Continuation<K, Parallel_, Cleanup_>(
             std::move(k),
             parallel_,
-            std::move(ended_));
+            std::move(cleanup_));
       }
 
       Parallel_* parallel_;
-      Ended_ ended_;
+      Cleanup_ cleanup_;
     };
   };
 
   template <typename Parallel, typename E>
-  static auto Adaptor(Parallel* parallel, E e) {
-    auto ended = (std::move(e) | Terminal()).template k<void>();
-    using Ended = decltype(ended);
-    return _Adaptor::Composable<Parallel, Ended>{parallel, std::move(ended)};
+  static auto IngressAdaptor(Parallel* parallel, E e) {
+    auto cleanup = (std::move(e) | Terminal())
+                       .template k<std::optional<std::exception_ptr>>();
+    using Cleanup = decltype(cleanup);
+    return _IngressAdaptor::Composable<Parallel, Cleanup>{
+        parallel,
+        std::move(cleanup)};
+  }
+
+  struct _EgressAdaptor {
+    template <typename K_>
+    struct Continuation {
+      void Start(TypeErasedStream& stream) {
+        eventuals::succeed(k_, stream);
+      }
+
+      // NOTE: we should "catch" any failures or stops and save in
+      // 'exception_' which we then will "rethrow" during "ended".
+      template <typename... Args>
+      void Fail(Args&&... args) = delete;
+      void Stop() = delete;
+
+      template <typename... Args>
+      void Body(Args&&... args) {
+        eventuals::body(k_, std::forward<Args>(args)...);
+      }
+
+      void Ended() {
+        // NOTE: not using synchronization here as "ended" implies
+        // that "cleanup" has been observed in a synchronized fashion
+        // which implies an exception is either set or not.
+        if (exception_) {
+          try {
+            std::rethrow_exception(*exception_);
+          } catch (const StoppedException&) {
+            eventuals::stop(k_);
+          } catch (...) {
+            eventuals::fail(k_, std::current_exception());
+          }
+        } else {
+          eventuals::ended(k_);
+        }
+      }
+
+      void Register(Interrupt& interrupt) {
+        k_.Register(interrupt);
+      }
+
+      K_ k_;
+      std::optional<std::exception_ptr>& exception_;
+    };
+
+    struct Composable {
+      template <typename Arg>
+      using ValueFrom = Arg;
+
+      template <typename Arg, typename K>
+      auto k(K k) && {
+        return Continuation<K>{std::move(k), exception_};
+      }
+
+      std::optional<std::exception_ptr>& exception_;
+    };
+  };
+
+  static auto EgressAdaptor(std::optional<std::exception_ptr>& exception) {
+    return _EgressAdaptor::Composable{exception};
+  }
+
+  struct _WorkerAdaptor {
+    template <typename K_, typename Cleanup_>
+    struct Continuation {
+      void Start(TypeErasedStream& stream) {
+        stream_ = &stream;
+        eventuals::next(*CHECK_NOTNULL(stream_));
+      }
+
+      template <typename... Args>
+      void Fail(Args&&... args) {
+        // TODO(benh): support failure with no error arguments.
+        static_assert(
+            sizeof...(args) == 1,
+            "'Parallel' currently requires failures to include an error");
+
+        std::optional<std::exception_ptr> exception =
+            std::make_exception_ptr(std::forward<Args>(args)...);
+
+        eventuals::succeed(cleanup_, std::move(exception));
+
+        // TODO(benh): render passing 'Undefined()' unnecessary.
+        eventuals::succeed(k_, Undefined());
+      }
+
+      void Stop() {
+        std::optional<std::exception_ptr> exception =
+            std::make_exception_ptr(StoppedException());
+
+        eventuals::succeed(cleanup_, std::move(exception));
+
+        // TODO(benh): render passing 'Undefined()' unnecessary.
+        eventuals::succeed(k_, Undefined());
+      }
+
+      void Body() {
+        eventuals::next(*CHECK_NOTNULL(stream_));
+      }
+
+      void Ended() {
+        // TODO(benh): render passing 'Undefined()' unnecessary.
+        eventuals::succeed(k_, Undefined());
+      }
+
+      void Register(Interrupt& interrupt) {
+        k_.Register(interrupt);
+      }
+
+      K_ k_;
+      Cleanup_ cleanup_;
+
+      TypeErasedStream* stream_ = nullptr;
+    };
+
+    template <typename Cleanup_>
+    struct Composable {
+      template <typename Arg>
+      using ValueFrom = Undefined; // TODO(benh): make this void.
+
+      template <typename Arg, typename K>
+      auto k(K k) && {
+        return Continuation<K, Cleanup_>{std::move(k), std::move(cleanup_)};
+      }
+
+      Cleanup_ cleanup_;
+    };
+  };
+
+  template <typename E>
+  static auto WorkerAdaptor(E e) {
+    auto cleanup = (std::move(e) | Terminal())
+                       .template k<std::optional<std::exception_ptr>>();
+    using Cleanup = decltype(cleanup);
+    return _WorkerAdaptor::Composable<Cleanup>{std::move(cleanup)};
   }
 
   template <typename F_, typename Arg_>
@@ -495,6 +651,7 @@ struct _StaticThreadPoolParallel {
         }
         delete worker;
       }
+      while (!done_.load()) {}
     }
 
     void Start();
@@ -504,16 +661,6 @@ struct _StaticThreadPoolParallel {
 
     auto operator()() {
       return Ingress()
-          | Adaptor(
-                 this,
-                 Synchronized(Then([this]() {
-                   ended_ = true;
-                   for (auto* worker : workers_) {
-                     worker->notify();
-                   }
-                   egress_();
-                   return Just();
-                 })))
           | Egress();
     }
 
@@ -541,7 +688,7 @@ struct _StaticThreadPoolParallel {
       StaticThreadPool::Requirements requirements;
       std::optional<Arg_> arg;
       Callback<> notify = []() {}; // Initially a no-op so ingress can call.
-      std::optional<Task<int>::With<Worker*>> task;
+      std::optional<Task<Undefined>::With<Worker*>> task;
       Interrupt interrupt;
       bool waiting = true; // Initially true so ingress can copy to 'arg'.
       std::atomic<bool> done = false;
@@ -556,7 +703,9 @@ struct _StaticThreadPoolParallel {
 
     Callback<> egress_;
 
-    bool ended_ = false;
+    bool cleanup_ = false;
+    std::atomic<bool> done_ = true; // Toggled to 'false' when we start!
+    std::optional<std::exception_ptr> exception_;
   };
 
   template <typename F_>
@@ -605,7 +754,10 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
 
                        return [this, worker]() mutable {
                          CHECK_EQ(worker, Scheduler::Context::Get());
-                         if (ended_) {
+                         if (cleanup_) {
+                           if (worker->arg) {
+                             busy_--;
+                           }
                            return false;
                          } else if (!worker->arg) {
                            worker->waiting = true;
@@ -621,55 +773,51 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
                            return false;
                          }
                        };
+                     }))
+              | Until(
+                     Lambda([this]() {
+                       return cleanup_;
                      })
-                     // TODO(benh): create 'Move()' like abstraction that does:
-                     | Eventual<Arg_>()
-                           .start([this, worker](auto& k) {
-                             if (!ended_) {
-                               eventuals::succeed(k, std::move(*worker->arg));
-                             } else {
-                               eventuals::stop(k);
-                             }
-                           })
                      | Release(&lock_))
-              | f_()
-              // TODO(benh): 'Until()', 'Map()', 'Loop()' here vs 'Reduce()'?
-              | Reduce(
-                     0,
-                     [this, worker](auto&) {
-                       return Acquire(&lock_)
-                           | Lambda(
-                                  [this, worker](auto&&... args) {
-                                    values_.emplace_back(
-                                        std::forward<decltype(args)>(
-                                            args)...);
+              | Map(
+                     // TODO(benh): create 'Move()' like abstraction that does:
+                     Eventual<Arg_>()
+                         .start([worker](auto& k) {
+                           eventuals::succeed(k, std::move(*worker->arg));
+                         })
+                     | f_()
+                     | Acquire(&lock_)
+                     | Lambda(
+                         [this, worker](auto&&... args) {
+                           values_.emplace_back(
+                               std::forward<decltype(args)>(args)...);
 
-                                    assert(egress_);
-                                    egress_();
+                           assert(egress_);
+                           egress_();
 
-                                    worker->arg.reset();
-                                    busy_--;
+                           worker->arg.reset();
+                           busy_--;
+                         }))
+              | WorkerAdaptor(
+                     Lambda([this](auto exception) {
+                       // First fail/stop wins the "cleanup" rather
+                       // than us aggregating all of the fail/stops
+                       // that occur.
+                       if (!cleanup_) {
+                         cleanup_ = true;
+                         if (exception) {
+                           exception_ = std::move(exception);
+                         }
+                         for (auto* worker : workers_) {
+                           worker->notify();
+                         }
+                         ingress_();
+                       }
 
-                                    return true;
-                                  });
+                       busy_--; // Used by "egress" to stop waiting.
+                       egress_();
                      })
-              | Eventual<int>()
-                    .start([worker](auto&&...) {
-                      worker->done.store(true);
-                    })
-                    .fail([worker](auto&&...) {
-                      // TODO(benh): the only way we got here is if
-                      // 'f_()' did a 'fail()'; catch and propagate
-                      // the failure.
-                      worker->done.store(true);
-                    })
-                    .stop([worker](auto&&...) {
-                      // TODO(benh): the only way we got here is if
-                      // 'f_()' did a 'stop()'; propagate 'done()'
-                      // back up through the ingress and then
-                      // 'ended()' down through the egress.
-                      worker->done.store(true);
-                    });
+                     | Release(&lock_));
         });
 
     StaticThreadPool::Scheduler().Submit(
@@ -677,9 +825,15 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
           assert(worker->task);
           worker->task->Start(
               worker->interrupt,
-              [](auto&&... args) {},
-              [](std::exception_ptr) {},
-              []() {});
+              [worker](auto&&...) {
+                worker->done.store(true);
+              },
+              [](std::exception_ptr) {
+                LOG(FATAL) << "Unreachable";
+              },
+              []() {
+                LOG(FATAL) << "Unreachable";
+              });
         },
         worker);
   }
@@ -689,34 +843,53 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
 
 template <typename F_, typename Arg_>
 auto _StaticThreadPoolParallel::Continuation<F_, Arg_>::Ingress() {
-  return Map(
-      Preempt("ingress", Synchronized(Wait([this](auto notify) mutable {
-                ingress_ = std::move(notify);
-                return [this](auto&&... args) mutable {
-                  CHECK(!ended_);
+  return Until(Preempt(
+             "ingress",
+             Synchronized(
+                 Wait([this](auto notify) mutable {
+                   ingress_ = std::move(notify);
+                   return [this](auto&&... args) mutable {
+                     if (cleanup_) {
+                       return false;
+                     } else if (idle_ == 0) {
+                       return true;
+                     } else {
+                       bool assigned = false;
+                       for (auto* worker : workers_) {
+                         if (worker->waiting && !worker->arg) {
+                           worker->arg.emplace(
+                               std::forward<decltype(args)>(args)...);
+                           worker->notify();
+                           assigned = true;
+                           break;
+                         }
+                       }
+                       CHECK(assigned);
 
-                  if (idle_ == 0) {
-                    return true;
-                  } else {
-                    bool assigned = false;
-                    for (auto* worker : workers_) {
-                      if (worker->waiting && !worker->arg) {
-                        worker->arg.emplace(
-                            std::forward<decltype(args)>(args)...);
-                        worker->notify();
-                        assigned = true;
-                        break;
-                      }
-                    }
-                    CHECK(assigned);
+                       idle_--;
+                       busy_++;
 
-                    idle_--;
-                    busy_++;
-
-                    return false;
-                  }
-                };
-              }))));
+                       return false;
+                     }
+                   };
+                 })
+                 | Lambda([this](auto&&...) {
+                     return cleanup_;
+                   }))))
+      | IngressAdaptor(
+             this,
+             Synchronized(Lambda([this](auto exception) {
+               if (!cleanup_) {
+                 cleanup_ = true;
+                 if (exception) {
+                   exception_ = std::move(exception);
+                 }
+                 for (auto* worker : workers_) {
+                   worker->notify();
+                 }
+                 egress_();
+               }
+             })));
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -734,15 +907,13 @@ auto _StaticThreadPoolParallel::Continuation<F_, Arg_>::Egress() {
                    return [this]() {
                      if (!values_.empty()) {
                        return false;
-                     } else if (busy_ > 0 || !ended_) {
-                       return true;
                      } else {
-                       return false;
+                       return busy_ > 0 || !cleanup_;
                      }
                    };
                  })
                  | Lambda([this]() {
-                     return values_.empty() && !busy_ && ended_;
+                     return values_.empty() && !busy_ && cleanup_;
                    })))
       | Map(Synchronized(Lambda([this]() {
            CHECK(!values_.empty());
@@ -750,7 +921,8 @@ auto _StaticThreadPoolParallel::Continuation<F_, Arg_>::Egress() {
            values_.pop_front();
            // TODO(benh): use 'Eventual' to avoid extra moves?
            return std::move(value);
-         })));
+         })))
+      | EgressAdaptor(exception_);
 }
 
 ////////////////////////////////////////////////////////////////////////
