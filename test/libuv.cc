@@ -14,7 +14,7 @@ using stout::uv::Timer;
 TEST(Libuv, SimpleTimerTest) {
   Loop loop;
 
-  auto e = Timer(loop, 10);
+  auto e = Timer(loop, std::chrono::milliseconds(10));
 
   auto [future, k] = Terminate(e);
 
@@ -38,7 +38,7 @@ TEST(Libuv, FooAbstraction) {
       : loop_(loop) {}
 
     auto Operation() {
-      return Timer(loop_, 5000)
+      return Timer(loop_, std::chrono::seconds(5))
           | Just(42);
     }
 
@@ -61,11 +61,11 @@ TEST(Libuv, FooAbstraction) {
 
   EXPECT_FALSE(uv_loop_alive(loop));
 
-  loop.clock().Advance(1000);
+  loop.clock().Advance(std::chrono::seconds(1));
 
   EXPECT_FALSE(uv_loop_alive(loop));
 
-  loop.clock().Advance(4000);
+  loop.clock().Advance(std::chrono::seconds(4));
 
   EXPECT_TRUE(uv_loop_alive(loop));
 
@@ -78,23 +78,23 @@ TEST(Libuv, FooAbstraction) {
   EXPECT_EQ(42, future.get());
 }
 
-TEST(Libuv, AddTimerAfterAdvancing) {
+TEST(Libuv, AddTimerAfterAdvancingClock) {
   Loop loop;
 
   Loop::Clock& clock = loop.clock();
 
   clock.Pause();
 
-  auto e1 = Timer(loop, 5000);
+  auto e1 = Timer(loop, std::chrono::seconds(5));
   auto [future1, k1] = Terminate(e1);
   eventuals::start(k1);
 
   EXPECT_EQ(loop.clock().timers_active(), 1);
 
-  clock.Advance(1000);
+  clock.Advance(std::chrono::seconds(1));
   // timer1 - 4000ms
 
-  auto e2 = Timer(loop, 5000);
+  auto e2 = Timer(loop, std::chrono::seconds(5));
   auto [future2, k2] = Terminate(e2);
   eventuals::start(k2);
 
@@ -102,7 +102,7 @@ TEST(Libuv, AddTimerAfterAdvancing) {
 
   EXPECT_FALSE(uv_loop_alive(loop));
 
-  clock.Advance(4000);
+  clock.Advance(std::chrono::seconds(4));
   // timer1 - fired! timer2 - 1000ms
 
   EXPECT_TRUE(uv_loop_alive(loop));
@@ -113,7 +113,7 @@ TEST(Libuv, AddTimerAfterAdvancing) {
 
   EXPECT_FALSE(uv_loop_alive(loop));
 
-  clock.Advance(990);
+  clock.Advance(std::chrono::milliseconds(990));
   // timer2 - 10ms
 
   EXPECT_FALSE(uv_loop_alive(loop));

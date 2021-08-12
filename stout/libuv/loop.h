@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <iostream>
 #include <list>
 #include <optional>
@@ -39,9 +40,9 @@ class Loop {
       CHECK_EQ(0, timers_active())
           << "pausing the clock with outstanding timers is unsupported";
 
-      paused_.emplace(uv_now(loop_));
+      paused_.emplace(std::chrono::milliseconds(uv_now(loop_)));
 
-      advanced_ = 0;
+      advanced_ = std::chrono::milliseconds(0);
     }
 
     void Resume() {
@@ -59,7 +60,7 @@ class Loop {
       paused_.reset();
     }
 
-    void Advance(uint64_t milliseconds) {
+    void Advance(const std::chrono::milliseconds& milliseconds) {
       CHECK(Paused());
 
       advanced_ += milliseconds;
@@ -68,7 +69,7 @@ class Loop {
         // uint64_t now = *paused_ + advanced_;
         if (timer.valid) {
           if (advanced_ >= timer.milliseconds) {
-            timer.start(0);
+            timer.start(std::chrono::milliseconds(0));
             // TODO(benh): ideally we remove the timer from 'timers_' but
             // for now we just invalidate it so we don't start it again.
             timer.valid = false;
@@ -77,7 +78,7 @@ class Loop {
       }
     }
 
-    void Enqueue(uint64_t milliseconds, Callback<uint64_t> start) {
+    void Enqueue(const std::chrono::milliseconds& milliseconds, Callback<std::chrono::milliseconds> start) {
       CHECK(paused_);
       timers_.emplace_back(Timer{milliseconds + advanced_, std::move(start)});
     }
@@ -103,12 +104,12 @@ class Loop {
 
    private:
     Loop& loop_;
-    std::optional<uint64_t> paused_; // stores paused time, no time means clock is not paused
-    uint64_t advanced_;
+    std::optional<std::chrono::milliseconds> paused_; // stores paused time, no time means clock is not paused
+    std::chrono::milliseconds advanced_;
 
     struct Timer {
-      uint64_t milliseconds;
-      Callback<uint64_t> start;
+      std::chrono::milliseconds milliseconds;
+      Callback<std::chrono::milliseconds> start;
       bool valid = true;
     };
 
