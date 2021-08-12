@@ -35,7 +35,7 @@ cc_library(
     ],
     deps = [
         "@stout-borrowed-ptr//:borrowed_ptr",
-        "@stout-eventuals//:eventuals",
+        "@com_github_3rdparty_stout_eventuals//:eventuals",
         "@stout-stateful-tally//:stateful-tally",
         "@stout-notification//:notification",
         "@com_google_absl//absl/base:base",

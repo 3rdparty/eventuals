@@ -1,38 +1,15 @@
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("//bazel:repos.bzl", "repos")
+repos(external = False)
 
-########################################################################
-
-http_archive(
-    name = "gtest",
-    url = "https://github.com/google/googletest/archive/release-1.10.0.tar.gz",
-    sha256 = "9dc9157a9a1551ec7a7e43daea9a694a0bb5fb8bec81235d8a1e6ef64c716dcb",
-    strip_prefix = "googletest-release-1.10.0",
-)
-
-########################################################################
-
-http_archive(
-    name = "com_github_grpc_grpc",
-    urls = ["https://github.com/grpc/grpc/archive/v1.35.0.tar.gz"],
-    sha256 = "27dd2fc5c9809ddcde8eb6fa1fa278a3486566dfc28335fca13eb8df8bd3b958",
-    strip_prefix = "grpc-1.35.0",
-)
-
-load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
-
-grpc_deps()
+load("//bazel:deps.bzl", "deps")
+deps()
 
 load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
-
 grpc_extra_deps()
 
 ########################################################################
 
-load("//bazel:stout_grpc_deps.bzl", "stout_grpc_deps")
-
-stout_grpc_deps()
-
-########################################################################
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "stout-stateful-tally",
@@ -47,7 +24,11 @@ stout_stateful_tally_deps()
 
 ########################################################################
 
-# Need Python rules in order to use protos from grpc examples.
+# Need Python rules in order to use protos from grpc examples in the
+# tests.
+#
+# NOTE: we only include these here because they're for tests and we
+# assume those depending on stout-grpc don't need to build the tests.
 load("@io_bazel_rules_python//python:pip.bzl", "pip_import", "pip_repositories")
 
 pip_import(
