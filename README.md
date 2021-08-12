@@ -1,3 +1,7 @@
+[![macOS](https://github.com/3rdparty/stout-grpc/workflows/macOS/badge.svg?branch=main)](https://github.com/3rdparty/stout-grpc/actions/workflows/macos.yml)
+[![Ubuntu](https://github.com/3rdparty/stout-grpc/workflows/Ubuntu/badge.svg?branch=main)](https://github.com/3rdparty/stout-grpc/actions/workflows/ubuntu.yml)
+[![Windows](https://github.com/3rdparty/stout-grpc/workflows/Windows/badge.svg?branch=main)](https://github.com/3rdparty/stout-grpc/actions/workflows/windows.yml)
+
 # `stout::grpc`
 
 An asynchronous interface for gRPC based on callbacks. While gRPC already provides an asynchronous [interface](https://grpc.io/docs/languages/cpp/async), it is quite low-level. gRPC has an experimental (as of 2020/07/10, still [in progress](https://github.com/grpc/grpc/projects/12)) higher-level asynchronous interface based on a [reactor pattern](https://grpc.github.io/grpc/cpp/classgrpc__impl_1_1_server_bidi_reactor.html), it is still based on inheritance and overriding virtual functions. Moreover, it's still relatively low-level, e.g., it only permits a single write at a time, requiring users to buffer writes on their own.

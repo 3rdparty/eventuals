@@ -1,0 +1,31 @@
+# Workflow for Ubuntu (latest).
+name: Ubuntu
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository under $GITHUB_WORKSPACE.
+      - uses: actions/checkout@v1
+
+      - name: Check for bazel
+        run: bazel --version
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "12.0"  
+
+      - name: Build
+        run: bazel build :grpc
+
+      - name: Test
+        run: bazel test test:grpc
