@@ -22,7 +22,7 @@ We recommend cloning the examples and building them in order to play around with
 
 We suggest starting with the examples above, as they provide a good template for how you might embed this library into your own project.
 
-Currently we only support [Bazel](https://bazel.build) and expect/use C++14 (some work could likely make this C++11).
+Currently we only support [Bazel](https://bazel.build) and expect/use C++17.
 
 You can build the library with:
 
