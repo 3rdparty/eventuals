@@ -30,6 +30,8 @@ cc_library(
         "stout/closure.h",
         "stout/compose.h",
         "stout/catch.h",
+        "stout/libuv/loop.h",
+        "stout/libuv/timer.h",
     ],
     srcs = [
         "stout/scheduler.cc",
