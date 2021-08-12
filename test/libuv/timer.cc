@@ -1,7 +1,8 @@
+#include "stout/libuv/timer.h"
+
 #include "gtest/gtest.h"
 #include "stout/just.h"
 #include "stout/libuv/loop.h"
-#include "stout/libuv/timer.h"
 #include "stout/terminal.h"
 
 namespace eventuals = stout::eventuals;
@@ -11,7 +12,7 @@ using stout::eventuals::Terminate;
 using stout::uv::Loop;
 using stout::uv::Timer;
 
-TEST(Libuv, SimpleTimerTest) {
+TEST(LibuvTimerTest, SimpleTimer) {
   Loop loop;
 
   auto e = Timer(loop, std::chrono::milliseconds(10));
@@ -31,7 +32,7 @@ TEST(Libuv, SimpleTimerTest) {
   EXPECT_TRUE(diff > 0 && diff < 20) << diff; // check if the timeout of timer2 was indeed 10ms
 }
 
-TEST(Libuv, FooAbstraction) {
+TEST(LibuvTimerTest, FooAbstraction) {
   class Foo {
    public:
     Foo(Loop& loop)
@@ -78,7 +79,7 @@ TEST(Libuv, FooAbstraction) {
   EXPECT_EQ(42, future.get());
 }
 
-TEST(Libuv, AddTimerAfterAdvancingClock) {
+TEST(LibuvTimerTest, AddTimerAfterAdvancingClock) {
   Loop loop;
 
   Loop::Clock& clock = loop.clock();

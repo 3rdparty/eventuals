@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <list>
@@ -49,10 +50,7 @@ class Loop {
       CHECK(Paused());
 
       for (auto& timer : timers_) {
-        // uint64_t now = *paused_ + advanced_;
-        if (timer.valid) {
-          timer.start(timer.milliseconds - advanced_);
-        }
+        timer.start(timer.milliseconds - advanced_);
       }
 
       timers_.clear();
@@ -66,25 +64,28 @@ class Loop {
       advanced_ += milliseconds;
 
       for (auto& timer : timers_) {
-        // uint64_t now = *paused_ + advanced_;
         if (timer.valid) {
           if (advanced_ >= timer.milliseconds) {
             timer.start(std::chrono::milliseconds(0));
-            // TODO(benh): ideally we remove the timer from 'timers_' but
-            // for now we just invalidate it so we don't start it again.
             timer.valid = false;
           }
         }
       }
+
+      timers_.erase(std::remove_if(timers_.begin(), timers_.end(), [](Timer& timer) {
+                      return !timer.valid;
+                    }),
+                    timers_.end());
     }
 
     void Enqueue(const std::chrono::milliseconds& milliseconds, Callback<std::chrono::milliseconds> start) {
-      CHECK(paused_);
+      CHECK(Paused());
       timers_.emplace_back(Timer{milliseconds + advanced_, std::move(start)});
     }
 
     size_t timers_active() {
-      size_t num = 0;
+      size_t num = timers_.size();
+
       auto walk_cb = [](uv_handle_t* handle, void* args) {
         size_t* num = (size_t*) args;
         if (handle->type == UV_TIMER && uv_is_active(handle)) {
@@ -94,11 +95,6 @@ class Loop {
 
       uv_walk(loop_, walk_cb, &num);
 
-      for (auto& timer : timers_) {
-        if (timer.valid) {
-          num++;
-        }
-      }
       return num;
     }
 

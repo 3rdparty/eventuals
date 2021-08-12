@@ -1,7 +1,7 @@
+#pragma once
+
 #include "stout/eventual.h"
 #include "stout/libuv/loop.h"
-
-using stout::Callback;
 
 namespace stout {
 namespace uv {

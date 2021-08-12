@@ -13,8 +13,8 @@ cc_test(
         "static-thread-pool.cc",
         "task.cc",
         "closure.cc",
-        "libuv.cc",
         "static-thread-pool-parallel.cc",
+        "libuv/timer.cc",
     ],
     deps = [
         "//:eventuals",
