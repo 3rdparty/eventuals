@@ -1,5 +1,22 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
+windows_deps = [
+    "@com_github_google_glog//:glog",
+    "@com_github_libuv_libuv//:libuv",
+]
+
+#Currently, jemalloc is available for Linux only 
+linux_deps = [
+    "@com_github_google_glog//:glog",
+    "@com_github_libuv_libuv//:libuv",
+    "@com_github_jemalloc_jemalloc//:jemalloc",
+]
+
+macos_deps = [
+    "@com_github_google_glog//:glog",
+    "@com_github_libuv_libuv//:libuv",
+]
+
 cc_library(
     name = "eventuals",
     hdrs = [
@@ -35,9 +52,10 @@ cc_library(
         "stout/scheduler.cc",
         "stout/static-thread-pool.cc",
     ],
-    deps = [
-        "@com_github_google_glog//:glog",
-        "@com_github_libuv_libuv//:libuv",
-    ],
+    deps = select({
+        "@bazel_tools//src/conditions:windows": windows_deps,
+        "@bazel_tools//src/conditions:darwin": macos_deps,
+        "//conditions:default": linux_deps,
+    }),
     visibility = ["//visibility:public"],
 )

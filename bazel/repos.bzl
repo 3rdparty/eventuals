@@ -11,10 +11,16 @@
 
 load("//3rdparty/bazel-rules-libuv:repos.bzl", libuv_repos="repos")
 
+load("//3rdparty/bazel-rules-jemalloc:repos.bzl", jemalloc_repos="repos")
+
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 def repos(external = True, repo_mapping = {}):
     libuv_repos(
+        repo_mapping = repo_mapping
+    )
+	
+	jemalloc_repos(
         repo_mapping = repo_mapping
     )
 
