@@ -25,7 +25,7 @@ def repos(external = True, repo_mapping = {}):
         http_archive(
             name = "com_github_4rdparty_bazel_rules_libcurl",
             url = "https://github.com/4rdparty/bazel-rules-libcurl/archive/refs/tags/libcurl-7_78_0.tar.gz",
-            sha256 = "0c634d29f7f5edb6ca6c096738490a647be3edc5e86706b2b821a8f16b9e66cb",
+            sha256 = "cc9151bea09b9d714efef302ebda16176c74deb23f9f5cefa208c856ae26abcc",
             strip_prefix = "bazel-rules-libcurl-libcurl-7_78_0",
             repo_mapping = repo_mapping,
         )
