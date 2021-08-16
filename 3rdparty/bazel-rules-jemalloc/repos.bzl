@@ -22,10 +22,10 @@ def repos(external = True, repo_mapping = {}):
         )
 
     #currently, jemalloc is available for Linux only.
-    if external and "com_github_3rdparty_bazel_rules_jemalloc" not in native.existing_rules():
+    if external and "com_github_4rdparty_bazel_rules_jemalloc" not in native.existing_rules():
         http_archive(
-            name = "com_github_3rdparty_bazel_rules_jemalloc",
-            url = "https://github.com/3rdparty/bazel-rules-jemalloc/archive/jemalloc-5.2.1.tar.gz",
+            name = "com_github_4rdparty_bazel_rules_jemalloc",
+            url = "https://github.com/4rdparty/bazel-rules-jemalloc/archive/jemalloc-5.2.1.tar.gz",
             sha256 = "c8916383efeeb0be74d5442598e77dd3a39a4016781603aefc013f1df3df3e9f",
             strip_prefix = "bazel-rules-jemalloc-jemalloc-5.2.1",
             repo_mapping = repo_mapping,

@@ -4,7 +4,7 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 load("@com_github_3rdparty_bazel_rules_libuv//bazel:deps.bzl", libuv_deps = "deps")
 
-load("@com_github_3rdparty_bazel_rules_jemalloc//bazel:deps.bzl", jemalloc_deps = "deps")
+load("@com_github_4rdparty_bazel_rules_jemalloc//bazel:deps.bzl", jemalloc_deps = "deps")
 
 load("@com_github_4rdparty_bazel_rules_libcurl//bazel:deps.bzl", libcurl_deps = "deps")
 
