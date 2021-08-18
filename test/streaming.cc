@@ -1,28 +1,27 @@
-#include "gmock/gmock.h"
-
-#include "gtest/gtest.h"
-
-#include "stout/grpc/client.h"
-#include "stout/grpc/server.h"
-
-// https://github.com/grpc/grpc/blob/master/examples/protos/keyvaluestore.proto
 #include "examples/protos/keyvaluestore.grpc.pb.h"
+#include "gtest/gtest.h"
+#include "stout/eventuals/grpc/client.h"
+#include "stout/eventuals/grpc/server.h"
+#include "stout/eventuals/head.h"
+#include "stout/sequence.h"
+#include "stout/then.h"
+#include "test/test.h"
 
-#include "test.h"
+using stout::borrowable;
+using stout::Sequence;
 
-using stout::Notification;
+using stout::eventuals::Head;
+using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 
-using stout::grpc::Client;
-using stout::grpc::ClientCallStatus;
-using stout::grpc::ServerBuilder;
-using stout::grpc::ServerCallStatus;
 using stout::grpc::Stream;
 
-using testing::MockFunction;
+using stout::eventuals::grpc::Client;
+using stout::eventuals::grpc::CompletionPool;
+using stout::eventuals::grpc::Server;
+using stout::eventuals::grpc::ServerBuilder;
 
-
-TEST_F(StoutGrpcTest, Streaming)
-{
+TEST_F(StoutEventualsGrpcTest, Streaming) {
   ServerBuilder builder;
 
   int port = 0;
@@ -40,68 +39,83 @@ TEST_F(StoutGrpcTest, Streaming)
 
   ASSERT_TRUE(server);
 
-  // Mock for both server and client write callbacks.
-  MockFunction<void(bool)> write;
+  auto serve = [&]() {
+    return server->Accept<
+               Stream<keyvaluestore::Request>,
+               Stream<keyvaluestore::Response>>(
+               "keyvaluestore.KeyValueStore.GetValues")
+        | Head()
+        | Then([](auto&& context) {
+             return Server::Handler(std::move(context))
+                 .body([&](auto& call, auto&& request) {
+                   if (request) {
+                     keyvaluestore::Response response;
+                     response.set_value(request->key());
+                     call.Write(response);
+                   } else {
+                     for (size_t i = 0; i < 3; i++) {
+                       keyvaluestore::Response response;
+                       response.set_value(stringify(i + 3));
+                       call.Write(response);
+                     }
+                     call.Finish(grpc::Status::OK);
+                   }
+                 });
+           });
+  };
 
-  Notification<bool> done;
+  auto [cancelled, k] = Terminate(serve());
 
-  auto serve = server->Serve<
-    Stream<keyvaluestore::Request>,
-    Stream<keyvaluestore::Response>>(
-        "keyvaluestore.KeyValueStore.GetValues",
-        [&](auto* call, auto&& request) {
-          if (request) {
-            keyvaluestore::Response response;
-            response.set_value(request->key());
-            EXPECT_CALL(write, Call(true))
-              .Times(1);
-            auto status = call->Write(response, write.AsStdFunction());
-            EXPECT_EQ(ServerCallStatus::Ok, status);
-          } else {
-            call->Finish(grpc::Status::OK);
-          }
-        },
-        [&](auto*, bool cancelled) {
-          done.Notify(cancelled);
-        });
+  k.Start();
 
-  ASSERT_TRUE(serve.ok());
+  borrowable<CompletionPool> pool;
 
   Client client(
       "0.0.0.0:" + stringify(port),
-      grpc::InsecureChannelCredentials());
+      grpc::InsecureChannelCredentials(),
+      pool.borrow());
 
-  keyvaluestore::Request request;
-  request.set_key("0");
+  auto call = [&]() {
+    return client.Call<
+               Stream<keyvaluestore::Request>,
+               Stream<keyvaluestore::Response>>(
+               "keyvaluestore.KeyValueStore.GetValues")
+        | (Client::Handler()
+               .ready(Sequence()
+                          .Once([](auto& call) {
+                            keyvaluestore::Request request;
+                            request.set_key("1");
+                            call.Write(request);
+                          })
+                          .Once([](auto& call) {
+                            keyvaluestore::Request request;
+                            request.set_key("2");
+                            call.WriteLast(request);
+                          }))
+               .body(Sequence()
+                         .Once([](auto& call, auto&& response) {
+                           EXPECT_EQ("1", response->value());
+                         })
+                         .Once([](auto& call, auto&& response) {
+                           EXPECT_EQ("2", response->value());
+                         })
+                         .Once([](auto& call, auto&& response) {
+                           EXPECT_EQ("3", response->value());
+                         })
+                         .Once([](auto& call, auto&& response) {
+                           EXPECT_EQ("4", response->value());
+                         })
+                         .Once([](auto& call, auto&& response) {
+                           EXPECT_EQ("5", response->value());
+                         })
+                         .Once([](auto& call, auto&& response) {
+                           EXPECT_FALSE(response);
+                         })));
+  };
 
-  Notification<grpc::Status> finished;
+  auto status = *call();
 
-  auto status = client.Call<
-    Stream<keyvaluestore::Request>,
-    Stream<keyvaluestore::Response>>(
-        "keyvaluestore.KeyValueStore.GetValues",
-        &request,
-        [&](auto* call, auto&& response) {
-          if (response) {
-            EXPECT_EQ(request.key(), response->value());
-            if (request.key() == "1") {
-              EXPECT_EQ(ClientCallStatus::Ok, call->WritesDoneAndFinish());
-            } else {
-              request.set_key("1");
-              EXPECT_CALL(write, Call(true))
-                .Times(1);
-              auto status = call->Write(request, write.AsStdFunction());
-              EXPECT_EQ(ClientCallStatus::Ok, status);
-            }
-          }
-        },
-        [&](auto*, const grpc::Status& status) {
-          finished.Notify(status);
-        });
+  EXPECT_TRUE(status.ok()) << status.error_message();
 
-  ASSERT_TRUE(status.ok());
-
-  ASSERT_TRUE(finished.Wait().ok());
-
-  ASSERT_FALSE(done.Wait());
+  EXPECT_FALSE(cancelled.get());
 }

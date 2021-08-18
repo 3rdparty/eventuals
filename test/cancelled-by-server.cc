@@ -1,30 +1,27 @@
-#include "gtest/gtest.h"
-#include "gmock/gmock.h"
-
-#include "stout/grpc/client.h"
-#include "stout/grpc/server.h"
-
-// https://github.com/grpc/grpc/blob/master/examples/protos/helloworld.proto
 #include "examples/protos/helloworld.grpc.pb.h"
+#include "gtest/gtest.h"
+#include "stout/eventuals/grpc/client.h"
+#include "stout/eventuals/grpc/server.h"
+#include "stout/eventuals/head.h"
+#include "stout/then.h"
+#include "test/test.h"
 
-#include "test.h"
-
-using helloworld::HelloRequest;
-using helloworld::HelloReply;
 using helloworld::Greeter;
+using helloworld::HelloReply;
+using helloworld::HelloRequest;
 
-using stout::Notification;
+using stout::borrowable;
 
-using stout::grpc::Client;
-using stout::grpc::ClientCallStatus;
-using stout::grpc::ServerBuilder;
+using stout::eventuals::Head;
+using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 
-using testing::_;
-using testing::MockFunction;
+using stout::eventuals::grpc::Client;
+using stout::eventuals::grpc::CompletionPool;
+using stout::eventuals::grpc::Server;
+using stout::eventuals::grpc::ServerBuilder;
 
-
-TEST_F(StoutGrpcTest, CancelledByServer)
-{
+TEST_F(StoutEventualsGrpcTest, CancelledByServer) {
   ServerBuilder builder;
 
   int port = 0;
@@ -42,41 +39,40 @@ TEST_F(StoutGrpcTest, CancelledByServer)
 
   ASSERT_TRUE(server);
 
-  MockFunction<void(void*, bool)> mock;
+  auto serve = [&]() {
+    return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
+        | Head()
+        | Then([](auto&& context) {
+             return Server::Handler(std::move(context))
+                 .ready([&](auto& call) {
+                   call.context()->TryCancel();
+                 });
+           });
+  };
 
-  auto serve = server->Serve<Greeter, HelloRequest, HelloReply>(
-      "SayHello",
-      [&](auto&& call) {
-        call->OnDone(mock.AsStdFunction());
+  auto [cancelled, k] = Terminate(serve());
 
-        EXPECT_CALL(mock, Call(_, true))
-          .Times(1);
+  k.Start();
 
-        call->context()->TryCancel();
-      });
-
-  ASSERT_TRUE(serve.ok());
+  borrowable<CompletionPool> pool;
 
   Client client(
       "0.0.0.0:" + stringify(port),
-      grpc::InsecureChannelCredentials());
+      grpc::InsecureChannelCredentials(),
+      pool.borrow());
 
-  Notification<grpc::Status> finished;
+  auto call = [&]() {
+    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
+        | (Client::Handler()
+               .body([](auto& call, auto&& response) {
+                 EXPECT_FALSE(response);
+                 call.WritesDone();
+               }));
+  };
 
-  auto status = client.Call<Greeter, HelloRequest, HelloReply>(
-      "SayHello",
-      [&](auto&& call, bool ok) {
-        EXPECT_TRUE(ok);
-        call->OnRead([&](auto* call, auto&& response) {
-          EXPECT_TRUE(!response);
-          auto status = call->Finish([&](auto*, const grpc::Status& status) {
-            finished.Notify(status);
-          });
-          EXPECT_EQ(ClientCallStatus::Ok, status);
-        });
-      });
+  auto status = *call();
 
-  ASSERT_TRUE(status.ok());
+  EXPECT_EQ(grpc::CANCELLED, status.error_code());
 
-  ASSERT_EQ(grpc::CANCELLED, finished.Wait().error_code());
+  EXPECT_TRUE(cancelled.get());
 }

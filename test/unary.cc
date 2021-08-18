@@ -1,27 +1,30 @@
-#include "gtest/gtest.h"
-
-#include "stout/grpc/client.h"
-#include "stout/grpc/server.h"
-
-// https://github.com/grpc/grpc/blob/master/examples/protos/helloworld.proto
 #include "examples/protos/helloworld.grpc.pb.h"
+#include "gtest/gtest.h"
+#include "stout/eventuals/grpc/client.h"
+#include "stout/eventuals/grpc/server.h"
+#include "stout/eventuals/head.h"
+#include "stout/sequence.h"
+#include "stout/then.h"
+#include "test/test.h"
 
-#include "test.h"
-
-using helloworld::HelloRequest;
-using helloworld::HelloReply;
 using helloworld::Greeter;
+using helloworld::HelloReply;
+using helloworld::HelloRequest;
 
+using stout::borrowable;
 using stout::Notification;
+using stout::Sequence;
 
-using stout::grpc::Client;
-using stout::grpc::ClientCallStatus;
-using stout::grpc::ServerBuilder;
-using stout::grpc::ServerCallStatus;
+using stout::eventuals::Head;
+using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 
+using stout::eventuals::grpc::Client;
+using stout::eventuals::grpc::CompletionPool;
+using stout::eventuals::grpc::Server;
+using stout::eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutGrpcTest, Unary)
-{
+TEST_F(StoutEventualsGrpcTest, Unary) {
   ServerBuilder builder;
 
   int port = 0;
@@ -39,52 +42,53 @@ TEST_F(StoutGrpcTest, Unary)
 
   ASSERT_TRUE(server);
 
-  Notification<bool> done;
+  auto serve = [&]() {
+    return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
+        | Head()
+        | Then([](auto&& context) {
+             return Server::Handler(std::move(context))
+                 .body([](auto& call, auto&& request) {
+                   if (request) {
+                     HelloReply reply;
+                     std::string prefix("Hello ");
+                     reply.set_message(prefix + request->name());
+                     call.WriteAndFinish(reply, grpc::Status::OK);
+                   }
+                 });
+           });
+  };
 
-  auto serve = server->Serve<Greeter, HelloRequest, HelloReply>(
-      "SayHello",
-      [](auto* call, auto&& request) {
-        EXPECT_TRUE(request);
-        HelloReply reply;
-        std::string prefix("Hello ");
-        reply.set_message(prefix + request->name());
-        EXPECT_EQ(
-            ServerCallStatus::Ok,
-            call->WriteAndFinish(reply, grpc::Status::OK));
-      },
-      [&](auto*, bool cancelled) {
-        done.Notify(cancelled);
-      });
+  auto [cancelled, k] = Terminate(serve());
 
-  ASSERT_TRUE(serve.ok());
+  k.Start();
+
+  borrowable<CompletionPool> pool;
 
   Client client(
       "0.0.0.0:" + stringify(port),
-      grpc::InsecureChannelCredentials());
+      grpc::InsecureChannelCredentials(),
+      pool.borrow());
 
-  HelloRequest request;
-  request.set_name("emily");
+  auto call = [&]() {
+    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
+        | (Client::Handler()
+               .ready([](auto& call) {
+                 HelloRequest request;
+                 request.set_name("emily");
+                 call.WriteLast(request);
+               })
+               .body(Sequence()
+                         .Once([](auto& call, auto&& response) {
+                           EXPECT_EQ("Hello emily", response->message());
+                         })
+                         .Once([](auto& call, auto&& response) {
+                           EXPECT_FALSE(response);
+                         })));
+  };
 
-  HelloReply reply;
-  Notification<grpc::Status> finished;
+  auto status = *call();
 
-  auto status = client.Call<Greeter, HelloRequest, HelloReply>(
-      "SayHello",
-      &request,
-      [&](auto* call, auto&& response) {
-        EXPECT_TRUE(response);
-        reply.Swap(response.get());
-        EXPECT_EQ(ClientCallStatus::Ok, call->Finish());
-      },
-      [&](auto*, const grpc::Status& status) {
-        finished.Notify(status);
-      });
+  EXPECT_TRUE(status.ok());
 
-  ASSERT_TRUE(status.ok());
-
-  ASSERT_TRUE(finished.Wait().ok());
-
-  ASSERT_EQ("Hello emily", reply.message());
-
-  ASSERT_FALSE(done.Wait());
+  EXPECT_FALSE(cancelled.get());
 }

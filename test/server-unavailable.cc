@@ -1,44 +1,35 @@
-#include "gtest/gtest.h"
-
-#include "stout/grpc/client.h"
-#include "stout/grpc/server.h"
-
-// https://github.com/grpc/grpc/blob/master/examples/protos/keyvaluestore.proto
 #include "examples/protos/keyvaluestore.grpc.pb.h"
+#include "gtest/gtest.h"
+#include "stout/eventuals/grpc/client.h"
+#include "stout/terminal.h"
+#include "test/test.h"
 
-#include "test.h"
+using stout::borrowable;
 
-using stout::Notification;
-
-using stout::grpc::Client;
 using stout::grpc::Stream;
 
+using stout::eventuals::grpc::Client;
+using stout::eventuals::grpc::CompletionPool;
 
-TEST_F(StoutGrpcTest, ServerUnavailable)
-{
+TEST_F(StoutEventualsGrpcTest, ServerUnavailable) {
+  borrowable<CompletionPool> pool;
+
   // NOTE: we use 'getpid()' to create a _unique_ UNIX domain socket
   // path that should never have a server listening on for this test.
   Client client(
       "unix:stout-grpc-test-server-unavailable-" + stringify(getpid()),
-      grpc::InsecureChannelCredentials());
+      grpc::InsecureChannelCredentials(),
+      pool.borrow());
 
-  keyvaluestore::Request request;
-  request.set_key("0");
+  auto call = [&]() {
+    return client.Call<
+               Stream<keyvaluestore::Request>,
+               Stream<keyvaluestore::Response>>(
+               "keyvaluestore.KeyValueStore.GetValues")
+        | Client::Handler();
+  };
 
-  Notification<grpc::Status> finished;
+  auto status = *call();
 
-  auto status = client.Call<
-    Stream<keyvaluestore::Request>,
-    Stream<keyvaluestore::Response>>(
-        "keyvaluestore.KeyValueStore.GetValues",
-        &request,
-        [&](auto* call, auto&& response) {
-        },
-        [&](auto*, const grpc::Status& status) {
-          finished.Notify(status);
-        });
-
-  ASSERT_TRUE(status.ok());
-
-  ASSERT_EQ(grpc::UNAVAILABLE, finished.Wait().error_code());
+  EXPECT_EQ(grpc::UNAVAILABLE, status.error_code());
 }

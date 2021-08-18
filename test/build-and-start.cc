@@ -1,14 +1,10 @@
 #include "gtest/gtest.h"
+#include "stout/eventuals/grpc/server.h"
+#include "test/test.h"
 
-#include "stout/grpc/server.h"
+using stout::eventuals::grpc::ServerBuilder;
 
-#include "test.h"
-
-using stout::grpc::ServerBuilder;
-
-
-TEST_F(StoutGrpcTest, BuildAndStart)
-{
+TEST_F(StoutEventualsGrpcTest, BuildAndStart) {
   ServerBuilder builder;
 
   builder.AddListeningPort("0.0.0.0:0", grpc::InsecureServerCredentials());

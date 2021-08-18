@@ -1,26 +1,21 @@
-#include "gtest/gtest.h"
-
-#include "stout/grpc/client.h"
-#include "stout/grpc/server.h"
-
-// https://github.com/grpc/grpc/blob/master/examples/protos/helloworld.proto
 #include "examples/protos/helloworld.grpc.pb.h"
+#include "gtest/gtest.h"
+#include "stout/eventuals/grpc/client.h"
+#include "stout/eventuals/grpc/server.h"
+#include "stout/task.h"
+#include "test/test.h"
 
-#include "test.h"
-
-using helloworld::HelloRequest;
-using helloworld::HelloReply;
 using helloworld::Greeter;
+using helloworld::HelloReply;
+using helloworld::HelloRequest;
 
-using stout::Notification;
+using stout::borrowable;
 
-using stout::grpc::Client;
-using stout::grpc::ClientCallStatus;
-using stout::grpc::ServerBuilder;
+using stout::eventuals::grpc::Client;
+using stout::eventuals::grpc::CompletionPool;
+using stout::eventuals::grpc::ServerBuilder;
 
-
-TEST_F(StoutGrpcTest, Unimplemented)
-{
+TEST_F(StoutEventualsGrpcTest, Unimplemented) {
   ServerBuilder builder;
 
   int port = 0;
@@ -38,26 +33,23 @@ TEST_F(StoutGrpcTest, Unimplemented)
 
   ASSERT_TRUE(server);
 
+  borrowable<CompletionPool> pool;
+
   Client client(
       "0.0.0.0:" + stringify(port),
-      grpc::InsecureChannelCredentials());
+      grpc::InsecureChannelCredentials(),
+      pool.borrow());
 
-  Notification<grpc::Status> finished;
+  auto call = [&]() {
+    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
+        | (Client::Handler()
+               .body([](auto& call, auto&& response) {
+                 EXPECT_FALSE(response);
+                 call.WritesDone();
+               }));
+  };
 
-  auto status = client.Call<Greeter, HelloRequest, HelloReply>(
-      "SayHello",
-      [&](auto&& call, bool ok) {
-        EXPECT_TRUE(ok);
-        call->OnRead([&](auto* call, auto&& response) {
-          EXPECT_TRUE(!response);
-          auto status = call->Finish([&](auto*, const grpc::Status& status) {
-            finished.Notify(status);
-          });
-          EXPECT_EQ(ClientCallStatus::Ok, status);
-        });
-      });
+  auto status = *call();
 
-  ASSERT_TRUE(status.ok());
-
-  ASSERT_EQ(grpc::UNIMPLEMENTED, finished.Wait().error_code());
+  ASSERT_EQ(grpc::UNIMPLEMENTED, status.error_code());
 }

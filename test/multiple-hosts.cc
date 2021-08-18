@@ -1,22 +1,30 @@
+#include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
+#include "stout/eventuals/grpc/client.h"
+#include "stout/eventuals/grpc/server.h"
+#include "stout/eventuals/head.h"
+#include "stout/terminal.h"
+#include "stout/then.h"
+#include "test/test.h"
 
-#include "stout/grpc/client.h"
-#include "stout/grpc/server.h"
+using helloworld::Greeter;
+using helloworld::HelloReply;
+using helloworld::HelloRequest;
 
-// https://github.com/grpc/grpc/blob/master/examples/protos/keyvaluestore.proto
-#include "examples/protos/keyvaluestore.grpc.pb.h"
+using stout::borrowable;
 
-#include "test.h"
+using stout::eventuals::Head;
+using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 
-using stout::Notification;
-
-using stout::grpc::Client;
-using stout::grpc::ServerBuilder;
 using stout::grpc::Stream;
 
+using stout::eventuals::grpc::Client;
+using stout::eventuals::grpc::CompletionPool;
+using stout::eventuals::grpc::Server;
+using stout::eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutGrpcTest, MultipleHosts)
-{
+TEST_F(StoutEventualsGrpcTest, MultipleHosts) {
   ServerBuilder builder;
 
   int port = 0;
@@ -34,79 +42,49 @@ TEST_F(StoutGrpcTest, MultipleHosts)
 
   ASSERT_TRUE(server);
 
-  Notification<bool> berkeley_done;
-  
-  auto serve = server->Serve<
-    Stream<keyvaluestore::Request>,
-    Stream<keyvaluestore::Response>>(
-        "keyvaluestore.KeyValueStore.GetValues",
-        "cs.berkeley.edu",
-        [&](auto&& call) {
-          call->Finish(grpc::Status::OK);
-          call->OnDone([&](auto*, bool cancelled) {
-            berkeley_done.Notify(cancelled);
-          });
-        });
+  auto serve = [&](auto&& host) {
+    return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello", host)
+        | Head()
+        | Then([](auto&& context) {
+             return Server::Handler(std::move(context))
+                 .ready([&](auto& call) {
+                   call.Finish(grpc::Status::OK);
+                 });
+           });
+  };
 
-  ASSERT_TRUE(serve.ok());
+  auto [berkeley_cancelled, b] = Terminate(serve("cs.berkeley.edu"));
 
-  Notification<bool> washington_done;
+  b.Start();
 
-  serve = server->Serve<
-    Stream<keyvaluestore::Request>,
-    Stream<keyvaluestore::Response>>(
-        "keyvaluestore.KeyValueStore.GetValues",
-        "cs.washington.edu",
-        [&](auto&& call) {
-          call->Finish(grpc::Status::OK);
-          call->OnDone([&](auto*, bool cancelled) {
-            washington_done.Notify(cancelled);
-          });
-        });
+  auto [washington_cancelled, w] = Terminate(serve("cs.washington.edu"));
 
-  ASSERT_TRUE(serve.ok());
+  w.Start();
+
+  borrowable<CompletionPool> pool;
 
   Client client(
       "0.0.0.0:" + stringify(port),
-      grpc::InsecureChannelCredentials());
+      grpc::InsecureChannelCredentials(),
+      pool.borrow());
 
-  Notification<grpc::Status> berkeley_finished;
+  auto call = [&](auto&& host) {
+    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", host)
+        | (Client::Handler()
+               .ready([](auto& call) {
+                 call.WritesDone();
+               }));
+  };
 
-  auto status = client.Call<
-    Stream<keyvaluestore::Request>,
-    Stream<keyvaluestore::Response>>(
-        "keyvaluestore.KeyValueStore.GetValues",
-        "cs.berkeley.edu",
-        [&](auto&& call, bool ok) {
-          EXPECT_TRUE(ok);
-          call->Finish([&](auto*, const grpc::Status& status) {
-            berkeley_finished.Notify(status);
-          });
-        });
+  auto status = *call("cs.berkeley.edu");
 
-  ASSERT_TRUE(status.ok());
+  EXPECT_TRUE(status.ok());
 
-  ASSERT_TRUE(berkeley_finished.Wait().ok());
+  EXPECT_FALSE(berkeley_cancelled.get());
 
-  ASSERT_FALSE(berkeley_done.Wait());
+  status = *call("cs.washington.edu");
 
-  Notification<grpc::Status> washington_finished;
+  EXPECT_TRUE(status.ok());
 
-  status = client.Call<
-    Stream<keyvaluestore::Request>,
-    Stream<keyvaluestore::Response>>(
-        "keyvaluestore.KeyValueStore.GetValues",
-        "cs.washington.edu",
-        [&](auto&& call, bool ok) {
-          EXPECT_TRUE(ok);
-          call->Finish([&](auto*, const grpc::Status& status) {
-            washington_finished.Notify(status);
-          });
-        });
-
-  ASSERT_TRUE(status.ok());
-
-  ASSERT_TRUE(washington_finished.Wait().ok());
-
-  ASSERT_FALSE(washington_done.Wait());
+  EXPECT_FALSE(washington_cancelled.get());
 }
