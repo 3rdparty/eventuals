@@ -273,6 +273,11 @@ struct _Call {
 
 class Client {
  public:
+  template <typename Value, typename... Errors>
+  static auto Handler();
+
+  static auto Handler();
+
   Client(
       const std::string& target,
       const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
@@ -320,6 +325,36 @@ class Client {
   std::shared_ptr<::grpc::Channel> channel_;
   borrowed_ptr<CompletionPool> pool_;
 };
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Value, typename... Errors>
+auto Client::Handler() {
+  return _ClientHandler::Composable<
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Value,
+      Errors...>{};
+}
+
+////////////////////////////////////////////////////////////////////////
+
+inline auto Client::Handler() {
+  return _ClientHandler::Composable<
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined,
+      ::grpc::Status>{};
+}
 
 ////////////////////////////////////////////////////////////////////////
 

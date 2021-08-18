@@ -7,15 +7,10 @@
 namespace stout {
 namespace eventuals {
 namespace grpc {
-namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-using stout::eventuals::detail::operator|;
-
-////////////////////////////////////////////////////////////////////////
-
-struct _Handler {
+struct _ClientHandler {
   template <
       typename K_,
       typename Context_,
@@ -297,26 +292,6 @@ struct _Handler {
     Interrupt_ interrupt_;
   };
 };
-
-////////////////////////////////////////////////////////////////////////
-
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename Value, typename... Errors>
-auto Handler() {
-  return detail::_Handler::Composable<
-      Undefined,
-      Undefined,
-      Undefined,
-      Undefined,
-      Undefined,
-      Undefined,
-      Undefined,
-      Value,
-      Errors...>{};
-}
 
 ////////////////////////////////////////////////////////////////////////
 

@@ -1,28 +1,29 @@
+#include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
-
-#include "stout/task.h"
-
 #include "stout/eventuals/grpc/client.h"
-
-#include "stout/grpc/server.h"
-
-// https://github.com/grpc/grpc/blob/master/examples/protos/keyvaluestore.proto
-#include "examples/protos/keyvaluestore.grpc.pb.h"
-
+#include "stout/eventuals/grpc/server.h"
+#include "stout/eventuals/head.h"
+#include "stout/terminal.h"
+#include "stout/then.h"
 #include "test/test.h"
 
-using stout::borrowable;
-using stout::Notification;
+using helloworld::Greeter;
+using helloworld::HelloReply;
+using helloworld::HelloRequest;
 
-using stout::grpc::ServerBuilder;
+using stout::borrowable;
+
 using stout::grpc::Stream;
+
+using stout::eventuals::Head;
+using stout::eventuals::Then;
 
 using stout::eventuals::grpc::Client;
 using stout::eventuals::grpc::CompletionPool;
-using stout::eventuals::grpc::Handler;
+using stout::eventuals::grpc::Server;
+using stout::eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutEventualsGrpcTest, ServerDeathTest)
-{
+TEST_F(StoutEventualsGrpcTest, ServerDeathTest) {
   // NOTE: need pipes to get the server's port, this also helps
   // synchronize when the server is ready to have the client connect.
   int pipefd[2];
@@ -49,21 +50,22 @@ TEST_F(StoutEventualsGrpcTest, ServerDeathTest)
 
     ASSERT_TRUE(server);
 
-    auto serve = server->Serve<
-      Stream<keyvaluestore::Request>,
-      Stream<keyvaluestore::Response>>(
-          "keyvaluestore.KeyValueStore.GetValues",
-          [](auto&&) {
-            exit(1);
-          });
-
-    ASSERT_TRUE(serve.ok());
+    auto serve = [&]() {
+      return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
+          | Head()
+          | Then([](auto&& context) {
+               return Server::Handler(std::move(context))
+                   .ready([&](auto& call) {
+                     exit(1);
+                   });
+             });
+    };
 
     auto error = write(pipefd[1], &port, sizeof(int));
 
     ASSERT_LT(0, error);
 
-    server->Wait();
+    *serve();
   };
 
   std::thread thread([&]() {
@@ -84,21 +86,18 @@ TEST_F(StoutEventualsGrpcTest, ServerDeathTest)
       pool.borrow());
 
   auto call = [&]() {
-    return client.Call<
-      Stream<keyvaluestore::Request>,
-      Stream<keyvaluestore::Response>>(
-          "keyvaluestore.KeyValueStore.GetValues")
-      | (Handler<grpc::Status>()
-         .ready([](auto& call) {
-           keyvaluestore::Request request;
-           request.set_key("0");
-           call.WriteLast(request);
-         }));
+    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
+        | (Client::Handler()
+               .ready([](auto& call) {
+                 HelloRequest request;
+                 request.set_name("emily");
+                 call.WriteLast(request);
+               }));
   };
 
   auto status = *call();
 
-  ASSERT_EQ(grpc::UNAVAILABLE, status.error_code());
+  EXPECT_EQ(grpc::UNAVAILABLE, status.error_code());
 
   thread.join();
 

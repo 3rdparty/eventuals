@@ -1,28 +1,30 @@
+#include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
-
-#include "stout/task.h"
-
 #include "stout/eventuals/grpc/client.h"
-
-#include "stout/grpc/server.h"
-
-// https://github.com/grpc/grpc/blob/master/examples/protos/keyvaluestore.proto
-#include "examples/protos/keyvaluestore.grpc.pb.h"
-
+#include "stout/eventuals/grpc/server.h"
+#include "stout/eventuals/head.h"
+#include "stout/terminal.h"
+#include "stout/then.h"
 #include "test/test.h"
 
-using stout::borrowable;
-using stout::Notification;
+using helloworld::Greeter;
+using helloworld::HelloReply;
+using helloworld::HelloRequest;
 
-using stout::grpc::ServerBuilder;
+using stout::borrowable;
+
+using stout::eventuals::Head;
+using stout::eventuals::Terminate;
+using stout::eventuals::Then;
+
 using stout::grpc::Stream;
 
 using stout::eventuals::grpc::Client;
 using stout::eventuals::grpc::CompletionPool;
-using stout::eventuals::grpc::Handler;
+using stout::eventuals::grpc::Server;
+using stout::eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutEventualsGrpcTest, ClientDeathTest)
-{
+TEST_F(StoutEventualsGrpcTest, ClientDeathTest) {
   ServerBuilder builder;
 
   int port = 0;
@@ -40,19 +42,17 @@ TEST_F(StoutEventualsGrpcTest, ClientDeathTest)
 
   ASSERT_TRUE(server);
 
-  Notification<bool> done;
-  
-  auto serve = server->Serve<
-    Stream<keyvaluestore::Request>,
-    Stream<keyvaluestore::Response>>(
-        "keyvaluestore.KeyValueStore.GetValues",
-        [&](auto&& call) {
-          call->OnDone([&](auto* call, bool cancelled) {
-            done.Notify(cancelled);
-          });
-        });
+  auto serve = [&]() {
+    return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
+        | Head()
+        | Then([](auto&& context) {
+             return Server::Handler(std::move(context));
+           });
+  };
 
-  ASSERT_TRUE(serve.ok());
+  auto [cancelled, k] = Terminate(serve());
+
+  k.Start();
 
   auto client = [&]() {
     borrowable<CompletionPool> pool;
@@ -63,14 +63,11 @@ TEST_F(StoutEventualsGrpcTest, ClientDeathTest)
         pool.borrow());
 
     auto call = [&]() {
-      return client.Call<
-        Stream<keyvaluestore::Request>,
-        Stream<keyvaluestore::Response>>(
-            "keyvaluestore.KeyValueStore.GetValues")
-        | (Handler<grpc::Status>()
-           .ready([](auto&) {
-             exit(1);
-           }));
+      return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
+          | (Client::Handler()
+                 .ready([](auto&) {
+                   exit(1);
+                 }));
     };
 
     *call();
@@ -78,5 +75,5 @@ TEST_F(StoutEventualsGrpcTest, ClientDeathTest)
 
   ASSERT_DEATH(client(), "");
 
-  ASSERT_TRUE(done.Wait());
+  EXPECT_TRUE(cancelled.get());
 }

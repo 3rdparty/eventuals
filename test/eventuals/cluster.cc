@@ -1,40 +1,38 @@
+#include "stout/eventuals/grpc/cluster.h"
+
 #include <atomic>
 #include <string>
 #include <vector>
 
-#include "gtest/gtest.h"
-
-#include "stout/context.h"
-#include "stout/task.h"
-
-#include "stout/eventuals/grpc/cluster.h"
-
-#include "stout/grpc/server.h"
-
-// https://github.com/grpc/grpc/blob/master/examples/protos/helloworld.proto
 #include "examples/protos/helloworld.grpc.pb.h"
-
+#include "gtest/gtest.h"
+#include "stout/context.h"
+#include "stout/eventuals/grpc/server.h"
+#include "stout/eventuals/head.h"
+#include "stout/terminal.h"
+#include "stout/then.h"
 #include "test/test.h"
 
-using helloworld::HelloRequest;
-using helloworld::HelloReply;
+namespace eventuals = stout::eventuals;
+
 using helloworld::Greeter;
+using helloworld::HelloReply;
+using helloworld::HelloRequest;
 
 using stout::borrowable;
 
-using stout::grpc::Server;
-using stout::grpc::ServerBuilder;
-using stout::grpc::ServerCallStatus;
-
 using stout::eventuals::Context;
-using stout::eventuals::succeed;
+using stout::eventuals::Head;
+using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 
+using stout::eventuals::grpc::Client;
 using stout::eventuals::grpc::Cluster;
 using stout::eventuals::grpc::CompletionPool;
-using stout::eventuals::grpc::Handler;
+using stout::eventuals::grpc::Server;
+using stout::eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutEventualsGrpcTest, Cluster)
-{
+TEST_F(StoutEventualsGrpcTest, Cluster) {
   const size_t SERVERS = 2;
 
   std::vector<std::unique_ptr<Server>> servers;
@@ -58,58 +56,68 @@ TEST_F(StoutEventualsGrpcTest, Cluster)
 
     ASSERT_TRUE(server);
 
-    auto serve = server->Serve<Greeter, HelloRequest, HelloReply>(
-        "SayHello",
-        [](auto* call, auto&& request) {
-          EXPECT_TRUE(request);
-          HelloReply reply;
-          std::string prefix("Hello ");
-          reply.set_message(prefix + request->name());
-          EXPECT_EQ(
-              ServerCallStatus::Ok,
-              call->WriteAndFinish(reply, grpc::Status::OK));
-        },
-        [](auto*, bool cancelled) {
-          EXPECT_FALSE(cancelled);
-        });
-
-    ASSERT_TRUE(serve.ok());
-
     servers.push_back(std::move(server));
     ports.push_back(port);
   }
 
   ASSERT_EQ(SERVERS, ports.size());
 
+  auto serve = [](std::unique_ptr<Server>& server) {
+    return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
+        | Head()
+        | Then([](auto&& context) {
+             return Server::Handler(std::move(context))
+                 .body([](auto& call, auto&& request) {
+                   if (request) {
+                     HelloReply reply;
+                     std::string prefix("Hello ");
+                     reply.set_message(prefix + request->name());
+                     call.WriteAndFinish(reply, grpc::Status::OK);
+                   }
+                 });
+           });
+  };
+
+  using K = std::decay_t<
+      decltype(std::get<1>(Terminate(serve(servers.front()))))>;
+
+  std::deque<K> ks;
+
+  for (auto& server : servers) {
+    auto [_, k] = Terminate(serve(server));
+    ks.emplace_back(std::move(k)).Start();
+  }
+
   borrowable<CompletionPool> pool;
 
   Cluster cluster(
-      { "0.0.0.0:" + stringify(ports[0]),
-        "0.0.0.0:" + stringify(ports[1]) },
+      {"0.0.0.0:" + stringify(ports[0]),
+       "0.0.0.0:" + stringify(ports[1])},
       grpc::InsecureChannelCredentials(),
       pool);
 
   auto broadcast = [&]() {
     return cluster.Broadcast<Greeter, HelloRequest, HelloReply>("SayHello")
-      | (Handler<size_t>()
-         .context(Context<std::atomic<size_t>>(0))
-         .ready([](auto&, auto& broadcast, auto& call) {
-           HelloRequest request;
-           request.set_name("emily");
-           call.WriteLast(request);
-         })
-         .body([](auto&, auto& broadcast, auto& call, auto&& response) {
-           if (response) {
-             EXPECT_EQ("Hello emily", response->message());
-           }
-         })
-         .finished([](auto& finished, auto& k, auto& broadcast, auto&& status) {
-           EXPECT_TRUE(status.ok());
-           auto targets = ++*finished;
-           if (targets == broadcast.targets()) {
-             succeed(k, targets);
-           }
-         }));
+        | (Client::Handler<size_t>()
+               .context(Context<std::atomic<size_t>>(0))
+               .ready([](auto&, auto& broadcast, auto& call) {
+                 HelloRequest request;
+                 request.set_name("emily");
+                 call.WriteLast(request);
+               })
+               .body([](auto&, auto& broadcast, auto& call, auto&& response) {
+                 if (response) {
+                   EXPECT_EQ("Hello emily", response->message());
+                 }
+               })
+               .finished(
+                   [](auto& finished, auto& k, auto& broadcast, auto&& status) {
+                     EXPECT_TRUE(status.ok());
+                     auto targets = ++*finished;
+                     if (targets == broadcast.targets()) {
+                       eventuals::succeed(k, targets);
+                     }
+                   }));
   };
 
   auto finished = *broadcast();

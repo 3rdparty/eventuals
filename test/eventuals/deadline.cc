@@ -1,34 +1,28 @@
-#include "gtest/gtest.h"
-
-#include "stout/sequence.h"
-#include "stout/task.h"
-
-#include "stout/eventuals/grpc/client.h"
-
-#include "stout/grpc/server.h"
-
-// https://github.com/grpc/grpc/blob/master/examples/protos/helloworld.proto
 #include "examples/protos/helloworld.grpc.pb.h"
-
+#include "gtest/gtest.h"
+#include "stout/eventuals/grpc/client.h"
+#include "stout/eventuals/grpc/server.h"
+#include "stout/eventuals/head.h"
+#include "stout/terminal.h"
+#include "stout/then.h"
 #include "test/test.h"
 
-using helloworld::HelloRequest;
-using helloworld::HelloReply;
 using helloworld::Greeter;
+using helloworld::HelloReply;
+using helloworld::HelloRequest;
 
 using stout::borrowable;
-using stout::Notification;
-using stout::Sequence;
 
-using stout::grpc::ServerBuilder;
-using stout::grpc::ServerCallStatus;
+using stout::eventuals::Head;
+using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 
 using stout::eventuals::grpc::Client;
 using stout::eventuals::grpc::CompletionPool;
-using stout::eventuals::grpc::Handler;
+using stout::eventuals::grpc::Server;
+using stout::eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutEventualsGrpcTest, Deadline)
-{
+TEST_F(StoutEventualsGrpcTest, Deadline) {
   ServerBuilder builder;
 
   int port = 0;
@@ -46,18 +40,17 @@ TEST_F(StoutEventualsGrpcTest, Deadline)
 
   ASSERT_TRUE(server);
 
-  Notification<bool> done;
+  auto serve = [&]() {
+    return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
+        | Head()
+        | Then([](auto&& context) {
+             return Server::Handler(std::move(context));
+           });
+  };
 
-  auto serve = server->Serve<Greeter, HelloRequest, HelloReply>(
-      "SayHello",
-      [](auto* call, auto&& request) {
-        EXPECT_TRUE(request);
-      },
-      [&](auto*, bool cancelled) {
-        done.Notify(cancelled);
-      });
+  auto [cancelled, k] = Terminate(serve());
 
-  ASSERT_TRUE(serve.ok());
+  k.Start();
 
   borrowable<CompletionPool> pool;
 
@@ -68,21 +61,21 @@ TEST_F(StoutEventualsGrpcTest, Deadline)
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-      | (Handler<grpc::Status>()
-         .prepare([](auto& context) {
-           auto now = std::chrono::system_clock::now();
-           context.set_deadline(now + std::chrono::milliseconds(100));
-         })
-         .ready([](auto& call) {
-           HelloRequest request;
-           request.set_name("emily");
-           call.WriteLast(request);
-         }));
+        | (Client::Handler()
+               .prepare([](auto& context) {
+                 auto now = std::chrono::system_clock::now();
+                 context.set_deadline(now + std::chrono::milliseconds(100));
+               })
+               .ready([](auto& call) {
+                 HelloRequest request;
+                 request.set_name("emily");
+                 call.WriteLast(request);
+               }));
   };
 
   auto status = *call();
 
   ASSERT_EQ(grpc::DEADLINE_EXCEEDED, status.error_code());
 
-  ASSERT_TRUE(done.Wait());
+  ASSERT_TRUE(cancelled.get());
 }

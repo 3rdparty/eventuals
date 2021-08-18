@@ -24,6 +24,9 @@ cc_library(
         "stout/eventuals/grpc/handler.h",
         "stout/eventuals/grpc/cluster.h",
         "stout/eventuals/grpc/completion-pool.h",
+        "stout/eventuals/grpc/server.h",
+
+        "stout/eventuals/head.h",
     ],
     srcs = [
         "stout/grpc/client.cc",
@@ -31,7 +34,9 @@ cc_library(
         "stout/grpc/cluster.cc",
         "stout/grpc/server.cc",
         "stout/grpc/server-builder.cc",
-        "stout/grpc/server-call-base.cc",        
+        "stout/grpc/server-call-base.cc",
+
+        "stout/eventuals/grpc/server.cc",
     ],
     deps = [
         "@stout-borrowed-ptr//:borrowed_ptr",

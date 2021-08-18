@@ -1,30 +1,21 @@
-#include "gtest/gtest.h"
-
-#include "stout/task.h"
-
-#include "stout/grpc/server.h"
-
-#include "stout/eventuals/grpc/client.h"
-
-// https://github.com/grpc/grpc/blob/master/examples/protos/helloworld.proto
 #include "examples/protos/helloworld.grpc.pb.h"
-
+#include "gtest/gtest.h"
+#include "stout/eventuals/grpc/client.h"
+#include "stout/eventuals/grpc/server.h"
+#include "stout/task.h"
 #include "test/test.h"
 
-using helloworld::HelloRequest;
-using helloworld::HelloReply;
 using helloworld::Greeter;
+using helloworld::HelloReply;
+using helloworld::HelloRequest;
 
 using stout::borrowable;
 
-using stout::grpc::ServerBuilder;
-
 using stout::eventuals::grpc::Client;
 using stout::eventuals::grpc::CompletionPool;
-using stout::eventuals::grpc::Handler;
+using stout::eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutEventualsGrpcTest, Unimplemented)
-{
+TEST_F(StoutEventualsGrpcTest, Unimplemented) {
   ServerBuilder builder;
 
   int port = 0;
@@ -51,11 +42,11 @@ TEST_F(StoutEventualsGrpcTest, Unimplemented)
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-      | (Handler<grpc::Status>()
-         .body([](auto& call, auto&& response) {
-           EXPECT_FALSE(response);
-           call.WritesDone();
-         }));
+        | (Client::Handler()
+               .body([](auto& call, auto&& response) {
+                 EXPECT_FALSE(response);
+                 call.WritesDone();
+               }));
   };
 
   auto status = *call();
