@@ -17,17 +17,16 @@ using stout::eventuals::stop;
 using stout::eventuals::Terminate;
 using stout::eventuals::Then;
 
-using stout::uv::DomainNameResolver;
 using stout::uv::Loop;
 
+using namespace stout::uv;
 using testing::MockFunction;
 
 
 TEST(Libuv, IpSucceed) {
   Loop loop;
-  DomainNameResolver resolver;
 
-  auto e = resolver(loop, "docs.libuv.org", "6667");
+  auto e = ip::Resolve(loop, "docs.libuv.org", "6667");
 
   auto [future_ip, e1] = Terminate(e);
 
@@ -43,9 +42,8 @@ TEST(Libuv, IpSucceed) {
 
 TEST(Libuv, IpFail) {
   Loop loop;
-  DomainNameResolver resolver;
 
-  auto e = resolver(loop, "wwww.google.com", "6667");
+  auto e = ip::Resolve(loop, "wwww.google.com", "6667");
 
   auto [future_ip, e1] = Terminate(e);
   start(e1);
@@ -58,9 +56,8 @@ TEST(Libuv, IpFail) {
 
 TEST(Libuv, IpStop) {
   Loop loop;
-  DomainNameResolver resolver;
 
-  auto e = resolver(loop, "www.google.com", "6667")
+  auto e = ip::Resolve(loop, "www.google.com", "6667")
       | Eventual<int>()
             .start([](auto& k, auto&& ip) {
               // imagine that we got ip, and we try to connect
