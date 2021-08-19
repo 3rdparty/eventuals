@@ -26,100 +26,17 @@ class EventLoop {
     Clock(EventLoop& loop)
       : loop_(loop) {}
 
-    std::chrono::milliseconds Now() {
-      if (Paused()) {
-        return *paused_ + advanced_;
-      } else {
-        return std::chrono::milliseconds(uv_now(loop_));
-      }
-    }
+    std::chrono::milliseconds Now();
 
-    auto Timer(const std::chrono::milliseconds& milliseconds) {
-      return Eventual<void>()
-          .context(uv_timer_t())
-          // TODO(benh): borrow 'this'.
-          .start([this, milliseconds](auto& timer, auto& k) mutable {
-            uv_timer_init(loop_, &timer);
-            timer.data = &k;
+    auto Timer(const std::chrono::milliseconds& milliseconds);
 
-            auto start = [&timer](std::chrono::milliseconds milliseconds) {
-              uv_timer_start(
-                  &timer,
-                  [](uv_timer_t* timer) {
-                    eventuals::succeed(*(decltype(&k)) timer->data);
-                  },
-                  milliseconds.count(),
-                  0);
-            };
+    bool Paused();
 
-            if (!Paused()) { // TODO(benh): add 'unlikely()'.
-              start(milliseconds);
-            } else {
-              pending_.emplace_back(
-                  Pending{milliseconds + advanced_, std::move(start)});
-            }
-          });
-    }
+    void Pause();
 
-    bool Paused() {
-      return paused_.has_value();
-    }
+    void Resume();
 
-    void Pause() {
-      CHECK(!Paused()) << "clock is already paused";
-
-      // Make sure there aren't any started (i.e., active) timers.
-      size_t timers = 0;
-
-      uv_walk(
-          loop_,
-          [](uv_handle_t* handle, void* args) {
-            size_t* timers = (size_t*) args;
-            if (handle->type == UV_TIMER && uv_is_active(handle)) {
-              (*timers)++;
-            }
-          },
-          &timers);
-
-      CHECK_EQ(0, timers)
-          << "pausing the clock with outstanding timers is unsupported";
-
-      paused_.emplace(Now());
-
-      advanced_ = std::chrono::milliseconds(0);
-    }
-
-    void Resume() {
-      CHECK(Paused()) << "clock is not paused";
-
-      for (auto& pending : pending_) {
-        pending.start(pending.milliseconds - advanced_);
-      }
-
-      pending_.clear();
-
-      paused_.reset();
-    }
-
-    void Advance(const std::chrono::milliseconds& milliseconds) {
-      CHECK(Paused()) << "clock is not paused";
-
-      advanced_ += milliseconds;
-
-      pending_.erase(
-          std::remove_if(
-              pending_.begin(),
-              pending_.end(),
-              [this](Pending& pending) {
-                if (advanced_ >= pending.milliseconds) {
-                  pending.start(std::chrono::milliseconds(0));
-                  return true;
-                } else {
-                  return false;
-                }
-              }),
-          pending_.end());
-    }
+    void Advance(const std::chrono::milliseconds& milliseconds);
 
    private:
     EventLoop& loop_;
@@ -177,8 +94,48 @@ class EventLoop {
 ////////////////////////////////////////////////////////////////////////
 
 // Returns the default event loop's clock.
-auto& Clock() {
+inline auto& Clock() {
   return EventLoop::Default().clock();
+}
+
+////////////////////////////////////////////////////////////////////////
+
+inline std::chrono::milliseconds EventLoop::Clock::Now() {
+  if (Paused()) { // TODO(benh): add 'unlikely()'.
+    return *paused_ + advanced_;
+  } else {
+    return std::chrono::milliseconds(uv_now(loop_));
+  }
+}
+
+////////////////////////////////////////////////////////////////////////
+
+inline auto EventLoop::Clock::Timer(
+    const std::chrono::milliseconds& milliseconds) {
+  return Eventual<void>()
+      .context(uv_timer_t())
+      // TODO(benh): borrow 'this'.
+      .start([this, milliseconds](auto& timer, auto& k) mutable {
+        uv_timer_init(loop_, &timer);
+        timer.data = &k;
+
+        auto start = [&timer](std::chrono::milliseconds milliseconds) {
+          uv_timer_start(
+              &timer,
+              [](uv_timer_t* timer) {
+                eventuals::succeed(*(decltype(&k)) timer->data);
+              },
+              milliseconds.count(),
+              0);
+        };
+
+        if (!Paused()) { // TODO(benh): add 'unlikely()'.
+          start(milliseconds);
+        } else {
+          pending_.emplace_back(
+              Pending{milliseconds + advanced_, std::move(start)});
+        }
+      });
 }
 
 ////////////////////////////////////////////////////////////////////////
