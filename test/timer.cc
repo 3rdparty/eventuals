@@ -24,7 +24,7 @@ TEST(TimerTest, Succeed) {
   EXPECT_EQ(loop.clock().timers_active(), 1);
 
   auto start = loop.clock().Now();
-  loop.run(EventLoop::DEFAULT);
+  loop.Run();
   auto end = loop.clock().Now();
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);
@@ -61,7 +61,7 @@ TEST(TimerTest, PauseAndAdvanceClock) {
 
   EXPECT_EQ(loop.clock().timers_active(), 1);
 
-  loop.run(EventLoop::DEFAULT);
+  loop.Run();
 
   EXPECT_EQ(loop.clock().timers_active(), 0);
 
@@ -96,7 +96,7 @@ TEST(TimerTest, AddTimerAfterAdvancingClock) {
 
   EXPECT_TRUE(uv_loop_alive(loop));
 
-  loop.run(EventLoop::ONCE); // Fire timer 1.
+  loop.Run(); // Fire timer 1.
 
   future1.get();
 
@@ -111,7 +111,7 @@ TEST(TimerTest, AddTimerAfterAdvancingClock) {
   clock.Resume();
 
   auto start = loop.clock().Now();
-  loop.run(EventLoop::DEFAULT);
+  loop.Run();
   auto end = loop.clock().Now();
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);

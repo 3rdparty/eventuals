@@ -14,12 +14,6 @@ namespace eventuals {
 
 class EventLoop {
  public:
-  enum RunMode {
-    DEFAULT = 0,
-    ONCE,
-    NOWAIT
-  };
-
   class Clock {
    public:
     Clock() = delete;
@@ -133,8 +127,8 @@ class EventLoop {
     uv_loop_close(&loop_);
   }
 
-  void run(const RunMode& run_mode = DEFAULT) {
-    uv_run(&loop_, (uv_run_mode) run_mode);
+  void Run() {
+    uv_run(&loop_, UV_RUN_DEFAULT);
   }
 
   operator uv_loop_t*() {
