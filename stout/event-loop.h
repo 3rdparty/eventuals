@@ -5,7 +5,6 @@
 #include <list>
 #include <optional>
 
-#include "glog/logging.h"
 #include "stout/callback.h"
 #include "stout/eventual.h"
 #include "uv.h"
