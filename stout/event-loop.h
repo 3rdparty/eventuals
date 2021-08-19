@@ -55,8 +55,8 @@ class EventLoop {
             if (!Paused()) { // TODO(benh): add 'unlikely()'.
               start(milliseconds);
             } else {
-              timers_.emplace_back(
-                  PendingTimer{milliseconds + advanced_, std::move(start)});
+              pending_.emplace_back(
+                  Pending{milliseconds + advanced_, std::move(start)});
             }
           });
     }
@@ -68,7 +68,20 @@ class EventLoop {
     void Pause() {
       CHECK(!Paused()) << "clock is already paused";
 
-      CHECK_EQ(0, timers_active())
+      // Make sure there aren't any started (i.e., active) timers.
+      size_t timers = 0;
+
+      uv_walk(
+          loop_,
+          [](uv_handle_t* handle, void* args) {
+            size_t* timers = (size_t*) args;
+            if (handle->type == UV_TIMER && uv_is_active(handle)) {
+              (*timers)++;
+            }
+          },
+          &timers);
+
+      CHECK_EQ(0, timers)
           << "pausing the clock with outstanding timers is unsupported";
 
       paused_.emplace(Now());
@@ -79,11 +92,11 @@ class EventLoop {
     void Resume() {
       CHECK(Paused()) << "clock is not paused";
 
-      for (auto& timer : timers_) {
-        timer.start(timer.milliseconds - advanced_);
+      for (auto& pending : pending_) {
+        pending.start(pending.milliseconds - advanced_);
       }
 
-      timers_.clear();
+      pending_.clear();
 
       paused_.reset();
     }
@@ -93,38 +106,19 @@ class EventLoop {
 
       advanced_ += milliseconds;
 
-      for (auto& timer : timers_) {
-        if (timer.valid) {
-          if (advanced_ >= timer.milliseconds) {
-            timer.start(std::chrono::milliseconds(0));
-            timer.valid = false;
-          }
-        }
-      }
-
-      timers_.erase(
+      pending_.erase(
           std::remove_if(
-              timers_.begin(),
-              timers_.end(),
-              [](PendingTimer& timer) {
-                return !timer.valid;
+              pending_.begin(),
+              pending_.end(),
+              [this](Pending& pending) {
+                if (advanced_ >= pending.milliseconds) {
+                  pending.start(std::chrono::milliseconds(0));
+                  return true;
+                } else {
+                  return false;
+                }
               }),
-          timers_.end());
-    }
-
-    size_t timers_active() {
-      size_t num = timers_.size();
-
-      auto walk_cb = [](uv_handle_t* handle, void* args) {
-        size_t* num = (size_t*) args;
-        if (handle->type == UV_TIMER && uv_is_active(handle)) {
-          (*num)++;
-        }
-      };
-
-      uv_walk(loop_, walk_cb, &num);
-
-      return num;
+          pending_.end());
     }
 
    private:
@@ -134,16 +128,17 @@ class EventLoop {
     std::optional<std::chrono::milliseconds> paused_;
     std::chrono::milliseconds advanced_;
 
-    struct PendingTimer {
+    struct Pending {
       std::chrono::milliseconds milliseconds;
       Callback<std::chrono::milliseconds> start;
-      bool valid = true;
     };
 
-    std::list<PendingTimer> timers_;
+    std::list<Pending> pending_;
   };
 
   // Getter/Setter for default event loop.
+  //
+  // NOTE: takes ownership of event loop pointer.
   static EventLoop& Default();
   static EventLoop& Default(EventLoop* replacement);
 

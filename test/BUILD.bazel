@@ -15,6 +15,7 @@ cc_test(
         "closure.cc",
         "static-thread-pool-parallel.cc",
         "timer.cc",
+        "event-loop-test.h",
     ],
     deps = [
         "//:eventuals",
