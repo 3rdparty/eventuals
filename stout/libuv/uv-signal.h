@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "stout/context.h"
 #include "stout/eventual.h"
 #include "stout/libuv/loop.h"
 
@@ -10,47 +11,48 @@ using stout::uv::Loop;
 namespace stout {
 namespace uv {
 
+auto Signal(Loop& loop, const int signal_code) {
+  struct Data {
+    uv_signal_t signal;
+    std::atomic<bool> once_ = false;
+  };
 
-class Signal {
- public:
-  Signal() {
-    p_signal = std::make_unique<uv_signal_t>();
-  }
+  return stout::eventuals::Eventual<int>()
+      .context(stout::eventuals::Context<Data>())
+      .start([&, signal_code](auto& data, auto& k) {
+        auto status = uv_signal_init(loop, &(data->signal));
+        if (status) {
+          stout::eventuals::fail(k, uv_err_name(status));
+        } else {
+          //data->once_ = true;
+          data->signal.data = &k;
 
-  Signal(const Signal& signal) = delete;
-
-  auto operator()(Loop& loop, const int signal) {
-    return stout::eventuals::Eventual<void>()
-        .start([&, signal](auto& k) {
-          auto status = uv_signal_init(loop, p_signal.get());
-          if (status) {
-            stout::eventuals::fail(k, uv_err_name(status));
-          } else {
-            p_signal->data = &k;
-            auto signal_cb = [](uv_signal_t* handle, int signum) {
-              auto res = uv_signal_stop(handle);
-              if (res) {
-                stout::eventuals::fail(
-                    *static_cast<decltype(&k)>(handle->data),
-                    uv_err_name(res));
-              } else {
-                stout::eventuals::succeed(
-                    *static_cast<decltype(&k)>(handle->data));
-              }
-            };
-
-            auto res = uv_signal_start(p_signal.get(), signal_cb, signal);
+          auto signal_cb = [](uv_signal_t* handle, int signum) {
+            auto res = uv_signal_stop(handle);
             if (res) {
-              stout::eventuals::fail(k, uv_err_name(res));
+              stout::eventuals::fail(
+                  *static_cast<decltype(&k)>(handle->data),
+                  uv_err_name(res));
+            } else {
+              stout::eventuals::succeed(
+                  *static_cast<decltype(&k)>(handle->data),
+                  signum);
             }
+          };
+          auto res = uv_signal_start(&(data->signal), signal_cb, signal_code);
+          if (res) {
+            stout::eventuals::fail(k, uv_err_name(res));
           }
-        });
-  }
-
- private:
-  std::unique_ptr<uv_signal_t> p_signal;
-};
-
+          data->once_ = true;
+        }
+      })
+      .interrupt([](auto& data, auto& k) {
+        if (data->once_) {
+          uv_signal_stop(&(data->signal));
+        }
+        stout::eventuals::stop(k);
+      });
+}
 
 } // namespace uv
 } // namespace stout
