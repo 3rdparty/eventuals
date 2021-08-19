@@ -28,23 +28,31 @@ class EventLoop {
     Clock(EventLoop& loop)
       : loop_(loop) {}
 
+    std::chrono::milliseconds Now() {
+      if (Paused()) {
+        return *paused_ + advanced_;
+      } else {
+        return std::chrono::milliseconds(uv_now(loop_));
+      }
+    }
+
     bool Paused() {
       return paused_.has_value();
     }
 
     void Pause() {
-      CHECK(!Paused());
+      CHECK(!Paused()) << "clock is already paused";
 
       CHECK_EQ(0, timers_active())
           << "pausing the clock with outstanding timers is unsupported";
 
-      paused_.emplace(std::chrono::milliseconds(uv_now(loop_)));
+      paused_.emplace(Now());
 
       advanced_ = std::chrono::milliseconds(0);
     }
 
     void Resume() {
-      CHECK(Paused());
+      CHECK(Paused()) << "clock is not paused";
 
       for (auto& timer : timers_) {
         timer.start(timer.milliseconds - advanced_);
@@ -56,7 +64,7 @@ class EventLoop {
     }
 
     void Advance(const std::chrono::milliseconds& milliseconds) {
-      CHECK(Paused());
+      CHECK(Paused()) << "clock is not paused";
 
       advanced_ += milliseconds;
 

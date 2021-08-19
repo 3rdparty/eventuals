@@ -12,7 +12,7 @@ using stout::eventuals::Just;
 using stout::eventuals::Terminate;
 using stout::eventuals::Timer;
 
-TEST(TimerTest, SimpleTimer) {
+TEST(TimerTest, Succeed) {
   EventLoop loop;
 
   auto e = Timer(loop, std::chrono::milliseconds(10));
@@ -23,35 +23,24 @@ TEST(TimerTest, SimpleTimer) {
 
   EXPECT_EQ(loop.clock().timers_active(), 1);
 
-  uint64_t start = uv_now(loop);
+  auto start = loop.clock().Now();
   loop.run(EventLoop::DEFAULT);
-  uint64_t end = uv_now(loop);
-  uint64_t diff = end - start;
+  auto end = loop.clock().Now();
+
+  EXPECT_LE(std::chrono::milliseconds(10), end - start);
 
   EXPECT_EQ(loop.clock().timers_active(), 0);
-  EXPECT_TRUE(diff > 0 && diff < 20) << diff; // check if the timeout of timer2 was indeed 10ms
+
+  future.get();
 }
 
-TEST(TimerTest, FooAbstraction) {
-  class Foo {
-   public:
-    Foo(EventLoop& loop)
-      : loop_(loop) {}
 
-    auto Operation() {
-      return Timer(loop_, std::chrono::seconds(5))
-          | Just(42);
-    }
-
-   private:
-    EventLoop& loop_;
-  };
-
+TEST(TimerTest, PauseAndAdvanceClock) {
   EventLoop loop;
 
-  Foo foo(loop);
+  auto e = Timer(loop, std::chrono::seconds(5))
+      | Just(42);
 
-  auto e = foo.Operation();
   auto [future, k] = Terminate(e);
 
   loop.clock().Pause();
@@ -72,12 +61,13 @@ TEST(TimerTest, FooAbstraction) {
 
   EXPECT_EQ(loop.clock().timers_active(), 1);
 
-  loop.run(EventLoop::ONCE);
+  loop.run(EventLoop::DEFAULT);
 
   EXPECT_EQ(loop.clock().timers_active(), 0);
 
   EXPECT_EQ(42, future.get());
 }
+
 
 TEST(TimerTest, AddTimerAfterAdvancingClock) {
   EventLoop loop;
@@ -92,8 +82,7 @@ TEST(TimerTest, AddTimerAfterAdvancingClock) {
 
   EXPECT_EQ(loop.clock().timers_active(), 1);
 
-  clock.Advance(std::chrono::seconds(1));
-  // timer1 - 4000ms
+  clock.Advance(std::chrono::seconds(1)); // Timer 1 in 4000ms.
 
   auto e2 = Timer(loop, std::chrono::seconds(5));
   auto [future2, k2] = Terminate(e2);
@@ -103,30 +92,31 @@ TEST(TimerTest, AddTimerAfterAdvancingClock) {
 
   EXPECT_FALSE(uv_loop_alive(loop));
 
-  clock.Advance(std::chrono::seconds(4));
-  // timer1 - fired! timer2 - 1000ms
+  clock.Advance(std::chrono::seconds(4)); // Timer 1 fired, timer 2 in 1000ms.
 
   EXPECT_TRUE(uv_loop_alive(loop));
 
-  loop.run(EventLoop::ONCE); // fire the timer1
+  loop.run(EventLoop::ONCE); // Fire timer 1.
+
+  future1.get();
 
   EXPECT_EQ(loop.clock().timers_active(), 1);
 
   EXPECT_FALSE(uv_loop_alive(loop));
 
-  clock.Advance(std::chrono::milliseconds(990));
-  // timer2 - 10ms
+  clock.Advance(std::chrono::milliseconds(990)); // Timer 2 in 10ms.
 
   EXPECT_FALSE(uv_loop_alive(loop));
 
   clock.Resume();
 
-  uint64_t start = uv_now(loop);
+  auto start = loop.clock().Now();
   loop.run(EventLoop::DEFAULT);
-  uint64_t end = uv_now(loop);
-  uint64_t diff = end - start;
+  auto end = loop.clock().Now();
+
+  EXPECT_LE(std::chrono::milliseconds(10), end - start);
 
   EXPECT_EQ(loop.clock().timers_active(), 0);
 
-  EXPECT_TRUE(diff > 0 && diff < 20) << diff; // check if the timeout of timer2 was indeed 10ms
+  future2.get();
 }
