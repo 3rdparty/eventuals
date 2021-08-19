@@ -1,19 +1,19 @@
-#include "stout/libuv/timer.h"
+#include "stout/timer.h"
 
 #include "gtest/gtest.h"
+#include "stout/event-loop.h"
 #include "stout/just.h"
-#include "stout/libuv/loop.h"
 #include "stout/terminal.h"
 
 namespace eventuals = stout::eventuals;
 
+using stout::eventuals::EventLoop;
 using stout::eventuals::Just;
 using stout::eventuals::Terminate;
-using stout::uv::Loop;
-using stout::uv::Timer;
+using stout::eventuals::Timer;
 
-TEST(LibuvTimerTest, SimpleTimer) {
-  Loop loop;
+TEST(TimerTest, SimpleTimer) {
+  EventLoop loop;
 
   auto e = Timer(loop, std::chrono::milliseconds(10));
 
@@ -24,7 +24,7 @@ TEST(LibuvTimerTest, SimpleTimer) {
   EXPECT_EQ(loop.clock().timers_active(), 1);
 
   uint64_t start = uv_now(loop);
-  loop.run(stout::uv::Loop::DEFAULT);
+  loop.run(EventLoop::DEFAULT);
   uint64_t end = uv_now(loop);
   uint64_t diff = end - start;
 
@@ -32,10 +32,10 @@ TEST(LibuvTimerTest, SimpleTimer) {
   EXPECT_TRUE(diff > 0 && diff < 20) << diff; // check if the timeout of timer2 was indeed 10ms
 }
 
-TEST(LibuvTimerTest, FooAbstraction) {
+TEST(TimerTest, FooAbstraction) {
   class Foo {
    public:
-    Foo(Loop& loop)
+    Foo(EventLoop& loop)
       : loop_(loop) {}
 
     auto Operation() {
@@ -44,10 +44,10 @@ TEST(LibuvTimerTest, FooAbstraction) {
     }
 
    private:
-    Loop& loop_;
+    EventLoop& loop_;
   };
 
-  Loop loop;
+  EventLoop loop;
 
   Foo foo(loop);
 
@@ -72,17 +72,17 @@ TEST(LibuvTimerTest, FooAbstraction) {
 
   EXPECT_EQ(loop.clock().timers_active(), 1);
 
-  loop.run(stout::uv::Loop::ONCE);
+  loop.run(EventLoop::ONCE);
 
   EXPECT_EQ(loop.clock().timers_active(), 0);
 
   EXPECT_EQ(42, future.get());
 }
 
-TEST(LibuvTimerTest, AddTimerAfterAdvancingClock) {
-  Loop loop;
+TEST(TimerTest, AddTimerAfterAdvancingClock) {
+  EventLoop loop;
 
-  Loop::Clock& clock = loop.clock();
+  EventLoop::Clock& clock = loop.clock();
 
   clock.Pause();
 
@@ -108,7 +108,7 @@ TEST(LibuvTimerTest, AddTimerAfterAdvancingClock) {
 
   EXPECT_TRUE(uv_loop_alive(loop));
 
-  loop.run(stout::uv::Loop::ONCE); // fire the timer1
+  loop.run(EventLoop::ONCE); // fire the timer1
 
   EXPECT_EQ(loop.clock().timers_active(), 1);
 
@@ -122,7 +122,7 @@ TEST(LibuvTimerTest, AddTimerAfterAdvancingClock) {
   clock.Resume();
 
   uint64_t start = uv_now(loop);
-  loop.run(stout::uv::Loop::DEFAULT);
+  loop.run(EventLoop::DEFAULT);
   uint64_t end = uv_now(loop);
   uint64_t diff = end - start;
 

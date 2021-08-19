@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <iostream>
 #include <list>
 #include <optional>
 
@@ -10,12 +9,10 @@
 #include "stout/callback.h"
 #include "uv.h"
 
-using stout::Callback;
-
 namespace stout {
-namespace uv {
+namespace eventuals {
 
-class Loop {
+class EventLoop {
  public:
   enum RunMode {
     DEFAULT = 0,
@@ -28,7 +25,7 @@ class Loop {
     Clock() = delete;
     Clock(const Clock&) = delete;
 
-    Clock(Loop& loop)
+    Clock(EventLoop& loop)
       : loop_(loop) {}
 
     bool Paused() {
@@ -72,13 +69,16 @@ class Loop {
         }
       }
 
-      timers_.erase(std::remove_if(timers_.begin(), timers_.end(), [](Timer& timer) {
-                      return !timer.valid;
-                    }),
-                    timers_.end());
+      timers_.erase(
+          std::remove_if(timers_.begin(), timers_.end(), [](Timer& timer) {
+            return !timer.valid;
+          }),
+          timers_.end());
     }
 
-    void Enqueue(const std::chrono::milliseconds& milliseconds, Callback<std::chrono::milliseconds> start) {
+    void Enqueue(
+        const std::chrono::milliseconds& milliseconds,
+        Callback<std::chrono::milliseconds> start) {
       CHECK(Paused());
       timers_.emplace_back(Timer{milliseconds + advanced_, std::move(start)});
     }
@@ -99,8 +99,10 @@ class Loop {
     }
 
    private:
-    Loop& loop_;
-    std::optional<std::chrono::milliseconds> paused_; // stores paused time, no time means clock is not paused
+    EventLoop& loop_;
+
+    // Stores paused time, no time means clock is not paused.
+    std::optional<std::chrono::milliseconds> paused_;
     std::chrono::milliseconds advanced_;
 
     struct Timer {
@@ -112,14 +114,14 @@ class Loop {
     std::list<Timer> timers_;
   };
 
-  Loop()
+  EventLoop()
     : clock_(*this) {
     uv_loop_init(&loop_);
   }
 
-  Loop(const Loop&) = delete;
+  EventLoop(const EventLoop&) = delete;
 
-  ~Loop() {
+  ~EventLoop() {
     uv_loop_close(&loop_);
   }
 
@@ -140,5 +142,5 @@ class Loop {
   Clock clock_;
 };
 
-} // namespace uv
+} // namespace eventuals
 } // namespace stout

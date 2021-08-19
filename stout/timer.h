@@ -1,13 +1,13 @@
 #pragma once
 
+#include "stout/event-loop.h"
 #include "stout/eventual.h"
-#include "stout/libuv/loop.h"
 
 namespace stout {
-namespace uv {
+namespace eventuals {
 
-auto Timer(Loop& loop, const std::chrono::milliseconds& milliseconds) {
-  return eventuals::Eventual<void>()
+auto Timer(EventLoop& loop, const std::chrono::milliseconds& milliseconds) {
+  return Eventual<void>()
       .context(uv_timer_t())
       .start([&loop, milliseconds](auto& timer, auto& k) mutable {
         uv_timer_init(loop, &timer);
@@ -31,5 +31,5 @@ auto Timer(Loop& loop, const std::chrono::milliseconds& milliseconds) {
       });
 }
 
-} // namespace uv
+} // namespace eventuals
 } // namespace stout
