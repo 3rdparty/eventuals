@@ -7,16 +7,20 @@
 
 #include "glog/logging.h"
 #include "stout/callback.h"
+#include "stout/eventual.h"
 #include "uv.h"
+
+////////////////////////////////////////////////////////////////////////
 
 namespace stout {
 namespace eventuals {
+
+////////////////////////////////////////////////////////////////////////
 
 class EventLoop {
  public:
   class Clock {
    public:
-    Clock() = delete;
     Clock(const Clock&) = delete;
 
     Clock(EventLoop& loop)
@@ -28,6 +32,33 @@ class EventLoop {
       } else {
         return std::chrono::milliseconds(uv_now(loop_));
       }
+    }
+
+    auto Timer(const std::chrono::milliseconds& milliseconds) {
+      return Eventual<void>()
+          .context(uv_timer_t())
+          // TODO(benh): borrow 'this'.
+          .start([this, milliseconds](auto& timer, auto& k) mutable {
+            uv_timer_init(loop_, &timer);
+            timer.data = &k;
+
+            auto start = [&timer](std::chrono::milliseconds milliseconds) {
+              uv_timer_start(
+                  &timer,
+                  [](uv_timer_t* timer) {
+                    eventuals::succeed(*(decltype(&k)) timer->data);
+                  },
+                  milliseconds.count(),
+                  0);
+            };
+
+            if (!Paused()) { // TODO(benh): add 'unlikely()'.
+              start(milliseconds);
+            } else {
+              timers_.emplace_back(
+                  PendingTimer{milliseconds + advanced_, std::move(start)});
+            }
+          });
     }
 
     bool Paused() {
@@ -72,17 +103,13 @@ class EventLoop {
       }
 
       timers_.erase(
-          std::remove_if(timers_.begin(), timers_.end(), [](Timer& timer) {
-            return !timer.valid;
-          }),
+          std::remove_if(
+              timers_.begin(),
+              timers_.end(),
+              [](PendingTimer& timer) {
+                return !timer.valid;
+              }),
           timers_.end());
-    }
-
-    void Enqueue(
-        const std::chrono::milliseconds& milliseconds,
-        Callback<std::chrono::milliseconds> start) {
-      CHECK(Paused());
-      timers_.emplace_back(Timer{milliseconds + advanced_, std::move(start)});
     }
 
     size_t timers_active() {
@@ -107,14 +134,18 @@ class EventLoop {
     std::optional<std::chrono::milliseconds> paused_;
     std::chrono::milliseconds advanced_;
 
-    struct Timer {
+    struct PendingTimer {
       std::chrono::milliseconds milliseconds;
       Callback<std::chrono::milliseconds> start;
       bool valid = true;
     };
 
-    std::list<Timer> timers_;
+    std::list<PendingTimer> timers_;
   };
+
+  // Getter/Setter for default event loop.
+  static EventLoop& Default();
+  static EventLoop& Default(EventLoop* replacement);
 
   EventLoop()
     : clock_(*this) {
@@ -131,6 +162,10 @@ class EventLoop {
     uv_run(&loop_, UV_RUN_DEFAULT);
   }
 
+  bool Alive() {
+    return uv_loop_alive(&loop_);
+  }
+
   operator uv_loop_t*() {
     return &loop_;
   }
@@ -144,5 +179,16 @@ class EventLoop {
   Clock clock_;
 };
 
+////////////////////////////////////////////////////////////////////////
+
+// Returns the default event loop's clock.
+auto& Clock() {
+  return EventLoop::Default().clock();
+}
+
+////////////////////////////////////////////////////////////////////////
+
 } // namespace eventuals
 } // namespace stout
+
+////////////////////////////////////////////////////////////////////////
