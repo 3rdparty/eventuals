@@ -2,7 +2,7 @@
 #include "gtest/gtest.h"
 #include "stout/eventuals/grpc/client.h"
 #include "stout/eventuals/grpc/server.h"
-#include "stout/eventuals/head.h"
+#include "stout/head.h"
 #include "stout/then.h"
 #include "test/test.h"
 

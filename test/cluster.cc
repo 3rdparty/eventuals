@@ -8,7 +8,7 @@
 #include "gtest/gtest.h"
 #include "stout/context.h"
 #include "stout/eventuals/grpc/server.h"
-#include "stout/eventuals/head.h"
+#include "stout/head.h"
 #include "stout/terminal.h"
 #include "stout/then.h"
 #include "test/test.h"
