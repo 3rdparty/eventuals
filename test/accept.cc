@@ -1,15 +1,39 @@
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "stout/grpc/server.h"
+#include "stout/eventuals/grpc/server.h"
+#include "stout/head.h"
 #include "test/test.h"
 
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
-using stout::grpc::ServerBuilder;
+using stout::eventuals::Head;
+
+using stout::eventuals::grpc::ServerBuilder;
+
 using stout::grpc::Stream;
+
+#define EXPECT_THROW_WHAT(_expression_, _what_)                        \
+  [&]() {                                                              \
+    try {                                                              \
+      (_expression_);                                                  \
+    } catch (const std::exception& e) {                                \
+      if (std::string(e.what()) != std::string(_what_)) {              \
+        FAIL()                                                         \
+            << "std::exception::what() is '" << e.what()               \
+            << "' which does not match '" << (_what_) << "'";          \
+      } else {                                                         \
+        return;                                                        \
+      }                                                                \
+    } catch (...) {                                                    \
+      FAIL()                                                           \
+          << "caught exception does not inherit from std::exception "; \
+    }                                                                  \
+    FAIL() << "no exception thrown ";                                  \
+  }()
+
 
 TEST_F(StoutGrpcTest, ServeValidate) {
   ServerBuilder builder;
@@ -24,57 +48,75 @@ TEST_F(StoutGrpcTest, ServeValidate) {
 
   ASSERT_TRUE(server);
 
-  auto serve = server->Serve<
-      keyvaluestore::Request,
-      Stream<keyvaluestore::Response>>(
-      "keyvaluestore.KeyValueStore.GetValues",
-      [](auto&& call) {});
+  {
+    auto serve = [&]() {
+      return server->Accept<
+                 keyvaluestore::KeyValueStore,
+                 keyvaluestore::Request,
+                 Stream<keyvaluestore::Response>>("GetValues")
+          | Head();
+    };
 
-  ASSERT_FALSE(serve.ok());
-  EXPECT_EQ("Method has streaming requests", serve.error());
+    EXPECT_THROW_WHAT(*serve(), "Method has streaming requests");
+  }
 
-  serve = server->Serve<
-      Stream<keyvaluestore::Request>,
-      keyvaluestore::Response>(
-      "keyvaluestore.KeyValueStore.GetValues",
-      [](auto&& call) {});
+  {
+    auto serve = [&]() {
+      return server->Accept<
+                 keyvaluestore::KeyValueStore,
+                 Stream<keyvaluestore::Request>,
+                 keyvaluestore::Response>("GetValues")
+          | Head();
+    };
 
-  ASSERT_FALSE(serve.ok());
-  EXPECT_EQ("Method has streaming responses", serve.error());
+    EXPECT_THROW_WHAT(*serve(), "Method has streaming responses");
+  }
 
-  serve = server->Serve<Greeter, Stream<HelloRequest>, HelloReply>(
-      "SayHello",
-      [](auto&& call) {});
+  {
+    auto serve = [&]() {
+      return server->Accept<Greeter, Stream<HelloRequest>, HelloReply>(
+                 "SayHello")
+          | Head();
+    };
 
-  ASSERT_FALSE(serve.ok());
-  EXPECT_EQ("Method does not have streaming requests", serve.error());
+    EXPECT_THROW_WHAT(*serve(), "Method does not have streaming requests");
+  }
 
-  serve = server->Serve<Greeter, HelloRequest, Stream<HelloReply>>(
-      "SayHello",
-      [](auto&& call) {});
+  {
+    auto serve = [&]() {
+      return server->Accept<Greeter, HelloRequest, Stream<HelloReply>>(
+                 "SayHello")
+          | Head();
+    };
 
-  ASSERT_FALSE(serve.ok());
-  EXPECT_EQ("Method does not have streaming responses", serve.error());
+    EXPECT_THROW_WHAT(*serve(), "Method does not have streaming responses");
+  }
 
-  serve = server->Serve<
-      Stream<HelloRequest>,
-      Stream<keyvaluestore::Response>>(
-      "keyvaluestore.KeyValueStore.GetValues",
-      [](auto&& call) {});
+  {
+    auto serve = [&]() {
+      return server->Accept<
+                 keyvaluestore::KeyValueStore,
+                 Stream<HelloRequest>,
+                 Stream<keyvaluestore::Response>>("GetValues")
+          | Head();
+    };
 
-  ASSERT_FALSE(serve.ok());
-  EXPECT_EQ(
-      "Method does not have requests of type helloworld.HelloRequest",
-      serve.error());
+    EXPECT_THROW_WHAT(
+        *serve(),
+        "Method does not have requests of type helloworld.HelloRequest");
+  }
 
-  serve = server->Serve<
-      Stream<keyvaluestore::Request>,
-      Stream<HelloReply>>(
-      "keyvaluestore.KeyValueStore.GetValues",
-      [](auto&& call) {});
+  {
+    auto serve = [&]() {
+      return server->Accept<
+                 keyvaluestore::KeyValueStore,
+                 Stream<keyvaluestore::Request>,
+                 Stream<HelloReply>>("GetValues")
+          | Head();
+    };
 
-  ASSERT_FALSE(serve.ok());
-  EXPECT_EQ(
-      "Method does not have responses of type helloworld.HelloReply",
-      serve.error());
+    EXPECT_THROW_WHAT(
+        *serve(),
+        "Method does not have responses of type helloworld.HelloReply");
+  }
 }

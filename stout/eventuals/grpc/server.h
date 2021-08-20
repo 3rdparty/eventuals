@@ -271,12 +271,12 @@ auto Server::Validate(const std::string& name) {
 
   return Eventual<void>([method](auto& k) {
     if (method == nullptr) {
-      k.Fail(ServerStatus::Error("Method not found"));
+      k.Fail(std::runtime_error("Method not found"));
     } else {
       using Traits = ::stout::grpc::RequestResponseTraits;
       auto error = Traits::Validate<Request, Response>(method);
       if (error) {
-        k.Fail(ServerStatus::Error(error->message));
+        k.Fail(std::runtime_error(error->message));
       } else {
         k.Start();
       }
@@ -292,7 +292,7 @@ inline auto Server::Insert(std::unique_ptr<Endpoint>&& endpoint) {
         auto key = std::make_pair(endpoint->path(), endpoint->host());
 
         if (!endpoints_.try_emplace(key, std::move(endpoint)).second) {
-          k.Fail(ServerStatus::Error(
+          k.Fail(std::runtime_error(
               "Already serving " + endpoint->path()
               + " for host " + endpoint->host()));
         } else {
