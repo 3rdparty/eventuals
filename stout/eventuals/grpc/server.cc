@@ -260,7 +260,7 @@ ServerStatusOrServer ServerBuilder::BuildAndStart() {
         nullptr};
   }
 
-  service_ = absl::make_unique<::grpc::AsyncGenericService>();
+  service_ = std::make_unique<::grpc::AsyncGenericService>();
 
   builder_.RegisterAsyncGenericService(service_.get());
 
