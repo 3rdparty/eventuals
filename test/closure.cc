@@ -123,7 +123,7 @@ TEST(ClosureTest, Fail) {
            });
   };
 
-  EXPECT_THROW(*e(), eventuals::FailedException);
+  EXPECT_THROW(*e(), const char*);
 }
 
 

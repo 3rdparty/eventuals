@@ -86,7 +86,7 @@ TEST(RepeatTest, Fail) {
                });
   };
 
-  EXPECT_THROW(*r(), eventuals::FailedException);
+  EXPECT_THROW(*r(), const char*);
 }
 
 

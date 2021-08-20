@@ -249,49 +249,6 @@ struct StoppedException : public std::exception {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct FailedException : public std::exception {
-  // Helper for determining if a type can be converted into a string
-  // by streaming using 'std::stringstream' and '<<'.
-  template <typename S, typename T, typename = void>
-  struct Streamable : std::false_type {};
-
-  template <typename S, typename T>
-  struct Streamable<
-      S,
-      T,
-      decltype(void(std::declval<S&>() << std::declval<T const&>()))>
-    : std::true_type {};
-
-  template <typename Error>
-  FailedException(const Error& error) {
-    std::stringstream ss;
-    ss << "Eventual computation failed";
-    if constexpr (Streamable<std::stringstream, Error>::value) {
-      ss << ": " << error;
-    } else {
-      ss << " (error of type " << typeid(Error).name() << ")";
-    }
-    message_ = ss.str();
-  }
-
-  // NOTE: this copy constructor is necessary because the compiler
-  // might do a copy when doing a throw even though we have the move
-  // constructor below.
-  FailedException(const FailedException& that)
-    : message_(that.message_) {}
-
-  FailedException(FailedException&& that)
-    : message_(std::move(that.message_)) {}
-
-  const char* what() const throw() {
-    return message_.c_str();
-  }
-
-  std::string message_;
-};
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename E>
 auto Terminate(E e) {
   using Value = typename E::template ValueFrom<void>;
@@ -311,10 +268,12 @@ auto Terminate(E e) {
                promise.set_value(std::forward<decltype(values)>(values)...);
              })
              .fail([](auto& promise, auto&&... errors) {
+               static_assert(
+                   sizeof...(errors) == 0 || sizeof...(errors) == 1,
+                   "Task only supports 0 or 1 error, but found > 1");
                promise.set_exception(
                    std::make_exception_ptr(
-                       FailedException(
-                           std::forward<decltype(errors)>(errors)...)));
+                       std::forward<decltype(errors)>(errors)...));
              })
              .stop([](auto& promise) {
                promise.set_exception(

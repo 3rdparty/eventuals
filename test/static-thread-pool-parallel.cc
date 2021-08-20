@@ -115,7 +115,7 @@ TEST(StaticThreadPoolTest, ParallelIngressFail) {
                });
   };
 
-  EXPECT_THROW(*s(), eventuals::FailedException);
+  EXPECT_THROW(*s(), std::exception_ptr);
 }
 
 
@@ -172,7 +172,7 @@ TEST(StaticThreadPoolTest, ParallelWorkerFail) {
                });
   };
 
-  EXPECT_THROW(*s(), eventuals::FailedException);
+  EXPECT_THROW(*s(), std::exception_ptr);
 }
 
 

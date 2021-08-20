@@ -101,7 +101,7 @@ TEST(LockTest, Fail) {
         | Lambda([]() { return "t2"; });
   };
 
-  EXPECT_THROW(*e1(), eventuals::FailedException);
+  EXPECT_THROW(*e1(), const char*);
 
   EXPECT_STREQ("t2", *e2());
 }

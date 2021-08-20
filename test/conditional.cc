@@ -110,7 +110,7 @@ TEST(ConditionalTest, Fail) {
                [&](auto&&) { return els3(); });
   };
 
-  EXPECT_THROW(*c(), eventuals::FailedException);
+  EXPECT_THROW(*c(), const char*);
 }
 
 

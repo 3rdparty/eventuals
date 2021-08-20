@@ -156,7 +156,7 @@ TEST(StreamTest, Fail) {
               });
   };
 
-  EXPECT_THROW(*s(), eventuals::FailedException);
+  EXPECT_THROW(*s(), const char*);
 }
 
 

@@ -95,7 +95,7 @@ TEST(EventualTest, Fail) {
               });
   };
 
-  EXPECT_THROW(*e(), eventuals::FailedException);
+  EXPECT_THROW(*e(), const char*);
 }
 
 
@@ -175,8 +175,7 @@ TEST(EventualTest, Reuse) {
               .fail([](auto& promise, auto&& error) {
                 promise.set_exception(
                     std::make_exception_ptr(
-                        eventuals::FailedException(
-                            std::forward<decltype(error)>(error))));
+                        std::forward<decltype(error)>(error)));
               })
               .stop([](auto& promise) {
                 promise.set_exception(
@@ -226,7 +225,7 @@ TEST(EventualTest, Raise) {
         | Raise("error");
   };
 
-  EXPECT_THROW(*e(), eventuals::FailedException);
+  EXPECT_THROW(*e(), const char*);
 }
 
 

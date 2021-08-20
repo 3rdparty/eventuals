@@ -70,7 +70,7 @@ TEST(ThenTest, Fail) {
            });
   };
 
-  EXPECT_THROW(*c(), eventuals::FailedException);
+  EXPECT_THROW(*c(), const char*);
 }
 
 
