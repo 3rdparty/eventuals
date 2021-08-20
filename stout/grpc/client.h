@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cassert>
+
 #include "grpcpp/client_context.h"
 #include "grpcpp/completion_queue.h"
 #include "grpcpp/create_channel.h"

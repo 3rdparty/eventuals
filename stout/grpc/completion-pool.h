@@ -1,9 +1,9 @@
 #pragma once
 
+#include <cassert>
 #include <thread>
 
 #include "grpcpp/completion_queue.h"
-
 #include "stout/borrowable.h"
 #include "stout/callback.h"
 
@@ -12,7 +12,7 @@ namespace eventuals {
 namespace grpc {
 
 class CompletionPool {
-public:
+ public:
   CompletionPool() {
     unsigned int threads = std::thread::hardware_concurrency();
     threads_.reserve(threads);
@@ -21,12 +21,12 @@ public:
       cqs_.emplace_back(new borrowable<::grpc::CompletionQueue>());
       threads_.emplace_back(
           [cq = cqs_.back()->get()]() {
-          void* tag = nullptr;
-          bool ok = false;
-          while (cq->Next(&tag, &ok)) {
-            (*static_cast<Callback<bool>*>(tag))(ok);
-          }
-        });
+            void* tag = nullptr;
+            bool ok = false;
+            while (cq->Next(&tag, &ok)) {
+              (*static_cast<Callback<bool>*>(tag))(ok);
+            }
+          });
     }
   }
 
@@ -74,11 +74,11 @@ public:
         load = borrows;
       }
     }
-    assert(selected != nullptr);
+    CHECK(selected != nullptr);
     return selected->borrow();
   }
 
-private:
+ private:
   std::vector<std::unique_ptr<borrowable<::grpc::CompletionQueue>>> cqs_;
 
   std::vector<std::thread> threads_;
@@ -86,7 +86,6 @@ private:
   bool shutdown_ = false;
 };
 
-} // namespace grpc {
-} // namespace eventuals {
-} // namespace stout {
-
+} // namespace grpc
+} // namespace eventuals
+} // namespace stout
