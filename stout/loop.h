@@ -58,7 +58,7 @@ struct _Loop {
         handler_->Invoke();
       } else {
         if constexpr (IsUndefined<Start_>::value) {
-          eventuals::next(*stream_);
+          stream_->Next();
         } else if constexpr (IsUndefined<Context_>::value) {
           start_(*stream_);
         } else {
@@ -70,7 +70,7 @@ struct _Loop {
     template <typename... Args>
     void Fail(Args&&... args) {
       if constexpr (IsUndefined<Start_>::value) {
-        eventuals::fail(k_(), std::forward<Args>(args)...);
+        k_().Fail(std::forward<Args>(args)...);
       } else if constexpr (IsUndefined<Context_>::value) {
         fail_(k_(), std::forward<Args>(args)...);
       } else {
@@ -80,7 +80,7 @@ struct _Loop {
 
     void Stop() {
       if constexpr (IsUndefined<Start_>::value) {
-        eventuals::stop(k_());
+        k_().Stop();
       } else if constexpr (IsUndefined<Context_>::value) {
         stop_(k_());
       } else {
@@ -105,7 +105,7 @@ struct _Loop {
     template <typename... Args>
     void Body(Args&&... args) {
       if constexpr (IsUndefined<Body_>::value) {
-        eventuals::next(*stream_);
+        stream_->Next();
       } else if constexpr (IsUndefined<Context_>::value) {
         body_(*stream_, std::forward<Args>(args)...);
       } else {
@@ -119,7 +119,7 @@ struct _Loop {
           "Undefined 'ended' but 'Value' is _not_ void");
 
       if constexpr (IsUndefined<Ended_>::value) {
-        eventuals::succeed(k_());
+        k_().Start();
       } else if constexpr (IsUndefined<Context_>::value) {
         ended_(k_());
       } else {

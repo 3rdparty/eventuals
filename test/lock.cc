@@ -35,7 +35,7 @@ TEST(LockTest, Succeed) {
                .start([](auto& k) {
                  auto thread = std::thread(
                      [&k]() mutable {
-                       eventuals::succeed(k, "t1");
+                       k.Start("t1");
                      });
                  thread.detach();
                })
@@ -48,7 +48,7 @@ TEST(LockTest, Succeed) {
                .start([](auto& k) {
                  auto thread = std::thread(
                      [&k]() mutable {
-                       eventuals::succeed(k, "t2");
+                       k.Start("t2");
                      });
                  thread.detach();
                })
@@ -88,7 +88,7 @@ TEST(LockTest, Fail) {
               .start([](auto& k) {
                 auto thread = std::thread(
                     [&k]() mutable {
-                      fail(k, "error");
+                      k.Fail("error");
                     });
                 thread.detach();
               })
@@ -123,7 +123,7 @@ TEST(LockTest, Stop) {
                 start.Call();
               })
               .interrupt([](auto& k) {
-                eventuals::stop(k);
+                k.Stop();
               })
         | Release(&lock);
   };
@@ -139,7 +139,7 @@ TEST(LockTest, Stop) {
 
   k1.Register(interrupt);
 
-  eventuals::start(k1);
+  k1.Start();
 
   interrupt.Trigger();
 
@@ -157,7 +157,7 @@ TEST(LockTest, Wait) {
   auto e1 = [&]() {
     return Eventual<std::string>()
                .start([](auto& k) {
-                 eventuals::succeed(k, "t1");
+                 k.Start("t1");
                })
         | Acquire(&lock)
         | Wait(&lock,

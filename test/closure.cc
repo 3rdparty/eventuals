@@ -139,7 +139,7 @@ TEST(ClosureTest, Interrupt) {
                    start.Call();
                  })
                  .interrupt([](auto& k) {
-                   eventuals::stop(k);
+                   k.Stop();
                  });
            });
   };
@@ -155,7 +155,7 @@ TEST(ClosureTest, Interrupt) {
         interrupt.Trigger();
       });
 
-  eventuals::start(k);
+  k.Start();
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }

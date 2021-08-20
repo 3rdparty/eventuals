@@ -43,9 +43,9 @@ TEST(StreamTest, Succeed) {
                .context(5)
                .next([](auto& count, auto& k) {
                  if (count > 0) {
-                   eventuals::emit(k, count--);
+                   k.Emit(count--);
                  } else {
-                   eventuals::ended(k);
+                   k.Ended();
                  }
                })
                .done([&](auto&, auto&) {
@@ -55,10 +55,10 @@ TEST(StreamTest, Succeed) {
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
                 sum += value;
-                eventuals::next(stream);
+                stream.Next();
               })
               .ended([](auto& sum, auto& k) {
-                eventuals::succeed(k, sum);
+                k.Start(sum);
               })
               .fail([&](auto&, auto&, auto&&) {
                 fail.Call();
@@ -86,22 +86,22 @@ TEST(StreamTest, Done) {
     return Stream<int>()
                .context(0)
                .next([](auto& value, auto& k) {
-                 eventuals::emit(k, value);
+                 k.Emit(value);
                })
                .done([](auto&, auto& k) {
-                 eventuals::ended(k);
+                 k.Ended();
                })
         | Loop<int>()
               .context(0)
               .body([](auto& count, auto& stream, auto&&) {
                 if (++count == 2) {
-                  eventuals::done(stream);
+                  stream.Done();
                 } else {
-                  eventuals::next(stream);
+                  stream.Next();
                 }
               })
               .ended([](auto& count, auto& k) {
-                eventuals::succeed(k, count);
+                k.Start(count);
               })
               .fail([&](auto&, auto&, auto&&) {
                 fail.Call();
@@ -135,7 +135,7 @@ TEST(StreamTest, Fail) {
     return Stream<int>()
                .context("error")
                .next([](auto& error, auto& k) {
-                 eventuals::fail(k, error);
+                 k.Fail(error);
                })
                .done([&](auto&, auto&) {
                  done.Call();
@@ -143,13 +143,13 @@ TEST(StreamTest, Fail) {
         | Loop<int>()
               .context(0)
               .body([](auto&, auto& stream, auto&&) {
-                eventuals::next(stream);
+                stream.Next();
               })
               .ended([&](auto&, auto&) {
                 ended.Call();
               })
               .fail([&](auto&, auto& k, auto&& error) {
-                eventuals::fail(k, std::forward<decltype(error)>(error));
+                k.Fail(std::forward<decltype(error)>(error));
               })
               .stop([&](auto&, auto&) {
                 stop.Call();
@@ -180,9 +180,9 @@ TEST(StreamTest, InterruptStream) {
                .context(Context<std::atomic<bool>>(false))
                .next([](auto& interrupted, auto& k) {
                  if (!interrupted->load()) {
-                   eventuals::emit(k, 0);
+                   k.Emit(0);
                  } else {
-                   eventuals::stop(k);
+                   k.Stop();
                  }
                })
                .done([&](auto&, auto&) {
@@ -198,7 +198,7 @@ TEST(StreamTest, InterruptStream) {
                       while (!triggered.load()) {
                         std::this_thread::yield();
                       }
-                      eventuals::next(k);
+                      k.Next();
                     });
                 thread.detach();
               })
@@ -209,7 +209,7 @@ TEST(StreamTest, InterruptStream) {
                 fail.Call();
               })
               .stop([](auto& k) {
-                eventuals::stop(k);
+                k.Stop();
               });
   };
 
@@ -219,7 +219,7 @@ TEST(StreamTest, InterruptStream) {
 
   k.Register(interrupt);
 
-  eventuals::start(k);
+  k.Start();
 
   interrupt.Trigger();
 
@@ -244,10 +244,10 @@ TEST(StreamTest, InterruptLoop) {
   auto s = [&]() {
     return Stream<int>()
                .next([](auto& k) {
-                 eventuals::emit(k, 0);
+                 k.Emit(0);
                })
                .done([](auto& k) {
-                 eventuals::ended(k);
+                 k.Ended();
                })
         | Loop<int>()
               .context(Context<std::atomic<bool>>(false))
@@ -257,7 +257,7 @@ TEST(StreamTest, InterruptLoop) {
                       while (!triggered.load()) {
                         std::this_thread::yield();
                       }
-                      eventuals::done(k);
+                      k.Done();
                     });
                 thread.detach();
               })
@@ -266,9 +266,9 @@ TEST(StreamTest, InterruptLoop) {
               })
               .ended([](auto& interrupted, auto& k) {
                 if (interrupted->load()) {
-                  eventuals::stop(k);
+                  k.Stop();
                 } else {
-                  eventuals::fail(k, "error");
+                  k.Fail("error");
                 }
               })
               .fail([&](auto&, auto&&) {
@@ -285,7 +285,7 @@ TEST(StreamTest, InterruptLoop) {
 
   k.Register(interrupt);
 
-  eventuals::start(k);
+  k.Start();
 
   interrupt.Trigger();
 
@@ -301,9 +301,9 @@ TEST(StreamTest, InfiniteLoop) {
                .context(5)
                .next([](auto& count, auto& k) {
                  if (count > 0) {
-                   eventuals::emit(k, count--);
+                   k.Emit(count--);
                  } else {
-                   eventuals::ended(k);
+                   k.Ended();
                  }
                })
         | Map(Lambda([](int i) { return i + 1; }))
@@ -320,9 +320,9 @@ TEST(StreamTest, MapLambdaLoop) {
                .context(5)
                .next([](auto& count, auto& k) {
                  if (count > 0) {
-                   eventuals::emit(k, count--);
+                   k.Emit(count--);
                  } else {
-                   eventuals::ended(k);
+                   k.Ended();
                  }
                })
         | Map(Lambda([](int i) { return i + 1; }))
@@ -330,10 +330,10 @@ TEST(StreamTest, MapLambdaLoop) {
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
                 sum += value;
-                eventuals::next(stream);
+                stream.Next();
               })
               .ended([](auto& sum, auto& k) {
-                eventuals::succeed(k, sum);
+                k.Start(sum);
               });
   };
 
@@ -347,13 +347,13 @@ TEST(StreamTest, MapLambdaReduce) {
                .context(5)
                .next([](auto& count, auto& k) {
                  if (count > 0) {
-                   eventuals::emit(k, count--);
+                   k.Emit(count--);
                  } else {
-                   eventuals::ended(k);
+                   k.Ended();
                  }
                })
                .done([](auto&, auto& k) {
-                 eventuals::ended(k);
+                 k.Ended();
                })
         | Map(Lambda([](int i) {
              return i + 1;
@@ -378,17 +378,17 @@ TEST(StreamTest, MapEventualReduce) {
                .context(5)
                .next([](auto& count, auto& k) {
                  if (count > 0) {
-                   eventuals::emit(k, count--);
+                   k.Emit(count--);
                  } else {
-                   eventuals::ended(k);
+                   k.Ended();
                  }
                })
                .done([](auto&, auto& k) {
-                 eventuals::ended(k);
+                 k.Ended();
                })
         | Map(Eventual<int>()
                   .start([](auto& k, auto&& i) {
-                    eventuals::succeed(k, i + 1);
+                    k.Start(i + 1);
                   }))
         | Reduce(
                /* sum = */ 0,

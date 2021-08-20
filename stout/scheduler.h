@@ -99,7 +99,7 @@ struct _Reschedule {
     void Start(Args&&... args) {
       context_->Continue(
           [&]() {
-            eventuals::succeed(k_, std::forward<Args>(args)...);
+            k_.Start(std::forward<Args>(args)...);
           },
           [&]() {
             static_assert(
@@ -117,9 +117,9 @@ struct _Reschedule {
 
             return [this]() {
               if constexpr (sizeof...(args) == 1) {
-                eventuals::succeed(k_, std::move(*arg_));
+                k_.Start(std::move(*arg_));
               } else {
-                eventuals::succeed(k_);
+                k_.Start();
               }
             };
           });
@@ -129,7 +129,7 @@ struct _Reschedule {
     void Fail(Args&&... args) {
       context_->Continue(
           [&]() {
-            eventuals::fail(k_, std::forward<Args>(args)...);
+            k_.Fail(std::forward<Args>(args)...);
           },
           [&]() {
             // TODO(benh): avoid allocating on heap by storing args in
@@ -138,7 +138,7 @@ struct _Reschedule {
             return [tuple]() {
               std::apply(
                   [](auto* k_, auto&&... args) {
-                    eventuals::fail(*k_, std::forward<decltype(args)>(args)...);
+                    k_->Fail(std::forward<decltype(args)>(args)...);
                   },
                   std::move(*tuple));
               delete tuple;
@@ -148,7 +148,7 @@ struct _Reschedule {
 
     void Stop() {
       context_->Continue([this]() {
-        eventuals::stop(k_);
+        k_.Stop();
       });
     }
 
@@ -262,7 +262,7 @@ struct _Preempt {
       auto* previous = Scheduler::Context::Switch(this);
       CHECK_EQ(previous, previous_);
 
-      eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
+      adaptor_->Start(std::forward<Args>(args)...);
 
       auto* context = Scheduler::Context::Switch(previous_);
       CHECK_EQ(context, this);
@@ -275,7 +275,7 @@ struct _Preempt {
       auto* previous = Scheduler::Context::Switch(this);
       CHECK_EQ(previous, previous_);
 
-      eventuals::fail(*adaptor_, std::forward<Args>(args)...);
+      adaptor_->Fail(std::forward<Args>(args)...);
 
       auto* context = Scheduler::Context::Switch(previous_);
       CHECK_EQ(context, this);
@@ -287,7 +287,7 @@ struct _Preempt {
       auto* previous = Scheduler::Context::Switch(this);
       CHECK_EQ(previous, previous_);
 
-      eventuals::stop(*adaptor_);
+      adaptor_->Stop();
 
       auto* context = Scheduler::Context::Switch(previous_);
       CHECK_EQ(context, this);

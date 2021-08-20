@@ -22,7 +22,7 @@ TEST(ThenTest, Succeed) {
     return Eventual<std::string>()
         .context(std::move(s))
         .start([](auto& s, auto& k) {
-          eventuals::succeed(k, std::move(s));
+          k.Start(std::move(s));
         });
   };
 
@@ -32,7 +32,7 @@ TEST(ThenTest, Succeed) {
                .start([](auto& value, auto& k) {
                  auto thread = std::thread(
                      [&value, &k]() mutable {
-                       eventuals::succeed(k, value);
+                       k.Start(value);
                      });
                  thread.detach();
                })
@@ -51,7 +51,7 @@ TEST(ThenTest, Fail) {
     return Eventual<std::string>()
         .context(s)
         .start([](auto& s, auto& k) {
-          eventuals::succeed(k, std::move(s));
+          k.Start(std::move(s));
         });
   };
 
@@ -60,7 +60,7 @@ TEST(ThenTest, Fail) {
                .start([](auto& k) {
                  auto thread = std::thread(
                      [&k]() mutable {
-                       fail(k, "error");
+                       k.Fail("error");
                      });
                  thread.detach();
                })
@@ -84,14 +84,14 @@ TEST(ThenTest, Interrupt) {
           start.Call();
         })
         .interrupt([](auto& k) {
-          eventuals::stop(k);
+          k.Stop();
         });
   };
 
   auto c = [&]() {
     return Eventual<int>()
                .start([](auto& k) {
-                 eventuals::succeed(k, 0);
+                 k.Start(0);
                })
         | Lambda([](int i) { return i + 1; })
         | Then([&](auto&& i) {
@@ -110,7 +110,7 @@ TEST(ThenTest, Interrupt) {
         interrupt.Trigger();
       });
 
-  eventuals::start(k);
+  k.Start();
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }

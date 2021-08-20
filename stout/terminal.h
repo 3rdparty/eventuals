@@ -295,7 +295,7 @@ template <typename E>
 auto operator*(E e) {
   auto [future, k] = Terminate(std::move(e));
 
-  start(k);
+  k.Start();
 
   return future.get();
 }

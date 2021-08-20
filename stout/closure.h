@@ -19,25 +19,25 @@ struct _Closure {
   struct Continuation {
     template <typename... Args>
     void Start(Args&&... args) {
-      eventuals::succeed(continuation(), std::forward<Args>(args)...);
+      continuation().Start(std::forward<Args>(args)...);
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(continuation(), std::forward<Args>(args)...);
+      continuation().Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(continuation());
+      continuation().Stop();
     }
 
     template <typename... Args>
     void Body(Args&&... args) {
-      eventuals::body(continuation(), std::forward<Args>(args)...);
+      continuation().Body(std::forward<Args>(args)...);
     }
 
     void Ended() {
-      eventuals::ended(continuation());
+      continuation().Ended();
     }
 
     void Register(Interrupt& interrupt) {

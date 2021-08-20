@@ -181,12 +181,12 @@ struct _StaticThreadPoolSchedule {
       assert(pinned.core);
 
       if (!(*pinned.core < pool()->concurrency)) {
-        eventuals::fail(k_, "'" + name() + "' required core is > total cores");
+        k_.Fail("'" + name() + "' required core is > total cores");
       } else {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
           Adapt();
           auto* previous = Scheduler::Context::Switch(this);
-          eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
+          adaptor_->Start(std::forward<Args>(args)...);
           previous = Scheduler::Context::Switch(previous);
           CHECK_EQ(previous, this);
         } else {
@@ -200,9 +200,9 @@ struct _StaticThreadPoolSchedule {
               [this]() {
                 Adapt();
                 if constexpr (sizeof...(args) > 0) {
-                  eventuals::succeed(*adaptor_, std::move(*arg_));
+                  adaptor_->Start(std::move(*arg_));
                 } else {
-                  eventuals::succeed(*adaptor_);
+                  adaptor_->Start();
                 }
               },
               this);
@@ -231,12 +231,12 @@ struct _StaticThreadPoolSchedule {
       assert(pinned.core);
 
       if (!(*pinned.core < pool()->concurrency)) {
-        eventuals::fail(k_, "'" + name() + "' required core is > total cores");
+        k_.Fail("'" + name() + "' required core is > total cores");
       } else {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
           Adapt();
           auto* previous = Scheduler::Context::Switch(this);
-          eventuals::fail(*adaptor_, std::forward<Args>(args)...);
+          adaptor_->Fail(std::forward<Args>(args)...);
           previous = Scheduler::Context::Switch(previous);
           CHECK_EQ(previous, this);
         } else {
@@ -251,8 +251,7 @@ struct _StaticThreadPoolSchedule {
                 std::apply(
                     [](auto* schedule, auto&&... args) {
                       schedule->Adapt();
-                      eventuals::fail(
-                          *schedule->adaptor_,
+                      schedule->adaptor_->Fail(
                           std::forward<decltype(args)>(args)...);
                     },
                     std::move(*tuple));
@@ -283,12 +282,12 @@ struct _StaticThreadPoolSchedule {
       assert(pinned.core);
 
       if (!(*pinned.core < pool()->concurrency)) {
-        eventuals::fail(k_, "'" + name() + "' required core is > total cores");
+        k_.Fail("'" + name() + "' required core is > total cores");
       } else {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
           Adapt();
           auto* previous = Scheduler::Context::Switch(this);
-          eventuals::stop(*adaptor_);
+          adaptor_->Stop();
           previous = Scheduler::Context::Switch(previous);
           CHECK_EQ(previous, this);
         } else {
@@ -297,7 +296,7 @@ struct _StaticThreadPoolSchedule {
           pool()->Submit(
               [this]() {
                 Adapt();
-                eventuals::stop(*adaptor_);
+                adaptor_->Stop();
               },
               this);
         }
@@ -400,7 +399,7 @@ struct _StaticThreadPoolParallel {
 
         parallel_->Start();
 
-        eventuals::succeed(k_, *this);
+        k_.Start(*this);
       }
 
       template <typename... Args>
@@ -413,7 +412,7 @@ struct _StaticThreadPoolParallel {
         std::optional<std::exception_ptr> exception =
             std::make_exception_ptr(std::forward<Args>(args)...);
 
-        eventuals::succeed(cleanup_, std::move(exception));
+        cleanup_.Start(std::move(exception));
 
         parallel_->done_.store(true);
       }
@@ -422,18 +421,18 @@ struct _StaticThreadPoolParallel {
         std::optional<std::exception_ptr> exception =
             std::make_exception_ptr(StoppedException());
 
-        eventuals::succeed(cleanup_, std::move(exception));
+        cleanup_.Start(std::move(exception));
 
         parallel_->done_.store(true);
       }
 
       template <typename... Args>
       void Body(Args&&...) {
-        eventuals::next(*CHECK_NOTNULL(stream_));
+        CHECK_NOTNULL(stream_)->Next();
       }
 
       void Ended() {
-        eventuals::succeed(cleanup_, std::optional<std::exception_ptr>());
+        cleanup_.Start(std::optional<std::exception_ptr>());
 
         parallel_->done_.store(true);
       }
@@ -444,17 +443,17 @@ struct _StaticThreadPoolParallel {
         // can be used to notify once workers start processing (which
         // they can't do until ingress has started which won't occur
         // until calling 'next(stream_)').
-        eventuals::body(k_);
+        k_.Body();
 
         std::call_once(next_, [this]() {
-          eventuals::next(*CHECK_NOTNULL(stream_));
+          CHECK_NOTNULL(stream_)->Next();
         });
       }
 
       void Done() override {
-        eventuals::done(*CHECK_NOTNULL(stream_));
+        CHECK_NOTNULL(stream_)->Done();
 
-        eventuals::ended(k_);
+        k_.Ended();
       }
 
       void Register(Interrupt& interrupt) {
@@ -502,7 +501,7 @@ struct _StaticThreadPoolParallel {
     template <typename K_>
     struct Continuation {
       void Start(TypeErasedStream& stream) {
-        eventuals::succeed(k_, stream);
+        k_.Start(stream);
       }
 
       // NOTE: we should "catch" any failures or stops and save in
@@ -513,7 +512,7 @@ struct _StaticThreadPoolParallel {
 
       template <typename... Args>
       void Body(Args&&... args) {
-        eventuals::body(k_, std::forward<Args>(args)...);
+        k_.Body(std::forward<Args>(args)...);
       }
 
       void Ended() {
@@ -524,12 +523,12 @@ struct _StaticThreadPoolParallel {
           try {
             std::rethrow_exception(*exception_);
           } catch (const StoppedException&) {
-            eventuals::stop(k_);
+            k_.Stop();
           } catch (...) {
-            eventuals::fail(k_, std::current_exception());
+            k_.Fail(std::current_exception());
           }
         } else {
-          eventuals::ended(k_);
+          k_.Ended();
         }
       }
 
@@ -563,7 +562,7 @@ struct _StaticThreadPoolParallel {
     struct Continuation {
       void Start(TypeErasedStream& stream) {
         stream_ = &stream;
-        eventuals::next(*CHECK_NOTNULL(stream_));
+        CHECK_NOTNULL(stream_)->Next();
       }
 
       template <typename... Args>
@@ -576,29 +575,29 @@ struct _StaticThreadPoolParallel {
         std::optional<std::exception_ptr> exception =
             std::make_exception_ptr(std::forward<Args>(args)...);
 
-        eventuals::succeed(cleanup_, std::move(exception));
+        cleanup_.Start(std::move(exception));
 
         // TODO(benh): render passing 'Undefined()' unnecessary.
-        eventuals::succeed(k_, Undefined());
+        k_.Start(Undefined());
       }
 
       void Stop() {
         std::optional<std::exception_ptr> exception =
             std::make_exception_ptr(StoppedException());
 
-        eventuals::succeed(cleanup_, std::move(exception));
+        cleanup_.Start(std::move(exception));
 
         // TODO(benh): render passing 'Undefined()' unnecessary.
-        eventuals::succeed(k_, Undefined());
+        k_.Start(Undefined());
       }
 
       void Body() {
-        eventuals::next(*CHECK_NOTNULL(stream_));
+        CHECK_NOTNULL(stream_)->Next();
       }
 
       void Ended() {
         // TODO(benh): render passing 'Undefined()' unnecessary.
-        eventuals::succeed(k_, Undefined());
+        k_.Start(Undefined());
       }
 
       void Register(Interrupt& interrupt) {
@@ -780,7 +779,7 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
                      // TODO(benh): create 'Move()' like abstraction that does:
                      Eventual<Arg_>()
                          .start([worker](auto& k) {
-                           eventuals::succeed(k, std::move(*worker->arg));
+                           k.Start(std::move(*worker->arg));
                          })
                      | f_()
                      | Acquire(lock())

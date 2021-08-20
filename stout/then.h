@@ -18,16 +18,16 @@ struct _Then {
   struct Adaptor {
     template <typename... Args>
     void Start(Args&&... args) {
-      eventuals::succeed(k_, std::forward<Args>(args)...);
+      k_.Start(std::forward<Args>(args)...);
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt&) {
@@ -53,16 +53,16 @@ struct _Then {
         adaptor_->Register(*interrupt_);
       }
 
-      eventuals::succeed(*adaptor_);
+      adaptor_->Start();
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {

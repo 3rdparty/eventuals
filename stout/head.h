@@ -23,11 +23,11 @@ struct _Head {
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Body(Arg_ arg) {
@@ -36,7 +36,7 @@ struct _Head {
     }
 
     void Ended() {
-      eventuals::succeed(k_, std::move(*arg_));
+      k_.Start(std::move(*arg_));
     }
 
     void Register(Interrupt& interrupt) {

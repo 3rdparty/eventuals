@@ -19,7 +19,7 @@ struct _Catch {
   struct Continuation {
     template <typename... Args>
     void Start(Args&&... args) {
-      eventuals::succeed(k_, std::forward<Args>(args)...);
+      k_.Start(std::forward<Args>(args)...);
     }
 
     template <typename... Args>
@@ -42,11 +42,11 @@ struct _Catch {
         e->Register(*interrupt_);
       }
 
-      eventuals::succeed(*e);
+      e->Start();
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {

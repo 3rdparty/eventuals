@@ -23,13 +23,13 @@ TEST(StaticThreadPoolTest, Parallel) {
                .context(5)
                .next([](auto& count, auto& k) {
                  if (count > 0) {
-                   eventuals::emit(k, count--);
+                   k.Emit(count--);
                  } else {
-                   eventuals::ended(k);
+                   k.Ended();
                  }
                })
                .done([](auto&, auto& k) {
-                 eventuals::ended(k);
+                 k.Ended();
                })
         | StaticThreadPool::Scheduler().Parallel([]() {
             return Lambda([](int i) {
@@ -59,13 +59,13 @@ TEST(StaticThreadPoolTest, ParallelDone) {
                .context(5)
                .next([](auto& count, auto& k) {
                  if (count > 0) {
-                   eventuals::emit(k, count--);
+                   k.Emit(count--);
                  } else {
-                   eventuals::ended(k);
+                   k.Ended();
                  }
                })
                .done([](auto&, auto& k) {
-                 eventuals::ended(k);
+                 k.Ended();
                })
         | StaticThreadPool::Scheduler().Parallel([]() {
             return Lambda([](int i) {
@@ -94,10 +94,10 @@ TEST(StaticThreadPoolTest, ParallelIngressFail) {
     return Stream<int>()
                .context(5)
                .next([](auto& count, auto& k) {
-                 eventuals::fail(k, "error");
+                 k.Fail("error");
                })
                .done([](auto&, auto& k) {
-                 eventuals::ended(k);
+                 k.Ended();
                })
         | StaticThreadPool::Scheduler().Parallel([]() {
             return Lambda([](int i) {
@@ -124,10 +124,10 @@ TEST(StaticThreadPoolTest, ParallelIngressStop) {
     return Stream<int>()
                .context(5)
                .next([](auto& count, auto& k) {
-                 eventuals::stop(k);
+                 k.Stop();
                })
                .done([](auto&, auto& k) {
-                 eventuals::ended(k);
+                 k.Ended();
                })
         | StaticThreadPool::Scheduler().Parallel([]() {
             return Lambda([](int i) {
@@ -154,10 +154,10 @@ TEST(StaticThreadPoolTest, ParallelWorkerFail) {
     return Stream<int>()
                .context(5)
                .next([](auto& count, auto& k) {
-                 eventuals::emit(k, count--);
+                 k.Emit(count--);
                })
                .done([](auto&, auto& k) {
-                 eventuals::ended(k);
+                 k.Ended();
                })
         | StaticThreadPool::Scheduler().Parallel([]() {
             return Raise("error");
@@ -181,15 +181,15 @@ TEST(StaticThreadPoolTest, ParallelWorkerStop) {
     return Stream<int>()
                .context(5)
                .next([](auto& count, auto& k) {
-                 eventuals::emit(k, count--);
+                 k.Emit(count--);
                })
                .done([](auto&, auto& k) {
-                 eventuals::ended(k);
+                 k.Ended();
                })
         | StaticThreadPool::Scheduler().Parallel([]() {
             return Eventual<int>()
                 .start([](auto& k, auto&&...) {
-                  eventuals::stop(k);
+                  k.Stop();
                 });
           })
         | Reduce(

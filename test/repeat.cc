@@ -34,7 +34,7 @@ TEST(RepeatTest, Succeed) {
     return Eventual<int>()
         .context(i)
         .start([](auto& i, auto& k) {
-          eventuals::succeed(k, std::move(i));
+          k.Start(std::move(i));
         });
   };
 
@@ -64,7 +64,7 @@ TEST(RepeatTest, Fail) {
   auto e = [](auto) {
     return Eventual<int>()
         .start([](auto& k) {
-          eventuals::fail(k, "error");
+          k.Fail("error");
         });
   };
 
@@ -100,7 +100,7 @@ TEST(RepeatTest, Interrupt) {
           start.Call();
         })
         .interrupt([](auto& k) {
-          eventuals::stop(k);
+          k.Stop();
         });
   };
 
@@ -133,7 +133,7 @@ TEST(RepeatTest, Interrupt) {
         interrupt.Trigger();
       });
 
-  eventuals::start(k);
+  k.Start();
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
@@ -144,20 +144,20 @@ TEST(RepeatTest, Eventual) {
     return Repeat(
                Eventual<int>()
                    .start([](auto& k) {
-                     eventuals::succeed(k, 1);
+                     k.Start(1);
                    }))
         | Loop<int>()
               .context(0)
               .body([](auto&& count, auto& repeated, auto&& value) {
                 count += value;
                 if (count >= 5) {
-                  eventuals::done(repeated);
+                  repeated.Done();
                 } else {
-                  eventuals::next(repeated);
+                  repeated.Next();
                 }
               })
               .ended([](auto& count, auto& k) {
-                eventuals::succeed(k, std::move(count));
+                k.Start(std::move(count));
               });
   };
 
@@ -170,20 +170,20 @@ TEST(RepeatTest, Map) {
     return Repeat()
         | Map(Eventual<int>()
                   .start([](auto& k) {
-                    eventuals::succeed(k, 1);
+                    k.Start(1);
                   }))
         | Loop<int>()
               .context(0)
               .body([](auto&& count, auto& repeated, auto&& value) {
                 count += value;
                 if (count >= 5) {
-                  eventuals::done(repeated);
+                  repeated.Done();
                 } else {
-                  eventuals::next(repeated);
+                  repeated.Next();
                 }
               })
               .ended([](auto& count, auto& k) {
-                eventuals::succeed(k, std::move(count));
+                k.Start(std::move(count));
               });
   };
 
@@ -198,7 +198,7 @@ TEST(RepeatTest, MapAcquire) {
     return Repeat(
                Eventual<int>()
                    .start([](auto& k) {
-                     eventuals::succeed(k, 1);
+                     k.Start(1);
                    }))
         | Map(
                Acquire(&lock)
@@ -211,13 +211,13 @@ TEST(RepeatTest, MapAcquire) {
               .body([](auto&& count, auto& repeated, auto&& value) {
                 count += value;
                 if (count >= 5) {
-                  eventuals::done(repeated);
+                  repeated.Done();
                 } else {
-                  eventuals::next(repeated);
+                  repeated.Next();
                 }
               })
               .ended([](auto& count, auto& k) {
-                eventuals::succeed(k, std::move(count));
+                k.Start(std::move(count));
               });
   };
 

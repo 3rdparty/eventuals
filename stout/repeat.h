@@ -26,16 +26,16 @@ struct _Repeat {
     void Start(Args&&...) {
       previous_ = Scheduler::Context::Get();
 
-      eventuals::succeed(k_, *this);
+      k_.Start(*this);
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {
@@ -44,13 +44,13 @@ struct _Repeat {
 
     void Next() override {
       previous_->Continue([this]() {
-        eventuals::body(k_);
+        k_.Body();
       });
     }
 
     void Done() override {
       previous_->Continue([this]() {
-        eventuals::ended(k_);
+        k_.Ended();
       });
     }
 

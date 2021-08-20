@@ -27,14 +27,14 @@ TEST(ConditionalTest, Then) {
   auto then = []() {
     return Eventual<std::string>()
         .start([](auto& k) {
-          eventuals::succeed(k, "then");
+          k.Start("then");
         });
   };
 
   auto els3 = []() {
     return Eventual<std::string>()
         .start([](auto& k) {
-          eventuals::succeed(k, "else");
+          k.Start("else");
         });
   };
 
@@ -55,14 +55,14 @@ TEST(ConditionalTest, Else) {
   auto then = []() {
     return Eventual<std::string>()
         .start([](auto& k) {
-          eventuals::succeed(k, "then");
+          k.Start("then");
         });
   };
 
   auto els3 = []() {
     return Eventual<std::string>()
         .start([](auto& k) {
-          eventuals::succeed(k, "else");
+          k.Start("else");
         });
   };
 
@@ -83,14 +83,14 @@ TEST(ConditionalTest, Fail) {
   auto then = []() {
     return Eventual<std::string>()
         .start([](auto& k) {
-          eventuals::succeed(k, "then");
+          k.Start("then");
         });
   };
 
   auto els3 = []() {
     return Eventual<std::string>()
         .start([](auto& k) {
-          eventuals::succeed(k, "else");
+          k.Start("else");
         });
   };
 
@@ -99,7 +99,7 @@ TEST(ConditionalTest, Fail) {
                .start([](auto& k) {
                  auto thread = std::thread(
                      [&k]() mutable {
-                       fail(k, "error");
+                       k.Fail("error");
                      });
                  thread.detach();
                })
@@ -124,14 +124,14 @@ TEST(ConditionalTest, Interrupt) {
           start.Call();
         })
         .interrupt([](auto& k) {
-          eventuals::stop(k);
+          k.Stop();
         });
   };
 
   auto els3 = []() {
     return Eventual<std::string>()
         .start([](auto& k) {
-          eventuals::succeed(k, "else");
+          k.Start("else");
         });
   };
 
@@ -155,7 +155,7 @@ TEST(ConditionalTest, Interrupt) {
         interrupt.Trigger();
       });
 
-  eventuals::start(k);
+  k.Start();
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }

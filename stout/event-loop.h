@@ -162,6 +162,8 @@ inline auto EventLoop::Clock::Timer(
       .context(Data{loop_, milliseconds})
       // TODO(benh): borrow 'this'.
       .start([this](auto& data, auto& k) mutable {
+        using K = std::decay_t<decltype(k)>;
+
         data.k = &k;
         data.timer.data = &data;
 
@@ -174,7 +176,7 @@ inline auto EventLoop::Clock::Timer(
               auto error = uv_timer_init(loop, &data.timer);
               if (error) {
                 data.completed = true;
-                eventuals::fail(*(decltype(&k)) data.k, uv_strerror(error));
+                static_cast<K*>(data.k)->Fail(uv_strerror(error));
               } else {
                 auto error = uv_timer_start(
                     &data.timer,
@@ -184,7 +186,7 @@ inline auto EventLoop::Clock::Timer(
                       if (!data.completed) {
                         data.completed = true;
                         uv_close((uv_handle_t*) &data.timer, nullptr);
-                        eventuals::succeed(*(decltype(&k)) data.k);
+                        static_cast<K*>(data.k)->Start();
                       }
                     },
                     data.milliseconds.count(),
@@ -192,7 +194,7 @@ inline auto EventLoop::Clock::Timer(
 
                 if (error) {
                   uv_close((uv_handle_t*) &data.timer, nullptr);
-                  eventuals::fail(*(decltype(&k)) data.k, uv_strerror(error));
+                  static_cast<K*>(data.k)->Fail(uv_strerror(error));
                 } else {
                   data.started = true;
                 }
@@ -212,24 +214,25 @@ inline auto EventLoop::Clock::Timer(
         }
       })
       .interrupt([](auto& data, auto& k) {
+        using K = std::decay_t<decltype(k)>;
         data.interrupt = [&data](EventLoop&) {
           if (!data.started) {
             CHECK(!data.completed);
             data.completed = true;
-            eventuals::stop(*(decltype(&k)) data.k);
+            static_cast<K*>(data.k)->Stop();
           } else if (!data.completed) {
             data.completed = true;
             if (uv_is_active((uv_handle_t*) &data.timer)) {
               auto error = uv_timer_stop(&data.timer);
               uv_close((uv_handle_t*) &data.timer, nullptr);
               if (error) {
-                eventuals::fail(*(decltype(&k)) data.k, uv_strerror(error));
+                static_cast<K*>(data.k)->Fail(uv_strerror(error));
               } else {
-                eventuals::stop(*(decltype(&k)) data.k);
+                static_cast<K*>(data.k)->Stop();
               }
             } else {
               uv_close((uv_handle_t*) &data.timer, nullptr);
-              eventuals::stop(*(decltype(&k)) data.k);
+              static_cast<K*>(data.k)->Stop();
             }
           }
         };

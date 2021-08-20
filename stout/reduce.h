@@ -19,19 +19,19 @@ struct _Reduce {
   struct Adaptor {
     void Start(bool next) {
       if (next) {
-        eventuals::next(*stream_);
+        stream_->Next();
       } else {
-        eventuals::done(*stream_);
+        stream_->Done();
       }
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt&) {
@@ -47,18 +47,18 @@ struct _Reduce {
     void Start(detail::TypeErasedStream& stream) {
       stream_ = &stream;
 
-      eventuals::next(*stream_);
+      stream_->Next();
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
       // TODO(benh): do we need to stop via the adaptor?
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
       // TODO(benh): do we need to stop via the adaptor?
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     template <typename... Args>
@@ -73,11 +73,11 @@ struct _Reduce {
         }
       }
 
-      eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
+      adaptor_->Start(std::forward<Args>(args)...);
     }
 
     void Ended() {
-      eventuals::succeed(k_, std::move(t_));
+      k_.Start(std::move(t_));
     }
 
     void Register(Interrupt& interrupt) {

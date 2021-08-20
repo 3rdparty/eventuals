@@ -2,12 +2,12 @@
 
 // TODO(benh): infinite recursion via thread-local storage.
 //
-// TODO(benh): 'stop' on stream should break infinite recursion
+// TODO(benh): 'Stop()' on stream should break infinite recursion
 // (figure out how to embed a std::atomic).
 //
-// TODO(benh): disallow calling 'next()' after calling 'done()'.
+// TODO(benh): disallow calling 'Next()' after calling 'Done()'.
 //
-// TODO(benh): disallow calling 'emit()' before call to 'next()'.
+// TODO(benh): disallow calling 'Emit()' before call to 'Next()'.
 
 #include "stout/eventual.h"
 
@@ -15,41 +15,6 @@
 
 namespace stout {
 namespace eventuals {
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K, typename... Args>
-void emit(K& k, Args&&... args) {
-  k.Emit(std::forward<Args>(args)...);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K>
-void next(K& k) {
-  k.Next();
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K>
-void done(K& k) {
-  k.Done();
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K, typename... Args>
-void body(K& k, Args&&... args) {
-  k.Body(std::forward<Args>(args)...);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K>
-void ended(K& k) {
-  k.Ended();
-}
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -76,7 +41,7 @@ struct _Stream {
 
     void Start() {
       stream_->previous_->Continue([this]() {
-        eventuals::succeed(*k_, *stream_);
+        k_->Start(*stream_);
       });
     }
 
@@ -84,7 +49,7 @@ struct _Stream {
     void Fail(Args&&... args) {
       stream_->previous_->Continue(
           [&]() {
-            eventuals::fail(*k_, std::forward<Args>(args)...);
+            k_->Fail(std::forward<Args>(args)...);
           },
           [&]() {
             // TODO(benh): avoid allocating on heap by storing args in
@@ -93,7 +58,7 @@ struct _Stream {
             return [tuple]() {
               std::apply(
                   [](auto* k_, auto&&... args) {
-                    eventuals::fail(*k_, std::forward<decltype(args)>(args)...);
+                    k_->Fail(std::forward<decltype(args)>(args)...);
                   },
                   std::move(*tuple));
               delete tuple;
@@ -103,7 +68,7 @@ struct _Stream {
 
     void Stop() {
       stream_->previous_->Continue([this]() {
-        eventuals::stop(*k_);
+        k_->Stop();
       });
     }
 
@@ -111,7 +76,7 @@ struct _Stream {
     void Emit(Args&&... args) {
       stream_->previous_->Continue(
           [&]() {
-            eventuals::body(*k_, std::forward<Args>(args)...);
+            k_->Body(std::forward<Args>(args)...);
           },
           [&]() {
             static_assert(
@@ -126,9 +91,9 @@ struct _Stream {
 
             return [this]() {
               if constexpr (sizeof...(args) == 1) {
-                eventuals::body(*k_, std::move(*arg_));
+                k_->Body(std::move(*arg_));
               } else {
-                eventuals::body(*k_);
+                k_->Body();
               }
             };
           });
@@ -136,7 +101,7 @@ struct _Stream {
 
     void Ended() {
       stream_->previous_->Continue([this]() {
-        eventuals::ended(*k_);
+        k_->Ended();
       });
     }
   };
@@ -205,7 +170,7 @@ struct _Stream {
         handler_->Invoke();
       } else {
         if constexpr (IsUndefined<Start_>::value) {
-          eventuals::start(streamk_, std::forward<Args>(args)...);
+          streamk_.Start(std::forward<Args>(args)...);
         } else if constexpr (IsUndefined<Context_>::value) {
           start_(streamk_, std::forward<Args>(args)...);
         } else {
@@ -217,7 +182,7 @@ struct _Stream {
     template <typename... Args>
     void Fail(Args&&... args) {
       if constexpr (IsUndefined<Fail_>::value) {
-        eventuals::fail(k_, std::forward<Args>(args)...);
+        k_.Fail(std::forward<Args>(args)...);
       } else if constexpr (IsUndefined<Context_>::value) {
         fail_(k_, std::forward<Args>(args)...);
       } else {
@@ -227,7 +192,7 @@ struct _Stream {
 
     void Stop() {
       if constexpr (!IsUndefined<Stop_>::value) {
-        eventuals::stop(k_);
+        k_.Stop();
       } else if constexpr (IsUndefined<Context_>::value) {
         stop_(k_);
       } else {
@@ -266,7 +231,7 @@ struct _Stream {
     void Done() override {
       previous_->Continue([this]() {
         if constexpr (IsUndefined<Done_>::value) {
-          eventuals::ended(k_);
+          k_.Ended();
         } else if constexpr (IsUndefined<Context_>::value) {
           done_(streamk_);
         } else {

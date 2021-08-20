@@ -18,16 +18,16 @@ struct _Raise {
   struct Continuation {
     template <typename... Args>
     void Start(Args&&...) {
-      eventuals::fail(k_, std::move(t_));
+      k_.Fail(std::move(t_));
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {

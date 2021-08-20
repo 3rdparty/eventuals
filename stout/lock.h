@@ -131,7 +131,7 @@ struct _Acquire {
       if (lock_->AcquireFast(&waiter_)) {
         STOUT_EVENTUALS_LOG(2)
             << "'" << context_->name() << "' (fast) acquired";
-        eventuals::succeed(k_, std::forward<Args>(args)...);
+        k_.Start(std::forward<Args>(args)...);
       } else {
         static_assert(
             sizeof...(args) == 0 || sizeof...(args) == 1,
@@ -149,9 +149,9 @@ struct _Acquire {
 
           context_->Unblock([this]() mutable {
             if constexpr (sizeof...(args) == 1) {
-              eventuals::succeed(k_, std::move(*arg_));
+              k_.Start(std::move(*arg_));
             } else {
-              eventuals::succeed(k_);
+              k_.Start();
             }
           });
         };
@@ -161,9 +161,9 @@ struct _Acquire {
               << "'" << context_->name() << "' (slow) acquired";
 
           if constexpr (sizeof...(args) == 1) {
-            eventuals::succeed(k_, std::move(*arg_));
+            k_.Start(std::move(*arg_));
           } else {
-            eventuals::succeed(k_);
+            k_.Start();
           }
         }
       }
@@ -174,7 +174,7 @@ struct _Acquire {
       context_ = Scheduler::Context::Get();
 
       if (lock_->AcquireFast(&waiter_)) {
-        eventuals::fail(k_, std::forward<Args>(args)...);
+        k_.Fail(std::forward<Args>(args)...);
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
@@ -187,9 +187,7 @@ struct _Acquire {
                   std::apply(
                       [](auto* acquire, auto&&... args) {
                         auto& k_ = acquire->k_;
-                        eventuals::fail(
-                            k_,
-                            std::forward<decltype(args)>(args)...);
+                        k_.Fail(std::forward<decltype(args)>(args)...);
                       },
                       std::move(*tuple));
                   delete tuple;
@@ -213,11 +211,11 @@ struct _Acquire {
       context_ = Scheduler::Context::Get();
 
       if (lock_->AcquireFast(&waiter_)) {
-        eventuals::stop(k_);
+        k_.Stop();
       } else {
         waiter_.f = [this]() mutable {
           context_->Unblock([this]() mutable {
-            eventuals::stop(k_);
+            k_.Stop();
           });
         };
 
@@ -267,18 +265,18 @@ struct _Release {
     void Start(Args&&... args) {
       CHECK(!lock_->Available());
       lock_->Release();
-      eventuals::succeed(k_, std::forward<decltype(args)>(args)...);
+      k_.Start(std::forward<decltype(args)>(args)...);
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
       lock_->Release();
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
       lock_->Release();
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {
@@ -373,17 +371,17 @@ struct _Wait {
 
         lock_->Release();
       } else {
-        eventuals::succeed(k_, std::forward<Args>(args)...);
+        k_.Start(std::forward<Args>(args)...);
       }
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {

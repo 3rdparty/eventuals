@@ -19,19 +19,19 @@ struct _Until {
   struct Adaptor {
     void Start(bool done) {
       if (done) {
-        eventuals::done(stream_);
+        stream_.Done();
       } else {
-        eventuals::body(k_, std::move(arg_));
+        k_.Body(std::move(arg_));
       }
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {
@@ -47,19 +47,19 @@ struct _Until {
   struct Adaptor<K_, void> {
     void Start(bool done) {
       if (done) {
-        eventuals::done(stream_);
+        stream_.Done();
       } else {
-        eventuals::body(k_);
+        k_.Body();
       }
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {
@@ -72,20 +72,19 @@ struct _Until {
 
   template <typename K_, typename Condition_, typename Arg_>
   struct Continuation {
-    template <typename... Args>
-    void Start(TypeErasedStream& stream, Args&&... args) {
+    void Start(TypeErasedStream& stream) {
       stream_ = &stream;
 
-      eventuals::succeed(k_, stream, std::forward<Args>(args)...);
+      k_.Start(stream);
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {
@@ -120,14 +119,14 @@ struct _Until {
       }
 
       if constexpr (!std::is_void_v<Arg_>) {
-        eventuals::succeed(*adaptor_, *arg_); // NOTE: passing '&' not '&&'.
+        adaptor_->Start(*arg_); // NOTE: passing '&' not '&&'.
       } else {
-        eventuals::succeed(*adaptor_);
+        adaptor_->Start();
       }
     }
 
     void Ended() {
-      eventuals::ended(k_);
+      k_.Ended();
     }
 
     K_ k_;

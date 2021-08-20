@@ -69,7 +69,7 @@ struct HeapTask {
     // 'Register()' more than once is well-defined.
     adaptor_.Register(interrupt);
 
-    eventuals::start(adaptor_);
+    adaptor_.Start();
   }
 
   Callback<Value_> start_;
@@ -95,13 +95,13 @@ struct _TaskWith {
               e_,
               *interrupt_,
               [this](auto&&... args) {
-                eventuals::succeed(k_, std::forward<decltype(args)>(args)...);
+                k_.Start(std::forward<decltype(args)>(args)...);
               },
               [this](std::exception_ptr e) {
-                eventuals::fail(k_, std::move(e));
+                k_.Fail(std::move(e));
               },
               [this]() {
-                eventuals::stop(k_);
+                k_.Stop();
               });
         },
         std::move(args_));
@@ -110,12 +110,12 @@ struct _TaskWith {
   template <typename... Args>
   void Fail(Args&&... args) {
     // TODO(benh): propagate through 'Task'.
-    eventuals::fail(k_, std::forward<Args>(args)...);
+    k_.Fail(std::forward<Args>(args)...);
   }
 
   void Stop() {
     // TODO(benh): propagate through 'Task'.
-    eventuals::stop(k_);
+    k_.Stop();
   }
 
   void Register(Interrupt& interrupt) {
@@ -243,7 +243,7 @@ struct TaskWith {
   auto operator*() && {
     auto [future, k] = Terminate(std::move(*this));
 
-    start(k);
+    k.Start();
 
     return future.get();
   }
@@ -293,7 +293,7 @@ class Task {
   auto operator*() && {
     auto [future, k] = Terminate(std::move(*this));
 
-    start(k);
+    k.Start();
 
     return future.get();
   }

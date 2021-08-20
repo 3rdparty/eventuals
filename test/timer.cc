@@ -22,7 +22,7 @@ TEST_F(EventLoopTest, Timer) {
 
   auto [future, k] = Terminate(e());
 
-  eventuals::start(k);
+  k.Start();
 
   auto start = Clock().Now();
   EventLoop::Default().Run();
@@ -44,7 +44,7 @@ TEST_F(EventLoopTest, PauseAndAdvanceClock) {
 
   auto [future, k] = Terminate(e());
 
-  eventuals::start(k);
+  k.Start();
 
   Clock().Advance(std::chrono::seconds(5));
 
@@ -65,7 +65,7 @@ TEST_F(EventLoopTest, AddTimerAfterAdvancingClock) {
 
   auto [future1, k1] = Terminate(e1());
 
-  eventuals::start(k1);
+  k1.Start();
 
   Clock().Advance(std::chrono::seconds(1)); // Timer 1 in 4000ms.
 
@@ -75,7 +75,7 @@ TEST_F(EventLoopTest, AddTimerAfterAdvancingClock) {
 
   auto [future2, k2] = Terminate(e2());
 
-  eventuals::start(k2);
+  k2.Start();
 
   Clock().Advance(std::chrono::seconds(4)); // Timer 1 fired, timer 2 in 1000ms.
 
@@ -108,7 +108,7 @@ TEST_F(EventLoopTest, InterruptTimer) {
 
   k.Register(interrupt);
 
-  eventuals::start(k);
+  k.Start();
 
   auto thread = std::thread([&]() {
     interrupt.Trigger();
@@ -135,7 +135,7 @@ TEST_F(EventLoopTest, PauseClockInterruptTimer) {
 
   k.Register(interrupt);
 
-  eventuals::start(k);
+  k.Start();
 
   interrupt.Trigger();
 

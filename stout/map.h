@@ -19,16 +19,16 @@ struct _Map {
   struct Adaptor {
     template <typename... Args>
     void Start(Args&&... args) {
-      eventuals::body(k_, std::forward<Args>(args)...);
+      k_.Body(std::forward<Args>(args)...);
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt&) {
@@ -41,18 +41,18 @@ struct _Map {
   template <typename K_, typename E_, typename Arg_>
   struct Continuation {
     void Start(TypeErasedStream& stream) {
-      eventuals::succeed(k_, stream);
+      k_.Start(stream);
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
       // TODO(benh): do we need to fail via the adaptor?
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
       // TODO(benh): do we need to stop via the adaptor?
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     template <typename... Args>
@@ -65,11 +65,11 @@ struct _Map {
         }
       }
 
-      eventuals::succeed(*adaptor_, std::forward<Args>(args)...);
+      adaptor_->Start(std::forward<Args>(args)...);
     }
 
     void Ended() {
-      eventuals::ended(k_);
+      k_.Ended();
     }
 
     void Register(Interrupt& interrupt) {

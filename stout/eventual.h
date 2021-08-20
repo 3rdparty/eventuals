@@ -20,34 +20,6 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K>
-void start(K& k) {
-  k.Start();
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K, typename... Args>
-void succeed(K& k, Args&&... args) {
-  k.Start(std::forward<Args>(args)...);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K, typename... Args>
-void fail(K& k, Args&&... args) {
-  k.Fail(std::forward<Args>(args)...);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename K>
-void stop(K& k) {
-  k.Stop();
-}
-
-////////////////////////////////////////////////////////////////////////
-
 namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
@@ -105,7 +77,7 @@ struct _Eventual {
     template <typename... Args>
     void Fail(Args&&... args) {
       if constexpr (IsUndefined<Fail_>::value) {
-        eventuals::fail(k_(), std::forward<Args>(args)...);
+        k_().Fail(std::forward<Args>(args)...);
       } else if constexpr (IsUndefined<Context_>::value) {
         fail_(k_(), std::forward<Args>(args)...);
       } else {
@@ -115,7 +87,7 @@ struct _Eventual {
 
     void Stop() {
       if constexpr (IsUndefined<Stop_>::value) {
-        eventuals::stop(k_());
+        k_().Stop();
       } else if constexpr (IsUndefined<Context_>::value) {
         stop_(k_());
       } else {

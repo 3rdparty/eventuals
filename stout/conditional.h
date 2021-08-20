@@ -44,7 +44,7 @@ struct _Conditional {
           then_adaptor_->Register(*interrupt_);
         }
 
-        eventuals::succeed(*then_adaptor_);
+        then_adaptor_->Start();
       } else {
         else_adaptor_.emplace(
             else_(std::forward<Args>(args)...)
@@ -54,17 +54,17 @@ struct _Conditional {
           else_adaptor_->Register(*interrupt_);
         }
 
-        eventuals::succeed(*else_adaptor_);
+        else_adaptor_->Start();
       }
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {

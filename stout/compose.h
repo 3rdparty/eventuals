@@ -19,37 +19,6 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-// Forward declarations to break circular dependencies.
-
-template <typename K>
-void start(K& k);
-
-template <typename K, typename... Args>
-void succeed(K& k, Args&&... args);
-
-template <typename K, typename... Args>
-void fail(K& k, Args&&... args);
-
-template <typename K>
-void stop(K& k);
-
-template <typename K, typename... Args>
-void emit(K& k, Args&&... args);
-
-template <typename K>
-void next(K& k);
-
-template <typename K>
-void done(K& k);
-
-template <typename K, typename... Args>
-void body(K& k, Args&&... args);
-
-template <typename K>
-void ended(K& k);
-
-////////////////////////////////////////////////////////////////////////
-
 namespace detail {
 
 ////////////////////////////////////////////////////////////////////////

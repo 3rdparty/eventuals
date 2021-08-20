@@ -61,14 +61,14 @@ TEST(StaticThreadPoolTest, Reschedulable) {
                        auto thread = std::thread(
                            [&id, &k]() {
                              EXPECT_NE(id, std::this_thread::get_id());
-                             eventuals::succeed(k);
+                             k.Start();
                            });
                        thread.detach();
                      })
               | Eventual<void>()
                     .start([&id](auto& k) {
                       EXPECT_EQ(id, std::this_thread::get_id());
-                      eventuals::succeed(k);
+                      k.Start();
                     });
         }));
   };

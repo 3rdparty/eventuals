@@ -20,19 +20,19 @@ struct _Lambda {
     void Start(Args&&... args) {
       if constexpr (std::is_void_v<std::invoke_result_t<F_, Args...>>) {
         f_(std::forward<Args>(args)...);
-        eventuals::succeed(k_);
+        k_.Start();
       } else {
-        eventuals::succeed(k_, f_(std::forward<Args>(args)...));
+        k_.Start(f_(std::forward<Args>(args)...));
       }
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {
