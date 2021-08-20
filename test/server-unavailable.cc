@@ -11,7 +11,7 @@ using stout::grpc::Stream;
 using stout::eventuals::grpc::Client;
 using stout::eventuals::grpc::CompletionPool;
 
-TEST_F(StoutEventualsGrpcTest, ServerUnavailable) {
+TEST_F(StoutGrpcTest, ServerUnavailable) {
   borrowable<CompletionPool> pool;
 
   // NOTE: we use 'getpid()' to create a _unique_ UNIX domain socket

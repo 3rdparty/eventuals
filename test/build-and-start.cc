@@ -4,7 +4,7 @@
 
 using stout::eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutEventualsGrpcTest, BuildAndStart) {
+TEST_F(StoutGrpcTest, BuildAndStart) {
   ServerBuilder builder;
 
   builder.AddListeningPort("0.0.0.0:0", grpc::InsecureServerCredentials());

@@ -31,7 +31,7 @@ using stout::eventuals::grpc::CompletionPool;
 using stout::eventuals::grpc::Server;
 using stout::eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutEventualsGrpcTest, BroadcastCancel) {
+TEST_F(StoutGrpcTest, BroadcastCancel) {
   const size_t SERVERS = 2;
 
   std::vector<std::unique_ptr<Server>> servers;

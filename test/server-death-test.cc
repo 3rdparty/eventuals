@@ -23,7 +23,7 @@ using stout::eventuals::grpc::CompletionPool;
 using stout::eventuals::grpc::Server;
 using stout::eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutEventualsGrpcTest, ServerDeathTest) {
+TEST_F(StoutGrpcTest, ServerDeathTest) {
   // NOTE: need pipes to get the server's port, this also helps
   // synchronize when the server is ready to have the client connect.
   int pipefd[2];

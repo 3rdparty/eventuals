@@ -24,7 +24,7 @@ using stout::eventuals::grpc::CompletionPool;
 using stout::eventuals::grpc::Server;
 using stout::eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutEventualsGrpcTest, MultipleHosts) {
+TEST_F(StoutGrpcTest, MultipleHosts) {
   ServerBuilder builder;
 
   int port = 0;

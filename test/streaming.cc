@@ -21,7 +21,7 @@ using stout::eventuals::grpc::CompletionPool;
 using stout::eventuals::grpc::Server;
 using stout::eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutEventualsGrpcTest, Streaming) {
+TEST_F(StoutGrpcTest, Streaming) {
   ServerBuilder builder;
 
   int port = 0;

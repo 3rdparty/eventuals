@@ -2,37 +2,29 @@
 
 #include "gtest/gtest.h"
 
-class StoutGrpcTest : public ::testing::Test
-{
-protected:
-  virtual void SetUp()
-  {      
+class StoutGrpcTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
     ASSERT_EQ(1, GetThreadCount());
   }
 
-  virtual void TearDown()
-  {
+  void TearDown() override {
     // NOTE: need to wait until all internal threads created by the
     // grpc library have completed because some of our tests are death
     // tests which fork.
     while (GetThreadCount() != 1) {}
   }
 
-  size_t GetThreadCount()
-  {
+  size_t GetThreadCount() {
     // TODO(benh): Don't rely on the internal 'GetThreadCount()'.
     return testing::internal::GetThreadCount();
   }
 };
 
 
-class StoutEventualsGrpcTest : public StoutGrpcTest {};
-
-
 // TODO(benh): Move to stout-stringify.
 template <typename T>
-std::string stringify(const T& t)
-{
+std::string stringify(const T& t) {
   std::ostringstream out;
   out << t;
   if (!out.good()) {
