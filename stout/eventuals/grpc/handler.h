@@ -72,7 +72,7 @@ struct _ClientHandler {
     template <typename... Args>
     void Finished(Args&&... args) {
       if constexpr (IsUndefined<Finished_>::value) {
-        stout::eventuals::succeed(k_, std::forward<Args>(args)...);
+        k_.Start(std::forward<Args>(args)...);
       } else if constexpr (IsUndefined<Context_>::value) {
         finished_(k_, std::forward<Args>(args)...);
       } else {

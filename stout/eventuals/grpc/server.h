@@ -276,14 +276,14 @@ auto Server::Validate(const std::string& name) {
 
   return Eventual<void>([method](auto& k) {
     if (method == nullptr) {
-      eventuals::fail(k, ServerStatus::Error("Method not found"));
+      k.Fail(ServerStatus::Error("Method not found"));
     } else {
       using Traits = ::stout::grpc::RequestResponseTraits;
       auto error = Traits::Validate<Request, Response>(method);
       if (error) {
-        eventuals::fail(k, ServerStatus::Error(error->message));
+        k.Fail(ServerStatus::Error(error->message));
       } else {
-        eventuals::succeed(k);
+        k.Start();
       }
     }
   });
@@ -297,13 +297,11 @@ inline auto Server::Insert(std::unique_ptr<Endpoint>&& endpoint) {
         auto key = std::make_pair(endpoint->path(), endpoint->host());
 
         if (!endpoints_.try_emplace(key, std::move(endpoint)).second) {
-          eventuals::fail(
-              k,
-              ServerStatus::Error(
-                  "Already serving " + endpoint->path()
-                  + " for host " + endpoint->host()));
+          k.Fail(ServerStatus::Error(
+              "Already serving " + endpoint->path()
+              + " for host " + endpoint->host()));
         } else {
-          eventuals::succeed(k);
+          k.Start();
         }
       }));
 }
@@ -466,7 +464,7 @@ struct _ServerHandler {
         // 'std::call_once()' to make sure we only "finish" once.
         std::call_once(finish_, [this]() {
           if constexpr (IsUndefined<Finished_>::value) {
-            stout::eventuals::succeed(k_, context()->IsCancelled());
+            k_.Start(context()->IsCancelled());
           } else {
             finished_(*this, k_);
           }
@@ -486,11 +484,11 @@ struct _ServerHandler {
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {

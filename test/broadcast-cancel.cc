@@ -107,7 +107,7 @@ TEST_F(StoutGrpcTest, BroadcastCancel) {
                      EXPECT_EQ(grpc::CANCELLED, status.error_code());
                      auto targets = ++atomics->finished;
                      if (targets == broadcast.targets()) {
-                       eventuals::succeed(k, targets);
+                       k.Start(targets);
                      }
                    }));
   };

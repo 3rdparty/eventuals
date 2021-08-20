@@ -165,12 +165,12 @@ struct _Call {
     template <typename... Args>
     void Fail(Args&&... args) {
       // TODO(benh): cancel the call if we've already started?
-      eventuals::fail(k_, std::forward<Args>(args)...);
+      k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
       // TODO(benh): cancel the call if we've already started?
-      eventuals::stop(k_);
+      k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {

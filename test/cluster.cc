@@ -115,7 +115,7 @@ TEST_F(StoutGrpcTest, Cluster) {
                      EXPECT_TRUE(status.ok());
                      auto targets = ++*finished;
                      if (targets == broadcast.targets()) {
-                       eventuals::succeed(k, targets);
+                       k.Start(targets);
                      }
                    }));
   };

@@ -31,9 +31,9 @@ auto Server::RequestCall(
         if (!callback) {
           callback = [&k](bool ok) {
             if (ok) {
-              eventuals::succeed(k);
+              k.Start();
             } else {
-              eventuals::fail(k, ServerStatus::Error("RequestCall !ok"));
+              k.Fail(ServerStatus::Error("RequestCall !ok"));
             }
           };
         }
