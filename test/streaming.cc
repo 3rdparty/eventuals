@@ -80,20 +80,17 @@ TEST_F(StoutGrpcTest, Streaming) {
                Stream<keyvaluestore::Response>>(
                "keyvaluestore.KeyValueStore.GetValues")
         | (Client::Handler()
-               .ready(Sequence()
-                          .Once([](auto& call) {
-                            keyvaluestore::Request request;
-                            request.set_key("1");
-                            call.Write(request);
-                          })
-                          .Once([](auto& call) {
-                            keyvaluestore::Request request;
-                            request.set_key("2");
-                            call.WriteLast(request);
-                          }))
+               .ready([](auto& call) {
+                 keyvaluestore::Request request;
+                 request.set_key("1");
+                 call.Write(request);
+               })
                .body(Sequence()
                          .Once([](auto& call, auto&& response) {
                            EXPECT_EQ("1", response->value());
+                           keyvaluestore::Request request;
+                           request.set_key("2");
+                           call.WriteLast(request);
                          })
                          .Once([](auto& call, auto&& response) {
                            EXPECT_EQ("2", response->value());

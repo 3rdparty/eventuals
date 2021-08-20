@@ -42,16 +42,14 @@ struct _Call {
         name_(std::move(name)),
         host_(std::move(host)),
         cq_(std::move(cq)),
-        stub_(std::move(stub)),
-        finish_(false) {}
+        stub_(std::move(stub)) {}
 
     Continuation(Continuation&& that)
       : k_(std::move(that.k_)),
         name_(std::move(that.name_)),
         host_(std::move(that.host_)),
         cq_(std::move(that.cq_)),
-        stub_(std::move(that.stub_)),
-        finish_(false) {
+        stub_(std::move(that.stub_)) {
       // NOTE: only expecting move construction before starting.
       CHECK(!stream_) << "Moving after starting";
     }
@@ -125,9 +123,42 @@ struct _Call {
             };
 
             write_callback_ = [this](bool ok) mutable {
-              if (ok && !finish_.load()) {
-                k_.Ready(*this);
+              if (ok) {
+                mutex_.lock();
+
+                // Might be getting here after doing a 'WritesDone()'
+                // and now just need to do 'Finish()'.
+                if (!write_datas_.empty()) {
+                  write_datas_.pop_front();
+                }
+
+                RequestType_* request = nullptr;
+                ::grpc::WriteOptions* options = nullptr;
+                bool finish = false;
+
+                if (!write_datas_.empty()) {
+                  request = &write_datas_.front().request;
+                  options = &write_datas_.front().options;
+                } else if (finish_) {
+                  finish = true;
+                }
+
+                mutex_.unlock();
+
+                if (request != nullptr) {
+                  stream_->Write(*request, *options, &write_callback_);
+                } else if (finish) {
+                  stream_->Finish(&finish_status_, &finish_callback_);
+                }
               } else {
+                mutex_.lock();
+                write_datas_.clear();
+                write_callback_ = Callback<bool>();
+                mutex_.unlock();
+
+                // NOTE: the invariant here is that we won't exeute
+                // 'Finish()' more than once because it's callback is
+                // always 'finish_callback_' not 'write_callback_'.
                 stream_->Finish(&finish_status_, &finish_callback_);
               }
             };
@@ -184,23 +215,71 @@ struct _Call {
     void Write(
         const RequestType_& request,
         const ::grpc::WriteOptions& options = ::grpc::WriteOptions()) {
-      stream_->Write(request, options, &write_callback_);
+      WriteMaybeLast(request, options, false);
     }
 
     void WriteLast(
         const RequestType_& request,
         const ::grpc::WriteOptions& options = ::grpc::WriteOptions()) {
-      finish_.store(true);
-      stream_->WriteLast(request, options, &write_callback_);
+      WriteMaybeLast(request, options, true);
     }
 
     void WritesDone() {
-      finish_.store(true);
-      stream_->WritesDone(&write_callback_);
+      bool write = false;
+
+      mutex_.lock();
+      finish_ = true;
+      if (write_datas_.empty()) {
+        write = true;
+      }
+      mutex_.unlock();
+
+      if (write) {
+        stream_->WritesDone(&write_callback_);
+      }
     }
 
     ::grpc::ClientContext& context() & {
       return context_;
+    }
+
+   private:
+    void WriteMaybeLast(
+        const RequestType_& request,
+        const ::grpc::WriteOptions& options,
+        bool last) {
+      bool write = false;
+
+      mutex_.lock();
+
+      if (last) {
+        finish_ = true;
+      }
+
+      if (write_callback_) {
+        write_datas_.emplace_back();
+
+        auto& data = write_datas_.back();
+
+        data.request.CopyFrom(request); // N.B. copy not move incase used below!
+        data.options = options;
+
+        if (write_datas_.size() == 1) {
+          write = true;
+        }
+
+        mutex_.unlock();
+
+        if (write) {
+          if (!last) {
+            stream_->Write(request, options, &write_callback_);
+          } else {
+            stream_->WriteLast(request, options, &write_callback_);
+          }
+        }
+      }
+
+      mutex_.unlock();
     }
 
     K_ k_;
@@ -229,7 +308,16 @@ struct _Call {
 
     borrowable<ResponseType_> response_;
 
-    std::atomic<bool> finish_;
+    struct WriteData {
+      RequestType_ request;
+      ::grpc::WriteOptions options;
+    };
+
+    // TODO(benh): render this lock-free.
+    std::mutex mutex_;
+    std::list<WriteData> write_datas_;
+
+    bool finish_ = false;
     ::grpc::Status finish_status_;
   };
 

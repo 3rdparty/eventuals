@@ -424,6 +424,7 @@ struct _ServerHandler {
         if (ok) {
           mutex_.lock();
 
+          CHECK(!write_datas_.empty());
           write_datas_.pop_front();
 
           ::grpc::ByteBuffer* buffer = nullptr;
