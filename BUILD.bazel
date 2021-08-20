@@ -32,6 +32,7 @@ cc_library(
         "stout/catch.h",
         "stout/event-loop.h",
         "stout/timer.h",
+        "stout/head.h",
     ],
     srcs = [
         "stout/scheduler.cc",
