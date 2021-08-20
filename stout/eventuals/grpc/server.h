@@ -274,7 +274,7 @@ auto Server::Validate(const std::string& name) {
       google::protobuf::DescriptorPool::generated_pool()
           ->FindMethodByName(name);
 
-  return Eventual<void>().start([method](auto& k) {
+  return Eventual<void>([method](auto& k) {
     if (method == nullptr) {
       eventuals::fail(k, ServerStatus::Error("Method not found"));
     } else {
@@ -292,7 +292,7 @@ auto Server::Validate(const std::string& name) {
 ////////////////////////////////////////////////////////////////////////
 
 inline auto Server::Insert(std::unique_ptr<Endpoint>&& endpoint) {
-  return Synchronized(Eventual<void>().start(
+  return Synchronized(Eventual<void>(
       [this, endpoint = std::move(endpoint)](auto& k) mutable {
         auto key = std::make_pair(endpoint->path(), endpoint->host());
 
