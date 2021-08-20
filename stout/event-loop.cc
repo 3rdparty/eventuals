@@ -42,6 +42,8 @@ void EventLoop::Clock::Pause() {
 void EventLoop::Clock::Resume() {
   CHECK(Paused()) << "clock is not paused";
 
+  std::scoped_lock lock(mutex_);
+
   for (auto& pending : pending_) {
     pending.start(pending.milliseconds - advanced_);
   }
@@ -57,6 +59,8 @@ void EventLoop::Clock::Advance(const std::chrono::milliseconds& milliseconds) {
   CHECK(Paused()) << "clock is not paused";
 
   advanced_ += milliseconds;
+
+  std::scoped_lock lock(mutex_);
 
   pending_.erase(
       std::remove_if(

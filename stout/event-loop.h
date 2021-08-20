@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <list>
+#include <mutex>
 #include <optional>
 
 #include "stout/callback.h"
@@ -62,7 +63,9 @@ class EventLoop {
       stout::Callback<std::chrono::milliseconds> start;
     };
 
-    // TODO(benh): synchronization of 'pending_'.
+    // NOTE: using "blocking" synchronization here as pausing the
+    // clock should only be done in tests.
+    std::mutex mutex_;
     std::list<Pending> pending_;
   };
 
@@ -203,6 +206,7 @@ inline auto EventLoop::Clock::Timer(
         if (!Paused()) { // TODO(benh): add 'unlikely()'.
           start(data.milliseconds);
         } else {
+          std::scoped_lock lock(mutex_);
           pending_.emplace_back(
               Pending{data.milliseconds + advanced_, std::move(start)});
         }
