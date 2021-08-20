@@ -60,7 +60,7 @@ class EventLoop {
 
     struct Pending {
       std::chrono::milliseconds milliseconds;
-      stout::Callback<std::chrono::milliseconds> start;
+      stout::Callback<const std::chrono::milliseconds&> start;
     };
 
     // NOTE: using "blocking" synchronization here as pausing the
@@ -165,7 +165,7 @@ inline auto EventLoop::Clock::Timer(
         data.k = &k;
         data.timer.data = &data;
 
-        auto start = [&data](std::chrono::milliseconds milliseconds) {
+        auto start = [&data](const auto& milliseconds) {
           // NOTE: need to update milliseconds in the event the clock
           // was paused/advanced and the millisecond count differs.
           data.milliseconds = milliseconds;
