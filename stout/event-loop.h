@@ -1,11 +1,13 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <list>
 #include <optional>
 
 #include "stout/callback.h"
+#include "stout/context.h"
 #include "stout/eventual.h"
 #include "uv.h"
 
@@ -18,6 +20,17 @@ namespace eventuals {
 
 class EventLoop {
  public:
+  struct Callback {
+    Callback& operator=(stout::Callback<EventLoop&> callback) {
+      f = std::move(callback);
+      return *this;
+    }
+
+    stout::Callback<EventLoop&> f;
+
+    Callback* next = nullptr;
+  };
+
   class Clock {
    public:
     Clock(const Clock&) = delete;
@@ -46,9 +59,10 @@ class EventLoop {
 
     struct Pending {
       std::chrono::milliseconds milliseconds;
-      Callback<std::chrono::milliseconds> start;
+      stout::Callback<std::chrono::milliseconds> start;
     };
 
+    // TODO(benh): synchronization of 'pending_'.
     std::list<Pending> pending_;
   };
 
@@ -58,23 +72,29 @@ class EventLoop {
   static EventLoop& Default();
   static EventLoop& Default(EventLoop* replacement);
 
-  EventLoop()
-    : clock_(*this) {
-    uv_loop_init(&loop_);
-  }
-
+  EventLoop();
   EventLoop(const EventLoop&) = delete;
+  ~EventLoop();
 
-  ~EventLoop() {
-    uv_loop_close(&loop_);
-  }
+  void Run();
 
-  void Run() {
-    uv_run(&loop_, UV_RUN_DEFAULT);
-  }
+  // Interrupts the event loop; necessary to have the loop redetermine
+  // an I/O polling timeout in the event that a timer was removed
+  // while it was executing.
+  void Interrupt();
+
+  void Invoke(Callback* callback);
 
   bool Alive() {
     return uv_loop_alive(&loop_);
+  }
+
+  bool Running() {
+    return running_.load();
+  }
+
+  bool InEventLoop() {
+    return in_event_loop_;
   }
 
   operator uv_loop_t*() {
@@ -86,7 +106,18 @@ class EventLoop {
   }
 
  private:
+  void Prepare();
+
   uv_loop_t loop_;
+  uv_prepare_t prepare_;
+  uv_async_t async_;
+
+  std::atomic<bool> running_ = false;
+
+  static inline thread_local bool in_event_loop_ = false;
+
+  std::atomic<Callback*> callbacks_ = nullptr;
+
   Clock clock_;
 };
 
@@ -111,29 +142,95 @@ inline std::chrono::milliseconds EventLoop::Clock::Now() {
 
 inline auto EventLoop::Clock::Timer(
     const std::chrono::milliseconds& milliseconds) {
-  return Eventual<void>()
-      .context(uv_timer_t())
-      // TODO(benh): borrow 'this'.
-      .start([this, milliseconds](auto& timer, auto& k) mutable {
-        uv_timer_init(loop_, &timer);
-        timer.data = &k;
+  // Helper struct storing multiple data fields.
+  struct Data {
+    EventLoop& loop;
+    std::chrono::milliseconds milliseconds;
+    void* k = nullptr;
+    uv_timer_t timer;
+    bool started = false;
+    bool completed = false;
 
-        auto start = [&timer](std::chrono::milliseconds milliseconds) {
-          uv_timer_start(
-              &timer,
-              [](uv_timer_t* timer) {
-                eventuals::succeed(*(decltype(&k)) timer->data);
-              },
-              milliseconds.count(),
-              0);
+    EventLoop::Callback start;
+    EventLoop::Callback interrupt;
+  };
+
+  return Eventual<void>()
+      .context(Data{loop_, milliseconds})
+      // TODO(benh): borrow 'this'.
+      .start([this](auto& data, auto& k) mutable {
+        data.k = &k;
+        data.timer.data = &data;
+
+        auto start = [&data](std::chrono::milliseconds milliseconds) {
+          // NOTE: need to update milliseconds in the event the clock
+          // was paused/advanced and the millisecond count differs.
+          data.milliseconds = milliseconds;
+          data.start = [&data](EventLoop& loop) {
+            if (!data.completed) {
+              auto error = uv_timer_init(loop, &data.timer);
+              if (error) {
+                data.completed = true;
+                eventuals::fail(*(decltype(&k)) data.k, uv_strerror(error));
+              } else {
+                auto error = uv_timer_start(
+                    &data.timer,
+                    [](uv_timer_t* timer) {
+                      auto& data = *(Data*) timer->data;
+                      CHECK_EQ(timer, &data.timer);
+                      if (!data.completed) {
+                        data.completed = true;
+                        uv_close((uv_handle_t*) &data.timer, nullptr);
+                        eventuals::succeed(*(decltype(&k)) data.k);
+                      }
+                    },
+                    data.milliseconds.count(),
+                    0);
+
+                if (error) {
+                  uv_close((uv_handle_t*) &data.timer, nullptr);
+                  eventuals::fail(*(decltype(&k)) data.k, uv_strerror(error));
+                } else {
+                  data.started = true;
+                }
+              }
+            }
+          };
+
+          data.loop.Invoke(&data.start);
         };
 
         if (!Paused()) { // TODO(benh): add 'unlikely()'.
-          start(milliseconds);
+          start(data.milliseconds);
         } else {
           pending_.emplace_back(
-              Pending{milliseconds + advanced_, std::move(start)});
+              Pending{data.milliseconds + advanced_, std::move(start)});
         }
+      })
+      .interrupt([](auto& data, auto& k) {
+        data.interrupt = [&data](EventLoop&) {
+          if (!data.started) {
+            CHECK(!data.completed);
+            data.completed = true;
+            eventuals::stop(*(decltype(&k)) data.k);
+          } else if (!data.completed) {
+            data.completed = true;
+            if (uv_is_active((uv_handle_t*) &data.timer)) {
+              auto error = uv_timer_stop(&data.timer);
+              uv_close((uv_handle_t*) &data.timer, nullptr);
+              if (error) {
+                eventuals::fail(*(decltype(&k)) data.k, uv_strerror(error));
+              } else {
+                eventuals::stop(*(decltype(&k)) data.k);
+              }
+            } else {
+              uv_close((uv_handle_t*) &data.timer, nullptr);
+              eventuals::stop(*(decltype(&k)) data.k);
+            }
+          }
+        };
+
+        data.loop.Invoke(&data.interrupt);
       });
 }
 

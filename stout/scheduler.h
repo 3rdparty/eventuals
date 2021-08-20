@@ -204,7 +204,11 @@ struct Reschedulable {
       }
     }
 
-    CHECK_EQ(Scheduler::Context::Get(), previous_);
+    // NOTE: there is no invariant that 'previous_' equals the current
+    // context, i.e., 'Scheduler::Context::Get()' in cases when the
+    // continuation has already been emplaced. For example, this may
+    // occur when a different thread/context is triggering an
+    // interrupt.
 
     return *continuation_;
   }
