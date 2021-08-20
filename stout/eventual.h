@@ -290,6 +290,22 @@ auto Eventual() {
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename Value, typename... Errors, typename Start>
+auto Eventual(Start start) {
+  return detail::_Eventual::Builder<
+      Undefined,
+      Start,
+      Undefined,
+      Undefined,
+      Undefined,
+      Value,
+      Errors...>{
+      Undefined(),
+      std::move(start)};
+}
+
+////////////////////////////////////////////////////////////////////////
+
 } // namespace eventuals
 } // namespace stout
 
