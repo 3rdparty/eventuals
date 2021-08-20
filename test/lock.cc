@@ -199,11 +199,10 @@ TEST(LockTest, Wait) {
 
 TEST(LockTest, SynchronizableWait) {
   struct Foo : public Synchronizable {
-    Foo()
-      : Synchronizable(&lock) {}
+    Foo() {}
 
     Foo(Foo&& that)
-      : Synchronizable(&lock) {}
+      : Synchronizable() {}
 
     auto Operation() {
       return Synchronized(
@@ -214,8 +213,6 @@ TEST(LockTest, SynchronizableWait) {
               };
             }));
     }
-
-    Lock lock;
   };
 
   Foo foo;
@@ -228,9 +225,6 @@ TEST(LockTest, SynchronizableWait) {
 
 TEST(LockTest, SynchronizableThen) {
   struct Foo : public Synchronizable {
-    Foo()
-      : Synchronizable(&lock) {}
-
     auto Operation() {
       return Synchronized(
                  Then([]() {

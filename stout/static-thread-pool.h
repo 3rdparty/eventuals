@@ -636,11 +636,10 @@ struct _StaticThreadPoolParallel {
   template <typename F_, typename Arg_>
   struct Continuation : public Synchronizable {
     Continuation(F_ f)
-      : Synchronizable(&lock_),
-        f_(std::move(f)) {}
+      : f_(std::move(f)) {}
 
     Continuation(Continuation&& that)
-      : Synchronizable(&lock_),
+      : Synchronizable(),
         f_(std::move(that.f_)) {}
 
     ~Continuation() {
@@ -665,8 +664,6 @@ struct _StaticThreadPoolParallel {
     }
 
     F_ f_;
-
-    Lock lock_;
 
     // TODO(benh): consider whether to use a list, deque, or vector?
     // Currently using a deque assuming it'll give the best performance
@@ -743,7 +740,7 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
           // TODO(benh): allocate 'arg' and store the pointer to it
           // so 'ingress' can use it for each item off the stream.
 
-          return Acquire(&lock_)
+          return Acquire(lock())
               | Repeat(
                      Wait([this, worker](auto notify) mutable {
                        // Overwrite 'notify' so that we'll get
@@ -778,7 +775,7 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
                      Lambda([this]() {
                        return cleanup_;
                      })
-                     | Release(&lock_))
+                     | Release(lock()))
               | Map(
                      // TODO(benh): create 'Move()' like abstraction that does:
                      Eventual<Arg_>()
@@ -786,7 +783,7 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
                            eventuals::succeed(k, std::move(*worker->arg));
                          })
                      | f_()
-                     | Acquire(&lock_)
+                     | Acquire(lock())
                      | Lambda(
                          [this, worker](auto&&... args) {
                            values_.emplace_back(
@@ -817,7 +814,7 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
                        busy_--; // Used by "egress" to stop waiting.
                        egress_();
                      })
-                     | Release(&lock_));
+                     | Release(lock()));
         });
 
     StaticThreadPool::Scheduler().Submit(

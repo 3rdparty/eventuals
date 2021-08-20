@@ -445,25 +445,26 @@ auto Wait(Lock* lock, F f) {
 
 class Synchronizable {
  public:
-  Synchronizable(Lock* lock)
-    : lock_(lock) {}
-
   virtual ~Synchronizable() {}
 
   template <typename E>
-  auto Synchronized(E e) const {
-    return Acquire(lock_)
+  auto Synchronized(E e) {
+    return Acquire(&lock_)
         | std::move(e)
-        | Release(lock_);
+        | Release(&lock_);
   }
 
   template <typename F>
   auto Wait(F f) {
-    return eventuals::Wait(lock_, std::move(f));
+    return eventuals::Wait(&lock_, std::move(f));
+  }
+
+  Lock* lock() {
+    return &lock_;
   }
 
  private:
-  Lock* lock_;
+  Lock lock_;
 };
 
 ////////////////////////////////////////////////////////////////////////
