@@ -389,6 +389,17 @@ struct _ServerHandler {
         body_(std::move(that.body_)),
         finished_(std::move(that.finished_)) {
       // NOTE: only expecting move construction before starting.
+      CHECK(!read_callback_) << "moving after starting";
+    }
+
+    ~Continuation() {
+      // Only wait for "done" if we started.
+      if (read_callback_) {
+        while (!done_.load()) {
+          // TODO(benh): portably pause CPU as part of spin loop and
+          // consider doing a LOG_EVERY(WARNING, N) as well.
+        }
+      }
     }
 
     void Start() {
@@ -469,6 +480,7 @@ struct _ServerHandler {
       };
 
       context_->OnDone([this](bool /* cancelled */) {
+        done_.store(true);
         finish_callback_(/* ok = */ true);
       });
 
@@ -481,10 +493,12 @@ struct _ServerHandler {
 
     template <typename... Args>
     void Fail(Args&&... args) {
+      // TODO(benh): TryCancel() so that we don't leak resources?
       k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
+      // TODO(benh): TryCancel() so that we don't leak resources?
       k_.Stop();
     }
 
@@ -655,6 +669,7 @@ struct _ServerHandler {
     std::optional<::grpc::Status> status_;
 
     std::once_flag finish_;
+    std::atomic<bool> done_ = false;
   };
 
   template <

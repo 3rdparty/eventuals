@@ -53,7 +53,7 @@ struct _Call {
         cq_(std::move(that.cq_)),
         stub_(std::move(that.stub_)) {
       // NOTE: only expecting move construction before starting.
-      CHECK(!stream_) << "Moving after starting";
+      CHECK(!stream_) << "moving after starting";
     }
 
     template <typename... Args>
