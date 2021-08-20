@@ -106,8 +106,7 @@ Server::Server(
     std::unique_ptr<::grpc::Server>&& server,
     std::vector<std::unique_ptr<::grpc::ServerCompletionQueue>>&& cqs,
     std::vector<std::thread>&& threads)
-  : Synchronizable(&lock_),
-    service_(std::move(service)),
+  : service_(std::move(service)),
     server_(std::move(server)),
     cqs_(std::move(cqs)),
     threads_(std::move(threads)) {

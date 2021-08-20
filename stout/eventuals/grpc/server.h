@@ -14,7 +14,7 @@
 #include "grpcpp/server_context.h"
 #include "stout/borrowable.h"
 #include "stout/eventual.h"
-#include "stout/grpc/logging.h"
+#include "stout/eventuals/grpc/logging.h"
 #include "stout/grpc/traits.h"
 #include "stout/lambda.h"
 #include "stout/lock.h"
@@ -91,8 +91,7 @@ struct TypedServerContext {
 class Endpoint : public Synchronizable {
  public:
   Endpoint(std::string&& path, std::string&& host)
-    : Synchronizable(&lock_),
-      path_(std::move(path)),
+    : path_(std::move(path)),
       host_(std::move(host)) {}
 
   auto Enqueue(std::unique_ptr<ServerContext>&& context) {
@@ -127,8 +126,6 @@ class Endpoint : public Synchronizable {
   }
 
  private:
-  Lock lock_;
-
   const std::string path_;
   const std::string host_;
 
@@ -210,8 +207,6 @@ class Server : public Synchronizable {
   auto Lookup(std::unique_ptr<ServerContext>& context);
 
   auto Unimplemented(ServerContext* context);
-
-  Lock lock_;
 
   std::unique_ptr<::grpc::AsyncGenericService> service_;
   std::unique_ptr<::grpc::Server> server_;
