@@ -1,7 +1,7 @@
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "stout/eventuals/grpc/client.h"
-#include "stout/eventuals/grpc/server.h"
+#include "stout/grpc/client.h"
+#include "stout/grpc/server.h"
 #include "stout/head.h"
 #include "stout/terminal.h"
 #include "stout/then.h"
@@ -16,8 +16,6 @@ using stout::borrowable;
 using stout::eventuals::Head;
 using stout::eventuals::Terminate;
 using stout::eventuals::Then;
-
-using stout::grpc::Stream;
 
 using stout::eventuals::grpc::Client;
 using stout::eventuals::grpc::CompletionPool;

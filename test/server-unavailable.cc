@@ -1,15 +1,14 @@
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "stout/eventuals/grpc/client.h"
+#include "stout/grpc/client.h"
 #include "stout/terminal.h"
 #include "test/test.h"
 
 using stout::borrowable;
 
-using stout::grpc::Stream;
-
 using stout::eventuals::grpc::Client;
 using stout::eventuals::grpc::CompletionPool;
+using stout::eventuals::grpc::Stream;
 
 TEST_F(StoutGrpcTest, ServerUnavailable) {
   borrowable<CompletionPool> pool;

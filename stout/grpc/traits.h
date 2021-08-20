@@ -1,32 +1,34 @@
 #pragma once
 
+#include <optional>
 #include <string>
-
-#include "absl/types/optional.h"
 
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
-
 #include "stout/grpc/call-type.h"
 
 namespace stout {
+namespace eventuals {
 namespace grpc {
 
 // Used to "decorate" requests/responses streams.
-template <typename T> struct Stream {};
+template <typename T>
+struct Stream {};
 
 
 template <typename T>
-class IsService
-{
-private:
+class IsService {
+ private:
   typedef char Yes[1];
   typedef char No[2];
 
-  template <typename U> static Yes& test(decltype(&U::service_full_name));
-  template <typename U> static No& test(...);
+  template <typename U>
+  static Yes& test(decltype(&U::service_full_name));
 
-public:
+  template <typename U>
+  static No& test(...);
+
+ public:
   enum { value = sizeof(test<T>(0)) == sizeof(Yes) };
 };
 
@@ -41,18 +43,14 @@ struct IsMessage<Stream<T>>
   : std::is_base_of<google::protobuf::MessageLite, T> {};
 
 
-struct RequestResponseTraits
-{
-  struct Error
-  {
+struct RequestResponseTraits {
+  struct Error {
     std::string message;
   };
 
   template <typename T>
-  struct Details
-  {
-    static std::string name()
-    {
+  struct Details {
+    static std::string name() {
       return T().GetTypeName();
     }
 
@@ -62,10 +60,8 @@ struct RequestResponseTraits
   };
 
   template <typename T>
-  struct Details<Stream<T>>
-  {
-    static std::string name()
-    {
+  struct Details<Stream<T>> {
+    static std::string name() {
       return T().GetTypeName();
     }
 
@@ -75,8 +71,7 @@ struct RequestResponseTraits
   };
 
   template <typename Request, typename Response>
-  static CallType Type()
-  {
+  static CallType Type() {
     if (Details<Request>::streaming && Details<Response>::streaming) {
       return CallType::BIDI_STREAMING;
     } else if (Details<Request>::streaming) {
@@ -89,69 +84,40 @@ struct RequestResponseTraits
   }
 
   template <typename Request, typename Response>
-  static absl::optional<Error> Validate(const google::protobuf::MethodDescriptor* method)
-  {
+  static std::optional<Error> Validate(
+      const google::protobuf::MethodDescriptor* method) {
     if (Details<Request>::streaming && !method->client_streaming()) {
-      return Error { "Method does not have streaming requests" };
+      return Error{"Method does not have streaming requests"};
     }
 
     if (!Details<Request>::streaming && method->client_streaming()) {
-      return Error { "Method has streaming requests" };
+      return Error{"Method has streaming requests"};
     }
 
     if (Details<Response>::streaming && !method->server_streaming()) {
-      return Error { "Method does not have streaming responses" };
+      return Error{"Method does not have streaming responses"};
     }
 
     if (!Details<Response>::streaming && method->server_streaming()) {
-      return Error { "Method has streaming responses" };
+      return Error{"Method has streaming responses"};
     }
 
     if (Details<Request>::name() != method->input_type()->full_name()) {
-      return Error {
+      return Error{
           "Method does not have requests of type "
-          + Details<Request>::name()
-      };
+          + Details<Request>::name()};
     }
 
     if (Details<Response>::name() != method->output_type()->full_name()) {
-      return Error {
+      return Error{
           "Method does not have responses of type "
-          + Details<Response>::name()
-      };
+          + Details<Response>::name()};
     }
 
-    return absl::nullopt;
+    return std::nullopt;
   }
 };
 
-
-template <typename F, typename Call, typename T>
-struct IsReadHandler
-  : std::is_constructible<
-      std::function<void(Call*, std::unique_ptr<typename RequestResponseTraits::Details<T>::Type>&&)>,
-      F> {};
-
-
-template <typename F, typename Call>
-struct IsDoneHandler
-  : std::is_constructible<
-      std::function<void(Call*, bool)>,
-      F> {};
-
-
-template <typename F, typename Call>
-struct IsFinishedHandler
-  : std::is_constructible<
-      std::function<void(Call*, const ::grpc::Status&)>,
-      F> {};
-
-
-template <typename F, typename Call, typename... Args>
-struct IsCallHandler
-  : std::is_constructible<
-      std::function<void(std::unique_ptr<Call>&&, Args...)>,
-      F> {};
-
-} // namespace grpc {
-} // namespace stout {
+} // namespace grpc
+} // namespace eventuals
+} // namespace stout

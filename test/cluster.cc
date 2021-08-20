@@ -1,4 +1,4 @@
-#include "stout/eventuals/grpc/cluster.h"
+#include "stout/grpc/cluster.h"
 
 #include <atomic>
 #include <string>
@@ -7,7 +7,7 @@
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
 #include "stout/context.h"
-#include "stout/eventuals/grpc/server.h"
+#include "stout/grpc/server.h"
 #include "stout/head.h"
 #include "stout/terminal.h"
 #include "stout/then.h"

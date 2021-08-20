@@ -1,12 +1,10 @@
 #pragma once
 
-#include "glog/logging.h"
+inline bool StoutGrpcLog(int level) {
+  // TODO(benh): Initialize logging if it hasn't already been done so?
+  static const char* variable = std::getenv("STOUT_GRPC_LOG");
+  static int value = variable != nullptr ? atoi(variable) : 0;
+  return value >= level;
+}
 
-// TODO(benh): Initialize logging if it hasn't already been done so?
-
-#define STOUT_GRPC_LOG                                                  \
-  ({                                                                    \
-    const char* value = std::getenv("STOUT_GRPC_LOG");                  \
-    value != nullptr ? strcmp(value, "1") == 0 : false;                 \
-  })
-
+#define STOUT_GRPC_LOG(level) LOG_IF(INFO, StoutGrpcLog(level))

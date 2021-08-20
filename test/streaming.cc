@@ -1,7 +1,7 @@
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "stout/eventuals/grpc/client.h"
-#include "stout/eventuals/grpc/server.h"
+#include "stout/grpc/client.h"
+#include "stout/grpc/server.h"
 #include "stout/head.h"
 #include "stout/sequence.h"
 #include "stout/then.h"
@@ -14,12 +14,11 @@ using stout::eventuals::Head;
 using stout::eventuals::Terminate;
 using stout::eventuals::Then;
 
-using stout::grpc::Stream;
-
 using stout::eventuals::grpc::Client;
 using stout::eventuals::grpc::CompletionPool;
 using stout::eventuals::grpc::Server;
 using stout::eventuals::grpc::ServerBuilder;
+using stout::eventuals::grpc::Stream;
 
 TEST_F(StoutGrpcTest, Streaming) {
   ServerBuilder builder;

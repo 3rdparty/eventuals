@@ -1,6 +1,7 @@
 #pragma once
 
 namespace stout {
+namespace eventuals {
 namespace grpc {
 
 enum class CallType {
@@ -10,6 +11,6 @@ enum class CallType {
   BIDI_STREAMING,
 };
 
-} // namespace grpc {
-} // namespace stout {
-
+} // namespace grpc
+} // namespace eventuals
+} // namespace stout

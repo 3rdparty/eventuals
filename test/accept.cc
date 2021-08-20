@@ -1,7 +1,7 @@
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "stout/eventuals/grpc/server.h"
+#include "stout/grpc/server.h"
 #include "stout/head.h"
 #include "test/test.h"
 
@@ -12,8 +12,7 @@ using helloworld::HelloRequest;
 using stout::eventuals::Head;
 
 using stout::eventuals::grpc::ServerBuilder;
-
-using stout::grpc::Stream;
+using stout::eventuals::grpc::Stream;
 
 #define EXPECT_THROW_WHAT(_expression_, _what_)                        \
   [&]() {                                                              \

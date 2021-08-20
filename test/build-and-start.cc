@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "stout/eventuals/grpc/server.h"
+#include "stout/grpc/server.h"
 #include "test/test.h"
 
 using stout::eventuals::grpc::ServerBuilder;
