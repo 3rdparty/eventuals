@@ -24,6 +24,9 @@ jobs:
       - name: Check for bazel
         run: bazel --version
 
+      - name: pip install wheel
+        run: pip install wheel
+
       - name: Build
         run: bazel build :grpc
 
