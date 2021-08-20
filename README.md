@@ -1,6 +1,6 @@
-[![macOS](https://github.com/3rdparty/stout-grpc/workflows/macOS/badge.svg?branch=main)](https://github.com/3rdparty/stout-grpc/actions/workflows/macos.yml)
-[![Ubuntu](https://github.com/3rdparty/stout-grpc/workflows/Ubuntu/badge.svg?branch=main)](https://github.com/3rdparty/stout-grpc/actions/workflows/ubuntu.yml)
-[![Windows](https://github.com/3rdparty/stout-grpc/workflows/Windows/badge.svg?branch=main)](https://github.com/3rdparty/stout-grpc/actions/workflows/windows.yml)
+[![macOS](https://github.com/3rdparty/stout-grpc/workflows/macOS/badge.svg?branch=master)](https://github.com/3rdparty/stout-grpc/actions/workflows/macos.yml)
+[![Ubuntu](https://github.com/3rdparty/stout-grpc/workflows/Ubuntu/badge.svg?branch=master)](https://github.com/3rdparty/stout-grpc/actions/workflows/ubuntu.yml)
+[![Windows](https://github.com/3rdparty/stout-grpc/workflows/Windows/badge.svg?branch=master)](https://github.com/3rdparty/stout-grpc/actions/workflows/windows.yml)
 
 # `stout::grpc`
 
