@@ -25,6 +25,7 @@ cc_library(
         "stout/eventuals/grpc/cluster.h",
         "stout/eventuals/grpc/completion-pool.h",
         "stout/eventuals/grpc/server.h",
+        "stout/eventuals/grpc/logging.h",
     ],
     srcs = [
         "stout/grpc/client.cc",

@@ -570,7 +570,7 @@ struct _ServerHandler {
       if (status.ok()) {
         return true;
       } else {
-        VLOG_IF(1, STOUT_GRPC_LOG)
+        STOUT_GRPC_LOG(1)
             << "failed to serialize " << t.GetTypeName()
             << ": " << status.error_message() << std::endl;
         return false;
@@ -586,7 +586,7 @@ struct _ServerHandler {
       if (status.ok()) {
         return true;
       } else {
-        VLOG_IF(1, STOUT_GRPC_LOG)
+        STOUT_GRPC_LOG(1)
             << "failed to deserialize " << t->GetTypeName()
             << ": " << status.error_message() << std::endl;
         return false;

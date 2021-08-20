@@ -81,7 +81,7 @@ auto Server::Lookup(std::unique_ptr<ServerContext>& context) {
 
 auto Server::Unimplemented(ServerContext* context) {
   return Lambda([context]() {
-    VLOG_IF(1, STOUT_GRPC_LOG)
+    STOUT_GRPC_LOG(1)
         << "Dropping " << context->method()
         << " for host " << context->host();
 
