@@ -25,3 +25,11 @@ def repos(external = True, repo_mapping = {}):
             sha256 = "27dd2fc5c9809ddcde8eb6fa1fa278a3486566dfc28335fca13eb8df8bd3b958",
             strip_prefix = "grpc-1.35.0",
         )
+
+    if "stout-stateful-tally" not in native.existing_rules():
+        http_archive(
+            name = "stout-stateful-tally",
+            url = "https://github.com/3rdparty/stout-stateful-tally/archive/0.1.0.tar.gz",
+            sha256 = "66db697c2b66d3998870c2ccdd2aef79295431767f286597d1484d4d2b7f97b9",
+            strip_prefix = "stout-stateful-tally-0.1.0",
+        )

@@ -7,12 +7,16 @@ load("@com_github_3rdparty_stout_eventuals//bazel:deps.bzl", stout_eventuals_dep
 
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
 
+load("@stout-stateful-tally//bazel:stout_stateful_tally_deps.bzl", "stout_stateful_tally_deps")
+
 def deps(repo_mapping = {}):
     stout_eventuals_deps(
         repo_mapping = repo_mapping
     )
 
     grpc_deps()
+
+    stout_stateful_tally_deps()
 
     if "com_github_gflags_gflags" not in native.existing_rules():
         http_archive(
