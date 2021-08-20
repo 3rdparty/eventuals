@@ -37,7 +37,7 @@ struct HeapTask {
     void Fail(Args&&... args) {
       (*fail_)(
           std::make_exception_ptr(
-              FailedException(std::forward<decltype(args)>(args)...)));
+              std::forward<decltype(args)>(args)...));
     }
 
     void Stop() {
