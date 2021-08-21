@@ -88,13 +88,9 @@ auto Server::Unimplemented(ServerContext* context) {
         ::grpc::UNIMPLEMENTED,
         context->method() + " for host " + context->host());
 
-    static Callback<bool> noop = [](bool) {};
-
-    context->OnDone([context](bool) {
+    context->FinishThenOnDone(status, [context](bool) {
       delete context;
     });
-
-    context->stream()->Finish(status, &noop);
   });
 }
 

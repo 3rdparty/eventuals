@@ -38,9 +38,16 @@ using stout::eventuals::detail::operator|;
 struct ServerContext {
   ServerContext()
     : stream_(&context_) {
-    done_ = [this](bool) {
-      on_done_.Notify(context_.IsCancelled());
+    // NOTE: according to documentation we must set up the done
+    // callback _before_ we start using the context. Thus we use a
+    // 'Notification' in order to actually queue the callback later,
+    // which also gives us the added benefit of having more than once
+    // callback.
+    done_callback_ = [this](bool) {
+      done_.Notify(context_.IsCancelled());
     };
+
+    context_.AsyncNotifyWhenDone(&done_callback_);
 
     // NOTE: it's possible that after doing a shutdown of the server
     // gRPC won't give us a done notification as per the bug at:
@@ -48,12 +55,30 @@ struct ServerContext {
     // appear closed it's due to a bot rather than an actual fix)
     // which can lead to memory or resource leaks if any callbacks set
     // up don't get executed.
-
-    context_.AsyncNotifyWhenDone(&done_);
   }
 
-  void OnDone(std::function<void(bool)>&& handler) {
-    on_done_.Watch(std::move(handler));
+  void OnDone(std::function<void(bool)>&& f) {
+    done_.Watch(std::move(f));
+  }
+
+  // Performs 'Finish()' then 'OnDone()' in sequence to overcome the
+  // non-deterministic ordering of the finish and done callbacks that
+  // grpc introduces.
+  //
+  // NOTE: it's remarkably surprising behavior that grpc will invoke
+  // the finish callback _after_ the done callback!!!!!! This function
+  // lets you get around that by sequencing the two callbacks.
+  void FinishThenOnDone(::grpc::Status status, std::function<void(bool)>&& f) {
+    CHECK(!finish_callback_)
+        << "attempted to call FinishThenOnDone more than once";
+
+    finish_on_done_ = std::move(f);
+
+    finish_callback_ = [this](bool) {
+      OnDone(std::move(finish_on_done_));
+    };
+
+    stream_.Finish(status, &finish_callback_);
   }
 
   ::grpc::GenericServerContext* context() {
@@ -76,8 +101,12 @@ struct ServerContext {
   ::grpc::GenericServerContext context_;
   ::grpc::GenericServerAsyncReaderWriter stream_;
 
-  Callback<bool> done_;
-  Notification<bool> on_done_;
+  Callback<bool> done_callback_;
+  Callback<bool> finish_callback_;
+
+  std::function<void(bool)> finish_on_done_;
+
+  Notification<bool> done_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -391,7 +420,8 @@ struct _ServerHandler {
     }
 
     ~Continuation() {
-      // Only wait for "done" if we started.
+      /// Wait for 'done' so that we know that grpc will let us free
+      // it, but only wait for "done" if we actually started.
       if (read_callback_) {
         while (!done_.load()) {
           // TODO(benh): portably pause CPU as part of spin loop and
