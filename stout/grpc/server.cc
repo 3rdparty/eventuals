@@ -169,7 +169,7 @@ void Server::Shutdown() {
     server_->Shutdown();
   }
 
-  for (auto&& cq : cqs_) {
+  for (auto& cq : cqs_) {
     cq->Shutdown();
   }
 }
@@ -177,22 +177,26 @@ void Server::Shutdown() {
 ////////////////////////////////////////////////////////////////////////
 
 void Server::Wait() {
+  // Wait for the workers to stop using their assigned completion
+  // queues before anything else.
+  for (auto& worker : workers_) {
+    while (!worker->done.load()) {
+      // TODO(benh): cpu relax or some other spin loop strategy.
+    }
+  }
+
   if (server_) {
     server_->Wait();
   }
 
-  for (auto&& thread : threads_) {
+  for (auto& thread : threads_) {
     thread.join();
   }
 
-  for (auto&& cq : cqs_) {
+  for (auto& cq : cqs_) {
     void* tag = nullptr;
     bool ok = false;
     while (cq->Next(&tag, &ok)) {}
-  }
-
-  for (auto& worker : workers_) {
-    while (!worker->done.load()) {}
   }
 }
 
@@ -291,7 +295,7 @@ ServerStatusOrServer ServerBuilder::BuildAndStart() {
     // 'BuildAndStart()' so that we don't have to bother with
     // stopping/joining.
     std::vector<std::thread> threads;
-    for (auto&& cq : cqs) {
+    for (auto& cq : cqs) {
       for (size_t j = 0; j < minimumThreadsPerCompletionQueue_.value(); ++j) {
         threads.push_back(
             std::thread(

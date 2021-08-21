@@ -2,7 +2,6 @@
 #include "gtest/gtest.h"
 #include "stout/grpc/client.h"
 #include "stout/grpc/server.h"
-#include "stout/task.h"
 #include "test/test.h"
 
 using helloworld::Greeter;
