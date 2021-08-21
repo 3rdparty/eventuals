@@ -27,5 +27,9 @@ jobs:
       - name: Build
         run: bazel build :grpc
 
+      - name: Debug using tmate (if failure)
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+
       - name: Test
         run: bazel test --test_output=errors test:grpc
