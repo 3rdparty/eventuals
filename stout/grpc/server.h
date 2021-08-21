@@ -508,8 +508,8 @@ struct _ServerHandler {
       };
 
       context_->OnDone([this](bool /* cancelled */) {
-        done_.store(true);
         finish_callback_(/* ok = */ true);
+        done_.store(true);
       });
 
       if constexpr (!IsUndefined<Ready_>::value) {
