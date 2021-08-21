@@ -20,13 +20,13 @@ namespace grpc {
 ////////////////////////////////////////////////////////////////////////
 
 auto Server::RequestCall(
-    std::unique_ptr<ServerContext>& context,
-    ::grpc::ServerCompletionQueue& cq) {
+    ServerContext* context,
+    ::grpc::ServerCompletionQueue* cq) {
   return Eventual<void>()
       .context(Callback<bool>())
       // NOTE: 'context' and 'cq' are stored in a 'Closure()' so safe
       // to capture them as references here.
-      .start([&](auto& callback, auto& k) {
+      .start([this, context, cq](auto& callback, auto& k) {
         if (!callback) {
           callback = [&k](bool ok) {
             if (ok) {
@@ -44,18 +44,18 @@ auto Server::RequestCall(
             // CompletionPool for each call rather than the
             // notification completion queue that we are using
             // for server notifications?
-            &cq,
-            &cq,
+            cq,
+            cq,
             &callback);
       });
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-auto Server::Lookup(std::unique_ptr<ServerContext>& context) {
+auto Server::Lookup(ServerContext* context) {
   // NOTE: 'context' is stored in a 'Closure()' so safe to capture as
   // a reference here.
-  return Synchronized(Lambda([&]() {
+  return Synchronized(Lambda([this, context]() {
     Endpoint* endpoint = nullptr;
 
     auto iterator = endpoints_.find(
@@ -120,11 +120,13 @@ Server::Server(
           return Closure(
               [this, cq, context = std::unique_ptr<ServerContext>()]() mutable {
                 return Repeat(
-                           Lambda([&]() mutable {
+                           Then([&]() mutable {
                              context = std::make_unique<ServerContext>();
+                             return RequestCall(context.get(), cq);
                            })
-                           | RequestCall(context, *cq)
-                           | Lookup(context)
+                           | Then([&]() {
+                               return Lookup(context.get());
+                             })
                            | Conditional(
                                [](auto* endpoint) {
                                  return endpoint != nullptr;

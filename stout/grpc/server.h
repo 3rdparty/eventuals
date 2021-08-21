@@ -201,11 +201,9 @@ class Server : public Synchronizable {
 
   auto Insert(std::unique_ptr<Endpoint>&& endpoint);
 
-  auto RequestCall(
-      std::unique_ptr<ServerContext>& context,
-      ::grpc::ServerCompletionQueue& cq);
+  auto RequestCall(ServerContext* context, ::grpc::ServerCompletionQueue* cq);
 
-  auto Lookup(std::unique_ptr<ServerContext>& context);
+  auto Lookup(ServerContext* context);
 
   auto Unimplemented(ServerContext* context);
 
