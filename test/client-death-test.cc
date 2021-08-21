@@ -23,6 +23,44 @@ using stout::eventuals::grpc::Server;
 using stout::eventuals::grpc::ServerBuilder;
 
 TEST_F(StoutGrpcTest, ClientDeathTest) {
+  // NOTE: need pipes so the client can get the port of the server and
+  // we need to start the server after we've forked because grpc isn't
+  // fork friendly, see: https://github.com/grpc/grpc/issues/14055
+  int pipefd[2];
+
+  auto error = pipe(pipefd);
+
+  ASSERT_NE(-1, error);
+
+  auto client = [&]() {
+    int port = 0;
+
+    error = read(pipefd[0], &port, sizeof(int));
+
+    ASSERT_LT(0, error);
+
+    borrowable<CompletionPool> pool;
+
+    Client client(
+        "0.0.0.0:" + stringify(port),
+        grpc::InsecureChannelCredentials(),
+        pool.borrow());
+
+    auto call = [&]() {
+      return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
+          | (Client::Handler()
+                 .ready([](auto&) {
+                   exit(1);
+                 }));
+    };
+
+    *call();
+  };
+
+  std::thread thread([&]() {
+    ASSERT_DEATH(client(), "");
+  });
+
   ServerBuilder builder;
 
   int port = 0;
@@ -52,26 +90,11 @@ TEST_F(StoutGrpcTest, ClientDeathTest) {
 
   k.Start();
 
-  auto client = [&]() {
-    borrowable<CompletionPool> pool;
+  error = write(pipefd[1], &port, sizeof(int));
 
-    Client client(
-        "0.0.0.0:" + stringify(port),
-        grpc::InsecureChannelCredentials(),
-        pool.borrow());
-
-    auto call = [&]() {
-      return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-          | (Client::Handler()
-                 .ready([](auto&) {
-                   exit(1);
-                 }));
-    };
-
-    *call();
-  };
-
-  ASSERT_DEATH(client(), "");
+  ASSERT_LT(0, error);
 
   EXPECT_TRUE(cancelled.get());
+
+  thread.join();
 }
