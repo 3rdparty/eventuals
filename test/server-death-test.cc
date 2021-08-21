@@ -14,6 +14,7 @@ using helloworld::HelloRequest;
 using stout::borrowable;
 
 using stout::eventuals::Head;
+using stout::eventuals::Terminate;
 using stout::eventuals::Then;
 
 using stout::eventuals::grpc::Client;
@@ -59,11 +60,15 @@ TEST_F(StoutGrpcTest, ServerDeathTest) {
              });
     };
 
+    auto [future, k] = Terminate(serve());
+
+    k.Start();
+
     auto error = write(pipefd[1], &port, sizeof(int));
 
     ASSERT_LT(0, error);
 
-    *serve();
+    future.get();
   };
 
   std::thread thread([&]() {
