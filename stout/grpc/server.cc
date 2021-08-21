@@ -90,11 +90,11 @@ auto Server::Unimplemented(ServerContext* context) {
 
     static Callback<bool> noop = [](bool) {};
 
-    context->stream()->Finish(status, &noop);
-
     context->OnDone([context](bool) {
       delete context;
     });
+
+    context->stream()->Finish(status, &noop);
   });
 }
 
