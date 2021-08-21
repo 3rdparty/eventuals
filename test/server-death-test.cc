@@ -25,11 +25,19 @@ using stout::eventuals::grpc::ServerBuilder;
 TEST_F(StoutGrpcTest, ServerDeathTest) {
   // NOTE: need pipes to get the server's port, this also helps
   // synchronize when the server is ready to have the client connect.
-  int pipefd[2];
+  int pipefds[2];
 
-  auto error = pipe(pipefd);
+  ASSERT_NE(-1, pipe(pipefds));
 
-  ASSERT_NE(-1, error);
+  auto wait_for_port = [&]() {
+    int port;
+    CHECK(read(pipefds[0], &port, sizeof(int)) > 0);
+    return port;
+  };
+
+  auto send_port = [&](int port) {
+    CHECK(write(pipefds[1], &port, sizeof(port)) > 0);
+  };
 
   auto server = [&]() {
     ServerBuilder builder;
@@ -64,9 +72,7 @@ TEST_F(StoutGrpcTest, ServerDeathTest) {
 
     k.Start();
 
-    auto error = write(pipefd[1], &port, sizeof(int));
-
-    ASSERT_LT(0, error);
+    send_port(port);
 
     future.get();
   };
@@ -75,11 +81,7 @@ TEST_F(StoutGrpcTest, ServerDeathTest) {
     ASSERT_DEATH(server(), "");
   });
 
-  int port = 0;
-
-  error = read(pipefd[0], &port, sizeof(int));
-
-  ASSERT_LT(0, error);
+  int port = wait_for_port();
 
   borrowable<CompletionPool> pool;
 
@@ -104,6 +106,6 @@ TEST_F(StoutGrpcTest, ServerDeathTest) {
 
   thread.join();
 
-  close(pipefd[0]);
-  close(pipefd[1]);
+  close(pipefds[0]);
+  close(pipefds[1]);
 }

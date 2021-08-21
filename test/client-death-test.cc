@@ -23,21 +23,43 @@ using stout::eventuals::grpc::Server;
 using stout::eventuals::grpc::ServerBuilder;
 
 TEST_F(StoutGrpcTest, ClientDeathTest) {
-  // NOTE: need pipes so the client can get the port of the server and
-  // we need to start the server after we've forked because grpc isn't
-  // fork friendly, see: https://github.com/grpc/grpc/issues/14055
-  int pipefd[2];
+  // NOTE: need pipes so that (1) the client can tell us when it's
+  // forked so we know we can start the server because we can't call
+  // into grpc before we've forked (see
+  // https://github.com/grpc/grpc/issues/14055) and (2) the server can
+  // send the client it's port.
+  struct {
+    int fork[2];
+    int port[2];
+  } pipes;
 
-  auto error = pipe(pipefd);
+  ASSERT_NE(-1, pipe(pipes.fork));
+  ASSERT_NE(-1, pipe(pipes.port));
 
-  ASSERT_NE(-1, error);
+  auto wait_for_fork = [&]() {
+    int _;
+    CHECK(read(pipes.fork[0], &_, sizeof(int)) > 0);
+  };
+
+  auto notify_forked = [&]() {
+    int _ = 1;
+    CHECK(write(pipes.fork[1], &_, sizeof(int)) > 0);
+  };
+
+  auto wait_for_port = [&]() {
+    int port;
+    CHECK(read(pipes.port[0], &port, sizeof(int)) > 0);
+    return port;
+  };
+
+  auto send_port = [&](int port) {
+    CHECK(write(pipes.port[1], &port, sizeof(port)) > 0);
+  };
 
   auto client = [&]() {
-    int port = 0;
+    notify_forked();
 
-    error = read(pipefd[0], &port, sizeof(int));
-
-    ASSERT_LT(0, error);
+    int port = wait_for_port();
 
     borrowable<CompletionPool> pool;
 
@@ -60,6 +82,8 @@ TEST_F(StoutGrpcTest, ClientDeathTest) {
   std::thread thread([&]() {
     ASSERT_DEATH(client(), "");
   });
+
+  wait_for_fork();
 
   ServerBuilder builder;
 
@@ -90,11 +114,14 @@ TEST_F(StoutGrpcTest, ClientDeathTest) {
 
   k.Start();
 
-  error = write(pipefd[1], &port, sizeof(int));
-
-  ASSERT_LT(0, error);
+  send_port(port);
 
   EXPECT_TRUE(cancelled.get());
 
   thread.join();
+
+  close(pipes.fork[0]);
+  close(pipes.fork[1]);
+  close(pipes.port[0]);
+  close(pipes.port[1]);
 }
