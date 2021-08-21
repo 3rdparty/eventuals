@@ -56,6 +56,16 @@ struct _Call {
       CHECK(!stream_) << "moving after starting";
     }
 
+    ~Continuation() {
+      // NOTE: there isn't an AsyncNotifyWhenDone() on a client
+      // context so we need to improvise and make sure we wait until
+      // we're done reading before we delete the context.
+      while (reading_.load()) {
+        // TODO(benh): cpu relax and LOG_EVERY(WARNING, N) to give
+        // some insight into this spin loop.
+      }
+    }
+
     template <typename... Args>
     void Start(Args&&...) {
       const auto* method =
@@ -101,6 +111,7 @@ struct _Call {
             start_callback_ = [this](bool ok) {
               if (ok) {
                 k_.Ready(*this);
+                reading_.store(true);
                 stream_->Read(response_.get(), &read_callback_);
               } else {
                 auto status = ::grpc::Status(
@@ -119,6 +130,8 @@ struct _Call {
                 });
                 k_.Body(*this, std::move(response));
               } else {
+                reading_.store(false);
+
                 // Signify end of stream (or error).
                 k_.Body(*this, borrowed_ptr<ResponseType_>());
               }
@@ -231,7 +244,7 @@ struct _Call {
 
       mutex_.lock();
       finish_ = true;
-      if (write_datas_.empty()) {
+      if (write_callback_ && write_datas_.empty()) {
         write = true;
       }
       mutex_.unlock();
@@ -308,6 +321,7 @@ struct _Call {
     Callback<bool> write_callback_;
     Callback<bool> finish_callback_;
 
+    std::atomic<bool> reading_ = false;
     borrowable<ResponseType_> response_;
 
     struct WriteData {
