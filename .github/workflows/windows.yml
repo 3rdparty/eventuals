@@ -28,7 +28,15 @@ jobs:
         run: pip install wheel
 
       - name: Build
-        run: bazel build :grpc
+        run: bazel build --spawn_strategy=local --copt="-g" --strip="never" :grpc
+
+      - name: Debug Build using tmate (if failure)
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
 
       - name: Test
-        run: bazel test --test_output=errors test:grpc
+        run: bazel test --spawn_strategy=local --copt="-g" --strip="never" --test_output=errors test:grpc
+
+      - name: Debug Test using tmate (if failure)
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
