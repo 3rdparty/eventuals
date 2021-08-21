@@ -110,7 +110,6 @@ struct _Broadcast {
           [](auto& broadcast) mutable {
             // TODO(benh): submit to run on the *current* thread pool.
             broadcast.k_.Stop();
-            broadcast.lock_.Release();
           },
           broadcast_);
     }
@@ -130,6 +129,19 @@ struct _Broadcast {
       : k_(std::move(that.k_)),
         name_(std::move(that.name_)),
         clients_(std::move(that.clients_)) {}
+
+    ~Continuation() {
+      // NOTE: because 'Adaptor::Serialize()' releases the lock
+      // _after_ calling into the continuation 'k_' it's possible that
+      // we've "completed" the eventual pipeline that we're apart of
+      // and are thus being destructed but we haven't yet released the
+      // lock, so we spin loop here to avoid trying to unlock the lock
+      // after we've already destructed it!
+      while (!lock_.Available()) {
+        // TODO(benh): cpu relax and LOG_EVERY(WARNING, N) to give
+        // some insight into the spin loop.
+      }
+    }
 
     template <typename... Args>
     void Start(Args&&...) {
