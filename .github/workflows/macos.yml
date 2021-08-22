@@ -20,7 +20,15 @@ jobs:
         run: bazel --version
 
       - name: Build
-        run: bazel build :eventuals
+        run: bazel build --spawn_strategy=local --copt="-g" --strip="never" :eventuals
+
+      - name: Debug Build using tmate (if failure)
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
 
       - name: Test
-        run: bazel test test:eventuals
+        run: bazel test --spawn_strategy=local --copt="-g" --strip="never" --test_output=errors test:eventuals --test_arg=--gtest_shuffle --test_arg=--gtest_repeat=100
+
+      - name: Debug Test using tmate (if failure)
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
