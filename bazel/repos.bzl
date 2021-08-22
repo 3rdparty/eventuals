@@ -13,6 +13,7 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 load("//3rdparty/stout-eventuals:repos.bzl", stout_eventuals_repos="repos")
 load("//3rdparty/stout-borrowed-ptr:repos.bzl", stout_borrowed_ptr_repos="repos")
+load("//3rdparty/stout-notification:repos.bzl", stout_notification_repos="repos")
 
 def repos(external = True, repo_mapping = {}):
     stout_eventuals_repos(
@@ -20,6 +21,10 @@ def repos(external = True, repo_mapping = {}):
     )
 
     stout_borrowed_ptr_repos(
+        repo_mapping = repo_mapping
+    )
+
+    stout_notification_repos(
         repo_mapping = repo_mapping
     )
 

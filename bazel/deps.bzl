@@ -7,6 +7,8 @@ load("@com_github_3rdparty_stout_eventuals//bazel:deps.bzl", stout_eventuals_dep
 
 load("@com_github_3rdparty_stout_borrowed_ptr//bazel:deps.bzl", stout_borrowed_ptr_deps="deps")
 
+load("@com_github_3rdparty_stout_notification//bazel:deps.bzl", stout_notification_deps="deps")
+
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
 
 def deps(repo_mapping = {}):
@@ -15,6 +17,10 @@ def deps(repo_mapping = {}):
     )
 
     stout_borrowed_ptr_deps(
+        repo_mapping = repo_mapping
+    )
+
+    stout_notification_deps(
         repo_mapping = repo_mapping
     )
 
@@ -42,22 +48,6 @@ def deps(repo_mapping = {}):
             url = "https://github.com/abseil/abseil-cpp/archive/ca9856cabc23d771bcce634677650eb6fc4363ae.tar.gz",
             sha256 = "cd477bfd0d19f803f85d118c7943b7908930310d261752730afa981118fee230",
             strip_prefix = "abseil-cpp-ca9856cabc23d771bcce634677650eb6fc4363ae",
-        )
-
-    if "stout-notification" not in native.existing_rules():
-        http_archive(
-            name = "stout-notification",
-            url = "https://github.com/3rdparty/stout-notification/archive/0.3.0.tar.gz",
-            sha256 = "789af33b1a1ae1682cee6aade0846d50ce6a69773684b8a30633fc97a890b767",
-            strip_prefix = "stout-notification-0.3.0",
-        )
-
-    if "stout-borrowed-ptr" not in native.existing_rules():
-        git_repository(
-            name = "stout-borrowed-ptr",
-            remote = "https://github.com/3rdparty/stout-borrowed-ptr",
-            commit = "1b6e3b1f6c8bbcb4ca1f4d093b901713aa845ff6",
-            shallow_since = "1619992476 -0700",
         )
 
     if "com_github_google_googletest" not in native.existing_rules():
