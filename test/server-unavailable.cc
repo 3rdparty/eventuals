@@ -4,21 +4,21 @@
 #include "stout/terminal.h"
 #include "test/test.h"
 
-using stout::borrowable;
+using stout::Borrowable;
 
 using stout::eventuals::grpc::Client;
 using stout::eventuals::grpc::CompletionPool;
 using stout::eventuals::grpc::Stream;
 
 TEST_F(StoutGrpcTest, ServerUnavailable) {
-  borrowable<CompletionPool> pool;
+  Borrowable<CompletionPool> pool;
 
   // NOTE: we use 'getpid()' to create a _unique_ UNIX domain socket
   // path that should never have a server listening on for this test.
   Client client(
       "unix:stout-grpc-test-server-unavailable-" + stringify(getpid()),
       grpc::InsecureChannelCredentials(),
-      pool.borrow());
+      pool.Borrow());
 
   auto call = [&]() {
     return client.Call<

@@ -18,7 +18,7 @@ using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
-using stout::borrowable;
+using stout::Borrowable;
 
 using stout::eventuals::Context;
 using stout::eventuals::Head;
@@ -79,7 +79,7 @@ TEST_F(StoutGrpcTest, BroadcastCancel) {
     ks.emplace_back(std::move(k)).Start();
   }
 
-  borrowable<CompletionPool> pool;
+  Borrowable<CompletionPool> pool;
 
   Cluster cluster(
       {"0.0.0.0:" + stringify(ports[0]),

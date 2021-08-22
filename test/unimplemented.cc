@@ -8,7 +8,7 @@ using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
-using stout::borrowable;
+using stout::Borrowable;
 
 using stout::eventuals::grpc::Client;
 using stout::eventuals::grpc::CompletionPool;
@@ -32,12 +32,12 @@ TEST_F(StoutGrpcTest, Unimplemented) {
 
   ASSERT_TRUE(server);
 
-  borrowable<CompletionPool> pool;
+  Borrowable<CompletionPool> pool;
 
   Client client(
       "0.0.0.0:" + stringify(port),
       grpc::InsecureChannelCredentials(),
-      pool.borrow());
+      pool.Borrow());
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")

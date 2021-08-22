@@ -244,10 +244,10 @@ class Cluster {
   Cluster(
       const std::list<std::string>& targets,
       const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
-      borrowable<CompletionPool>& pool) {
+      Borrowable<CompletionPool>& pool) {
     clients_.reserve(targets.size());
     for (const auto& target : targets) {
-      clients_.emplace_back(Client(target, credentials, pool.borrow()));
+      clients_.emplace_back(Client(target, credentials, pool.Borrow()));
     }
   }
 
@@ -274,7 +274,7 @@ class Cluster {
     std::vector<borrowed_ptr<Client>> clients;
 
     for (auto& client : clients_) {
-      clients.push_back(client.borrow());
+      clients.push_back(client.Borrow());
     }
 
     return detail::_Broadcast::Composable<Request, Response>{
@@ -283,7 +283,7 @@ class Cluster {
   }
 
  private:
-  std::vector<borrowable<Client>> clients_;
+  std::vector<Borrowable<Client>> clients_;
 };
 
 ////////////////////////////////////////////////////////////////////////

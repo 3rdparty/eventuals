@@ -7,7 +7,7 @@
 #include "stout/then.h"
 #include "test/test.h"
 
-using stout::borrowable;
+using stout::Borrowable;
 using stout::Sequence;
 
 using stout::eventuals::Head;
@@ -67,12 +67,12 @@ TEST_F(StoutGrpcTest, Streaming) {
 
   k.Start();
 
-  borrowable<CompletionPool> pool;
+  Borrowable<CompletionPool> pool;
 
   Client client(
       "0.0.0.0:" + stringify(port),
       grpc::InsecureChannelCredentials(),
-      pool.borrow());
+      pool.Borrow());
 
   auto call = [&]() {
     return client.Call<

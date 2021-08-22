@@ -445,8 +445,8 @@ struct _ServerHandler {
         } else {
           if (ok) {
             if (deserialize(&read_buffer_, request_.get())) {
-              auto request = request_.borrow();
-              request_.watch([this]() {
+              auto request = request_.Borrow();
+              request_.Watch([this]() {
                 stream()->Read(&read_buffer_, &read_callback_);
               });
               body_(*this, std::move(request));
@@ -683,7 +683,7 @@ struct _ServerHandler {
     Callback<bool> finish_callback_;
 
     ::grpc::ByteBuffer read_buffer_;
-    borrowable<RequestType_> request_;
+    Borrowable<RequestType_> request_;
 
     struct WriteData {
       ::grpc::ByteBuffer buffer;

@@ -124,8 +124,8 @@ struct _Call {
 
             read_callback_ = [this](bool ok) mutable {
               if (ok) {
-                auto response = response_.borrow();
-                response_.watch([this]() {
+                auto response = response_.Borrow();
+                response_.Watch([this]() {
                   stream_->Read(response_.get(), &read_callback_);
                 });
                 k_.Body(*this, std::move(response));
@@ -322,7 +322,7 @@ struct _Call {
     Callback<bool> finish_callback_;
 
     std::atomic<bool> reading_ = false;
-    borrowable<ResponseType_> response_;
+    Borrowable<ResponseType_> response_;
 
     struct WriteData {
       RequestType_ request;

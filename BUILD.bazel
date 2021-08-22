@@ -16,9 +16,8 @@ cc_library(
         "stout/grpc/server.cc",
     ],
     deps = [
-        "@stout-borrowed-ptr//:borrowed_ptr",
         "@com_github_3rdparty_stout_eventuals//:eventuals",
-        "@stout-stateful-tally//:stateful-tally",
+        "@com_github_3rdparty_stout_borrowed_ptr//:borrowed_ptr",
         "@stout-notification//:notification",
         "@com_google_absl//absl/base:base",
         "@com_google_absl//absl/container:flat_hash_map",

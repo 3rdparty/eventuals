@@ -18,7 +18,7 @@ class CompletionPool {
     threads_.reserve(threads);
     cqs_.reserve(threads);
     for (size_t i = 0; i < threads; i++) {
-      cqs_.emplace_back(new borrowable<::grpc::CompletionQueue>());
+      cqs_.emplace_back(new Borrowable<::grpc::CompletionQueue>());
       threads_.emplace_back(
           [cq = cqs_.back()->get()]() {
             void* tag = nullptr;
@@ -65,7 +65,7 @@ class CompletionPool {
   borrowed_ptr<::grpc::CompletionQueue> Schedule() {
     // TODO(benh): provide alternative "scheduling" algorithms in
     // addition to "least loaded", e.g., round-robin, random.
-    borrowable<::grpc::CompletionQueue>* selected = nullptr;
+    Borrowable<::grpc::CompletionQueue>* selected = nullptr;
     size_t load = SIZE_MAX;
     for (auto& cq : cqs_) {
       auto borrows = cq->borrows();
@@ -75,11 +75,11 @@ class CompletionPool {
       }
     }
     CHECK(selected != nullptr);
-    return selected->borrow();
+    return selected->Borrow();
   }
 
  private:
-  std::vector<std::unique_ptr<borrowable<::grpc::CompletionQueue>>> cqs_;
+  std::vector<std::unique_ptr<Borrowable<::grpc::CompletionQueue>>> cqs_;
 
   std::vector<std::thread> threads_;
 
