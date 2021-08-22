@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <future>
 #include <list>
 #include <mutex>
 #include <optional>
@@ -39,9 +40,9 @@ class EventLoop {
     Clock(EventLoop& loop)
       : loop_(loop) {}
 
-    std::chrono::milliseconds Now();
+    std::chrono::nanoseconds Now();
 
-    auto Timer(const std::chrono::milliseconds& milliseconds);
+    auto Timer(const std::chrono::nanoseconds& nanoseconds);
 
     bool Paused();
 
@@ -49,18 +50,18 @@ class EventLoop {
 
     void Resume();
 
-    void Advance(const std::chrono::milliseconds& milliseconds);
+    void Advance(const std::chrono::nanoseconds& nanoseconds);
 
    private:
     EventLoop& loop_;
 
     // Stores paused time, no time means clock is not paused.
-    std::optional<std::chrono::milliseconds> paused_;
-    std::chrono::milliseconds advanced_;
+    std::optional<std::chrono::nanoseconds> paused_;
+    std::chrono::nanoseconds advanced_;
 
     struct Pending {
-      std::chrono::milliseconds milliseconds;
-      stout::Callback<const std::chrono::milliseconds&> start;
+      std::chrono::nanoseconds nanoseconds;
+      stout::Callback<const std::chrono::nanoseconds&> start;
     };
 
     // NOTE: using "blocking" synchronization here as pausing the
@@ -80,6 +81,15 @@ class EventLoop {
   ~EventLoop();
 
   void Run();
+
+  template <typename T>
+  void RunUntil(std::future<T>& future) {
+    auto status = std::future_status::ready;
+    do {
+      Run();
+      status = future.wait_for(std::chrono::nanoseconds::zero());
+    } while (status != std::future_status::ready);
+  }
 
   // Interrupts the event loop; necessary to have the loop redetermine
   // an I/O polling timeout in the event that a timer was removed
@@ -133,22 +143,22 @@ inline auto& Clock() {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline std::chrono::milliseconds EventLoop::Clock::Now() {
+inline std::chrono::nanoseconds EventLoop::Clock::Now() {
   if (Paused()) { // TODO(benh): add 'unlikely()'.
     return *paused_ + advanced_;
   } else {
-    return std::chrono::milliseconds(uv_now(loop_));
+    return std::chrono::nanoseconds(std::chrono::milliseconds(uv_now(loop_)));
   }
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 inline auto EventLoop::Clock::Timer(
-    const std::chrono::milliseconds& milliseconds) {
+    const std::chrono::nanoseconds& nanoseconds) {
   // Helper struct storing multiple data fields.
   struct Data {
     EventLoop& loop;
-    std::chrono::milliseconds milliseconds;
+    std::chrono::nanoseconds nanoseconds;
     void* k = nullptr;
     uv_timer_t timer;
     bool started = false;
@@ -159,18 +169,24 @@ inline auto EventLoop::Clock::Timer(
   };
 
   return Eventual<void>()
-      .context(Data{loop_, milliseconds})
+      .context(Data{loop_, nanoseconds})
       // TODO(benh): borrow 'this'.
       .start([this](auto& data, auto& k) mutable {
         using K = std::decay_t<decltype(k)>;
 
+        CHECK(!data.started || data.completed)
+            << "starting timer that hasn't completed";
+
+        data.started = false;
+        data.completed = false;
+
         data.k = &k;
         data.timer.data = &data;
 
-        auto start = [&data](const auto& milliseconds) {
-          // NOTE: need to update milliseconds in the event the clock
-          // was paused/advanced and the millisecond count differs.
-          data.milliseconds = milliseconds;
+        auto start = [&data](const auto& nanoseconds) {
+          // NOTE: need to update nanoseconds in the event the clock
+          // was paused/advanced and the nanosecond count differs.
+          data.nanoseconds = nanoseconds;
           data.start = [&data](EventLoop& loop) {
             if (!data.completed) {
               auto error = uv_timer_init(loop, &data.timer);
@@ -178,6 +194,10 @@ inline auto EventLoop::Clock::Timer(
                 data.completed = true;
                 static_cast<K*>(data.k)->Fail(uv_strerror(error));
               } else {
+                auto milliseconds =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                        data.nanoseconds);
+
                 auto error = uv_timer_start(
                     &data.timer,
                     [](uv_timer_t* timer) {
@@ -189,7 +209,7 @@ inline auto EventLoop::Clock::Timer(
                         static_cast<K*>(data.k)->Start();
                       }
                     },
-                    data.milliseconds.count(),
+                    milliseconds.count(),
                     0);
 
                 if (error) {
@@ -206,11 +226,11 @@ inline auto EventLoop::Clock::Timer(
         };
 
         if (!Paused()) { // TODO(benh): add 'unlikely()'.
-          start(data.milliseconds);
+          start(data.nanoseconds);
         } else {
           std::scoped_lock lock(mutex_);
           pending_.emplace_back(
-              Pending{data.milliseconds + advanced_, std::move(start)});
+              Pending{data.nanoseconds + advanced_, std::move(start)});
         }
       })
       .interrupt([](auto& data, auto& k) {

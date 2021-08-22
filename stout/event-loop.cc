@@ -45,7 +45,7 @@ void EventLoop::Clock::Resume() {
   std::scoped_lock lock(mutex_);
 
   for (auto& pending : pending_) {
-    pending.start(pending.milliseconds - advanced_);
+    pending.start(pending.nanoseconds - advanced_);
   }
 
   pending_.clear();
@@ -55,10 +55,10 @@ void EventLoop::Clock::Resume() {
 
 ////////////////////////////////////////////////////////////////////////
 
-void EventLoop::Clock::Advance(const std::chrono::milliseconds& milliseconds) {
+void EventLoop::Clock::Advance(const std::chrono::nanoseconds& nanoseconds) {
   CHECK(Paused()) << "clock is not paused";
 
-  advanced_ += milliseconds;
+  advanced_ += nanoseconds;
 
   std::scoped_lock lock(mutex_);
 
@@ -67,8 +67,8 @@ void EventLoop::Clock::Advance(const std::chrono::milliseconds& milliseconds) {
           pending_.begin(),
           pending_.end(),
           [this](Pending& pending) {
-            if (advanced_ >= pending.milliseconds) {
-              pending.start(std::chrono::milliseconds(0));
+            if (advanced_ >= pending.nanoseconds) {
+              pending.start(std::chrono::nanoseconds(0));
               return true;
             } else {
               return false;
