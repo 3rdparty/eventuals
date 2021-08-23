@@ -33,6 +33,7 @@ cc_library(
         "stout/event-loop.h",
         "stout/timer.h",
         "stout/head.h",
+        "stout/filesystem.h",
     ],
     srcs = [
         "stout/scheduler.cc",
