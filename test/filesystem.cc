@@ -76,14 +76,32 @@ TEST_F(FilesystemTest, OpenFileFail) {
 
 
 TEST_F(FilesystemTest, CloseFileFail) {
-  const uv_file not_valid_file_descriptor = -14283;
-  File not_valid_file(not_valid_file_descriptor);
+  const std::filesystem::path path = "test_close_fail";
 
-  auto e = CloseFile(not_valid_file);
+  std::ofstream ofs(path);
+  ofs.close();
+
+  EXPECT_TRUE(std::filesystem::exists(path));
+
+  uv_file fd = 0;
+
+  auto e = OpenFile(path, UV_FS_O_RDONLY, 0)
+      | Then([&fd](auto&& file) {
+             // Saving file descriptor to close it once again.
+             fd = file;
+             return CloseFile(file);
+           })
+      | Then([&fd](auto&& file) {
+             File tempfile(fd);
+             return CloseFile(tempfile);
+           });
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
   EventLoop::Default().Run();
+
+  std::filesystem::remove(path);
+  EXPECT_FALSE(std::filesystem::exists(path));
 
   EXPECT_THROW(future.get(), const char*);
 }
@@ -125,14 +143,32 @@ TEST_F(FilesystemTest, ReadFileSucceed) {
 
 
 TEST_F(FilesystemTest, ReadFileFail) {
-  const uv_file not_valid_file_descriptor = -14283;
-  File not_valid_file(not_valid_file_descriptor);
+  const std::filesystem::path path = "test_readfile_fail";
 
-  auto e = ReadFile(not_valid_file, 1000, 0);
+  std::ofstream ofs(path);
+  ofs.close();
+
+  EXPECT_TRUE(std::filesystem::exists(path));
+
+  uv_file fd = 0;
+
+  auto e = OpenFile(path, UV_FS_O_RDONLY, 0)
+      | Then([&fd](auto&& file) {
+             // Saving file descriptor to close it once again.
+             fd = file;
+             return CloseFile(file);
+           })
+      | Then([&fd](auto&& file) {
+             File tempfile(fd);
+             return ReadFile(tempfile, 1000, 0);
+           });
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
   EventLoop::Default().Run();
+
+  std::filesystem::remove(path);
+  EXPECT_FALSE(std::filesystem::exists(path));
 
   EXPECT_THROW(future.get(), const char*);
 }
@@ -177,14 +213,32 @@ TEST_F(FilesystemTest, WriteFileSucceed) {
 
 
 TEST_F(FilesystemTest, WriteFileFail) {
-  const uv_file not_valid_file_descriptor = -14283;
-  File not_valid_file(not_valid_file_descriptor);
+  const std::filesystem::path path = "test_writefile_fail";
 
-  auto e = WriteFile(not_valid_file, "Hello GTest!", 0);
+  std::ofstream ofs(path);
+  ofs.close();
+
+  EXPECT_TRUE(std::filesystem::exists(path));
+
+  uv_file fd = 0;
+
+  auto e = OpenFile(path, UV_FS_O_WRONLY, 0)
+      | Then([&fd](auto&& file) {
+             // Saving file descriptor to close it once again.
+             fd = file;
+             return CloseFile(file);
+           })
+      | Then([&fd](auto&& file) {
+             File tempfile(fd);
+             return WriteFile(tempfile, "Hello GTest!", 0);
+           });
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
   EventLoop::Default().Run();
+
+  std::filesystem::remove(path);
+  EXPECT_FALSE(std::filesystem::exists(path));
 
   EXPECT_THROW(future.get(), const char*);
 }
