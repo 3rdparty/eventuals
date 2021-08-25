@@ -16,6 +16,8 @@ cc_test(
         "static-thread-pool-parallel.cc",
         "timer.cc",
         "event-loop-test.h",
+        "dns-resolver.cc",
+        "signal.cc"
     ],
     deps = [
         "//:eventuals",
