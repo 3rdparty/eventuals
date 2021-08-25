@@ -18,6 +18,8 @@ cc_test(
         "filesystem.cc",
         "event-loop-test.h",
         "iterate.cc",
+        "dns-resolver.cc",
+        "signal.cc"
     ],
     deps = [
         "//:eventuals",
