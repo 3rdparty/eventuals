@@ -1,7 +1,6 @@
 #pragma once
 
-#include <filesystem>
-#include <memory>
+#include <filesystem> // std::filesystem::path
 #include <optional>
 
 #include "stout/event-loop.h"
@@ -22,46 +21,54 @@ class Request {
   Request() {}
 
   Request(const Request&) = delete;
-  Request(Request&& other) {
-    req_ = std::move(other.req_);
-    other.req_.reset();
+  Request(Request&& that)
+    : request_(std::move(that.request_)) {
+    // Moving optional does not reset its state,
+    // we have to manually do it.
+    that.request_.reset();
   }
 
   Request& operator=(const Request&) = delete;
-  Request& operator=(Request&& other) {
-    if (req_.has_value()) {
-      uv_fs_req_cleanup(&*req_);
+  Request& operator=(Request&& that) {
+    if (request_.has_value()) {
+      // libuv doesn't use loop in this call, so we don't have to be
+      // within the event loop.
+      uv_fs_req_cleanup(&*request_);
     }
 
-    req_ = std::move(other.req_);
-    other.req_.reset();
+    // Moving optional does not reset its state,
+    // we have to manually do it.
+    request_ = std::move(that.request_);
+    that.request_.reset();
 
     return *this;
   }
 
-  // Apparently, trying to cleanup an empty uv_req_t gives us an exception.
+  // Trying to cleanup an empty uv_req_t gives us an exception.
   ~Request() {
-    if (req_.has_value()) {
-      uv_fs_req_cleanup(&*req_);
+    if (request_.has_value()) {
+      // libuv doesn't use loop in this call, so we don't have to be
+      // within the event loop.
+      uv_fs_req_cleanup(&*request_);
     }
   }
 
   // Seamless access to the fields in uv_fs_t structure.
   uv_fs_t* operator->() {
-    CHECK(req_.has_value());
-    return &*req_;
+    CHECK(request_.has_value());
+    return &*request_;
   }
 
   // Used as an adaptor to libuv functions.
   operator uv_fs_t*() {
-    CHECK(req_.has_value());
-    return &*req_;
+    CHECK(request_.has_value());
+    return &*request_;
   }
 
  private:
   // Stores request structure in stack, it gets moved around a lot,
   // optional eases the ownership control.
-  std::optional<uv_fs_t> req_ = std::make_optional<uv_fs_t>();
+  std::optional<uv_fs_t> request_ = std::make_optional<uv_fs_t>();
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -69,62 +76,68 @@ class Request {
 // Moveable, not Copyable.
 class File {
  public:
+  // Removing default constructor breaks Windows build
+  // due to how std::future is implemented.
   File() {}
 
-  File(const uv_file& fd)
-    : fd_(fd) {
+  File(const File& that) = delete;
+
+  File(File&& that)
+    : descriptor_(std::move(that.descriptor_)) {
+    // Moving optional does not reset its state,
+    // we have to manually do it.
+    that.descriptor_.reset();
   }
 
-  File(const File&) = delete;
-  File(File&& other) {
-    fd_ = std::move(other.fd_);
-    other.fd_.reset();
-  }
+  File& operator=(const File& that) = delete;
 
-  File& operator=(const File&) = delete;
-  File& operator=(File&& other) {
-    if (fd_.has_value()) {
-      Request req;
-
+  File& operator=(File&& that) {
+    if (descriptor_.has_value()) {
       // No callback allows us to synchronously use this function,
       // loop is not needed in this variant.
-      uv_fs_close(nullptr, req, *fd_, NULL);
+      uv_fs_close(nullptr, Request(), *descriptor_, NULL);
     }
 
-    fd_ = std::move(other.fd_);
-    other.fd_.reset();
+    // Moving optional does not reset its state,
+    // we have to manually do it.
+    descriptor_ = std::move(that.descriptor_);
+    that.descriptor_.reset();
 
     return *this;
   }
 
   ~File() {
-    if (fd_.has_value()) {
-      Request req;
-
+    if (descriptor_.has_value()) {
       // No callback allows us to synchronously use this function,
       // loop is not needed in this variant.
-      uv_fs_close(nullptr, req, *fd_, NULL);
+      uv_fs_close(nullptr, Request(), *descriptor_, NULL);
     }
   }
 
-  bool is_open() const {
-    return fd_.has_value();
-  }
-
-  void mark_as_closed() {
-    fd_.reset();
+  bool IsOpen() {
+    return descriptor_.has_value();
   }
 
   // Used as an adaptor to libuv functions.
   operator uv_file() const {
-    CHECK(fd_.has_value());
-    return *fd_;
+    return descriptor_.value();
   }
 
  private:
   // Stores file descriptor in stack, it gets moved around a lot,
   // optional eases the ownership control.
-  std::optional<uv_file> fd_;
+  std::optional<uv_file> descriptor_;
+
+  // Takes ownership of the descriptor.
+  File(const uv_file& descriptor)
+    : descriptor_(descriptor) {}
+
+  void MarkAsClosed() {
+    descriptor_.reset();
+  }
+
+  friend auto OpenFile(EventLoop& loop, const std::filesystem::path& path, const int& flags, const int& mode);
+  friend auto CloseFile(EventLoop& loop, File& file);
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -146,17 +159,17 @@ class Buffer {
     buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
   }
 
-  Buffer(const Buffer& other) {
-    data_ = other.data_;
+  Buffer(const Buffer& that) {
+    data_ = that.data_;
     buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
   }
 
-  Buffer(Buffer&& other) {
-    data_ = std::move(other.data_);
+  Buffer(Buffer&& that) {
+    data_ = std::move(that.data_);
     buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
 
-    other.buffer_.len = 0;
-    other.buffer_.base = nullptr;
+    that.buffer_.len = 0;
+    that.buffer_.base = nullptr;
   }
 
   Buffer& operator=(const std::string& data) {
@@ -173,19 +186,19 @@ class Buffer {
     return *this;
   }
 
-  Buffer& operator=(const Buffer& other) {
-    data_ = other.data_;
+  Buffer& operator=(const Buffer& that) {
+    data_ = that.data_;
     buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
 
     return *this;
   }
 
-  Buffer& operator=(Buffer&& other) {
-    data_ = std::move(other.data_);
+  Buffer& operator=(Buffer&& that) {
+    data_ = std::move(that.data_);
     buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
 
-    other.buffer_.len = 0;
-    other.buffer_.base = nullptr;
+    that.buffer_.len = 0;
+    that.buffer_.base = nullptr;
 
     return *this;
   }
@@ -194,18 +207,18 @@ class Buffer {
 
   // Extracts the data from the buffer as a universal reference.
   // Empties out the buffer inside.
-  std::string&& extract() noexcept {
+  std::string&& Extract() noexcept {
     buffer_.len = 0;
     buffer_.base = nullptr;
 
     return std::move(data_);
   }
 
-  size_t size() const noexcept {
+  size_t Size() const noexcept {
     return data_.size();
   }
 
-  void resize(const size_t& size) {
+  void Resize(const size_t& size) {
     data_.resize(size, 0);
     buffer_ = uv_buf_init(const_cast<char*>(data_.data()), size);
   }
@@ -221,13 +234,6 @@ class Buffer {
 
   // base - ptr to data; len - size of data
   uv_buf_t buffer_ = {};
-};
-
-////////////////////////////////////////////////////////////////////////
-
-struct ReadResult {
-  std::string data;
-  File file;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -298,7 +304,7 @@ inline auto CloseFile(EventLoop& loop, File& file) {
     EventLoop::Callback start;
   };
 
-  return Eventual<File>()
+  return Eventual<void>()
       .context(Data{loop, std::move(file)})
       .start([](auto& data, auto& k) mutable {
         using K = std::decay_t<decltype(k)>;
@@ -315,8 +321,8 @@ inline auto CloseFile(EventLoop& loop, File& file) {
                 auto& data = *static_cast<Data*>(req->data);
                 auto& k = *static_cast<K*>(data.k);
                 if (req->result == 0) {
-                  data.file.mark_as_closed();
-                  k.Start(std::move(data.file));
+                  data.file.MarkAsClosed();
+                  k.Start();
                 } else {
                   k.Fail(uv_strerror(req->result));
                 };
@@ -339,10 +345,10 @@ inline auto CloseFile(File& file) {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto ReadFile(EventLoop& loop, File& file, const size_t& bytes_to_read, const size_t& offset) {
+inline auto ReadFile(EventLoop& loop, const File& file, const size_t& bytes_to_read, const size_t& offset) {
   struct Data {
     EventLoop& loop;
-    File file;
+    const File& file;
     size_t bytes_to_read;
     size_t offset;
     Buffer buf;
@@ -353,8 +359,8 @@ inline auto ReadFile(EventLoop& loop, File& file, const size_t& bytes_to_read, c
     EventLoop::Callback start;
   };
 
-  return Eventual<ReadResult>()
-      .context(Data{loop, std::move(file), bytes_to_read, offset, bytes_to_read})
+  return Eventual<std::string>()
+      .context(Data{loop, file, bytes_to_read, offset, bytes_to_read})
       .start([](auto& data, auto& k) mutable {
         using K = std::decay_t<decltype(k)>;
 
@@ -373,7 +379,7 @@ inline auto ReadFile(EventLoop& loop, File& file, const size_t& bytes_to_read, c
                 auto& data = *static_cast<Data*>(req->data);
                 auto& k = *static_cast<K*>(data.k);
                 if (req->result >= 0) {
-                  k.Start(ReadResult{data.buf.extract(), std::move(data.file)});
+                  k.Start(data.buf.Extract());
                 } else {
                   k.Fail(uv_strerror(req->result));
                 };
@@ -390,16 +396,16 @@ inline auto ReadFile(EventLoop& loop, File& file, const size_t& bytes_to_read, c
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto ReadFile(File& file, const size_t& bytes_to_read, const size_t& offset) {
+inline auto ReadFile(const File& file, const size_t& bytes_to_read, const size_t& offset) {
   return ReadFile(EventLoop::Default(), file, bytes_to_read, offset);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto WriteFile(EventLoop& loop, File& file, const std::string& data, const size_t& offset) {
+inline auto WriteFile(EventLoop& loop, const File& file, const std::string& data, const size_t& offset) {
   struct Data {
     EventLoop& loop;
-    File file;
+    const File& file;
     Buffer buf;
     size_t offset;
     Request req;
@@ -409,8 +415,8 @@ inline auto WriteFile(EventLoop& loop, File& file, const std::string& data, cons
     EventLoop::Callback start;
   };
 
-  return Eventual<File>()
-      .context(Data{loop, std::move(file), data, offset})
+  return Eventual<void>()
+      .context(Data{loop, file, data, offset})
       .start([](auto& data, auto& k) mutable {
         using K = std::decay_t<decltype(k)>;
 
@@ -429,7 +435,7 @@ inline auto WriteFile(EventLoop& loop, File& file, const std::string& data, cons
                 auto& data = *static_cast<Data*>(req->data);
                 auto& k = *static_cast<K*>(data.k);
                 if (req->result >= 0) {
-                  k.Start(std::move(data.file));
+                  k.Start();
                 } else {
                   k.Fail(uv_strerror(req->result));
                 };
@@ -446,7 +452,7 @@ inline auto WriteFile(EventLoop& loop, File& file, const std::string& data, cons
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto WriteFile(File& file, const std::string& data, const size_t& offset) {
+inline auto WriteFile(const File& file, const std::string& data, const size_t& offset) {
   return WriteFile(EventLoop::Default(), file, data, offset);
 }
 
@@ -503,7 +509,7 @@ inline auto UnlinkFile(const std::filesystem::path& path) {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto MakeDir(EventLoop& loop, const std::filesystem::path& path, const int& mode) {
+inline auto MakeDirectory(EventLoop& loop, const std::filesystem::path& path, const int& mode) {
   struct Data {
     EventLoop& loop;
     std::filesystem::path path;
@@ -550,13 +556,13 @@ inline auto MakeDir(EventLoop& loop, const std::filesystem::path& path, const in
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto MakeDir(const std::filesystem::path& path, const int& mode) {
-  return MakeDir(EventLoop::Default(), path, mode);
+inline auto MakeDirectory(const std::filesystem::path& path, const int& mode) {
+  return MakeDirectory(EventLoop::Default(), path, mode);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto RemoveDir(EventLoop& loop, const std::filesystem::path& path) {
+inline auto RemoveDirectory(EventLoop& loop, const std::filesystem::path& path) {
   struct Data {
     EventLoop& loop;
     std::filesystem::path path;
@@ -601,8 +607,8 @@ inline auto RemoveDir(EventLoop& loop, const std::filesystem::path& path) {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto RemoveDir(const std::filesystem::path& path) {
-  return RemoveDir(EventLoop::Default(), path);
+inline auto RemoveDirectory(const std::filesystem::path& path) {
+  return RemoveDirectory(EventLoop::Default(), path);
 }
 
 ////////////////////////////////////////////////////////////////////////
