@@ -5,9 +5,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "stout/just.h"
-#include "stout/lambda.h"
 #include "stout/raise.h"
 #include "stout/terminal.h"
+#include "stout/then.h"
 
 namespace eventuals = stout::eventuals;
 
@@ -17,9 +17,9 @@ using stout::eventuals::Conditional;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
 using stout::eventuals::Just;
-using stout::eventuals::Lambda;
 using stout::eventuals::Raise;
 using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 
 using testing::MockFunction;
 
@@ -40,7 +40,7 @@ TEST(ConditionalTest, Then) {
 
   auto c = [&]() {
     return Just(1)
-        | Lambda([](int i) { return i + 1; })
+        | Then([](int i) { return i + 1; })
         | Conditional(
                [](auto&& i) { return i > 1; },
                [&](auto&&) { return then(); },
@@ -68,7 +68,7 @@ TEST(ConditionalTest, Else) {
 
   auto c = [&]() {
     return Just(0)
-        | Lambda([](int i) { return i + 1; })
+        | Then([](int i) { return i + 1; })
         | Conditional(
                [](auto&& i) { return i > 1; },
                [&](auto&&) { return then(); },
@@ -103,7 +103,7 @@ TEST(ConditionalTest, Fail) {
                      });
                  thread.detach();
                })
-        | Lambda([](int i) { return i + 1; })
+        | Then([](int i) { return i + 1; })
         | Conditional(
                [](auto&& i) { return i > 1; },
                [&](auto&&) { return then(); },
@@ -137,7 +137,7 @@ TEST(ConditionalTest, Interrupt) {
 
   auto c = [&]() {
     return Just(1)
-        | Lambda([](int i) { return i + 1; })
+        | Then([](int i) { return i + 1; })
         | Conditional(
                [](auto&& i) { return i > 1; },
                [&](auto&&) { return then(); },
@@ -164,7 +164,7 @@ TEST(ConditionalTest, Interrupt) {
 TEST(ConditionalTest, Raise) {
   auto c = [&]() {
     return Just(1)
-        | Lambda([](int i) { return i + 1; })
+        | Then([](int i) { return i + 1; })
         | Conditional(
                [](auto&& i) { return i > 1; },
                [](auto&& i) { return Just(i); },

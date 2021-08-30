@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "stout/closure.h"
-#include "stout/lambda.h"
 #include "stout/lock.h"
 #include "stout/repeat.h"
 #include "stout/scheduler.h"
@@ -770,11 +769,10 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
                          }
                        };
                      }))
-              | Until(
-                     Lambda([this]() {
-                       return cleanup_;
-                     })
-                     | Release(lock()))
+              | Until([this]() {
+                   return Just(cleanup_)
+                       | Release(lock());
+                 })
               | Map(
                      // TODO(benh): create 'Move()' like abstraction that does:
                      Eventual<Arg_>()
@@ -783,7 +781,7 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
                          })
                      | f_()
                      | Acquire(lock())
-                     | Lambda(
+                     | Then(
                          [this, worker](auto&&... args) {
                            values_.emplace_back(
                                std::forward<decltype(args)>(args)...);
@@ -795,7 +793,7 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
                            busy_--;
                          }))
               | WorkerAdaptor(
-                     Lambda([this](auto exception) {
+                     Then([this](auto exception) {
                        // First fail/stop wins the "cleanup" rather
                        // than us aggregating all of the fail/stops
                        // that occur.
@@ -839,7 +837,7 @@ void _StaticThreadPoolParallel::Continuation<F_, Arg_>::Start() {
 
 template <typename F_, typename Arg_>
 auto _StaticThreadPoolParallel::Continuation<F_, Arg_>::Ingress() {
-  return Until(Preempt(
+  return Map(Preempt(
              "ingress",
              Synchronized(
                  Wait([this](auto notify) mutable {
@@ -869,12 +867,15 @@ auto _StaticThreadPoolParallel::Continuation<F_, Arg_>::Ingress() {
                      }
                    };
                  })
-                 | Lambda([this](auto&&...) {
+                 | Then([this](auto&&...) {
                      return cleanup_;
                    }))))
+      | Until([](bool cleanup) {
+           return cleanup;
+         })
       | IngressAdaptor(
              this,
-             Synchronized(Lambda([this](auto exception) {
+             Synchronized(Then([this](auto exception) {
                if (!cleanup_) {
                  cleanup_ = true;
                  if (exception) {
@@ -896,22 +897,24 @@ auto _StaticThreadPoolParallel::Continuation<F_, Arg_>::Egress() {
   // values which would be required if it was done after the 'Map'
   // below (this pattern is an argumet for a 'While' construct or
   // something similar).
-  return Until(
-             Synchronized(
-                 Wait([this](auto notify) {
-                   egress_ = std::move(notify);
-                   return [this]() {
-                     if (!values_.empty()) {
-                       return false;
-                     } else {
-                       return busy_ > 0 || !cleanup_;
-                     }
-                   };
-                 })
-                 | Lambda([this]() {
-                     return values_.empty() && !busy_ && cleanup_;
-                   })))
-      | Map(Synchronized(Lambda([this]() {
+  return Map(Synchronized(
+             Wait([this](auto notify) {
+               egress_ = std::move(notify);
+               return [this]() {
+                 if (!values_.empty()) {
+                   return false;
+                 } else {
+                   return busy_ > 0 || !cleanup_;
+                 }
+               };
+             })
+             | Then([this]() {
+                 return values_.empty() && !busy_ && cleanup_;
+               })))
+      | Until([](bool done) {
+           return done;
+         })
+      | Map(Synchronized(Then([this](auto&&) {
            CHECK(!values_.empty());
            auto value = std::move(values_.front());
            values_.pop_front();

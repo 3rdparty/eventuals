@@ -5,23 +5,23 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "stout/context.h"
-#include "stout/lambda.h"
 #include "stout/loop.h"
 #include "stout/map.h"
 #include "stout/reduce.h"
 #include "stout/terminal.h"
+#include "stout/then.h"
 
 namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Context;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
-using stout::eventuals::Lambda;
 using stout::eventuals::Loop;
 using stout::eventuals::Map;
 using stout::eventuals::Reduce;
 using stout::eventuals::Stream;
 using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 
 using testing::MockFunction;
 
@@ -306,7 +306,7 @@ TEST(StreamTest, InfiniteLoop) {
                    k.Ended();
                  }
                })
-        | Map(Lambda([](int i) { return i + 1; }))
+        | Map(Then([](int i) { return i + 1; }))
         | Loop();
   };
 
@@ -314,7 +314,7 @@ TEST(StreamTest, InfiniteLoop) {
 }
 
 
-TEST(StreamTest, MapLambdaLoop) {
+TEST(StreamTest, MapThenLoop) {
   auto s = []() {
     return Stream<int>()
                .context(5)
@@ -325,7 +325,7 @@ TEST(StreamTest, MapLambdaLoop) {
                    k.Ended();
                  }
                })
-        | Map(Lambda([](int i) { return i + 1; }))
+        | Map(Then([](int i) { return i + 1; }))
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -341,7 +341,7 @@ TEST(StreamTest, MapLambdaLoop) {
 }
 
 
-TEST(StreamTest, MapLambdaReduce) {
+TEST(StreamTest, MapThenReduce) {
   auto s = []() {
     return Stream<int>()
                .context(5)
@@ -355,13 +355,13 @@ TEST(StreamTest, MapLambdaReduce) {
                .done([](auto&, auto& k) {
                  k.Ended();
                })
-        | Map(Lambda([](int i) {
+        | Map(Then([](int i) {
              return i + 1;
            }))
         | Reduce(
                /* sum = */ 0,
                [](auto& sum) {
-                 return Lambda([&](auto&& value) {
+                 return Then([&](auto&& value) {
                    sum += value;
                    return true;
                  });
@@ -393,7 +393,7 @@ TEST(StreamTest, MapEventualReduce) {
         | Reduce(
                /* sum = */ 0,
                [](auto& sum) {
-                 return Lambda([&](auto&& value) {
+                 return Then([&](auto&& value) {
                    sum += value;
                    return true;
                  });

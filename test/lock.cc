@@ -5,7 +5,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "stout/just.h"
-#include "stout/lambda.h"
 #include "stout/terminal.h"
 #include "stout/then.h"
 
@@ -17,7 +16,6 @@ using stout::eventuals::Acquire;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
 using stout::eventuals::Just;
-using stout::eventuals::Lambda;
 using stout::eventuals::Lock;
 using stout::eventuals::Release;
 using stout::eventuals::Synchronizable;
@@ -40,7 +38,7 @@ TEST(LockTest, Succeed) {
                  thread.detach();
                })
         | Acquire(&lock)
-        | Lambda([](auto&& value) { return std::move(value); });
+        | Then([](auto&& value) { return std::move(value); });
   };
 
   auto e2 = [&]() {
@@ -53,12 +51,12 @@ TEST(LockTest, Succeed) {
                  thread.detach();
                })
         | Acquire(&lock)
-        | Lambda([](auto&& value) { return std::move(value); });
+        | Then([](auto&& value) { return std::move(value); });
   };
 
   auto e3 = [&]() {
     return Release(&lock)
-        | Lambda([]() { return "t3"; });
+        | Then([]() { return "t3"; });
   };
 
   auto [future1, t1] = Terminate(e1());
@@ -93,12 +91,12 @@ TEST(LockTest, Fail) {
                 thread.detach();
               })
         | Release(&lock)
-        | Lambda([](auto&& value) { return std::move(value); });
+        | Then([](auto&& value) { return std::move(value); });
   };
 
   auto e2 = [&]() {
     return Acquire(&lock)
-        | Lambda([]() { return "t2"; });
+        | Then([]() { return "t2"; });
   };
 
   EXPECT_THROW(*e1(), const char*);
@@ -130,7 +128,7 @@ TEST(LockTest, Stop) {
 
   auto e2 = [&]() {
     return Acquire(&lock)
-        | Lambda([]() { return "t2"; });
+        | Then([]() { return "t2"; });
   };
 
   auto [future1, k1] = Terminate(e1());
@@ -230,7 +228,7 @@ TEST(LockTest, SynchronizableThen) {
                  Then([]() {
                    return Just(42);
                  }))
-          | Lambda([](auto i) {
+          | Then([](auto i) {
                return i;
              });
     }

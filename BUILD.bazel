@@ -35,6 +35,7 @@ cc_library(
         "stout/head.h",
         "stout/dns-resolver.h",
         "stout/signal.h",
+        "stout/filesystem.h",
     ],
     srcs = [
         "stout/scheduler.cc",
