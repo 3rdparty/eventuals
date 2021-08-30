@@ -2,7 +2,6 @@
 
 #include "gtest/gtest.h"
 #include "stout/eventual.h"
-#include "stout/lambda.h"
 #include "stout/raise.h"
 #include "stout/reduce.h"
 #include "stout/static-thread-pool.h"
@@ -11,11 +10,11 @@
 namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Eventual;
-using stout::eventuals::Lambda;
 using stout::eventuals::Raise;
 using stout::eventuals::Reduce;
 using stout::eventuals::StaticThreadPool;
 using stout::eventuals::Stream;
+using stout::eventuals::Then;
 
 TEST(StaticThreadPoolTest, Parallel) {
   auto s = []() {
@@ -32,7 +31,7 @@ TEST(StaticThreadPoolTest, Parallel) {
                  k.Ended();
                })
         | StaticThreadPool::Scheduler().Parallel([]() {
-            return Lambda([](int i) {
+            return Then([](int i) {
               std::this_thread::sleep_for(std::chrono::milliseconds(100));
               return i + 1;
             });
@@ -40,7 +39,7 @@ TEST(StaticThreadPoolTest, Parallel) {
         | Reduce(
                std::set<int>{2, 3, 4, 5, 6},
                [](auto& values) {
-                 return Lambda([&values](auto&& value) {
+                 return Then([&values](auto&& value) {
                    values.erase(value);
                    return true;
                  });
@@ -68,7 +67,7 @@ TEST(StaticThreadPoolTest, ParallelDone) {
                  k.Ended();
                })
         | StaticThreadPool::Scheduler().Parallel([]() {
-            return Lambda([](int i) {
+            return Then([](int i) {
               std::this_thread::sleep_for(std::chrono::milliseconds(100));
               return i + 1;
             });
@@ -76,7 +75,7 @@ TEST(StaticThreadPoolTest, ParallelDone) {
         | Reduce(
                std::set<int>{2, 3, 4, 5, 6},
                [](auto& values) {
-                 return Lambda([&values](auto&& value) {
+                 return Then([&values](auto&& value) {
                    values.erase(value);
                    return false;
                  });
@@ -100,7 +99,7 @@ TEST(StaticThreadPoolTest, ParallelIngressFail) {
                  k.Ended();
                })
         | StaticThreadPool::Scheduler().Parallel([]() {
-            return Lambda([](int i) {
+            return Then([](int i) {
               std::this_thread::sleep_for(std::chrono::milliseconds(100));
               return i + 1;
             });
@@ -108,7 +107,7 @@ TEST(StaticThreadPoolTest, ParallelIngressFail) {
         | Reduce(
                std::set<int>{2, 3, 4, 5, 6},
                [](auto& values) {
-                 return Lambda([&values](auto&& value) {
+                 return Then([&values](auto&& value) {
                    values.erase(value);
                    return true;
                  });
@@ -130,7 +129,7 @@ TEST(StaticThreadPoolTest, ParallelIngressStop) {
                  k.Ended();
                })
         | StaticThreadPool::Scheduler().Parallel([]() {
-            return Lambda([](int i) {
+            return Then([](int i) {
               std::this_thread::sleep_for(std::chrono::milliseconds(100));
               return i + 1;
             });
@@ -138,7 +137,7 @@ TEST(StaticThreadPoolTest, ParallelIngressStop) {
         | Reduce(
                std::set<int>{2, 3, 4, 5, 6},
                [](auto& values) {
-                 return Lambda([&values](auto&& value) {
+                 return Then([&values](auto&& value) {
                    values.erase(value);
                    return true;
                  });
@@ -165,7 +164,7 @@ TEST(StaticThreadPoolTest, ParallelWorkerFail) {
         | Reduce(
                std::set<int>{2, 3, 4, 5, 6},
                [](auto& values) {
-                 return Lambda([&values](auto&& value) {
+                 return Then([&values](auto&& value) {
                    values.erase(value);
                    return true;
                  });
@@ -195,7 +194,7 @@ TEST(StaticThreadPoolTest, ParallelWorkerStop) {
         | Reduce(
                std::set<int>{2, 3, 4, 5, 6},
                [](auto& values) {
-                 return Lambda([&values](auto&& value) {
+                 return Then([&values](auto&& value) {
                    values.erase(value);
                    return true;
                  });

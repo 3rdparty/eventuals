@@ -6,9 +6,9 @@
 #include "gtest/gtest.h"
 #include "stout/catch.h"
 #include "stout/just.h"
-#include "stout/lambda.h"
 #include "stout/raise.h"
 #include "stout/terminal.h"
+#include "stout/then.h"
 
 namespace eventuals = stout::eventuals;
 
@@ -17,10 +17,10 @@ using stout::eventuals::Catch;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
 using stout::eventuals::Just;
-using stout::eventuals::Lambda;
 using stout::eventuals::Raise;
 using stout::eventuals::Terminal;
 using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 
 using testing::MockFunction;
 
@@ -44,7 +44,7 @@ TEST(EventualTest, Succeed) {
                      });
                  thread.detach();
                })
-        | Lambda([](int i) { return i + 2; })
+        | Then([](int i) { return i + 2; })
         | Eventual<int>()
               .context(9)
               .start([](auto& context, auto& k, auto&& value) {
@@ -86,7 +86,7 @@ TEST(EventualTest, Fail) {
                      });
                  thread.detach();
                })
-        | Lambda([](int i) { return i + 2; })
+        | Then([](int i) { return i + 2; })
         | Eventual<int>()
               .start([&](auto& k, auto&& value) {
                 start.Call();
@@ -117,7 +117,7 @@ TEST(EventualTest, Interrupt) {
                .interrupt([](auto&, auto& k) {
                  k.Stop();
                })
-        | Lambda([](int i) { return i + 2; })
+        | Then([](int i) { return i + 2; })
         | Eventual<int>()
               .start([&](auto&, auto&&) {
                 start.Call();
@@ -158,7 +158,7 @@ TEST(EventualTest, Reuse) {
                       });
                   thread.detach();
                 }))
-        | Lambda([](int i) { return i + 2; })
+        | Then([](int i) { return i + 2; })
         | Eventual<int>()
               .context(9)
               .start([](auto& context, auto& k, auto&& value) {
@@ -243,13 +243,13 @@ TEST(EventualTest, Catch) {
 }
 
 
-TEST(EventualTest, Lambda) {
+TEST(EventualTest, Then) {
   auto e = []() {
     return Just(42)
-        | Lambda([](auto i) {
+        | Then([](auto i) {
              return i + 1;
            })
-        | Lambda([](auto j) {
+        | Then([](auto j) {
              return j - 1;
            });
   };
