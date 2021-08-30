@@ -43,6 +43,7 @@ cc_library(
     deps = [
         "@com_github_google_glog//:glog",
         "@com_github_libuv_libuv//:libuv",
+        "@com_github_libcurl_libcurl//:libcurl",
     ],
     visibility = ["//visibility:public"],
 )

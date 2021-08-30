@@ -11,11 +11,17 @@
 
 load("//3rdparty/bazel-rules-libuv:repos.bzl", libuv_repos="repos")
 
+load("//3rdparty/bazel-rules-libcurl:repos.bzl", libcurl_repos="repos")
+
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 def repos(external = True, repo_mapping = {}):
     libuv_repos(
         repo_mapping = repo_mapping
+    )
+    
+    libcurl_repos(
+    	repo_mapping = repo_mapping
     )
 
     if external and "com_github_3rdparty_stout_eventuals" not in native.existing_rules():
