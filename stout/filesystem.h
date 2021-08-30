@@ -136,8 +136,13 @@ class File {
     descriptor_.reset();
   }
 
-  friend auto OpenFile(EventLoop& loop, const std::filesystem::path& path, const int& flags, const int& mode);
-  friend auto CloseFile(EventLoop& loop, File& file);
+  friend auto OpenFile(
+      EventLoop& loop,
+      const std::filesystem::path& path,
+      const int& flags,
+      const int& mode);
+
+  friend auto CloseFile(EventLoop& loop, File&& file);
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -238,7 +243,11 @@ class Buffer {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto OpenFile(EventLoop& loop, const std::filesystem::path& path, const int& flags, const int& mode) {
+inline auto OpenFile(
+    EventLoop& loop,
+    const std::filesystem::path& path,
+    const int& flags,
+    const int& mode) {
   struct Data {
     EventLoop& loop;
     int flags;
@@ -287,13 +296,16 @@ inline auto OpenFile(EventLoop& loop, const std::filesystem::path& path, const i
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto OpenFile(const std::filesystem::path& path, const int& flags, const int& mode) {
+inline auto OpenFile(
+    const std::filesystem::path& path,
+    const int& flags,
+    const int& mode) {
   return OpenFile(EventLoop::Default(), path, flags, mode);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto CloseFile(EventLoop& loop, File& file) {
+inline auto CloseFile(EventLoop& loop, File&& file) {
   struct Data {
     EventLoop& loop;
     File file;
@@ -339,13 +351,17 @@ inline auto CloseFile(EventLoop& loop, File& file) {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto CloseFile(File& file) {
-  return CloseFile(EventLoop::Default(), file);
+inline auto CloseFile(File&& file) {
+  return CloseFile(EventLoop::Default(), std::move(file));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto ReadFile(EventLoop& loop, const File& file, const size_t& bytes_to_read, const size_t& offset) {
+inline auto ReadFile(
+    EventLoop& loop,
+    const File& file,
+    const size_t& bytes_to_read,
+    const size_t& offset) {
   struct Data {
     EventLoop& loop;
     const File& file;
@@ -396,13 +412,20 @@ inline auto ReadFile(EventLoop& loop, const File& file, const size_t& bytes_to_r
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto ReadFile(const File& file, const size_t& bytes_to_read, const size_t& offset) {
+inline auto ReadFile(
+    const File& file,
+    const size_t& bytes_to_read,
+    const size_t& offset) {
   return ReadFile(EventLoop::Default(), file, bytes_to_read, offset);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto WriteFile(EventLoop& loop, const File& file, const std::string& data, const size_t& offset) {
+inline auto WriteFile(
+    EventLoop& loop,
+    const File& file,
+    const std::string& data,
+    const size_t& offset) {
   struct Data {
     EventLoop& loop;
     const File& file;
@@ -452,7 +475,10 @@ inline auto WriteFile(EventLoop& loop, const File& file, const std::string& data
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto WriteFile(const File& file, const std::string& data, const size_t& offset) {
+inline auto WriteFile(
+    const File& file,
+    const std::string& data,
+    const size_t& offset) {
   return WriteFile(EventLoop::Default(), file, data, offset);
 }
 
@@ -509,7 +535,10 @@ inline auto UnlinkFile(const std::filesystem::path& path) {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto MakeDirectory(EventLoop& loop, const std::filesystem::path& path, const int& mode) {
+inline auto MakeDirectory(
+    EventLoop& loop,
+    const std::filesystem::path& path,
+    const int& mode) {
   struct Data {
     EventLoop& loop;
     std::filesystem::path path;
@@ -562,7 +591,9 @@ inline auto MakeDirectory(const std::filesystem::path& path, const int& mode) {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto RemoveDirectory(EventLoop& loop, const std::filesystem::path& path) {
+inline auto RemoveDirectory(
+    EventLoop& loop,
+    const std::filesystem::path& path) {
   struct Data {
     EventLoop& loop;
     std::filesystem::path path;
@@ -613,7 +644,11 @@ inline auto RemoveDirectory(const std::filesystem::path& path) {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto CopyFile(EventLoop& loop, const std::filesystem::path& src, const std::filesystem::path& dst, const int& flags) {
+inline auto CopyFile(
+    EventLoop& loop,
+    const std::filesystem::path& src,
+    const std::filesystem::path& dst,
+    const int& flags) {
   struct Data {
     EventLoop& loop;
     std::filesystem::path src;
@@ -662,13 +697,19 @@ inline auto CopyFile(EventLoop& loop, const std::filesystem::path& src, const st
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto CopyFile(const std::filesystem::path& src, const std::filesystem::path& dst, const int& flags) {
+inline auto CopyFile(
+    const std::filesystem::path& src,
+    const std::filesystem::path& dst,
+    const int& flags) {
   return CopyFile(EventLoop::Default(), src, dst, flags);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto RenameFile(EventLoop& loop, const std::filesystem::path& src, const std::filesystem::path& dst) {
+inline auto RenameFile(
+    EventLoop& loop,
+    const std::filesystem::path& src,
+    const std::filesystem::path& dst) {
   struct Data {
     EventLoop& loop;
     std::filesystem::path src;
@@ -715,7 +756,9 @@ inline auto RenameFile(EventLoop& loop, const std::filesystem::path& src, const 
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto RenameFile(const std::filesystem::path& src, const std::filesystem::path& dst) {
+inline auto RenameFile(
+    const std::filesystem::path& src,
+    const std::filesystem::path& dst) {
   return RenameFile(EventLoop::Default(), src, dst);
 }
 

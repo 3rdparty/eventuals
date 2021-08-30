@@ -47,9 +47,8 @@ TEST_F(FilesystemTest, OpenAndCloseFileSucceed) {
              return Closure([&path, file = std::move(file)]() mutable {
                EXPECT_TRUE(file.IsOpen());
                EXPECT_TRUE(std::filesystem::exists(path));
-               return CloseFile(file)
-                   | Lambda([&path, &file]() {
-                        EXPECT_FALSE(file.IsOpen());
+               return CloseFile(std::move(file))
+                   | Lambda([&path]() {
                         std::filesystem::remove(path);
                         EXPECT_FALSE(std::filesystem::exists(path));
                       });
@@ -98,14 +97,14 @@ TEST_F(FilesystemTest, ReadFileSucceed) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   auto e = OpenFile(path, UV_FS_O_RDONLY, 0)
-      | Then([&test_string, &path](File&& file) {
-             return Closure([&test_string, &path, file = std::move(file)]() mutable {
+      | Then([&](File&& file) {
+             return Closure([&, file = std::move(file)]() mutable {
                return ReadFile(file, test_string.size(), 0)
-                   | Then([&test_string, &file](auto&& data) {
+                   | Then([&](auto&& data) {
                         EXPECT_EQ(test_string, data);
-                        return CloseFile(file);
+                        return CloseFile(std::move(file));
                       })
-                   | Lambda([&path]() {
+                   | Lambda([&]() {
                         std::filesystem::remove(path);
                         EXPECT_FALSE(std::filesystem::exists(path));
                       });
@@ -132,14 +131,14 @@ TEST_F(FilesystemTest, ReadFileFail) {
 
   EXPECT_TRUE(std::filesystem::exists(path));
 
-  // Try to read from a File opened with WriteOnly flag
+  // Try to read from a File opened with WriteOnly flag.
   auto e = OpenFile(path, UV_FS_O_WRONLY, 0)
-      | Then([&test_string](File&& file) {
-             return Closure([&test_string, file = std::move(file)]() mutable {
+      | Then([&](File&& file) {
+             return Closure([&, file = std::move(file)]() mutable {
                return ReadFile(file, test_string.size(), 0)
-                   | Then([&test_string, &file](auto&& data) {
+                   | Then([&](auto&& data) {
                         EXPECT_EQ(test_string, data);
-                        return CloseFile(file);
+                        return CloseFile(std::move(file));
                       });
              });
            });
@@ -166,17 +165,19 @@ TEST_F(FilesystemTest, WriteFileSucceed) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   auto e = OpenFile(path, UV_FS_O_WRONLY, 0)
-      | Then([&test_string, &path](File&& file) {
-             return Closure([&test_string, &path, file = std::move(file)]() mutable {
+      | Then([&](File&& file) {
+             return Closure([&, file = std::move(file)]() mutable {
                return WriteFile(file, test_string, 0)
-                   | Then([&file]() {
-                        return CloseFile(file);
+                   | Then([&]() {
+                        return CloseFile(std::move(file));
                       })
-                   | Lambda([&test_string, &path]() {
+                   | Lambda([&]() {
                         std::ifstream ifs(path);
                         std::string ifs_read_string;
                         ifs_read_string.resize(test_string.size());
-                        ifs.read(const_cast<char*>(ifs_read_string.data()), test_string.size());
+                        ifs.read(
+                            const_cast<char*>(ifs_read_string.data()),
+                            test_string.size());
                         ifs.close();
 
                         EXPECT_EQ(ifs_read_string, test_string);
@@ -204,13 +205,13 @@ TEST_F(FilesystemTest, WriteFileFail) {
 
   EXPECT_TRUE(std::filesystem::exists(path));
 
-  // Try to write to a File opened with ReadOnly flag
+  // Try to write to a File opened with ReadOnly flag.
   auto e = OpenFile(path, UV_FS_O_RDONLY, 0)
-      | Then([&test_string](File&& file) {
-             return Closure([&test_string, file = std::move(file)]() mutable {
+      | Then([&](File&& file) {
+             return Closure([&, file = std::move(file)]() mutable {
                return WriteFile(file, test_string, 0)
-                   | Then([&file]() {
-                        return CloseFile(file);
+                   | Then([&]() {
+                        return CloseFile(std::move(file));
                       });
              });
            });
@@ -235,7 +236,7 @@ TEST_F(FilesystemTest, UnlinkFileSucceed) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   auto e = UnlinkFile(path)
-      | Lambda([&path]() {
+      | Lambda([&]() {
              EXPECT_FALSE(std::filesystem::exists(path));
            });
   auto [future, k] = Terminate(std::move(e));
@@ -266,7 +267,7 @@ TEST_F(FilesystemTest, MakeDirectorySucceed) {
   const std::filesystem::path path = "test_mkdir_succeed";
 
   auto e = MakeDirectory(path, 0)
-      | Lambda([&path]() {
+      | Lambda([&]() {
              EXPECT_TRUE(std::filesystem::exists(path));
              std::filesystem::remove(path);
              EXPECT_FALSE(std::filesystem::exists(path));
@@ -306,7 +307,7 @@ TEST_F(FilesystemTest, RemoveDirectorySucceed) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   auto e = RemoveDirectory(path)
-      | Lambda([&path]() {
+      | Lambda([&]() {
              EXPECT_FALSE(std::filesystem::exists(path));
            });
   auto [future, k] = Terminate(std::move(e));
@@ -344,7 +345,7 @@ TEST_F(FilesystemTest, CopyFileSucceed) {
   EXPECT_FALSE(std::filesystem::exists(dst));
 
   auto e = CopyFile(src, dst, 0)
-      | Lambda([&src, &dst]() {
+      | Lambda([&]() {
              EXPECT_TRUE(std::filesystem::exists(src));
              EXPECT_TRUE(std::filesystem::exists(dst));
              std::filesystem::remove(src);
@@ -392,7 +393,7 @@ TEST_F(FilesystemTest, RenameFileSucceed) {
   EXPECT_FALSE(std::filesystem::exists(dst));
 
   auto e = RenameFile(src, dst)
-      | Lambda([&src, &dst]() {
+      | Lambda([&]() {
              EXPECT_FALSE(std::filesystem::exists(src));
              EXPECT_TRUE(std::filesystem::exists(dst));
              std::filesystem::remove(src);
