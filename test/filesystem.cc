@@ -7,7 +7,6 @@
 #include "gtest/gtest.h"
 #include "stout/closure.h"
 #include "stout/eventual.h"
-#include "stout/lambda.h"
 #include "stout/terminal.h"
 #include "stout/then.h"
 
@@ -15,7 +14,6 @@ namespace eventuals = stout::eventuals;
 
 using eventuals::Closure;
 using eventuals::EventLoop;
-using eventuals::Lambda;
 using eventuals::Terminate;
 using eventuals::Then;
 
@@ -48,7 +46,7 @@ TEST_F(FilesystemTest, OpenAndCloseFileSucceed) {
                EXPECT_TRUE(file.IsOpen());
                EXPECT_TRUE(std::filesystem::exists(path));
                return CloseFile(std::move(file))
-                   | Lambda([&path]() {
+                   | Then([&path]() {
                         std::filesystem::remove(path);
                         EXPECT_FALSE(std::filesystem::exists(path));
                       });
@@ -104,7 +102,7 @@ TEST_F(FilesystemTest, ReadFileSucceed) {
                         EXPECT_EQ(test_string, data);
                         return CloseFile(std::move(file));
                       })
-                   | Lambda([&]() {
+                   | Then([&]() {
                         std::filesystem::remove(path);
                         EXPECT_FALSE(std::filesystem::exists(path));
                       });
@@ -171,7 +169,7 @@ TEST_F(FilesystemTest, WriteFileSucceed) {
                    | Then([&]() {
                         return CloseFile(std::move(file));
                       })
-                   | Lambda([&]() {
+                   | Then([&]() {
                         std::ifstream ifs(path);
                         std::string ifs_read_string;
                         ifs_read_string.resize(test_string.size());
@@ -236,7 +234,7 @@ TEST_F(FilesystemTest, UnlinkFileSucceed) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   auto e = UnlinkFile(path)
-      | Lambda([&]() {
+      | Then([&]() {
              EXPECT_FALSE(std::filesystem::exists(path));
            });
   auto [future, k] = Terminate(std::move(e));
@@ -267,7 +265,7 @@ TEST_F(FilesystemTest, MakeDirectorySucceed) {
   const std::filesystem::path path = "test_mkdir_succeed";
 
   auto e = MakeDirectory(path, 0)
-      | Lambda([&]() {
+      | Then([&]() {
              EXPECT_TRUE(std::filesystem::exists(path));
              std::filesystem::remove(path);
              EXPECT_FALSE(std::filesystem::exists(path));
@@ -307,7 +305,7 @@ TEST_F(FilesystemTest, RemoveDirectorySucceed) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   auto e = RemoveDirectory(path)
-      | Lambda([&]() {
+      | Then([&]() {
              EXPECT_FALSE(std::filesystem::exists(path));
            });
   auto [future, k] = Terminate(std::move(e));
@@ -345,7 +343,7 @@ TEST_F(FilesystemTest, CopyFileSucceed) {
   EXPECT_FALSE(std::filesystem::exists(dst));
 
   auto e = CopyFile(src, dst, 0)
-      | Lambda([&]() {
+      | Then([&]() {
              EXPECT_TRUE(std::filesystem::exists(src));
              EXPECT_TRUE(std::filesystem::exists(dst));
              std::filesystem::remove(src);
@@ -393,7 +391,7 @@ TEST_F(FilesystemTest, RenameFileSucceed) {
   EXPECT_FALSE(std::filesystem::exists(dst));
 
   auto e = RenameFile(src, dst)
-      | Lambda([&]() {
+      | Then([&]() {
              EXPECT_FALSE(std::filesystem::exists(src));
              EXPECT_TRUE(std::filesystem::exists(dst));
              std::filesystem::remove(src);
