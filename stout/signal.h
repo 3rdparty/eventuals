@@ -35,6 +35,7 @@ inline auto Signal(
           } else {
             auto signal_cb = [](uv_signal_t* handle, int signum) {
               Data* data = static_cast<Data*>(handle->data);
+              uv_close((uv_handle_t*) (&data->signal), nullptr);
               (static_cast<K*>(data->k))->Start(signum);
             };
 
@@ -43,6 +44,7 @@ inline auto Signal(
                 signal_cb,
                 data_context.signal_code);
             if (error > 0) {
+              uv_close((uv_handle_t*) (&data_context.signal), nullptr);
               (static_cast<K*>(data_context.k))
                   ->Fail(uv_err_name(error));
             }
@@ -54,7 +56,8 @@ inline auto Signal(
         using K = std::decay_t<decltype(k)>;
         data_context.interrupt = [&data_context](EventLoop& loop) {
           if (uv_is_active((uv_handle_t*) &data_context.signal)) {
-            auto error = uv_signal_stop(&(data_context.signal));
+            auto error = uv_signal_stop(&data_context.signal);
+            uv_close((uv_handle_t*) (&data_context.signal), nullptr);
             if (error) {
               (static_cast<K*>(data_context.k))
                   ->Fail(uv_strerror(error));
@@ -62,6 +65,7 @@ inline auto Signal(
               (static_cast<K*>(data_context.k))->Stop();
             }
           } else {
+            uv_close((uv_handle_t*) &data_context.signal, nullptr);
             (static_cast<K*>(data_context.k))->Stop();
           }
         };

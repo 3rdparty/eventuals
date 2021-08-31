@@ -4,14 +4,12 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/lambda.h"
 #include "stout/terminal.h"
 
 namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
-using stout::eventuals::Lambda;
 using stout::eventuals::Terminate;
 using stout::eventuals::Then;
 
@@ -36,7 +34,7 @@ TEST(ThenTest, Succeed) {
                      });
                  thread.detach();
                })
-        | Lambda([](int i) { return i + 1; })
+        | Then([](int i) { return i + 1; })
         | Then([&](auto&& i) {
              return e("then");
            });
@@ -64,7 +62,7 @@ TEST(ThenTest, Fail) {
                      });
                  thread.detach();
                })
-        | Lambda([](int i) { return i + 1; })
+        | Then([](int i) { return i + 1; })
         | Then([&](auto&& i) {
              return e("then");
            });
@@ -93,7 +91,7 @@ TEST(ThenTest, Interrupt) {
                .start([](auto& k) {
                  k.Start(0);
                })
-        | Lambda([](int i) { return i + 1; })
+        | Then([](int i) { return i + 1; })
         | Then([&](auto&& i) {
              return e("then");
            });

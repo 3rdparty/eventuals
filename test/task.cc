@@ -3,13 +3,13 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "stout/just.h"
-#include "stout/lambda.h"
+#include "stout/then.h"
 
 namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Just;
-using stout::eventuals::Lambda;
 using stout::eventuals::Task;
+using stout::eventuals::Then;
 
 TEST(TaskTest, Succeed) {
   auto e1 = []() -> Task<int> {
@@ -22,7 +22,7 @@ TEST(TaskTest, Succeed) {
 
   auto e2 = [&]() {
     return e1()
-        | Lambda([](int i) {
+        | Then([](int i) {
              return i + 1;
            })
         | e1();
@@ -43,7 +43,7 @@ TEST(TaskTest, Succeed) {
 
   auto e4 = [&]() {
     return e3()
-        | Lambda([](int i) {
+        | Then([](int i) {
              return i + 1;
            })
         | e3();

@@ -2,7 +2,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/lambda.h"
 #include "stout/lock.h"
 #include "stout/loop.h"
 #include "stout/map.h"
@@ -16,7 +15,6 @@ namespace eventuals = stout::eventuals;
 using stout::eventuals::Acquire;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
-using stout::eventuals::Lambda;
 using stout::eventuals::Lock;
 using stout::eventuals::Loop;
 using stout::eventuals::Map;
@@ -39,17 +37,17 @@ TEST(RepeatTest, Succeed) {
   };
 
   auto r = [&]() {
-    return Repeat(Lambda([i = 0]() mutable { return i++; }))
-        | Until(Lambda([](auto& i) {
+    return Repeat(Then([i = 0]() mutable { return i++; }))
+        | Until([](auto& i) {
              return i == 5;
-           }))
+           })
         | Map(Then([&](auto&& i) {
              return e(i);
            }))
         | Reduce(
                /* sum = */ 0,
                [](auto& sum) {
-                 return Lambda([&](auto&& i) {
+                 return Then([&](auto&& i) {
                    sum += i;
                    return true;
                  });
@@ -69,17 +67,17 @@ TEST(RepeatTest, Fail) {
   };
 
   auto r = [&]() {
-    return Repeat(Lambda([i = 0]() mutable { return i++; }))
-        | Until(Lambda([](auto& i) {
+    return Repeat(Then([i = 0]() mutable { return i++; }))
+        | Until([](auto& i) {
              return i == 5;
-           }))
+           })
         | Map(Then([&](auto&& i) {
              return e(i);
            }))
         | Reduce(
                /* sum = */ 0,
                [](auto& sum) {
-                 return Lambda([&](auto&& i) {
+                 return Then([&](auto&& i) {
                    sum += i;
                    return true;
                  });
@@ -105,17 +103,17 @@ TEST(RepeatTest, Interrupt) {
   };
 
   auto r = [&]() {
-    return Repeat(Lambda([i = 0]() mutable { return i++; }))
-        | Until(Lambda([](auto& i) {
+    return Repeat(Then([i = 0]() mutable { return i++; }))
+        | Until([](auto& i) {
              return i == 5;
-           }))
+           })
         | Map(Then([&](auto&& i) {
              return e(i);
            }))
         | Reduce(
                /* sum = */ 0,
                [](auto& sum) {
-                 return Lambda([&](auto&& i) {
+                 return Then([&](auto&& i) {
                    sum += i;
                    return true;
                  });
@@ -202,7 +200,7 @@ TEST(RepeatTest, MapAcquire) {
                    }))
         | Map(
                Acquire(&lock)
-               | Lambda([](auto&& i) {
+               | Then([](auto&& i) {
                    return i;
                  })
                | Release(&lock))

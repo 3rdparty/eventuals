@@ -63,10 +63,10 @@ inline auto DomainNameResolve(
                     ->Fail(std::string{uv_err_name(error)});
               } else {
                 // Succeed the resulting ip
+                uv_freeaddrinfo(result);
                 (static_cast<K*>(data->k))
                     ->Start(std::string{addr});
               }
-              uv_freeaddrinfo(result);
             }
           };
           auto error = uv_getaddrinfo(
@@ -78,9 +78,10 @@ inline auto DomainNameResolve(
               &(data_context.hints));
 
           // If there was an error we just fail our continuation
-          if (error)
+          if (error) {
             (static_cast<K*>(data_context.k))
                 ->Fail(std::string{uv_err_name(error)});
+          }
         };
 
         data_context.loop.Invoke(&data_context.start);
@@ -88,7 +89,6 @@ inline auto DomainNameResolve(
   // TODO (Artur): think later about implementing
   // .interrupt([](auto &data, auto &k){...}); callback
 }
-
 inline auto DomainNameResolve(
     const std::string& address,
     const std::string& port) {

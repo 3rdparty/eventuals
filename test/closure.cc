@@ -7,12 +7,12 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "stout/just.h"
-#include "stout/lambda.h"
 #include "stout/map.h"
 #include "stout/raise.h"
 #include "stout/reduce.h"
 #include "stout/repeat.h"
 #include "stout/terminal.h"
+#include "stout/then.h"
 #include "stout/until.h"
 
 using std::deque;
@@ -24,21 +24,21 @@ using stout::eventuals::Closure;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
 using stout::eventuals::Just;
-using stout::eventuals::Lambda;
 using stout::eventuals::Map;
 using stout::eventuals::Raise;
 using stout::eventuals::Reduce;
 using stout::eventuals::Repeat;
 using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 using stout::eventuals::Until;
 
 using testing::MockFunction;
 
-TEST(ClosureTest, Lambda) {
+TEST(ClosureTest, Then) {
   auto e = []() {
     return Just(1)
         | Closure([i = 41]() {
-             return Lambda([&](auto&& value) { return i + value; });
+             return Then([&](auto&& value) { return i + value; });
            });
   };
 
@@ -49,7 +49,7 @@ TEST(ClosureTest, Lambda) {
 TEST(ClosureTest, Functor) {
   struct Functor {
     auto operator()() {
-      return Lambda([this](auto&& value) { return i + value; });
+      return Then([this](auto&& value) { return i + value; });
     }
 
     int i;
@@ -66,12 +66,12 @@ TEST(ClosureTest, Functor) {
 
 TEST(ClosureTest, OuterRepeat) {
   auto e = []() {
-    return Repeat(Lambda([]() { return 1; }))
+    return Repeat(Then([]() { return 1; }))
         | Closure([i = 41]() {
              return Reduce(
                  i,
                  [](auto& i) {
-                   return Lambda([&](auto&& value) {
+                   return Then([&](auto&& value) {
                      i += value;
                      return false;
                    });
@@ -87,10 +87,10 @@ TEST(ClosureTest, InnerRepeat) {
   auto e = []() {
     return Closure([strings = deque<string>{"hello", "world"}]() mutable {
       return Repeat()
-          | Until(Lambda([&]() {
+          | Until([&]() {
                return strings.empty();
-             }))
-          | Map(Lambda([&]() mutable {
+             })
+          | Map(Then([&]() mutable {
                auto s = std::move(strings.front());
                strings.pop_front();
                return s;
@@ -98,7 +98,7 @@ TEST(ClosureTest, InnerRepeat) {
           | Reduce(
                  deque<string>(),
                  [](auto& results) {
-                   return Lambda([&](auto&& result) mutable {
+                   return Then([&](auto&& result) mutable {
                      results.push_back(result);
                      return true;
                    });
@@ -119,7 +119,7 @@ TEST(ClosureTest, Fail) {
   auto e = []() {
     return Raise("error")
         | Closure([i = 41]() {
-             return Lambda([&]() { return i + 1; });
+             return Then([&]() { return i + 1; });
            });
   };
 
