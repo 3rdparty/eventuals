@@ -5,16 +5,16 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "stout/event-loop.h"
-#include "stout/lambda.h"
 #include "stout/terminal.h"
+#include "stout/then.h"
 #include "test/event-loop-test.h"
 
 using stout::eventuals::EventLoop;
 using stout::eventuals::Eventual;
 using stout::eventuals::Interrupt;
-using stout::eventuals::Lambda;
 using stout::eventuals::Signal;
 using stout::eventuals::Terminate;
+using stout::eventuals::Then;
 
 using namespace std::chrono_literals;
 
@@ -31,7 +31,7 @@ using namespace std::chrono_literals;
 
 TEST_F(EventLoopTest, SignalComposition) {
   auto e = Signal(SIGQUIT)
-      | Lambda([](auto&& signal_code) {
+      | Then([](auto&& signal_code) {
              return "quit";
            });
   auto [f, e_] = Terminate(std::move(e));
