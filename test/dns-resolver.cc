@@ -5,7 +5,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "stout/event-loop.h"
-#include "stout/lambda.h"
 #include "stout/terminal.h"
 #include "stout/then.h"
 #include "test/event-loop-test.h"
@@ -13,7 +12,6 @@
 using stout::eventuals::DomainNameResolve;
 using stout::eventuals::EventLoop;
 using stout::eventuals::Eventual;
-using stout::eventuals::Lambda;
 using stout::eventuals::Terminate;
 using stout::eventuals::Then;
 
@@ -65,7 +63,7 @@ TEST_F(EventLoopTest, IpStop) {
               } else
                 k.Start(13);
             })
-      | Lambda([](int data) {
+      | Then([](int data) {
              return std::to_string(data);
            });
 
