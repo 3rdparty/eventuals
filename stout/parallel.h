@@ -103,12 +103,19 @@ struct _Parallel {
         // until calling 'next(stream_)').
         k_.Body();
 
+        // We only want to "start" ingress once here and let 'Body()'
+        // above continue calling 'Next()' as there are available
+        // workers, hence the use of 'std::call_once'.
         std::call_once(next_, [this]() {
           CHECK_NOTNULL(stream_)->Next();
         });
       }
 
       void Done() override {
+        // TODO(benh): contract is that only one call to either
+        // 'Next()' or 'Done()' but it's possible that a thread is
+        // calling 'Body()' above which may call 'Next()' while we're
+        // trying to call 'Done()' here.
         CHECK_NOTNULL(stream_)->Done();
 
         k_.Ended();
