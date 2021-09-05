@@ -86,7 +86,25 @@ struct _Parallel {
 
       template <typename... Args>
       void Body(Args&&...) {
-        CHECK_NOTNULL(stream_)->Next();
+        // NOTE: only one of 'Next()' or 'Done()' should be made into
+        // ingress at a time, which we manage with the following.
+        auto expected = status_.load();
+
+        while (expected != Status::Done) {
+          CHECK(Status::Idle == expected);
+
+          if (status_.compare_exchange_weak(expected, Status::Next)) {
+            CHECK_NOTNULL(stream_)->Next();
+
+            expected = Status::Next;
+            if (!status_.compare_exchange_strong(expected, Status::Idle)) {
+              CHECK(Status::Done == expected);
+              CHECK_NOTNULL(stream_)->Done();
+            }
+
+            break;
+          }
+        }
       }
 
       void Ended() {
@@ -107,16 +125,18 @@ struct _Parallel {
         // above continue calling 'Next()' as there are available
         // workers, hence the use of 'std::call_once'.
         std::call_once(next_, [this]() {
-          CHECK_NOTNULL(stream_)->Next();
+          Body();
         });
       }
 
       void Done() override {
-        // TODO(benh): contract is that only one call to either
-        // 'Next()' or 'Done()' but it's possible that a thread is
-        // calling 'Body()' above which may call 'Next()' while we're
-        // trying to call 'Done()' here.
-        CHECK_NOTNULL(stream_)->Done();
+        // NOTE: only one of 'Next()' or 'Done()' should be made into
+        // ingress at a time, which we manage with the following.
+        auto expected = Status::Idle;
+        while (!status_.compare_exchange_weak(expected, Status::Done)) {}
+        if (expected == Status::Idle) {
+          CHECK_NOTNULL(stream_)->Done();
+        }
 
         k_.Ended();
       }
@@ -132,6 +152,16 @@ struct _Parallel {
       detail::TypeErasedStream* stream_ = nullptr;
 
       std::once_flag next_;
+
+      // Need a "status" flag for making sure that only one of
+      // 'Next()' or 'Done()' is being called into ingress at a time.
+      enum class Status {
+        Idle,
+        Next,
+        Done,
+      };
+
+      std::atomic<Status> status_ = Status::Idle;
     };
 
     template <typename Parallel_, typename Cleanup_>
