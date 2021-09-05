@@ -681,7 +681,9 @@ struct _StaticThreadPoolParallel {
         : StaticThreadPool::Waiter(
             &StaticThreadPool::Scheduler(),
             &requirements),
-          requirements("[worker " + std::to_string(core) + "]") {}
+          requirements(
+              "[worker " + std::to_string(core) + "]",
+              Pinned(core)) {}
 
       StaticThreadPool::Requirements requirements;
       std::optional<Arg_> arg;
