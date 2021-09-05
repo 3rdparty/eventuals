@@ -49,7 +49,7 @@ class Scheduler {
 
     template <typename F>
     void Continue(F&& f) {
-      if (scheduler_->Continue(this)) {
+      if (scheduler_->Continuable(this)) {
         auto* previous = Switch(this);
         f();
         Switch(previous);
@@ -60,7 +60,7 @@ class Scheduler {
 
     template <typename F, typename G>
     void Continue(F&& f, G&& g) {
-      if (scheduler_->Continue(this)) {
+      if (scheduler_->Continuable(this)) {
         auto* previous = Switch(this);
         f();
         Switch(previous);
@@ -81,7 +81,7 @@ class Scheduler {
 
   static Scheduler* Default();
 
-  virtual bool Continue(Context* context) = 0;
+  virtual bool Continuable(Context* context) = 0;
 
   virtual void Submit(Callback<> callback, Context* context) = 0;
 };

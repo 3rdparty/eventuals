@@ -58,7 +58,10 @@ class StaticThreadPool : public Scheduler {
 
     Waiter(Waiter&& that)
       : Scheduler::Context(that.scheduler()),
-        requirements_(that.requirements_) {}
+        requirements_(that.requirements_) {
+      // NOTE: should only get moved before it's "started".
+      CHECK(!that.waiting && !callback && next == nullptr);
+    }
 
     const std::string& name() override {
       return requirements_->name;
@@ -118,12 +121,12 @@ class StaticThreadPool : public Scheduler {
 
   ~StaticThreadPool();
 
-  bool Continue(Context* context) override;
+  bool Continuable(Context* context) override;
 
   void Submit(Callback<> callback, Context* context) override;
 
-  template <typename T>
-  auto Schedule(Requirements* requirements, T t);
+  template <typename E>
+  auto Schedule(Requirements* requirements, E e);
 
   template <typename F>
   auto Parallel(F f);

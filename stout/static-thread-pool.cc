@@ -143,7 +143,7 @@ void StaticThreadPool::Submit(Callback<> callback, Context* context) {
 
 ////////////////////////////////////////////////////////////////////////
 
-bool StaticThreadPool::Continue(Context* context) {
+bool StaticThreadPool::Continuable(Context* context) {
   auto* waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
 
   CHECK(!waiter->waiting) << waiter->name();
