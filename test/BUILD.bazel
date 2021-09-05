@@ -13,7 +13,7 @@ cc_test(
         "static-thread-pool.cc",
         "task.cc",
         "closure.cc",
-        "static-thread-pool-parallel.cc",
+        "parallel.cc",
         "timer.cc",
         "filesystem.cc",
         "event-loop-test.h",
