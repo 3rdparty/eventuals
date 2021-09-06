@@ -33,29 +33,20 @@ auto Parallel(F f);
 
 struct _Parallel {
   struct _IngressAdaptor {
-    template <typename K_, typename Parallel_, typename Cleanup_>
+    template <typename K_, typename Cleanup_>
     struct Continuation : public detail::TypeErasedStream {
       // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
-      Continuation(
-          K_ k,
-          Parallel_* parallel,
-          Cleanup_ cleanup)
+      Continuation(K_ k, Cleanup_ cleanup)
         : k_(std::move(k)),
-          parallel_(parallel),
           cleanup_(std::move(cleanup)) {}
 
       // NOTE: explicit move-constructor because of 'std::once_flag'.
       Continuation(Continuation&& that)
         : k_(std::move(that.k_)),
-          parallel_(that.parallel_),
           cleanup_(std::move(that.cleanup_)) {}
 
       void Start(detail::TypeErasedStream& stream) {
         stream_ = &stream;
-
-        parallel_->done_.store(false);
-
-        parallel_->Start();
 
         k_.Start(*this);
       }
@@ -71,8 +62,6 @@ struct _Parallel {
             std::make_exception_ptr(std::forward<Args>(args)...);
 
         cleanup_.Start(std::move(exception));
-
-        parallel_->done_.store(true);
       }
 
       void Stop() {
@@ -80,8 +69,6 @@ struct _Parallel {
             std::make_exception_ptr(StoppedException());
 
         cleanup_.Start(std::move(exception));
-
-        parallel_->done_.store(true);
       }
 
       template <typename... Args>
@@ -109,8 +96,6 @@ struct _Parallel {
 
       void Ended() {
         cleanup_.Start(std::optional<std::exception_ptr>());
-
-        parallel_->done_.store(true);
       }
 
       void Next() override {
@@ -146,7 +131,6 @@ struct _Parallel {
       }
 
       K_ k_;
-      Parallel_* parallel_;
       Cleanup_ cleanup_;
 
       detail::TypeErasedStream* stream_ = nullptr;
@@ -164,32 +148,26 @@ struct _Parallel {
       std::atomic<Status> status_ = Status::Idle;
     };
 
-    template <typename Parallel_, typename Cleanup_>
+    template <typename Cleanup_>
     struct Composable {
       template <typename Arg>
       using ValueFrom = void;
 
       template <typename Arg, typename K>
       auto k(K k) && {
-        return Continuation<K, Parallel_, Cleanup_>(
-            std::move(k),
-            parallel_,
-            std::move(cleanup_));
+        return Continuation<K, Cleanup_>(std::move(k), std::move(cleanup_));
       }
 
-      Parallel_* parallel_;
       Cleanup_ cleanup_;
     };
   };
 
-  template <typename Parallel, typename E>
-  static auto IngressAdaptor(Parallel* parallel, E e) {
+  template <typename E>
+  static auto IngressAdaptor(E e) {
     auto cleanup = (std::move(e) | Terminal())
                        .template k<std::optional<std::exception_ptr>>();
     using Cleanup = decltype(cleanup);
-    return _IngressAdaptor::Composable<Parallel, Cleanup>{
-        parallel,
-        std::move(cleanup)};
+    return _IngressAdaptor::Composable<Cleanup>{std::move(cleanup)};
   }
 
   struct _EgressAdaptor {
@@ -225,6 +203,10 @@ struct _Parallel {
         } else {
           k_.Ended();
         }
+
+        // NOTE: after setting 'done' we can no longer reference
+        // 'exception_' (or any other variables we end up capturing).
+        done_.store(true);
       }
 
       void Register(Interrupt& interrupt) {
@@ -233,6 +215,7 @@ struct _Parallel {
 
       K_ k_;
       std::optional<std::exception_ptr>& exception_;
+      std::atomic<bool>& done_;
     };
 
     struct Composable {
@@ -241,15 +224,18 @@ struct _Parallel {
 
       template <typename Arg, typename K>
       auto k(K k) && {
-        return Continuation<K>{std::move(k), exception_};
+        return Continuation<K>{std::move(k), exception_, done_};
       }
 
       std::optional<std::exception_ptr>& exception_;
+      std::atomic<bool>& done_;
     };
   };
 
-  static auto EgressAdaptor(std::optional<std::exception_ptr>& exception) {
-    return _EgressAdaptor::Composable{exception};
+  static auto EgressAdaptor(
+      std::optional<std::exception_ptr>& exception,
+      std::atomic<bool>& done) {
+    return _EgressAdaptor::Composable{exception, done};
   }
 
   struct _WorkerAdaptor {
@@ -353,6 +339,15 @@ struct _Parallel {
     auto Egress();
 
     auto operator()() {
+      done_.store(false);
+
+      // NOTE: we eagerly start up the workers so that they may be
+      // ready when we get the first item from the stream however if
+      // the stream ends up returning no items than we'll have
+      // performed unnecessary computation and used unnecessary
+      // resources.
+      Start();
+
       return Ingress()
           | Egress();
     }
@@ -572,7 +567,6 @@ auto _Parallel::Continuation<F_, Arg_>::Ingress() {
            return cleanup;
          })
       | IngressAdaptor(
-             this,
              Synchronized(Then([this](auto exception) {
                if (!cleanup_) {
                  cleanup_ = true;
@@ -619,7 +613,7 @@ auto _Parallel::Continuation<F_, Arg_>::Egress() {
            // TODO(benh): use 'Eventual' to avoid extra moves?
            return std::move(value);
          })))
-      | EgressAdaptor(exception_);
+      | EgressAdaptor(exception_, done_);
 }
 
 ////////////////////////////////////////////////////////////////////////
