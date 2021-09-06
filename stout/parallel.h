@@ -53,13 +53,14 @@ struct _Parallel {
 
       template <typename... Args>
       void Fail(Args&&... args) {
-        // TODO(benh): support failure with no error arguments.
-        static_assert(
-            sizeof...(args) == 1,
-            "'Parallel' currently requires failures to include an error");
-
-        std::optional<std::exception_ptr> exception =
-            std::make_exception_ptr(std::forward<Args>(args)...);
+        std::optional<std::exception_ptr> exception = [&]() {
+          if constexpr (sizeof...(args) > 0) {
+            return std::make_exception_ptr(std::forward<Args>(args)...);
+          } else {
+            return std::make_exception_ptr(
+                std::runtime_error("ingress failed (without an error)"));
+          }
+        }();
 
         cleanup_.Start(std::move(exception));
       }
