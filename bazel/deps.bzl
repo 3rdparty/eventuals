@@ -24,6 +24,29 @@ def deps(repo_mapping = {}):
         repo_mapping = repo_mapping
     )
 
+    # !!! Here be dragons !!!
+    # grpc is currently (2021/09/06) pulling in a version of absl and boringssl
+    # that does not compile on linux with neither gcc (11.1) nor clang (12.0).
+    # Here we are front running the dependency loading of grpc to pull
+    # compatible versions.
+    #
+    # First of absl:
+    if "com_google_absl" not in native.existing_rules():
+        http_archive(
+            name = "com_google_absl",
+            url = "https://github.com/abseil/abseil-cpp/archive/refs/tags/20210324.2.tar.gz",
+            strip_prefix = "abseil-cpp-20210324.2",
+            sha256 = "59b862f50e710277f8ede96f083a5bb8d7c9595376146838b9580be90374ee1f",
+        )
+    # and then boringssl
+    if "boringssl" not in native.existing_rules():
+        git_repository(
+            name = "boringssl",
+            commit = "fc44652a42b396e1645d5e72aba053349992136a",
+            remote = "https://boringssl.googlesource.com/boringssl",
+            shallow_since = "1627579704 +0000",
+        )
+
     grpc_deps()
 
     if "com_github_gflags_gflags" not in native.existing_rules():
@@ -40,14 +63,6 @@ def deps(repo_mapping = {}):
             url = "https://github.com/google/glog/archive/v0.4.0.tar.gz",
             sha256 = "f28359aeba12f30d73d9e4711ef356dc842886968112162bc73002645139c39c",
             strip_prefix = "glog-0.4.0",
-        )
-
-    if "com_google_absl" not in native.existing_rules():
-        http_archive(
-            name = "com_google_absl",
-            url = "https://github.com/abseil/abseil-cpp/archive/ca9856cabc23d771bcce634677650eb6fc4363ae.tar.gz",
-            sha256 = "cd477bfd0d19f803f85d118c7943b7908930310d261752730afa981118fee230",
-            strip_prefix = "abseil-cpp-ca9856cabc23d771bcce634677650eb6fc4363ae",
         )
 
     if "com_github_google_googletest" not in native.existing_rules():
