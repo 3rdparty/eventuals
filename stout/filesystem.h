@@ -256,42 +256,38 @@ inline auto OpenFile(
 
     Request req;
     void* k = nullptr;
-
-    EventLoop::Callback start;
   };
 
-  return Eventual<File>()
-      .context(Data{loop, flags, mode, path})
-      .start([](auto& data, auto& k) mutable {
-        using K = std::decay_t<decltype(k)>;
+  return loop.Schedule(
+      "OpenFile",
+      Eventual<File>()
+          .context(Data{loop, flags, mode, path})
+          .start([](auto& data, auto& k) mutable {
+            using K = std::decay_t<decltype(k)>;
 
-        data.k = &k;
-        data.req->data = &data;
+            data.k = &k;
+            data.req->data = &data;
 
-        data.start = [&data](EventLoop& loop) {
-          auto error = uv_fs_open(
-              loop,
-              data.req,
-              data.path.string().c_str(),
-              data.flags,
-              data.mode,
-              [](uv_fs_t* req) {
-                auto& data = *static_cast<Data*>(req->data);
-                auto& k = *static_cast<K*>(data.k);
-                if (req->result >= 0) {
-                  k.Start(File(req->result));
-                } else {
-                  k.Fail(uv_strerror(req->result));
-                }
-              });
+            auto error = uv_fs_open(
+                data.loop,
+                data.req,
+                data.path.string().c_str(),
+                data.flags,
+                data.mode,
+                [](uv_fs_t* req) {
+                  auto& data = *static_cast<Data*>(req->data);
+                  auto& k = *static_cast<K*>(data.k);
+                  if (req->result >= 0) {
+                    k.Start(File(req->result));
+                  } else {
+                    k.Fail(uv_strerror(req->result));
+                  }
+                });
 
-          if (error) {
-            static_cast<K*>(data.k)->Fail(uv_strerror(error));
-          }
-        };
-
-        data.loop.Invoke(&data.start);
-      });
+            if (error) {
+              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+            }
+          }));
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -312,41 +308,37 @@ inline auto CloseFile(EventLoop& loop, File&& file) {
     Request req;
 
     void* k = nullptr;
-
-    EventLoop::Callback start;
   };
 
-  return Eventual<void>()
-      .context(Data{loop, std::move(file)})
-      .start([](auto& data, auto& k) mutable {
-        using K = std::decay_t<decltype(k)>;
+  return loop.Schedule(
+      "CloseFile",
+      Eventual<void>()
+          .context(Data{loop, std::move(file)})
+          .start([](auto& data, auto& k) mutable {
+            using K = std::decay_t<decltype(k)>;
 
-        data.k = &k;
-        data.req->data = &data;
+            data.k = &k;
+            data.req->data = &data;
 
-        data.start = [&data](EventLoop& loop) {
-          auto error = uv_fs_close(
-              loop,
-              data.req,
-              data.file,
-              [](uv_fs_t* req) {
-                auto& data = *static_cast<Data*>(req->data);
-                auto& k = *static_cast<K*>(data.k);
-                if (req->result == 0) {
-                  data.file.MarkAsClosed();
-                  k.Start();
-                } else {
-                  k.Fail(uv_strerror(req->result));
-                };
-              });
+            auto error = uv_fs_close(
+                data.loop,
+                data.req,
+                data.file,
+                [](uv_fs_t* req) {
+                  auto& data = *static_cast<Data*>(req->data);
+                  auto& k = *static_cast<K*>(data.k);
+                  if (req->result == 0) {
+                    data.file.MarkAsClosed();
+                    k.Start();
+                  } else {
+                    k.Fail(uv_strerror(req->result));
+                  };
+                });
 
-          if (error) {
-            static_cast<K*>(data.k)->Fail(uv_strerror(error));
-          }
-        };
-
-        data.loop.Invoke(&data.start);
-      });
+            if (error) {
+              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+            }
+          }));
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -371,43 +363,39 @@ inline auto ReadFile(
     Request req;
 
     void* k = nullptr;
-
-    EventLoop::Callback start;
   };
 
-  return Eventual<std::string>()
-      .context(Data{loop, file, bytes_to_read, offset, bytes_to_read})
-      .start([](auto& data, auto& k) mutable {
-        using K = std::decay_t<decltype(k)>;
+  return loop.Schedule(
+      "ReadFile",
+      Eventual<std::string>()
+          .context(Data{loop, file, bytes_to_read, offset, bytes_to_read})
+          .start([](auto& data, auto& k) mutable {
+            using K = std::decay_t<decltype(k)>;
 
-        data.k = &k;
-        data.req->data = &data;
+            data.k = &k;
+            data.req->data = &data;
 
-        data.start = [&data](EventLoop& loop) {
-          auto error = uv_fs_read(
-              loop,
-              data.req,
-              data.file,
-              data.buf,
-              1,
-              data.offset,
-              [](uv_fs_t* req) {
-                auto& data = *static_cast<Data*>(req->data);
-                auto& k = *static_cast<K*>(data.k);
-                if (req->result >= 0) {
-                  k.Start(data.buf.Extract());
-                } else {
-                  k.Fail(uv_strerror(req->result));
-                };
-              });
+            auto error = uv_fs_read(
+                data.loop,
+                data.req,
+                data.file,
+                data.buf,
+                1,
+                data.offset,
+                [](uv_fs_t* req) {
+                  auto& data = *static_cast<Data*>(req->data);
+                  auto& k = *static_cast<K*>(data.k);
+                  if (req->result >= 0) {
+                    k.Start(data.buf.Extract());
+                  } else {
+                    k.Fail(uv_strerror(req->result));
+                  };
+                });
 
-          if (error) {
-            static_cast<K*>(data.k)->Fail(uv_strerror(error));
-          }
-        };
-
-        data.loop.Invoke(&data.start);
-      });
+            if (error) {
+              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+            }
+          }));
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -434,43 +422,39 @@ inline auto WriteFile(
     Request req;
 
     void* k = nullptr;
-
-    EventLoop::Callback start;
   };
 
-  return Eventual<void>()
-      .context(Data{loop, file, data, offset})
-      .start([](auto& data, auto& k) mutable {
-        using K = std::decay_t<decltype(k)>;
+  return loop.Schedule(
+      "WriteFile",
+      Eventual<void>()
+          .context(Data{loop, file, data, offset})
+          .start([](auto& data, auto& k) mutable {
+            using K = std::decay_t<decltype(k)>;
 
-        data.k = &k;
-        data.req->data = &data;
+            data.k = &k;
+            data.req->data = &data;
 
-        data.start = [&data](EventLoop& loop) {
-          auto error = uv_fs_write(
-              loop,
-              data.req,
-              data.file,
-              data.buf,
-              1,
-              data.offset,
-              [](uv_fs_t* req) {
-                auto& data = *static_cast<Data*>(req->data);
-                auto& k = *static_cast<K*>(data.k);
-                if (req->result >= 0) {
-                  k.Start();
-                } else {
-                  k.Fail(uv_strerror(req->result));
-                };
-              });
+            auto error = uv_fs_write(
+                data.loop,
+                data.req,
+                data.file,
+                data.buf,
+                1,
+                data.offset,
+                [](uv_fs_t* req) {
+                  auto& data = *static_cast<Data*>(req->data);
+                  auto& k = *static_cast<K*>(data.k);
+                  if (req->result >= 0) {
+                    k.Start();
+                  } else {
+                    k.Fail(uv_strerror(req->result));
+                  };
+                });
 
-          if (error) {
-            static_cast<K*>(data.k)->Fail(uv_strerror(error));
-          }
-        };
-
-        data.loop.Invoke(&data.start);
-      });
+            if (error) {
+              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+            }
+          }));
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -491,40 +475,36 @@ inline auto UnlinkFile(EventLoop& loop, const std::filesystem::path& path) {
 
     Request req;
     void* k = nullptr;
-
-    EventLoop::Callback start;
   };
 
-  return Eventual<void>()
-      .context(Data{loop, path})
-      .start([](auto& data, auto& k) mutable {
-        using K = std::decay_t<decltype(k)>;
+  return loop.Schedule(
+      "UnlinkFile",
+      Eventual<void>()
+          .context(Data{loop, path})
+          .start([](auto& data, auto& k) mutable {
+            using K = std::decay_t<decltype(k)>;
 
-        data.k = &k;
-        data.req->data = &data;
+            data.k = &k;
+            data.req->data = &data;
 
-        data.start = [&data](EventLoop& loop) {
-          auto error = uv_fs_unlink(
-              loop,
-              data.req,
-              data.path.string().c_str(),
-              [](uv_fs_t* req) {
-                auto& data = *static_cast<Data*>(req->data);
-                auto& k = *static_cast<K*>(data.k);
-                if (req->result == 0) {
-                  k.Start();
-                } else {
-                  k.Fail(uv_strerror(req->result));
-                }
-              });
+            auto error = uv_fs_unlink(
+                data.loop,
+                data.req,
+                data.path.string().c_str(),
+                [](uv_fs_t* req) {
+                  auto& data = *static_cast<Data*>(req->data);
+                  auto& k = *static_cast<K*>(data.k);
+                  if (req->result == 0) {
+                    k.Start();
+                  } else {
+                    k.Fail(uv_strerror(req->result));
+                  }
+                });
 
-          if (error) {
-            static_cast<K*>(data.k)->Fail(uv_strerror(error));
-          }
-        };
-
-        data.loop.Invoke(&data.start);
-      });
+            if (error) {
+              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+            }
+          }));
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -546,41 +526,37 @@ inline auto MakeDirectory(
 
     Request req;
     void* k = nullptr;
-
-    EventLoop::Callback start;
   };
 
-  return Eventual<void>()
-      .context(Data{loop, path, mode})
-      .start([](auto& data, auto& k) mutable {
-        using K = std::decay_t<decltype(k)>;
+  return loop.Schedule(
+      "MakeDirectory",
+      Eventual<void>()
+          .context(Data{loop, path, mode})
+          .start([](auto& data, auto& k) mutable {
+            using K = std::decay_t<decltype(k)>;
 
-        data.k = &k;
-        data.req->data = &data;
+            data.k = &k;
+            data.req->data = &data;
 
-        data.start = [&data](EventLoop& loop) {
-          auto error = uv_fs_mkdir(
-              loop,
-              data.req,
-              data.path.string().c_str(),
-              data.mode,
-              [](uv_fs_t* req) {
-                auto& data = *static_cast<Data*>(req->data);
-                auto& k = *static_cast<K*>(data.k);
-                if (req->result == 0) {
-                  k.Start();
-                } else {
-                  k.Fail(uv_strerror(req->result));
-                }
-              });
+            auto error = uv_fs_mkdir(
+                data.loop,
+                data.req,
+                data.path.string().c_str(),
+                data.mode,
+                [](uv_fs_t* req) {
+                  auto& data = *static_cast<Data*>(req->data);
+                  auto& k = *static_cast<K*>(data.k);
+                  if (req->result == 0) {
+                    k.Start();
+                  } else {
+                    k.Fail(uv_strerror(req->result));
+                  }
+                });
 
-          if (error) {
-            static_cast<K*>(data.k)->Fail(uv_strerror(error));
-          }
-        };
-
-        data.loop.Invoke(&data.start);
-      });
+            if (error) {
+              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+            }
+          }));
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -600,40 +576,36 @@ inline auto RemoveDirectory(
 
     Request req;
     void* k = nullptr;
-
-    EventLoop::Callback start;
   };
 
-  return Eventual<void>()
-      .context(Data{loop, path})
-      .start([](auto& data, auto& k) mutable {
-        using K = std::decay_t<decltype(k)>;
+  return loop.Schedule(
+      "RemoveDirectory",
+      Eventual<void>()
+          .context(Data{loop, path})
+          .start([](auto& data, auto& k) mutable {
+            using K = std::decay_t<decltype(k)>;
 
-        data.k = &k;
-        data.req->data = &data;
+            data.k = &k;
+            data.req->data = &data;
 
-        data.start = [&data](EventLoop& loop) {
-          auto error = uv_fs_rmdir(
-              loop,
-              data.req,
-              data.path.string().c_str(),
-              [](uv_fs_t* req) {
-                auto& data = *static_cast<Data*>(req->data);
-                auto& k = *static_cast<K*>(data.k);
-                if (req->result == 0) {
-                  k.Start();
-                } else {
-                  k.Fail(uv_strerror(req->result));
-                }
-              });
+            auto error = uv_fs_rmdir(
+                data.loop,
+                data.req,
+                data.path.string().c_str(),
+                [](uv_fs_t* req) {
+                  auto& data = *static_cast<Data*>(req->data);
+                  auto& k = *static_cast<K*>(data.k);
+                  if (req->result == 0) {
+                    k.Start();
+                  } else {
+                    k.Fail(uv_strerror(req->result));
+                  }
+                });
 
-          if (error) {
-            static_cast<K*>(data.k)->Fail(uv_strerror(error));
-          }
-        };
-
-        data.loop.Invoke(&data.start);
-      });
+            if (error) {
+              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+            }
+          }));
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -657,42 +629,38 @@ inline auto CopyFile(
 
     Request req;
     void* k = nullptr;
-
-    EventLoop::Callback start;
   };
 
-  return Eventual<void>()
-      .context(Data{loop, src, dst, flags})
-      .start([](auto& data, auto& k) mutable {
-        using K = std::decay_t<decltype(k)>;
+  return loop.Schedule(
+      "CopyFile",
+      Eventual<void>()
+          .context(Data{loop, src, dst, flags})
+          .start([](auto& data, auto& k) mutable {
+            using K = std::decay_t<decltype(k)>;
 
-        data.k = &k;
-        data.req->data = &data;
+            data.k = &k;
+            data.req->data = &data;
 
-        data.start = [&data](EventLoop& loop) {
-          auto error = uv_fs_copyfile(
-              loop,
-              data.req,
-              data.src.string().c_str(),
-              data.dst.string().c_str(),
-              data.flags,
-              [](uv_fs_t* req) {
-                auto& data = *static_cast<Data*>(req->data);
-                auto& k = *static_cast<K*>(data.k);
-                if (req->result == 0) {
-                  k.Start();
-                } else {
-                  k.Fail(uv_strerror(req->result));
-                }
-              });
+            auto error = uv_fs_copyfile(
+                data.loop,
+                data.req,
+                data.src.string().c_str(),
+                data.dst.string().c_str(),
+                data.flags,
+                [](uv_fs_t* req) {
+                  auto& data = *static_cast<Data*>(req->data);
+                  auto& k = *static_cast<K*>(data.k);
+                  if (req->result == 0) {
+                    k.Start();
+                  } else {
+                    k.Fail(uv_strerror(req->result));
+                  }
+                });
 
-          if (error) {
-            static_cast<K*>(data.k)->Fail(uv_strerror(error));
-          }
-        };
-
-        data.loop.Invoke(&data.start);
-      });
+            if (error) {
+              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+            }
+          }));
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -717,41 +685,37 @@ inline auto RenameFile(
 
     Request req;
     void* k = nullptr;
-
-    EventLoop::Callback start;
   };
 
-  return Eventual<void>()
-      .context(Data{loop, src, dst})
-      .start([](auto& data, auto& k) mutable {
-        using K = std::decay_t<decltype(k)>;
+  return loop.Schedule(
+      "RenameFile",
+      Eventual<void>()
+          .context(Data{loop, src, dst})
+          .start([](auto& data, auto& k) mutable {
+            using K = std::decay_t<decltype(k)>;
 
-        data.k = &k;
-        data.req->data = &data;
+            data.k = &k;
+            data.req->data = &data;
 
-        data.start = [&data](EventLoop& loop) {
-          auto error = uv_fs_rename(
-              loop,
-              data.req,
-              data.src.string().c_str(),
-              data.dst.string().c_str(),
-              [](uv_fs_t* req) {
-                auto& data = *static_cast<Data*>(req->data);
-                auto& k = *static_cast<K*>(data.k);
-                if (req->result == 0) {
-                  k.Start();
-                } else {
-                  k.Fail(uv_strerror(req->result));
-                }
-              });
+            auto error = uv_fs_rename(
+                data.loop,
+                data.req,
+                data.src.string().c_str(),
+                data.dst.string().c_str(),
+                [](uv_fs_t* req) {
+                  auto& data = *static_cast<Data*>(req->data);
+                  auto& k = *static_cast<K*>(data.k);
+                  if (req->result == 0) {
+                    k.Start();
+                  } else {
+                    k.Fail(uv_strerror(req->result));
+                  }
+                });
 
-          if (error) {
-            static_cast<K*>(data.k)->Fail(uv_strerror(error));
-          }
-        };
-
-        data.loop.Invoke(&data.start);
-      });
+            if (error) {
+              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+            }
+          }));
 }
 
 ////////////////////////////////////////////////////////////////////////

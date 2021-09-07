@@ -48,7 +48,7 @@ class DefaultScheduler : public Scheduler {
     std::string name_;
   };
 
-  bool Continue(Context*) override {
+  bool Continuable(Context*) override {
     return Context::Get()->scheduler() == this;
   }
 

@@ -153,7 +153,7 @@ void EventLoop::Run() {
     uv_ref((uv_handle_t*) &async_);
 
     if (!again) {
-      again = callbacks_.load(std::memory_order_relaxed) != nullptr;
+      again = waiters_.load(std::memory_order_relaxed) != nullptr;
     }
   } while (again);
 }
@@ -172,14 +172,33 @@ void EventLoop::Interrupt() {
 
 ////////////////////////////////////////////////////////////////////////
 
-void EventLoop::Invoke(Callback* callback) {
+bool EventLoop::Continuable(Scheduler::Context* context) {
+  return InEventLoop();
+}
+
+////////////////////////////////////////////////////////////////////////
+
+void EventLoop::Submit(Callback<> callback, Scheduler::Context* context) {
+  // NOTE: current semantics here are "preemptive" if we're already in
+  // the event loop which may be counter expectations if a caller
+  // knows they're in the event loop and is wants to "Submit()"
+  // something to run at the end of the queue of callbacks.
   if (InEventLoop()) {
-    CHECK_NOTNULL(callback)->f(*this);
+    callback();
   } else {
-    CHECK(callback->next == nullptr);
-    while (!callbacks_.compare_exchange_weak(
-        callback->next,
-        callback,
+    auto* waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
+
+    CHECK(!waiter->waiting) << waiter->name();
+    CHECK(waiter->next == nullptr) << waiter->name();
+
+    waiter->waiting = true;
+    waiter->callback = std::move(callback);
+
+    waiter->next = waiters_.load(std::memory_order_relaxed);
+
+    while (!waiters_.compare_exchange_weak(
+        waiter->next,
+        waiter,
         std::memory_order_release,
         std::memory_order_relaxed)) {}
 
@@ -190,37 +209,37 @@ void EventLoop::Invoke(Callback* callback) {
 ////////////////////////////////////////////////////////////////////////
 
 void EventLoop::Prepare() {
-  Callback* callback = nullptr;
+  Waiter* waiter = nullptr;
   do {
   load:
-    callback = callbacks_.load(std::memory_order_relaxed);
+    waiter = waiters_.load(std::memory_order_relaxed);
 
-    if (callback != nullptr) {
-      if (callback->next == nullptr) {
-        if (!callbacks_.compare_exchange_weak(
-                callback,
+    if (waiter != nullptr) {
+      if (waiter->next == nullptr) {
+        if (!waiters_.compare_exchange_weak(
+                waiter,
                 nullptr,
                 std::memory_order_release,
                 std::memory_order_relaxed)) {
           goto load; // Try again.
         }
       } else {
-        while (callback->next->next != nullptr) {
-          callback = callback->next;
+        while (waiter->next->next != nullptr) {
+          waiter = waiter->next;
         }
 
-        CHECK(callback->next != nullptr);
+        CHECK(waiter->next != nullptr);
 
-        auto* next = callback->next;
-        callback->next = nullptr;
-        callback = next;
+        auto* next = waiter->next;
+        waiter->next = nullptr;
+        waiter = next;
       }
 
-      CHECK_NOTNULL(callback);
+      CHECK_NOTNULL(waiter);
 
-      callback->f(*this);
+      waiter->callback();
     }
-  } while (callback != nullptr);
+  } while (waiter != nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////
