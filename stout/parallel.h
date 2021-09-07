@@ -75,22 +75,31 @@ struct _Parallel {
       template <typename... Args>
       void Body(Args&&...) {
         // NOTE: only one of 'Next()' or 'Done()' should be made into
-        // ingress at a time, which we manage with the following.
+        // ingress at a time, which we manage using an atomic status.
         auto expected = status_.load();
 
-        while (expected != Status::Done) {
-          CHECK(Status::Idle == expected);
+        // We might have arrived here from a previous call to 'Body()'
+        // which called 'Next()' and then made it back here. In this
+        // case, we simply make the call to 'Next()' and return,
+        // knowing that initial previous call to 'Body()' will handle
+        // invoking 'Done()' if necessary.
+        if (expected == Status::Next) {
+          CHECK_NOTNULL(stream_)->Next();
+        } else {
+          while (expected != Status::Done) {
+            CHECK(Status::Idle == expected);
 
-          if (status_.compare_exchange_weak(expected, Status::Next)) {
-            CHECK_NOTNULL(stream_)->Next();
+            if (status_.compare_exchange_weak(expected, Status::Next)) {
+              CHECK_NOTNULL(stream_)->Next();
 
-            expected = Status::Next;
-            if (!status_.compare_exchange_strong(expected, Status::Idle)) {
-              CHECK(Status::Done == expected);
-              CHECK_NOTNULL(stream_)->Done();
+              expected = Status::Next;
+              if (!status_.compare_exchange_strong(expected, Status::Idle)) {
+                CHECK(Status::Done == expected);
+                CHECK_NOTNULL(stream_)->Done();
+              }
+
+              break;
             }
-
-            break;
           }
         }
       }
