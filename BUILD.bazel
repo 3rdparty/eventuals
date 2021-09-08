@@ -34,7 +34,6 @@ cc_library(
         "stout/timer.h",
         "stout/head.h",
         "stout/filesystem.h",
-        "stout/iterate.h",
         "stout/parallel.h",
     ],
     srcs = [
