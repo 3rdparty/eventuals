@@ -17,6 +17,7 @@ cc_test(
         "timer.cc",
         "filesystem.cc",
         "event-loop-test.h",
+        "iterate.cc",
     ],
     deps = [
         "//:eventuals",
