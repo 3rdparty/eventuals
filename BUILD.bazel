@@ -35,6 +35,7 @@ cc_library(
         "stout/head.h",
         "stout/filesystem.h",
         "stout/parallel.h",
+        "stout/buffer.h"
     ],
     srcs = [
         "stout/scheduler.cc",
