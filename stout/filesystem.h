@@ -15,6 +15,10 @@ namespace filesystem {
 
 ////////////////////////////////////////////////////////////////////////
 
+namespace detail {
+
+////////////////////////////////////////////////////////////////////////
+
 // Moveable, not Copyable.
 class Request {
  public:
@@ -73,6 +77,10 @@ class Request {
 
 ////////////////////////////////////////////////////////////////////////
 
+} // namespace detail
+
+////////////////////////////////////////////////////////////////////////
+
 // Moveable, not Copyable.
 class File {
  public:
@@ -95,7 +103,7 @@ class File {
     if (descriptor_.has_value()) {
       // No callback allows us to synchronously use this function,
       // loop is not needed in this variant.
-      uv_fs_close(nullptr, Request(), *descriptor_, NULL);
+      uv_fs_close(nullptr, detail::Request(), *descriptor_, NULL);
     }
 
     // Moving optional does not reset its state,
@@ -110,7 +118,7 @@ class File {
     if (descriptor_.has_value()) {
       // No callback allows us to synchronously use this function,
       // loop is not needed in this variant.
-      uv_fs_close(nullptr, Request(), *descriptor_, NULL);
+      uv_fs_close(nullptr, detail::Request(), *descriptor_, NULL);
     }
   }
 
@@ -254,7 +262,7 @@ inline auto OpenFile(
     int mode;
     std::filesystem::path path;
 
-    Request req;
+    detail::Request req;
     void* k = nullptr;
   };
 
@@ -305,7 +313,7 @@ inline auto CloseFile(EventLoop& loop, File&& file) {
   struct Data {
     EventLoop& loop;
     File file;
-    Request req;
+    detail::Request req;
 
     void* k = nullptr;
   };
@@ -360,7 +368,7 @@ inline auto ReadFile(
     size_t bytes_to_read;
     size_t offset;
     Buffer buf;
-    Request req;
+    detail::Request req;
 
     void* k = nullptr;
   };
@@ -419,7 +427,7 @@ inline auto WriteFile(
     const File& file;
     Buffer buf;
     size_t offset;
-    Request req;
+    detail::Request req;
 
     void* k = nullptr;
   };
@@ -473,7 +481,7 @@ inline auto UnlinkFile(EventLoop& loop, const std::filesystem::path& path) {
     EventLoop& loop;
     std::filesystem::path path;
 
-    Request req;
+    detail::Request req;
     void* k = nullptr;
   };
 
@@ -524,7 +532,7 @@ inline auto MakeDirectory(
     std::filesystem::path path;
     int mode;
 
-    Request req;
+    detail::Request req;
     void* k = nullptr;
   };
 
@@ -574,7 +582,7 @@ inline auto RemoveDirectory(
     EventLoop& loop;
     std::filesystem::path path;
 
-    Request req;
+    detail::Request req;
     void* k = nullptr;
   };
 
@@ -627,7 +635,7 @@ inline auto CopyFile(
     std::filesystem::path dst;
     int flags;
 
-    Request req;
+    detail::Request req;
     void* k = nullptr;
   };
 
@@ -683,7 +691,7 @@ inline auto RenameFile(
     std::filesystem::path src;
     std::filesystem::path dst;
 
-    Request req;
+    detail::Request req;
     void* k = nullptr;
   };
 
