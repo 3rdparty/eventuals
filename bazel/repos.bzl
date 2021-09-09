@@ -10,6 +10,7 @@
 ########################################################################
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 load("//3rdparty/stout-eventuals:repos.bzl", stout_eventuals_repos="repos")
 load("//3rdparty/stout-borrowed-ptr:repos.bzl", stout_borrowed_ptr_repos="repos")
@@ -34,4 +35,14 @@ def repos(external = True, repo_mapping = {}):
             urls = ["https://github.com/grpc/grpc/archive/v1.35.0.tar.gz"],
             sha256 = "27dd2fc5c9809ddcde8eb6fa1fa278a3486566dfc28335fca13eb8df8bd3b958",
             strip_prefix = "grpc-1.35.0",
+        )
+
+
+    if external and "com_github_3rdparty_stout_grpc" not in native.existing_rules():
+        git_repository(
+            name = "com_github_3rdparty_stout_grpc",
+            remote = "https://github.com/3rdparty/stout-grpc",
+            commit = "716259b114f41905d41797d9b0bcf0142952a2f2",
+            shallow_since = "1629614156 +0200",
+            repo_mapping = repo_mapping,
         )
