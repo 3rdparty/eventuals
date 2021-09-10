@@ -13,9 +13,6 @@
 #include "gtest/gtest.h"
 #include "stout/terminal.h"
 
-// std transform + arrays ????
-
-
 namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Context;
@@ -98,10 +95,10 @@ TEST(Iterate, VectorElemSumMove) {
 }
 
 TEST(Iterate, SetElemSum) {
-  std::set<int> set_ = {5, 12};
+  std::set<int> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(set_)
+    return Iterate(container)
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -117,10 +114,10 @@ TEST(Iterate, SetElemSum) {
 }
 
 TEST(Iterate, SetElemSumIter) {
-  std::set<int> set_ = {5, 12};
+  std::set<int> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(set_.begin(), set_.end())
+    return Iterate(container.begin(), container.end())
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -153,10 +150,10 @@ TEST(Iterate, SetElemSumRvalue) {
 }
 
 TEST(Iterate, SetElemSumMove) {
-  std::set<int> set_ = {5, 12};
+  std::set<int> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(std::move(set_))
+    return Iterate(std::move(container))
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -169,14 +166,14 @@ TEST(Iterate, SetElemSumMove) {
   };
 
   EXPECT_EQ(17, *s());
-  EXPECT_EQ(0, set_.size());
+  EXPECT_EQ(0, container.size());
 }
 
 TEST(Iterate, ListElemSum) {
-  std::list<int> list_ = {5, 12};
+  std::list<int> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(list_)
+    return Iterate(container)
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -192,10 +189,10 @@ TEST(Iterate, ListElemSum) {
 }
 
 TEST(Iterate, ListElemSumIter) {
-  std::list<int> list_ = {5, 12};
+  std::list<int> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(list_.begin(), list_.end())
+    return Iterate(container.begin(), container.end())
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -228,10 +225,10 @@ TEST(Iterate, ListElemSumRvalue) {
 }
 
 TEST(Iterate, ListElemSumMove) {
-  std::list<int> list_ = {5, 12};
+  std::list<int> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(std::move(list_))
+    return Iterate(std::move(container))
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -244,14 +241,14 @@ TEST(Iterate, ListElemSumMove) {
   };
 
   EXPECT_EQ(17, *s());
-  EXPECT_EQ(0, list_.size());
+  EXPECT_EQ(0, container.size());
 }
 
 TEST(Iterate, DequeElemSum) {
-  std::deque<int> deque_ = {5, 12};
+  std::deque<int> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(deque_)
+    return Iterate(container)
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -267,10 +264,10 @@ TEST(Iterate, DequeElemSum) {
 }
 
 TEST(Iterate, DequeElemSumIter) {
-  std::deque<int> deque_ = {5, 12};
+  std::deque<int> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(deque_.begin() + 1, deque_.end())
+    return Iterate(container.begin() + 1, container.end())
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -303,10 +300,10 @@ TEST(Iterate, DequeElemSumRvalue) {
 }
 
 TEST(Iterate, DequeElemSumMove) {
-  std::deque<int> deque_ = {5, 12};
+  std::deque<int> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(std::move(deque_))
+    return Iterate(std::move(container))
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -319,14 +316,14 @@ TEST(Iterate, DequeElemSumMove) {
   };
 
   EXPECT_EQ(17, *s());
-  EXPECT_EQ(0, deque_.size());
+  EXPECT_EQ(0, container.size());
 }
 
 TEST(Iterate, MapElemSum) {
-  std::map<int, int> map_ = {{1, 5}, {2, 12}};
+  std::map<int, int> container = {{1, 5}, {2, 12}};
 
   auto s = [&]() {
-    return Iterate(map_)
+    return Iterate(container)
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -342,10 +339,10 @@ TEST(Iterate, MapElemSum) {
 }
 
 TEST(Iterate, MapElemSumIter) {
-  std::map<int, int> map_ = {{1, 5}, {2, 12}};
+  std::map<int, int> container = {{1, 5}, {2, 12}};
 
   auto s = [&]() {
-    return Iterate(map_.begin(), map_.end())
+    return Iterate(container.begin(), container.end())
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -378,10 +375,10 @@ TEST(Iterate, MapElemSumRvalue) {
 }
 
 TEST(Iterate, MapElemSumMove) {
-  std::map<int, int> map_ = {{1, 5}, {2, 12}};
+  std::map<int, int> container = {{1, 5}, {2, 12}};
 
   auto s = [&]() {
-    return Iterate(std::move(map_))
+    return Iterate(std::move(container))
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -394,14 +391,14 @@ TEST(Iterate, MapElemSumMove) {
   };
 
   EXPECT_EQ(17, *s());
-  EXPECT_EQ(0, map_.size());
+  EXPECT_EQ(0, container.size());
 }
 
 TEST(Iterate, UnorderedSetElemSum) {
-  std::unordered_set<int> uset_ = {5, 12};
+  std::unordered_set<int> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(uset_)
+    return Iterate(container)
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -417,10 +414,10 @@ TEST(Iterate, UnorderedSetElemSum) {
 }
 
 TEST(Iterate, UnorderedSetElemSumIter) {
-  std::unordered_set<int> uset_ = {5, 12};
+  std::unordered_set<int> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(uset_.begin(), uset_.end())
+    return Iterate(container.begin(), container.end())
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -453,10 +450,10 @@ TEST(Iterate, UnorderedSetElemSumRvalue) {
 }
 
 TEST(Iterate, UnorderedSetElemSumMove) {
-  std::unordered_set<int> uset_ = {5, 12};
+  std::unordered_set<int> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(std::move(uset_))
+    return Iterate(std::move(container))
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -469,14 +466,14 @@ TEST(Iterate, UnorderedSetElemSumMove) {
   };
 
   EXPECT_EQ(17, *s());
-  EXPECT_EQ(0, uset_.size());
+  EXPECT_EQ(0, container.size());
 }
 
 TEST(Iterate, UnorderedMapElemSum) {
-  std::unordered_map<int, int> umap_ = {{1, 5}, {2, 12}};
+  std::unordered_map<int, int> container = {{1, 5}, {2, 12}};
 
   auto s = [&]() {
-    return Iterate(umap_)
+    return Iterate(container)
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -492,10 +489,10 @@ TEST(Iterate, UnorderedMapElemSum) {
 }
 
 TEST(Iterate, UnorderedMapElemSumIter) {
-  std::unordered_map<int, int> umap_ = {{1, 5}, {2, 12}};
+  std::unordered_map<int, int> container = {{1, 5}, {2, 12}};
 
   auto s = [&]() {
-    return Iterate(umap_.begin(), umap_.end())
+    return Iterate(container.begin(), container.end())
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -528,10 +525,10 @@ TEST(Iterate, UnorderedMapElemSumRvalue) {
 }
 
 TEST(Iterate, UnorderedMapElemSumMove) {
-  std::unordered_map<int, int> umap_ = {{1, 5}, {2, 12}};
+  std::unordered_map<int, int> container = {{1, 5}, {2, 12}};
 
   auto s = [&]() {
-    return Iterate(std::move(umap_))
+    return Iterate(std::move(container))
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -544,14 +541,14 @@ TEST(Iterate, UnorderedMapElemSumMove) {
   };
 
   EXPECT_EQ(17, *s());
-  EXPECT_EQ(0, umap_.size());
+  EXPECT_EQ(0, container.size());
 }
 
 TEST(Iterate, ArrayElemSum) {
-  std::array<int, 2> array_ = {5, 12};
+  std::array<int, 2> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(array_)
+    return Iterate(container)
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -567,10 +564,10 @@ TEST(Iterate, ArrayElemSum) {
 }
 
 TEST(Iterate, ArrayElemSumIter) {
-  std::array<int, 2> array_ = {5, 12};
+  std::array<int, 2> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(array_.begin(), array_.end() - 1)
+    return Iterate(container.begin(), container.end() - 1)
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -586,8 +583,6 @@ TEST(Iterate, ArrayElemSumIter) {
 }
 
 TEST(Iterate, ArrayElemSumRvalue) {
-  std::array<int, 2> array_ = {5, 12};
-
   auto s = [&]() {
     return Iterate(std::array<int, 2>({5, 12}))
         | Loop<int>()
@@ -602,14 +597,13 @@ TEST(Iterate, ArrayElemSumRvalue) {
   };
 
   EXPECT_EQ(17, *s());
-  EXPECT_EQ(2, array_.size());
 }
 
 TEST(Iterate, ArrayElemSumMove) {
-  std::array<int, 2> array_ = {5, 12};
+  std::array<int, 2> container = {5, 12};
 
   auto s = [&]() {
-    return Iterate(std::move(array_))
+    return Iterate(std::move(container))
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -622,14 +616,13 @@ TEST(Iterate, ArrayElemSumMove) {
   };
 
   EXPECT_EQ(17, *s());
-  EXPECT_EQ(2, array_.size());
 }
 
 TEST(Iterate, ArrayMovableElemSumMove) {
-  std::array<std::string, 2> array_ = {"Hello", "World"};
+  std::array<std::string, 2> container = {"Hello", "World"};
 
   auto s = [&]() {
-    return Iterate(std::move(array_))
+    return Iterate(std::move(container))
         | Loop<std::string>()
               .context(std::string(""))
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -642,16 +635,15 @@ TEST(Iterate, ArrayMovableElemSumMove) {
   };
 
   EXPECT_EQ("HelloWorld", *s());
-  EXPECT_EQ(2, array_.size());
-  EXPECT_EQ("", array_[0]);
-  EXPECT_EQ("", array_[1]);
+  EXPECT_EQ("", container[0]);
+  EXPECT_EQ("", container[1]);
 }
 
 TEST(Iterate, CommonArrayElemSumPtr) {
-  int x[] = {5, 12};
+  int container[] = {5, 12};
 
   auto s = [&]() {
-    return Iterate(&x[0], &x[1] + 1)
+    return Iterate(&container[0], &container[1] + 1)
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -667,10 +659,10 @@ TEST(Iterate, CommonArrayElemSumPtr) {
 }
 
 TEST(Iterate, CommonArrayElemSum) {
-  int x[] = {5, 12};
+  int container[] = {5, 12};
 
   auto s = [&]() {
-    return Iterate(x, 2)
+    return Iterate(container, 2)
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -686,15 +678,16 @@ TEST(Iterate, CommonArrayElemSum) {
 }
 
 TEST(Iterate, VectorStringConcat) {
-  std::vector<std::string> v = {"Hello", "World", "!"};
+  std::vector<std::string> container = {"Hello", "World", "!"};
 
   auto s = [&]() {
-    return Iterate(v)
+    return Iterate(container)
         | Loop<std::string>()
               .context(std::string(""))
               .body([](auto& str, auto& stream, auto&& value) {
-                if (!str.empty())
+                if (!str.empty()) {
                   str += ' ';
+                }
                 str += value;
                 stream.Next();
               })
@@ -707,15 +700,16 @@ TEST(Iterate, VectorStringConcat) {
 }
 
 TEST(Iterate, VectorStringContcatPart) {
-  std::vector<std::string> v = {"...", "..", "Hello", "World", "!"};
+  std::vector<std::string> container = {"...", "..", "Hello", "World", "!"};
 
   auto s = [&]() {
-    return Iterate(v.begin() + 2, v.end() - 1)
+    return Iterate(container.begin() + 2, container.end() - 1)
         | Loop<std::string>()
               .context(std::string(""))
               .body([](auto& str, auto& stream, auto&& value) {
-                if (!str.empty())
+                if (!str.empty()) {
                   str += ' ';
+                }
                 str += value;
                 stream.Next();
               })

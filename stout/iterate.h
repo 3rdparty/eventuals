@@ -1,5 +1,8 @@
+#pragma once
+
 #include <array>
 #include <iterator>
+#include <optional>
 
 #include "stout/context.h"
 #include "stout/loop.h"
@@ -12,25 +15,19 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Iter>
-auto Iterate(Iter begin, Iter end) {
-  struct ContainerData {
-    Iter it_;
-    Iter end_;
-  };
-
-  using T = typename std::iterator_traits<Iter>::value_type;
+template <typename Iterator>
+auto Iterate(Iterator begin, Iterator end) {
+  using T = typename std::iterator_traits<Iterator>::value_type;
 
   return Stream<T>()
-      .context(ContainerData{begin, end})
-      .next([](auto& containerData, auto& k) {
-        if (containerData.it_ != containerData.end_) {
-          k.Emit(*(containerData.it_++));
+      .next([begin, end](auto& k) mutable {
+        if (begin != end) {
+          k.Emit(*(begin++));
         } else {
           k.Ended();
         }
       })
-      .done([](auto&, auto& k) {
+      .done([](auto& k) {
         k.Ended();
       });
 }
@@ -42,20 +39,25 @@ auto Iterate(Container& container) {
 
 template <typename Container>
 auto Iterate(Container&& container) {
-  using CIter = typename Container::const_iterator;
+  using CIterator = typename Container::const_iterator;
 
   struct ContainerData {
-    CIter it_;
-    Container data_;
+    Container container;
+
+    std::optional<CIterator> begin;
   };
 
   using T = typename Container::value_type;
 
   return Stream<T>()
-      .context(ContainerData{container.cbegin(), std::move(container)})
+      .context(ContainerData{std::move(container), std::nullopt})
+      .start([](auto& ContainerData, auto& k) {
+        ContainerData.begin = ContainerData.container.cbegin();
+        k.Start();
+      })
       .next([](auto& containerData, auto& k) {
-        if (containerData.it_ != containerData.data_.cend()) {
-          k.Emit(*(containerData.it_++));
+        if (containerData.begin.value() != containerData.container.cend()) {
+          k.Emit(*(containerData.begin.value()++));
         } else {
           k.Ended();
         }
@@ -88,21 +90,15 @@ auto Iterate(std::array<T, N>&& container) {
 
 template <typename T>
 auto Iterate(T* begin, T* end) {
-  struct ContainerData {
-    T* it_;
-    T* end_;
-  };
-
   return Stream<T>()
-      .context(ContainerData{begin, end})
-      .next([](auto& containerData, auto& k) {
-        if (containerData.it_ != containerData.end_) {
-          k.Emit(*(containerData.it_++));
+      .next([begin, end](auto& k) mutable {
+        if (begin != end) {
+          k.Emit(*(begin++));
         } else {
           k.Ended();
         }
       })
-      .done([](auto&, auto& k) {
+      .done([](auto& k) {
         k.Ended();
       });
 }
@@ -114,18 +110,7 @@ auto Iterate(T container[], size_t N) {
     T* end_;
   };
 
-  return Stream<T>()
-      .context(ContainerData{&container[0], &container[N]})
-      .next([](auto& containerData, auto& k) {
-        if (containerData.it_ != containerData.end_) {
-          k.Emit(*(containerData.it_++));
-        } else {
-          k.Ended();
-        }
-      })
-      .done([](auto&, auto& k) {
-        k.Ended();
-      });
+  return Iterate(&container[0], &container[N]);
 }
 
 ////////////////////////////////////////////////////////////////////////
