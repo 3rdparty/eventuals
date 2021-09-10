@@ -3,7 +3,6 @@
 #include <filesystem> // std::filesystem::path
 #include <optional>
 
-#include "stout/buffer.h"
 #include "stout/event-loop.h"
 #include "stout/eventual.h"
 #include "uv.h"
@@ -272,7 +271,7 @@ inline auto ReadFile(
     const File& file;
     size_t bytes_to_read;
     size_t offset;
-    Buffer buf;
+    EventLoop::Buffer buf;
     detail::Request req;
 
     void* k = nullptr;
@@ -330,7 +329,7 @@ inline auto WriteFile(
   struct Data {
     EventLoop& loop;
     const File& file;
-    Buffer buf;
+    EventLoop::Buffer buf;
     size_t offset;
     detail::Request req;
 
