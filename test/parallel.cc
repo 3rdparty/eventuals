@@ -1,22 +1,23 @@
+#include "stout/parallel.h"
+
 #include <set>
 
 #include "gtest/gtest.h"
 #include "stout/eventual.h"
 #include "stout/raise.h"
 #include "stout/reduce.h"
-#include "stout/static-thread-pool.h"
 #include "stout/terminal.h"
 
 namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Eventual;
+using stout::eventuals::Parallel;
 using stout::eventuals::Raise;
 using stout::eventuals::Reduce;
-using stout::eventuals::StaticThreadPool;
 using stout::eventuals::Stream;
 using stout::eventuals::Then;
 
-TEST(StaticThreadPoolTest, Parallel) {
+TEST(ParallelTest, Succeed) {
   auto s = []() {
     return Stream<int>()
                .context(5)
@@ -30,7 +31,7 @@ TEST(StaticThreadPoolTest, Parallel) {
                .done([](auto&, auto& k) {
                  k.Ended();
                })
-        | StaticThreadPool::Scheduler().Parallel([]() {
+        | Parallel([]() {
             return Then([](int i) {
               std::this_thread::sleep_for(std::chrono::milliseconds(100));
               return i + 1;
@@ -52,7 +53,7 @@ TEST(StaticThreadPoolTest, Parallel) {
 }
 
 
-TEST(StaticThreadPoolTest, ParallelDone) {
+TEST(ParallelTest, Done) {
   auto s = []() {
     return Stream<int>()
                .context(5)
@@ -66,7 +67,7 @@ TEST(StaticThreadPoolTest, ParallelDone) {
                .done([](auto&, auto& k) {
                  k.Ended();
                })
-        | StaticThreadPool::Scheduler().Parallel([]() {
+        | Parallel([]() {
             return Then([](int i) {
               std::this_thread::sleep_for(std::chrono::milliseconds(100));
               return i + 1;
@@ -88,7 +89,7 @@ TEST(StaticThreadPoolTest, ParallelDone) {
 }
 
 
-TEST(StaticThreadPoolTest, ParallelIngressFail) {
+TEST(ParallelTest, IngressFail) {
   auto s = []() {
     return Stream<int>()
                .context(5)
@@ -98,7 +99,7 @@ TEST(StaticThreadPoolTest, ParallelIngressFail) {
                .done([](auto&, auto& k) {
                  k.Ended();
                })
-        | StaticThreadPool::Scheduler().Parallel([]() {
+        | Parallel([]() {
             return Then([](int i) {
               std::this_thread::sleep_for(std::chrono::milliseconds(100));
               return i + 1;
@@ -118,7 +119,7 @@ TEST(StaticThreadPoolTest, ParallelIngressFail) {
 }
 
 
-TEST(StaticThreadPoolTest, ParallelIngressStop) {
+TEST(ParallelTest, IngressStop) {
   auto s = []() {
     return Stream<int>()
                .context(5)
@@ -128,7 +129,7 @@ TEST(StaticThreadPoolTest, ParallelIngressStop) {
                .done([](auto&, auto& k) {
                  k.Ended();
                })
-        | StaticThreadPool::Scheduler().Parallel([]() {
+        | Parallel([]() {
             return Then([](int i) {
               std::this_thread::sleep_for(std::chrono::milliseconds(100));
               return i + 1;
@@ -148,7 +149,7 @@ TEST(StaticThreadPoolTest, ParallelIngressStop) {
 }
 
 
-TEST(StaticThreadPoolTest, ParallelWorkerFail) {
+TEST(ParallelTest, WorkerFail) {
   auto s = []() {
     return Stream<int>()
                .context(5)
@@ -158,7 +159,7 @@ TEST(StaticThreadPoolTest, ParallelWorkerFail) {
                .done([](auto&, auto& k) {
                  k.Ended();
                })
-        | StaticThreadPool::Scheduler().Parallel([]() {
+        | Parallel([]() {
             return Raise("error");
           })
         | Reduce(
@@ -175,7 +176,7 @@ TEST(StaticThreadPoolTest, ParallelWorkerFail) {
 }
 
 
-TEST(StaticThreadPoolTest, ParallelWorkerStop) {
+TEST(ParallelTest, WorkerStop) {
   auto s = []() {
     return Stream<int>()
                .context(5)
@@ -185,7 +186,7 @@ TEST(StaticThreadPoolTest, ParallelWorkerStop) {
                .done([](auto&, auto& k) {
                  k.Ended();
                })
-        | StaticThreadPool::Scheduler().Parallel([]() {
+        | Parallel([]() {
             return Eventual<int>()
                 .start([](auto& k, auto&&...) {
                   k.Stop();
