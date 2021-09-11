@@ -166,7 +166,7 @@ inline auto OpenFile(
     int mode;
     std::filesystem::path path;
 
-    detail::Request req;
+    detail::Request request;
     void* k = nullptr;
   };
 
@@ -178,21 +178,21 @@ inline auto OpenFile(
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
-            data.req->data = &data;
+            data.request->data = &data;
 
             auto error = uv_fs_open(
                 data.loop,
-                data.req,
+                data.request,
                 data.path.string().c_str(),
                 data.flags,
                 data.mode,
-                [](uv_fs_t* req) {
-                  auto& data = *static_cast<Data*>(req->data);
+                [](uv_fs_t* request) {
+                  auto& data = *static_cast<Data*>(request->data);
                   auto& k = *static_cast<K*>(data.k);
-                  if (req->result >= 0) {
-                    k.Start(File(req->result));
+                  if (request->result >= 0) {
+                    k.Start(File(request->result));
                   } else {
-                    k.Fail(uv_strerror(req->result));
+                    k.Fail(uv_strerror(request->result));
                   }
                 });
 
@@ -217,7 +217,7 @@ inline auto CloseFile(EventLoop& loop, File&& file) {
   struct Data {
     EventLoop& loop;
     File file;
-    detail::Request req;
+    detail::Request request;
 
     void* k = nullptr;
   };
@@ -230,20 +230,20 @@ inline auto CloseFile(EventLoop& loop, File&& file) {
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
-            data.req->data = &data;
+            data.request->data = &data;
 
             auto error = uv_fs_close(
                 data.loop,
-                data.req,
+                data.request,
                 data.file,
-                [](uv_fs_t* req) {
-                  auto& data = *static_cast<Data*>(req->data);
+                [](uv_fs_t* request) {
+                  auto& data = *static_cast<Data*>(request->data);
                   auto& k = *static_cast<K*>(data.k);
-                  if (req->result == 0) {
+                  if (request->result == 0) {
                     data.file.MarkAsClosed();
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(req->result));
+                    k.Fail(uv_strerror(request->result));
                   };
                 });
 
@@ -271,8 +271,8 @@ inline auto ReadFile(
     const File& file;
     size_t bytes_to_read;
     size_t offset;
-    EventLoop::Buffer buf;
-    detail::Request req;
+    EventLoop::Buffer buffer;
+    detail::Request request;
 
     void* k = nullptr;
   };
@@ -285,22 +285,22 @@ inline auto ReadFile(
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
-            data.req->data = &data;
+            data.request->data = &data;
 
             auto error = uv_fs_read(
                 data.loop,
-                data.req,
+                data.request,
                 data.file,
-                data.buf,
+                data.buffer,
                 1,
                 data.offset,
-                [](uv_fs_t* req) {
-                  auto& data = *static_cast<Data*>(req->data);
+                [](uv_fs_t* request) {
+                  auto& data = *static_cast<Data*>(request->data);
                   auto& k = *static_cast<K*>(data.k);
-                  if (req->result >= 0) {
-                    k.Start(data.buf.Extract());
+                  if (request->result >= 0) {
+                    k.Start(data.buffer.Extract());
                   } else {
-                    k.Fail(uv_strerror(req->result));
+                    k.Fail(uv_strerror(request->result));
                   };
                 });
 
@@ -329,9 +329,9 @@ inline auto WriteFile(
   struct Data {
     EventLoop& loop;
     const File& file;
-    EventLoop::Buffer buf;
+    EventLoop::Buffer buffer;
     size_t offset;
-    detail::Request req;
+    detail::Request request;
 
     void* k = nullptr;
   };
@@ -344,22 +344,22 @@ inline auto WriteFile(
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
-            data.req->data = &data;
+            data.request->data = &data;
 
             auto error = uv_fs_write(
                 data.loop,
-                data.req,
+                data.request,
                 data.file,
-                data.buf,
+                data.buffer,
                 1,
                 data.offset,
-                [](uv_fs_t* req) {
-                  auto& data = *static_cast<Data*>(req->data);
+                [](uv_fs_t* request) {
+                  auto& data = *static_cast<Data*>(request->data);
                   auto& k = *static_cast<K*>(data.k);
-                  if (req->result >= 0) {
+                  if (request->result >= 0) {
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(req->result));
+                    k.Fail(uv_strerror(request->result));
                   };
                 });
 
@@ -385,7 +385,7 @@ inline auto UnlinkFile(EventLoop& loop, const std::filesystem::path& path) {
     EventLoop& loop;
     std::filesystem::path path;
 
-    detail::Request req;
+    detail::Request request;
     void* k = nullptr;
   };
 
@@ -397,19 +397,19 @@ inline auto UnlinkFile(EventLoop& loop, const std::filesystem::path& path) {
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
-            data.req->data = &data;
+            data.request->data = &data;
 
             auto error = uv_fs_unlink(
                 data.loop,
-                data.req,
+                data.request,
                 data.path.string().c_str(),
-                [](uv_fs_t* req) {
-                  auto& data = *static_cast<Data*>(req->data);
+                [](uv_fs_t* request) {
+                  auto& data = *static_cast<Data*>(request->data);
                   auto& k = *static_cast<K*>(data.k);
-                  if (req->result == 0) {
+                  if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(req->result));
+                    k.Fail(uv_strerror(request->result));
                   }
                 });
 
@@ -436,7 +436,7 @@ inline auto MakeDirectory(
     std::filesystem::path path;
     int mode;
 
-    detail::Request req;
+    detail::Request request;
     void* k = nullptr;
   };
 
@@ -448,20 +448,20 @@ inline auto MakeDirectory(
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
-            data.req->data = &data;
+            data.request->data = &data;
 
             auto error = uv_fs_mkdir(
                 data.loop,
-                data.req,
+                data.request,
                 data.path.string().c_str(),
                 data.mode,
-                [](uv_fs_t* req) {
-                  auto& data = *static_cast<Data*>(req->data);
+                [](uv_fs_t* request) {
+                  auto& data = *static_cast<Data*>(request->data);
                   auto& k = *static_cast<K*>(data.k);
-                  if (req->result == 0) {
+                  if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(req->result));
+                    k.Fail(uv_strerror(request->result));
                   }
                 });
 
@@ -486,7 +486,7 @@ inline auto RemoveDirectory(
     EventLoop& loop;
     std::filesystem::path path;
 
-    detail::Request req;
+    detail::Request request;
     void* k = nullptr;
   };
 
@@ -498,19 +498,19 @@ inline auto RemoveDirectory(
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
-            data.req->data = &data;
+            data.request->data = &data;
 
             auto error = uv_fs_rmdir(
                 data.loop,
-                data.req,
+                data.request,
                 data.path.string().c_str(),
-                [](uv_fs_t* req) {
-                  auto& data = *static_cast<Data*>(req->data);
+                [](uv_fs_t* request) {
+                  auto& data = *static_cast<Data*>(request->data);
                   auto& k = *static_cast<K*>(data.k);
-                  if (req->result == 0) {
+                  if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(req->result));
+                    k.Fail(uv_strerror(request->result));
                   }
                 });
 
@@ -539,7 +539,7 @@ inline auto CopyFile(
     std::filesystem::path dst;
     int flags;
 
-    detail::Request req;
+    detail::Request request;
     void* k = nullptr;
   };
 
@@ -551,21 +551,21 @@ inline auto CopyFile(
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
-            data.req->data = &data;
+            data.request->data = &data;
 
             auto error = uv_fs_copyfile(
                 data.loop,
-                data.req,
+                data.request,
                 data.src.string().c_str(),
                 data.dst.string().c_str(),
                 data.flags,
-                [](uv_fs_t* req) {
-                  auto& data = *static_cast<Data*>(req->data);
+                [](uv_fs_t* request) {
+                  auto& data = *static_cast<Data*>(request->data);
                   auto& k = *static_cast<K*>(data.k);
-                  if (req->result == 0) {
+                  if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(req->result));
+                    k.Fail(uv_strerror(request->result));
                   }
                 });
 
@@ -595,7 +595,7 @@ inline auto RenameFile(
     std::filesystem::path src;
     std::filesystem::path dst;
 
-    detail::Request req;
+    detail::Request request;
     void* k = nullptr;
   };
 
@@ -607,20 +607,20 @@ inline auto RenameFile(
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
-            data.req->data = &data;
+            data.request->data = &data;
 
             auto error = uv_fs_rename(
                 data.loop,
-                data.req,
+                data.request,
                 data.src.string().c_str(),
                 data.dst.string().c_str(),
-                [](uv_fs_t* req) {
-                  auto& data = *static_cast<Data*>(req->data);
+                [](uv_fs_t* request) {
+                  auto& data = *static_cast<Data*>(request->data);
                   auto& k = *static_cast<K*>(data.k);
-                  if (req->result == 0) {
+                  if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(req->result));
+                    k.Fail(uv_strerror(request->result));
                   }
                 });
 
