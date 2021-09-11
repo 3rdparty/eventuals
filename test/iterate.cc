@@ -11,15 +11,13 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "stout/loop.h"
 #include "stout/terminal.h"
 
-namespace eventuals = stout::eventuals;
-
-using stout::eventuals::Context;
 using stout::eventuals::Iterate;
 using stout::eventuals::Loop;
 
-TEST(Iterate, VectorElemSum) {
+TEST(Iterate, VectorLvalue) {
   std::vector<int> v = {5, 12};
 
   auto s = [&]() {
@@ -38,7 +36,8 @@ TEST(Iterate, VectorElemSum) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, VectorElemSumIter) {
+
+TEST(Iterate, VectorBeginEnd) {
   std::vector<int> v = {5, 12};
 
   auto s = [&]() {
@@ -57,7 +56,8 @@ TEST(Iterate, VectorElemSumIter) {
   EXPECT_EQ(5, *s());
 }
 
-TEST(Iterate, VectorElemSumRvalue) {
+
+TEST(Iterate, VectorRvalue) {
   auto s = [&]() {
     return Iterate(std::vector<int>({5, 12}))
         | Loop<int>()
@@ -74,7 +74,8 @@ TEST(Iterate, VectorElemSumRvalue) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, VectorElemSumMove) {
+
+TEST(Iterate, VectorMove) {
   std::vector<int> v = {5, 12};
 
   auto s = [&]() {
@@ -94,7 +95,8 @@ TEST(Iterate, VectorElemSumMove) {
   EXPECT_EQ(0, v.size());
 }
 
-TEST(Iterate, SetElemSum) {
+
+TEST(Iterate, SetLvalue) {
   std::set<int> container = {5, 12};
 
   auto s = [&]() {
@@ -113,7 +115,8 @@ TEST(Iterate, SetElemSum) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, SetElemSumIter) {
+
+TEST(Iterate, SetBeginEnd) {
   std::set<int> container = {5, 12};
 
   auto s = [&]() {
@@ -132,7 +135,8 @@ TEST(Iterate, SetElemSumIter) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, SetElemSumRvalue) {
+
+TEST(Iterate, SetRvalue) {
   auto s = [&]() {
     return Iterate(std::set<int>({5, 12}))
         | Loop<int>()
@@ -149,7 +153,8 @@ TEST(Iterate, SetElemSumRvalue) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, SetElemSumMove) {
+
+TEST(Iterate, SetMove) {
   std::set<int> container = {5, 12};
 
   auto s = [&]() {
@@ -169,7 +174,8 @@ TEST(Iterate, SetElemSumMove) {
   EXPECT_EQ(0, container.size());
 }
 
-TEST(Iterate, ListElemSum) {
+
+TEST(Iterate, ListLvalue) {
   std::list<int> container = {5, 12};
 
   auto s = [&]() {
@@ -188,7 +194,8 @@ TEST(Iterate, ListElemSum) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, ListElemSumIter) {
+
+TEST(Iterate, ListBeginEnd) {
   std::list<int> container = {5, 12};
 
   auto s = [&]() {
@@ -207,7 +214,8 @@ TEST(Iterate, ListElemSumIter) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, ListElemSumRvalue) {
+
+TEST(Iterate, ListRvalue) {
   auto s = [&]() {
     return Iterate(std::list<int>({5, 12}))
         | Loop<int>()
@@ -224,7 +232,8 @@ TEST(Iterate, ListElemSumRvalue) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, ListElemSumMove) {
+
+TEST(Iterate, ListMove) {
   std::list<int> container = {5, 12};
 
   auto s = [&]() {
@@ -244,7 +253,8 @@ TEST(Iterate, ListElemSumMove) {
   EXPECT_EQ(0, container.size());
 }
 
-TEST(Iterate, DequeElemSum) {
+
+TEST(Iterate, DequeLvalue) {
   std::deque<int> container = {5, 12};
 
   auto s = [&]() {
@@ -263,7 +273,8 @@ TEST(Iterate, DequeElemSum) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, DequeElemSumIter) {
+
+TEST(Iterate, DequeBeginEnd) {
   std::deque<int> container = {5, 12};
 
   auto s = [&]() {
@@ -282,7 +293,8 @@ TEST(Iterate, DequeElemSumIter) {
   EXPECT_EQ(12, *s());
 }
 
-TEST(Iterate, DequeElemSumRvalue) {
+
+TEST(Iterate, DequeRvalue) {
   auto s = [&]() {
     return Iterate(std::deque<int>({5, 12}))
         | Loop<int>()
@@ -299,7 +311,8 @@ TEST(Iterate, DequeElemSumRvalue) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, DequeElemSumMove) {
+
+TEST(Iterate, DequeMove) {
   std::deque<int> container = {5, 12};
 
   auto s = [&]() {
@@ -319,7 +332,8 @@ TEST(Iterate, DequeElemSumMove) {
   EXPECT_EQ(0, container.size());
 }
 
-TEST(Iterate, MapElemSum) {
+
+TEST(Iterate, MapLvalue) {
   std::map<int, int> container = {{1, 5}, {2, 12}};
 
   auto s = [&]() {
@@ -338,7 +352,8 @@ TEST(Iterate, MapElemSum) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, MapElemSumIter) {
+
+TEST(Iterate, MapBeginEnd) {
   std::map<int, int> container = {{1, 5}, {2, 12}};
 
   auto s = [&]() {
@@ -357,7 +372,8 @@ TEST(Iterate, MapElemSumIter) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, MapElemSumRvalue) {
+
+TEST(Iterate, MapRvalue) {
   auto s = [&]() {
     return Iterate(std::map<int, int>{{1, 5}, {2, 12}})
         | Loop<int>()
@@ -374,7 +390,8 @@ TEST(Iterate, MapElemSumRvalue) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, MapElemSumMove) {
+
+TEST(Iterate, MapMove) {
   std::map<int, int> container = {{1, 5}, {2, 12}};
 
   auto s = [&]() {
@@ -394,7 +411,8 @@ TEST(Iterate, MapElemSumMove) {
   EXPECT_EQ(0, container.size());
 }
 
-TEST(Iterate, UnorderedSetElemSum) {
+
+TEST(Iterate, UnorderedSetLvalue) {
   std::unordered_set<int> container = {5, 12};
 
   auto s = [&]() {
@@ -413,7 +431,8 @@ TEST(Iterate, UnorderedSetElemSum) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, UnorderedSetElemSumIter) {
+
+TEST(Iterate, UnorderedSetBeginEnd) {
   std::unordered_set<int> container = {5, 12};
 
   auto s = [&]() {
@@ -432,7 +451,8 @@ TEST(Iterate, UnorderedSetElemSumIter) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, UnorderedSetElemSumRvalue) {
+
+TEST(Iterate, UnorderedSetRvalue) {
   auto s = [&]() {
     return Iterate(std::unordered_set<int>{5, 12})
         | Loop<int>()
@@ -449,7 +469,8 @@ TEST(Iterate, UnorderedSetElemSumRvalue) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, UnorderedSetElemSumMove) {
+
+TEST(Iterate, UnorderedSetMove) {
   std::unordered_set<int> container = {5, 12};
 
   auto s = [&]() {
@@ -469,7 +490,8 @@ TEST(Iterate, UnorderedSetElemSumMove) {
   EXPECT_EQ(0, container.size());
 }
 
-TEST(Iterate, UnorderedMapElemSum) {
+
+TEST(Iterate, UnorderedMapLvalue) {
   std::unordered_map<int, int> container = {{1, 5}, {2, 12}};
 
   auto s = [&]() {
@@ -488,7 +510,8 @@ TEST(Iterate, UnorderedMapElemSum) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, UnorderedMapElemSumIter) {
+
+TEST(Iterate, UnorderedMapBeginEnd) {
   std::unordered_map<int, int> container = {{1, 5}, {2, 12}};
 
   auto s = [&]() {
@@ -507,7 +530,8 @@ TEST(Iterate, UnorderedMapElemSumIter) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, UnorderedMapElemSumRvalue) {
+
+TEST(Iterate, UnorderedMapRvalue) {
   auto s = [&]() {
     return Iterate(std::unordered_map<int, int>{{1, 5}, {2, 12}})
         | Loop<int>()
@@ -524,7 +548,8 @@ TEST(Iterate, UnorderedMapElemSumRvalue) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, UnorderedMapElemSumMove) {
+
+TEST(Iterate, UnorderedMapMove) {
   std::unordered_map<int, int> container = {{1, 5}, {2, 12}};
 
   auto s = [&]() {
@@ -544,7 +569,8 @@ TEST(Iterate, UnorderedMapElemSumMove) {
   EXPECT_EQ(0, container.size());
 }
 
-TEST(Iterate, ArrayElemSum) {
+
+TEST(Iterate, ArrayLvalue) {
   std::array<int, 2> container = {5, 12};
 
   auto s = [&]() {
@@ -563,7 +589,8 @@ TEST(Iterate, ArrayElemSum) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, ArrayElemSumIter) {
+
+TEST(Iterate, ArrayBeginEnd) {
   std::array<int, 2> container = {5, 12};
 
   auto s = [&]() {
@@ -582,7 +609,8 @@ TEST(Iterate, ArrayElemSumIter) {
   EXPECT_EQ(5, *s());
 }
 
-TEST(Iterate, ArrayElemSumRvalue) {
+
+TEST(Iterate, ArrayRvalue) {
   auto s = [&]() {
     return Iterate(std::array<int, 2>({5, 12}))
         | Loop<int>()
@@ -599,7 +627,8 @@ TEST(Iterate, ArrayElemSumRvalue) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, ArrayElemSumMove) {
+
+TEST(Iterate, ArrayMove) {
   std::array<int, 2> container = {5, 12};
 
   auto s = [&]() {
@@ -618,7 +647,8 @@ TEST(Iterate, ArrayElemSumMove) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, ArrayMovableElemSumMove) {
+
+TEST(Iterate, ArrayStringMove) {
   std::array<std::string, 2> container = {"Hello", "World"};
 
   auto s = [&]() {
@@ -639,7 +669,8 @@ TEST(Iterate, ArrayMovableElemSumMove) {
   EXPECT_EQ("", container[1]);
 }
 
-TEST(Iterate, CommonArrayElemSumPtr) {
+
+TEST(Iterate, CommonArrayPointer) {
   int container[] = {5, 12};
 
   auto s = [&]() {
@@ -658,7 +689,8 @@ TEST(Iterate, CommonArrayElemSumPtr) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, CommonArrayElemSum) {
+
+TEST(Iterate, CommonArraySize) {
   int container[] = {5, 12};
 
   auto s = [&]() {
@@ -677,44 +709,46 @@ TEST(Iterate, CommonArrayElemSum) {
   EXPECT_EQ(17, *s());
 }
 
-TEST(Iterate, VectorStringConcat) {
+
+TEST(Iterate, VectorStringConcatenate) {
   std::vector<std::string> container = {"Hello", "World", "!"};
 
   auto s = [&]() {
     return Iterate(container)
         | Loop<std::string>()
               .context(std::string(""))
-              .body([](auto& str, auto& stream, auto&& value) {
-                if (!str.empty()) {
-                  str += ' ';
+              .body([](auto& s, auto& stream, auto&& value) {
+                if (!s.empty()) {
+                  s += ' ';
                 }
-                str += value;
+                s += value;
                 stream.Next();
               })
-              .ended([](auto& str, auto& k) {
-                k.Start(str);
+              .ended([](auto& s, auto& k) {
+                k.Start(s);
               });
   };
 
   EXPECT_EQ("Hello World !", *s());
 }
 
-TEST(Iterate, VectorStringContcatPart) {
+
+TEST(Iterate, VectorStringContcatenatePartial) {
   std::vector<std::string> container = {"...", "..", "Hello", "World", "!"};
 
   auto s = [&]() {
     return Iterate(container.begin() + 2, container.end() - 1)
         | Loop<std::string>()
               .context(std::string(""))
-              .body([](auto& str, auto& stream, auto&& value) {
-                if (!str.empty()) {
-                  str += ' ';
+              .body([](auto& s, auto& stream, auto&& value) {
+                if (!s.empty()) {
+                  s += ' ';
                 }
-                str += value;
+                s += value;
                 stream.Next();
               })
-              .ended([](auto& str, auto& k) {
-                k.Start(str);
+              .ended([](auto& s, auto& k) {
+                k.Start(s);
               });
   };
 
