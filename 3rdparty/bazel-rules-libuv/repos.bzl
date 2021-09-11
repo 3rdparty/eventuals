@@ -10,22 +10,25 @@
 ########################################################################
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
 def repos(external = True, repo_mapping = {}):
-    if "rules_foreign_cc" not in native.existing_rules():
-        http_archive(
-            name = "rules_foreign_cc",
-            url = "https://github.com/bazelbuild/rules_foreign_cc/archive/0.5.1.tar.gz",
-            sha256 = "33a5690733c5cc2ede39cb62ebf89e751f2448e27f20c8b2fbbc7d136b166804",
-            strip_prefix = "rules_foreign_cc-0.5.1",
-            repo_mapping = repo_mapping,
-        )
+    maybe(
+        http_archive,
+        name = "rules_foreign_cc",
+        url = "https://github.com/bazelbuild/rules_foreign_cc/archive/0.5.1.tar.gz",
+        sha256 = "33a5690733c5cc2ede39cb62ebf89e751f2448e27f20c8b2fbbc7d136b166804",
+        strip_prefix = "rules_foreign_cc-0.5.1",
+        repo_mapping = repo_mapping,
+    )
 
-    if external and "com_github_3rdparty_bazel_rules_libuv" not in native.existing_rules():
-        http_archive(
+    if external:
+        maybe(
+            git_repository,
             name = "com_github_3rdparty_bazel_rules_libuv",
-            url = "https://github.com/3rdparty/bazel-rules-libuv/archive/libuv-1.42.0.tar.gz",
-            sha256 = "dee419712e68412a804753208d2dfac055491578b860f1a6553c7d3395081c13",
-            strip_prefix = "bazel-rules-libuv-libuv-1.42.0",
+            remote = "https://github.com/3rdparty/bazel-rules-libuv",
+            commit = "171ca23e1f1c745f5ec98a36ff6369b7c4ab02c3",
+            shallow_since = "1631281455 +0000",
             repo_mapping = repo_mapping,
         )
