@@ -3,8 +3,12 @@
 #include "stout/event-loop.h"
 #include "stout/eventual.h"
 
+////////////////////////////////////////////////////////////////////////
+
 namespace stout {
 namespace eventuals {
+
+////////////////////////////////////////////////////////////////////////
 
 inline auto DomainNameResolve(
     stout::eventuals::EventLoop& loop,
@@ -12,83 +16,67 @@ inline auto DomainNameResolve(
     const std::string& port) {
   struct Data {
     EventLoop& loop;
-    std::string addr;
+    std::string address;
     std::string port;
-    void* k; // We should store our continuation
-        // in this field , because we can't use
-        // capturing lambdas as callbacks for libuv!
-        // the link down will be helpfull:
-        // https://misfra.me/2016/02/24/libuv-and-cpp/
-
-    addrinfo hints;
+    addrinfo hints = {0, PF_INET, SOCK_STREAM, IPPROTO_TCP};
+    void* k = nullptr;
     uv_getaddrinfo_t resolver;
     EventLoop::Callback start;
   };
 
   return stout::eventuals::Eventual<std::string>()
-      .context(Data{
-          loop,
-          address,
-          port,
-          nullptr,
-          {0, PF_INET, SOCK_STREAM, IPPROTO_TCP}})
-      .start([](auto& data_context, auto& k) {
-        // Storing continuation and Data structure
+      .context(Data{loop, address, port})
+      .start([](auto& data, auto& k) {
         using K = std::decay_t<decltype(k)>;
-        data_context.k = static_cast<void*>(&k);
-        data_context.resolver.data = &data_context;
 
-        data_context.start = [&data_context](EventLoop& loop) {
-          // Callback
-          auto p_get_addr_info_cb = [](uv_getaddrinfo_t* request,
-                                       int status,
-                                       struct addrinfo* result) {
-            Data* data = static_cast<Data*>(request->data);
-            if (status < 0) {
-              (static_cast<K*>(data->k))
-                  ->Fail(std::string{uv_err_name(status)});
-            } else {
-              // Array "addr" is for resulting ip from the specific node
-              char addr[17] = {'\0'};
+        data.k = static_cast<void*>(&k);
+        data.resolver.data = &data;
 
-              // Put to addr the resulting ip
-              auto error = uv_ip4_name(
-                  (struct sockaddr_in*) result->ai_addr,
-                  addr,
-                  16);
-
-              // If there was an error we just fail our continuation
-              if (error) {
-                (static_cast<K*>(data->k))
-                    ->Fail(std::string{uv_err_name(error)});
-              } else {
-                // Succeed the resulting ip
-                uv_freeaddrinfo(result);
-                (static_cast<K*>(data->k))
-                    ->Start(std::string{addr});
-              }
-            }
-          };
+        data.start = [&data](EventLoop& loop) {
           auto error = uv_getaddrinfo(
               loop,
-              &(data_context.resolver),
-              p_get_addr_info_cb,
-              data_context.addr.c_str(),
-              data_context.port.c_str(),
-              &(data_context.hints));
+              &(data.resolver),
+              [](uv_getaddrinfo_t* request,
+                 int status,
+                 struct addrinfo* result) {
+                Data* data = static_cast<Data*>(request->data);
+                if (status < 0) {
+                  static_cast<K*>(data->k)
+                      ->Fail(std::string{uv_err_name(status)});
+                } else {
+                  // Array "ip" is for resulting IPv4 for the specified address.
+                  char ip[17] = {'\0'};
 
-          // If there was an error we just fail our continuation
+                  auto error = uv_ip4_name(
+                      (struct sockaddr_in*) result->ai_addr,
+                      ip,
+                      16);
+
+                  if (error) {
+                    static_cast<K*>(data->k)
+                        ->Fail(std::string{uv_err_name(error)});
+                  } else {
+                    uv_freeaddrinfo(result);
+                    static_cast<K*>(data->k)->Start(std::string{addr});
+                  }
+                }
+              },
+              data.address.c_str(),
+              data.port.c_str(),
+              &(data.hints));
+
           if (error) {
-            (static_cast<K*>(data_context.k))
-                ->Fail(std::string{uv_err_name(error)});
+            static_cast<K*>(data.k)->Fail(std::string{uv_err_name(error)});
           }
         };
 
-        data_context.loop.Invoke(&data_context.start);
+        data.loop.Invoke(&data.start);
       });
   // TODO (Artur): think later about implementing
   // .interrupt([](auto &data, auto &k){...}); callback
 }
+
+////////////////////////////////////////////////////////////////////////
 
 inline auto DomainNameResolve(
     const std::string& address,
@@ -96,5 +84,9 @@ inline auto DomainNameResolve(
   return DomainNameResolve(EventLoop::Default(), address, port);
 }
 
+////////////////////////////////////////////////////////////////////////
+
 } // namespace eventuals
 } // namespace stout
+
+////////////////////////////////////////////////////////////////////////
