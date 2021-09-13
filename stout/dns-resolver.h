@@ -21,57 +21,54 @@ inline auto DomainNameResolve(
     addrinfo hints = {0, PF_INET, SOCK_STREAM, IPPROTO_TCP};
     void* k = nullptr;
     uv_getaddrinfo_t resolver;
-    EventLoop::Callback start;
   };
 
-  return stout::eventuals::Eventual<std::string>()
-      .context(Data{loop, address, port})
-      .start([](auto& data, auto& k) {
-        using K = std::decay_t<decltype(k)>;
+  return loop.Schedule(
+      "DomainNameResolve",
+      Eventual<std::string>()
+          .context(Data{loop, address, port})
+          .start([](auto& data, auto& k) {
+            using K = std::decay_t<decltype(k)>;
 
-        data.k = static_cast<void*>(&k);
-        data.resolver.data = &data;
+            data.k = static_cast<void*>(&k);
+            data.resolver.data = &data;
 
-        data.start = [&data](EventLoop& loop) {
-          auto error = uv_getaddrinfo(
-              loop,
-              &(data.resolver),
-              [](uv_getaddrinfo_t* request,
-                 int status,
-                 struct addrinfo* result) {
-                Data* data = static_cast<Data*>(request->data);
-                if (status < 0) {
-                  static_cast<K*>(data->k)
-                      ->Fail(std::string{uv_err_name(status)});
-                } else {
-                  // Array "ip" is for resulting IPv4 for the specified address.
-                  char ip[17] = {'\0'};
-
-                  auto error = uv_ip4_name(
-                      (struct sockaddr_in*) result->ai_addr,
-                      ip,
-                      16);
-
-                  if (error) {
-                    static_cast<K*>(data->k)
-                        ->Fail(std::string{uv_err_name(error)});
+            auto error = uv_getaddrinfo(
+                data.loop,
+                &(data.resolver),
+                [](uv_getaddrinfo_t* request,
+                   int status,
+                   struct addrinfo* result) {
+                  auto& data = *static_cast<Data*>(request->data);
+                  if (status < 0) {
+                    static_cast<K*>(data.k)
+                        ->Fail(std::string{uv_err_name(status)});
                   } else {
-                    uv_freeaddrinfo(result);
-                    static_cast<K*>(data->k)->Start(std::string{addr});
+                    // Array "ip" is resulting IPv4 for the specified address.
+                    char ip[17] = {'\0'};
+
+                    auto error = uv_ip4_name(
+                        (struct sockaddr_in*) result->ai_addr,
+                        ip,
+                        16);
+
+                    if (error) {
+                      static_cast<K*>(data.k)
+                          ->Fail(std::string{uv_err_name(error)});
+                    } else {
+                      uv_freeaddrinfo(result);
+                      static_cast<K*>(data.k)->Start(std::string{ip});
+                    }
                   }
-                }
-              },
-              data.address.c_str(),
-              data.port.c_str(),
-              &(data.hints));
+                },
+                data.address.c_str(),
+                data.port.c_str(),
+                &(data.hints));
 
-          if (error) {
-            static_cast<K*>(data.k)->Fail(std::string{uv_err_name(error)});
-          }
-        };
-
-        data.loop.Invoke(&data.start);
-      });
+            if (error) {
+              static_cast<K*>(data.k)->Fail(std::string{uv_err_name(error)});
+            }
+          }));
   // TODO (Artur): think later about implementing
   // .interrupt([](auto &data, auto &k){...}); callback
 }

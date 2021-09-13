@@ -12,69 +12,85 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Signal(stout::eventuals::EventLoop& loop, const int number) {
+inline auto Signal(stout::eventuals::EventLoop& loop, const int signum) {
   struct Data {
+    Data(EventLoop& loop, const int signum)
+      : loop(loop),
+        signum(signum),
+        interrupt(&loop, "Signal (interrupt)") {}
+
     EventLoop& loop;
-    int number;
+    int signum;
     void* k = nullptr;
     uv_signal_t signal;
-    EventLoop::Callback start;
-    EventLoop::Callback interrupt;
+
+    EventLoop::Waiter interrupt;
   };
 
-  return stout::eventuals::Eventual<int>()
-      .context(Data{loop, number})
-      .start([](auto& data_context, auto& k) {
-        using K = std::decay_t<decltype(k)>;
-        data_context.k = static_cast<void*>(&k);
-        data_context.signal.data = &data_context;
-        data_context.start = [&data_context](EventLoop& loop) {
-          auto status = uv_signal_init(loop, &(data_context.signal));
-          if (status) {
-            static_cast<K*>(data_context.k)->Fail(uv_err_name(status));
-          } else {
-            auto signal_cb = [](uv_signal_t* handle, int signum) {
-              Data* data = static_cast<Data*>(handle->data);
-              uv_close((uv_handle_t*) (&data->signal), nullptr);
-              static_cast<K*>(data->k)->Start(signum);
-            };
+  return loop.Schedule(
+      "Signal (start)",
+      Eventual<int>()
+          .context(Data{loop, signum})
+          .start([](auto& data, auto& k) {
+            using K = std::decay_t<decltype(k)>;
 
-            auto error = uv_signal_start_oneshot(
-                &(data_context.signal),
-                signal_cb,
-                data_context.number);
-            if (error > 0) {
-              uv_close((uv_handle_t*) (&data_context.signal), nullptr);
-              static_cast<K*>(data_context.k)->Fail(uv_err_name(error));
-            }
-          }
-        };
-        data_context.loop.Invoke(&data_context.start);
-      })
-      .interrupt([](auto& data_context, auto& k) {
-        using K = std::decay_t<decltype(k)>;
-        data_context.interrupt = [&data_context](EventLoop& loop) {
-          if (uv_is_active((uv_handle_t*) &data_context.signal)) {
-            auto error = uv_signal_stop(&data_context.signal);
-            uv_close((uv_handle_t*) (&data_context.signal), nullptr);
-            if (error) {
-              static_cast<K*>(data_context.k)->Fail(uv_strerror(error));
+            data.k = static_cast<void*>(&k);
+            data.signal.data = &data;
+
+            auto status = uv_signal_init(data.loop, &(data.signal));
+            if (status) {
+              k.Fail(uv_err_name(status));
             } else {
-              static_cast<K*>(data_context.k)->Stop();
+              auto error = uv_signal_start_oneshot(
+                  &(data.signal),
+                  [](uv_signal_t* signal, int signum) {
+                    auto& data = *static_cast<Data*>(signal->data);
+                    uv_close((uv_handle_t*) (&data.signal), nullptr);
+                    static_cast<K*>(data.k)->Start(signum);
+                  },
+                  data.signum);
+
+              if (error) {
+                uv_close((uv_handle_t*) (&data.signal), nullptr);
+                k.Fail(uv_err_name(error));
+              }
             }
-          } else {
-            uv_close((uv_handle_t*) &data_context.signal, nullptr);
-            static_cast<K*>(data_context.k)->Stop();
-          }
-        };
-        data_context.loop.Invoke(&data_context.interrupt);
-      });
+          })
+          .interrupt([](auto& data, auto& k) {
+            using K = std::decay_t<decltype(k)>;
+
+            // NOTE: we need to save the continuation here in
+            // case we never started and set it above!
+            data.k = static_cast<void*>(&k);
+
+            // NOTE: the continuation 'k' should actually be a
+            // 'Reschedule()' since we're using 'loop.Schedule()'
+            // above which means that we'll properly switch to the
+            // correct scheduler context just by using 'k'.
+
+            data.loop.Submit(
+                [&data]() {
+                  if (uv_is_active((uv_handle_t*) &data.signal)) {
+                    auto error = uv_signal_stop(&data.signal);
+                    uv_close((uv_handle_t*) (&data.signal), nullptr);
+                    if (error) {
+                      static_cast<K*>(data.k)->Fail(uv_strerror(error));
+                    } else {
+                      static_cast<K*>(data.k)->Stop();
+                    }
+                  } else {
+                    uv_close((uv_handle_t*) &data.signal, nullptr);
+                    static_cast<K*>(data.k)->Stop();
+                  }
+                },
+                &data.interrupt);
+          }));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Signal(const int number) {
-  return Signal(EventLoop::Default(), number);
+inline auto Signal(const int signum) {
+  return Signal(EventLoop::Default(), signum);
 }
 
 ////////////////////////////////////////////////////////////////////////
