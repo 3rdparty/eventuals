@@ -179,31 +179,23 @@ bool EventLoop::Continuable(Scheduler::Context* context) {
 ////////////////////////////////////////////////////////////////////////
 
 void EventLoop::Submit(Callback<> callback, Scheduler::Context* context) {
-  // NOTE: current semantics here are "preemptive" if we're already in
-  // the event loop which may be counter expectations if a caller
-  // knows they're in the event loop and is wants to "Submit()"
-  // something to run at the end of the queue of callbacks.
-  if (InEventLoop()) {
-    callback();
-  } else {
-    auto* waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
+  auto* waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
 
-    CHECK(!waiter->waiting) << waiter->name();
-    CHECK(waiter->next == nullptr) << waiter->name();
+  CHECK(!waiter->waiting) << waiter->name();
+  CHECK(waiter->next == nullptr) << waiter->name();
 
-    waiter->waiting = true;
-    waiter->callback = std::move(callback);
+  waiter->waiting = true;
+  waiter->callback = std::move(callback);
 
-    waiter->next = waiters_.load(std::memory_order_relaxed);
+  waiter->next = waiters_.load(std::memory_order_relaxed);
 
-    while (!waiters_.compare_exchange_weak(
-        waiter->next,
-        waiter,
-        std::memory_order_release,
-        std::memory_order_relaxed)) {}
+  while (!waiters_.compare_exchange_weak(
+      waiter->next,
+      waiter,
+      std::memory_order_release,
+      std::memory_order_relaxed)) {}
 
-    Interrupt();
-  }
+  Interrupt();
 }
 
 ////////////////////////////////////////////////////////////////////////
