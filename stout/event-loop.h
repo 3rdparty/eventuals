@@ -553,6 +553,10 @@ inline auto EventLoop::Clock::Timer(
                .interrupt([&data](auto& k) {
                  using K = std::decay_t<decltype(k)>;
 
+                 // NOTE: we need to save the continuation here in
+                 // case we never started and set it above!
+                 data.k = static_cast<void*>(&k);
+
                  data.loop.Submit(
                      [&data]() {
                        if (!data.started) {
