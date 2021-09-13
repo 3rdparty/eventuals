@@ -17,39 +17,42 @@ using stout::eventuals::Then;
 
 using testing::MockFunction;
 
+class DomainNameResolveTest : public EventLoopTest {};
 
-TEST_F(EventLoopTest, IpSucceed) {
+TEST_F(DomainNameResolveTest, Succeed) {
   std::string address = "docs.libuv.org", port = "6667";
 
   auto e = DomainNameResolve(address, port);
 
-  auto [future_ip, e_] = Terminate(std::move(e));
+  auto [future, k] = Terminate(std::move(e));
 
-  e_.Start();
+  k.Start();
 
   EventLoop::Default().Run();
 
-  std::regex pattern_ip{R"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"};
-
-  EXPECT_EQ(true, std::regex_match(future_ip.get(), pattern_ip));
+  EXPECT_TRUE(
+      std::regex_match(
+          future.get(),
+          std::regex{R"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"}));
 }
 
 
-TEST_F(EventLoopTest, IpFail) {
+TEST_F(DomainNameResolveTest, Fail) {
   std::string address = "wwww.google.com", port = "6667";
 
   auto e = DomainNameResolve(address, port);
 
-  auto [future_ip, e_] = Terminate(std::move(e));
-  e_.Start();
+  auto [future, k] = Terminate(std::move(e));
+
+  k.Start();
 
   EventLoop::Default().Run();
 
-  EXPECT_THROW(future_ip.get(), std::string);
+  EXPECT_THROW(future.get(), std::string);
 }
 
 
-TEST_F(EventLoopTest, IpStop) {
+TEST_F(DomainNameResolveTest, Stop) {
   std::string address = "www.google.com", port = "6667";
   auto e = DomainNameResolve(address, port)
       | Eventual<int>()
@@ -67,8 +70,11 @@ TEST_F(EventLoopTest, IpStop) {
              return std::to_string(data);
            });
 
-  auto [future, e_] = Terminate(std::move(e));
-  e_.Start();
+  auto [future, k] = Terminate(std::move(e));
+
+  k.Start();
+
   EventLoop::Default().Run();
+
   EXPECT_THROW(future.get(), stout::eventuals::StoppedException);
 }
