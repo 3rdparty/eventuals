@@ -36,8 +36,8 @@ class EventLoop : public Scheduler {
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), size);
     }
 
-    Buffer(const std::string& data)
-      : data_(data) {
+    Buffer(const std::string& string)
+      : data_(string) {
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
     }
 
@@ -54,15 +54,15 @@ class EventLoop : public Scheduler {
       that.buffer_.base = nullptr;
     }
 
-    Buffer& operator=(const std::string& data) {
-      data_ = data;
+    Buffer& operator=(const std::string& string) {
+      data_ = string;
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
 
       return *this;
     }
 
-    Buffer& operator=(std::string&& data) {
-      data_ = std::move(data);
+    Buffer& operator=(std::string&& string) {
+      data_ = std::move(string);
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
 
       return *this;
@@ -81,6 +81,20 @@ class EventLoop : public Scheduler {
 
       that.buffer_.len = 0;
       that.buffer_.base = nullptr;
+
+      return *this;
+    }
+
+    Buffer& operator+=(const std::string& string) {
+      data_ += string;
+      buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
+
+      return *this;
+    }
+
+    Buffer& operator+=(const Buffer& that) {
+      data_ += that.data_;
+      buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
 
       return *this;
     }
