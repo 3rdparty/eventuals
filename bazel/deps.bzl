@@ -3,9 +3,14 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 load("@com_github_3rdparty_bazel_rules_libuv//bazel:deps.bzl", libuv_deps="deps")
+load("@com_github_3rdparty_bazel_rules_curl//bazel:deps.bzl", curl_deps="deps")
 
 def deps(repo_mapping = {}):
     libuv_deps(
+        repo_mapping = repo_mapping
+    )
+
+    curl_deps(
         repo_mapping = repo_mapping
     )
 
