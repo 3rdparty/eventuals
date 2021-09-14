@@ -9,3 +9,5 @@ build:macos --cxxopt=-std=c++17
 build:linux --cxxopt=-std=c++17
 
 build:clang --action_env=CC=clang
+
+build:clang_debug --action_env=CC=clang --cxxopt=-fstandalone-debug -c dbg

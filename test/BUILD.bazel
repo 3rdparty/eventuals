@@ -20,6 +20,7 @@ cc_test(
         "iterate.cc",
         "dns-resolver.cc",
         "signal.cc"
+        "filter.cc",
     ],
     deps = [
         "//:eventuals",
