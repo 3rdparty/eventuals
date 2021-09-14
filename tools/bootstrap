@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Check for existence of git.
 which git >/dev/null
