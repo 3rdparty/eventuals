@@ -149,21 +149,42 @@ struct _Call {
 
                 RequestType_* request = nullptr;
                 ::grpc::WriteOptions* options = nullptr;
-                bool finish = false;
+
+                enum class NextAction { NOTHING,
+                                        WRITE,
+                                        WRITE_LAST,
+                                        WRITES_DONE
+                };
+                NextAction next_action = NextAction::NOTHING;
 
                 if (!write_datas_.empty()) {
+                  // There is at least one more request for us to write out.
                   request = &write_datas_.front().request;
                   options = &write_datas_.front().options;
+                  if (finish_ && write_datas_.size() == 1) {
+                    // The request we're about to write is the last one.
+                    next_action = NextAction::WRITE_LAST;
+                  } else {
+                    // This request is not the last.
+                    next_action = NextAction::WRITE;
+                  }
                 } else if (finish_) {
-                  finish = true;
+                  // We've written out the last request, but we didn't use
+                  // `WriteLast` to do it, otherwise we wouldn't be in this
+                  // callback. We'll use a `WritesDone` to close our end of the
+                  // connection instead.
+                  next_action = NextAction::WRITES_DONE;
                 }
 
                 mutex_.unlock();
 
-                if (request != nullptr) {
+                if (next_action == NextAction::WRITE) {
                   stream_->Write(*request, *options, &write_callback_);
-                } else if (finish) {
-                  stream_->Finish(&finish_status_, &finish_callback_);
+                } else if (next_action == NextAction::WRITE_LAST) {
+                  stream_->WriteLast(*request, *options, //
+                                     &writes_done_callback_);
+                } else if (next_action == NextAction::WRITES_DONE) {
+                  stream_->WritesDone(&writes_done_callback_);
                 }
               } else {
                 mutex_.lock();
@@ -176,6 +197,10 @@ struct _Call {
                 // always 'finish_callback_' not 'write_callback_'.
                 stream_->Finish(&finish_status_, &finish_callback_);
               }
+            };
+
+            writes_done_callback_ = [this](bool ok) mutable {
+              stream_->Finish(&finish_status_, &finish_callback_);
             };
 
             finish_callback_ = [this](bool ok) mutable {
@@ -233,24 +258,37 @@ struct _Call {
       WriteMaybeLast(request, options, false);
     }
 
+    // Equivalent to calling `Write()` and `WritesDone()` one after the other,
+    // although possibly more efficient.
+    //
+    // You must call exactly one of `WritesDone()` or `WriteLast()` at the end
+    // of a message stream.
     void WriteLast(
         const RequestType_& request,
         const ::grpc::WriteOptions& options = ::grpc::WriteOptions()) {
       WriteMaybeLast(request, options, true);
     }
 
+    // Signals that the stream of messages coming from the client is complete.
+    //
+    // You must call exactly one of `WritesDone()` or `WriteLast()` at the end
+    // of a message stream.
     void WritesDone() {
       bool write = false;
 
       mutex_.lock();
+      assert(!finish_); // Only call one of WriteLast() or WritesDone() once.
       finish_ = true;
       if (write_callback_ && write_datas_.empty()) {
+        // There is no current async write in flight, so there won't be a  call
+        // to `write_callback_` to do a `WriteLast()` or `WritesDone()` for us.
+        // We'll do a `WritesDone()` ourselves.
         write = true;
       }
       mutex_.unlock();
 
       if (write) {
-        stream_->WritesDone(&write_callback_);
+        stream_->WritesDone(&writes_done_callback_);
       }
     }
 
@@ -268,6 +306,7 @@ struct _Call {
       mutex_.lock();
 
       if (last) {
+        assert(!finish_); // Only call one of WriteLast() or WritesDone() once.
         finish_ = true;
       }
 
@@ -280,6 +319,9 @@ struct _Call {
         data.options = options;
 
         if (write_datas_.size() == 1) {
+          // There is no current async write in flight, so there won't be a call
+          // to `write_callback_` to do a `Write()` or `WritesLast()` for us.
+          // We'll do one ourselves.
           write = true;
         }
 
@@ -289,7 +331,7 @@ struct _Call {
           if (!last) {
             stream_->Write(request, options, &write_callback_);
           } else {
-            stream_->WriteLast(request, options, &write_callback_);
+            stream_->WriteLast(request, options, &writes_done_callback_);
           }
         }
       }
@@ -319,6 +361,7 @@ struct _Call {
     Callback<bool> start_callback_;
     Callback<bool> read_callback_;
     Callback<bool> write_callback_;
+    Callback<bool> writes_done_callback_;
     Callback<bool> finish_callback_;
 
     std::atomic<bool> reading_ = false;
