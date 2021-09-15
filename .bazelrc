@@ -1,3 +1,4 @@
 # Specific Bazel build/test options.
 
 build --cxxopt='-std=c++17'
+test --cxxopt='-fstandalone-debug' -c dbg --strip='never'

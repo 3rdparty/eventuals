@@ -20,7 +20,8 @@ using stout::eventuals::grpc::Server;
 using stout::eventuals::grpc::ServerBuilder;
 using stout::eventuals::grpc::Stream;
 
-TEST_F(StoutGrpcTest, Streaming) {
+template <class T>
+void test_client_behavior(T&& handler) {
   ServerBuilder builder;
 
   int port = 0;
@@ -54,7 +55,7 @@ TEST_F(StoutGrpcTest, Streaming) {
                    } else {
                      for (size_t i = 0; i < 3; i++) {
                        keyvaluestore::Response response;
-                       response.set_value(stringify(i + 3));
+                       response.set_value(stringify(i + 10));
                        call.Write(response);
                      }
                      call.Finish(grpc::Status::OK);
@@ -79,34 +80,7 @@ TEST_F(StoutGrpcTest, Streaming) {
                Stream<keyvaluestore::Request>,
                Stream<keyvaluestore::Response>>(
                "keyvaluestore.KeyValueStore.GetValues")
-        | (Client::Handler()
-               .ready([](auto& call) {
-                 keyvaluestore::Request request;
-                 request.set_key("1");
-                 call.Write(request);
-               })
-               .body(Sequence()
-                         .Once([](auto& call, auto&& response) {
-                           EXPECT_EQ("1", response->value());
-                           keyvaluestore::Request request;
-                           request.set_key("2");
-                           call.WriteLast(request);
-                         })
-                         .Once([](auto& call, auto&& response) {
-                           EXPECT_EQ("2", response->value());
-                         })
-                         .Once([](auto& call, auto&& response) {
-                           EXPECT_EQ("3", response->value());
-                         })
-                         .Once([](auto& call, auto&& response) {
-                           EXPECT_EQ("4", response->value());
-                         })
-                         .Once([](auto& call, auto&& response) {
-                           EXPECT_EQ("5", response->value());
-                         })
-                         .Once([](auto& call, auto&& response) {
-                           EXPECT_FALSE(response);
-                         })));
+        | handler;
   };
 
   auto status = *call();
@@ -114,4 +88,35 @@ TEST_F(StoutGrpcTest, Streaming) {
   EXPECT_TRUE(status.ok()) << status.error_message();
 
   EXPECT_FALSE(cancelled.get());
+}
+
+TEST_F(StoutGrpcTest, Streaming_FinishAfterReply) {
+  test_client_behavior(Client::Handler()
+                           .ready([](auto& call) {
+                             keyvaluestore::Request request;
+                             request.set_key("1");
+                             call.Write(request);
+                           })
+                           .body(Sequence()
+                                     .Once([](auto& call, auto&& response) {
+                                       EXPECT_EQ("1", response->value());
+                                       keyvaluestore::Request request;
+                                       request.set_key("2");
+                                       call.WriteLast(request);
+                                     })
+                                     .Once([](auto& call, auto&& response) {
+                                       EXPECT_EQ("2", response->value());
+                                     })
+                                     .Once([](auto& call, auto&& response) {
+                                       EXPECT_EQ("10", response->value());
+                                     })
+                                     .Once([](auto& call, auto&& response) {
+                                       EXPECT_EQ("11", response->value());
+                                     })
+                                     .Once([](auto& call, auto&& response) {
+                                       EXPECT_EQ("12", response->value());
+                                     })
+                                     .Once([](auto& call, auto&& response) {
+                                       EXPECT_FALSE(response);
+                                     })));
 }
