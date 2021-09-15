@@ -38,6 +38,7 @@ cc_library(
         "stout/iterate.h",
         "stout/dns-resolver.h",
         "stout/signal.h",
+        "stout/collect.h",
     ],
     srcs = [
         "stout/scheduler.cc",
