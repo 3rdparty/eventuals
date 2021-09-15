@@ -32,9 +32,9 @@ def repos(external = True, repo_mapping = {}):
     if "com_github_grpc_grpc" not in native.existing_rules():
         http_archive(
             name = "com_github_grpc_grpc",
-            urls = ["https://github.com/grpc/grpc/archive/v1.35.0.tar.gz"],
-            sha256 = "27dd2fc5c9809ddcde8eb6fa1fa278a3486566dfc28335fca13eb8df8bd3b958",
-            strip_prefix = "grpc-1.35.0",
+            urls = ["https://github.com/grpc/grpc/archive/v1.40.0.tar.gz"],
+            strip_prefix = "grpc-1.40.0",
+            sha256 = "13e7c6460cd979726e5b3b129bb01c34532f115883ac696a75eb7f1d6a9765ed",
         )
 
 
