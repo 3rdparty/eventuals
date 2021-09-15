@@ -3,30 +3,30 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 cc_test(
     name = "grpc",
     srcs = [
-        "test.h",
-        "build-and-start.cc",
-        "unimplemented.cc",
-        "cancelled-by-server.cc",
-        "cancelled-by-client.cc",
-        "unary.cc",
-        "streaming.cc",
-        "server-unavailable.cc",
-        "client-death-test.cc",
-        "server-death-test.cc",
-        "multiple-hosts.cc",
         "accept.cc",
-        "cluster.cc",
         "broadcast-cancel.cc",
+        "build-and-start.cc",
+        "cancelled-by-client.cc",
+        "cancelled-by-server.cc",
+        "client-death-test.cc",
+        "cluster.cc",
         "deadline.cc",
-    ],
-    deps = [
-        "//:grpc",
-        "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
-        "@com_github_grpc_grpc//examples/protos:keyvaluestore",
-        "@com_github_google_googletest//:gtest_main",
+        "multiple-hosts.cc",
+        "server-death-test.cc",
+        "server-unavailable.cc",
+        "streaming.cc",
+        "test.h",
+        "unary.cc",
+        "unimplemented.cc",
     ],
     # NOTE: need to add 'linkstatic = True' in order to get this to
     # link until https://github.com/grpc/grpc/issues/13856 gets
     # resolved.
     linkstatic = True,
+    deps = [
+        "//:grpc",
+        "@com_github_google_googletest//:gtest_main",
+        "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
+        "@com_github_grpc_grpc//examples/protos:keyvaluestore",
+    ],
 )

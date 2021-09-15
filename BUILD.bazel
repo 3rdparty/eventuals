@@ -2,27 +2,27 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
     name = "grpc",
-    hdrs = [
-        "stout/grpc/call-type.h",
-        "stout/grpc/traits.h",
-        "stout/grpc/client.h",
-        "stout/grpc/handler.h",
-        "stout/grpc/cluster.h",
-        "stout/grpc/completion-pool.h",
-        "stout/grpc/server.h",
-        "stout/grpc/logging.h",
-    ],
     srcs = [
         "stout/grpc/server.cc",
     ],
-    deps = [
-        "@com_github_3rdparty_stout_borrowed_ptr//:borrowed_ptr",
-        "@com_github_3rdparty_stout_notification//:notification",
-        "@com_github_3rdparty_stout_eventuals//:eventuals",
-        "@com_google_absl//absl/base:base",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_github_google_glog//:glog",
-        "@com_github_grpc_grpc//:grpc++",
+    hdrs = [
+        "stout/grpc/call-type.h",
+        "stout/grpc/client.h",
+        "stout/grpc/cluster.h",
+        "stout/grpc/completion-pool.h",
+        "stout/grpc/handler.h",
+        "stout/grpc/logging.h",
+        "stout/grpc/server.h",
+        "stout/grpc/traits.h",
     ],
     visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_3rdparty_stout_borrowed_ptr//:borrowed_ptr",
+        "@com_github_3rdparty_stout_eventuals//:eventuals",
+        "@com_github_3rdparty_stout_notification//:notification",
+        "@com_github_google_glog//:glog",
+        "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/container:flat_hash_map",
+    ],
 )
