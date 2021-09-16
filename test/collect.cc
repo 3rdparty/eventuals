@@ -37,7 +37,7 @@ TEST(Collect, CommonSetPass) {
 
   std::set<int> res = *s();
 
-  ASSERT_TRUE(res.size() == 2);
+  ASSERT_EQ(2, res.size());
   EXPECT_EQ(5, *res.begin());
   EXPECT_EQ(12, *++res.begin());
 }
