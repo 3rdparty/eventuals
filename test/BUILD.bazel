@@ -21,6 +21,7 @@ cc_test(
         "dns-resolver.cc",
         "signal.cc",
         "collect.cc",
+        "filter.cc",
     ],
     deps = [
         "//:eventuals",
