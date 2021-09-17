@@ -5,6 +5,7 @@
 #include <thread>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/synchronization/mutex.h"
 #include "google/protobuf/descriptor.h"
 #include "grpcpp/completion_queue.h"
 #include "grpcpp/generic/async_generic_service.h"
@@ -462,7 +463,7 @@ struct _ServerHandler {
 
       write_callback_ = [this](bool ok) {
         if (ok) {
-          mutex_.lock();
+          mutex_.Lock();
 
           CHECK(!write_datas_.empty());
           write_datas_.pop_front();
@@ -478,7 +479,7 @@ struct _ServerHandler {
             status = &status_.value();
           }
 
-          mutex_.unlock();
+          mutex_.Unlock();
 
           if (buffer != nullptr) {
             stream()->Write(*buffer, *options, &write_callback_);
@@ -486,10 +487,10 @@ struct _ServerHandler {
             stream()->Finish(*status, &finish_callback_);
           }
         } else {
-          mutex_.lock();
+          mutex_.Lock();
           write_datas_.clear();
           write_callback_ = Callback<bool>();
-          mutex_.unlock();
+          mutex_.Unlock();
         }
       };
 
@@ -577,15 +578,15 @@ struct _ServerHandler {
     }
 
     void Finish(const ::grpc::Status& status) {
-      mutex_.lock();
+      mutex_.Lock();
 
       status_ = status;
 
       if (write_datas_.empty()) {
-        mutex_.unlock();
+        mutex_.Unlock();
         stream()->Finish(status, &finish_callback_);
       } else {
-        mutex_.unlock();
+        mutex_.Unlock();
       }
     }
 
@@ -636,7 +637,7 @@ struct _ServerHandler {
         ::grpc::ByteBuffer* buffer,
         const ::grpc::WriteOptions& options,
         const std::optional<::grpc::Status>& status) {
-      mutex_.lock();
+      mutex_.Lock();
 
       if (write_callback_) {
         write_datas_.emplace_back();
@@ -652,7 +653,7 @@ struct _ServerHandler {
           buffer = nullptr;
         }
 
-        mutex_.unlock();
+        mutex_.Unlock();
 
         if (buffer != nullptr) {
           if (!status) {
@@ -667,7 +668,7 @@ struct _ServerHandler {
         }
       }
 
-      mutex_.unlock();
+      mutex_.Unlock();
     }
 
     K_ k_;
@@ -691,7 +692,7 @@ struct _ServerHandler {
     };
 
     // TODO(benh): render this lock-free.
-    std::mutex mutex_;
+    absl::Mutex mutex_;
     std::list<WriteData> write_datas_;
 
     std::optional<::grpc::Status> status_;
