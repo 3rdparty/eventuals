@@ -73,7 +73,7 @@ auto Iterate(Container&& container) {
 template <typename T, size_t n>
 auto Iterate(std::array<T, n>&& container) {
   return Stream<T>()
-      .next([container = std::move(container), i = 0](auto& k) mutable {
+      .next([container = std::move(container), i = 0u](auto& k) mutable {
         if (i != container.size()) {
           k.Emit(container[i++]);
         } else {
