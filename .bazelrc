@@ -1,4 +1,5 @@
 # Specific Bazel build/test options.
 
-build --cxxopt='-std=c++17' --cxxopt='-Werror=thread-safety-analysis'
+build --cxxopt='-std=c++17' 
+build --cxxopt='-Werror=thread-safety-analysis' --cxxopt='-Werror=thread-safety-reference'
 test --cxxopt='-fstandalone-debug' -c dbg --strip='never'

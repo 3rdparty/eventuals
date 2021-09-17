@@ -140,44 +140,42 @@ struct _Call {
 
             write_callback_ = [this](bool ok) mutable {
               if (ok) {
-                mutex_.Lock();
-
-                // Might be getting here after doing a 'WritesDone()'
-                // and now just need to do 'Finish()'.
-                if (!write_datas_.empty()) {
-                  write_datas_.pop_front();
-                }
-
-                RequestType_* request = nullptr;
                 ::grpc::WriteOptions* options = nullptr;
-
+                RequestType_* request = nullptr;
                 enum class NextAction { NOTHING,
                                         WRITE,
                                         WRITE_LAST,
                                         WRITES_DONE
                 };
                 NextAction next_action = NextAction::NOTHING;
+                {
+                  absl::MutexLock l(&mutex_);
 
-                if (!write_datas_.empty()) {
-                  // There is at least one more request for us to write out.
-                  request = &write_datas_.front().request;
-                  options = &write_datas_.front().options;
-                  if (finish_ && write_datas_.size() == 1) {
-                    // The request we're about to write is the last one.
-                    next_action = NextAction::WRITE_LAST;
-                  } else {
-                    // This request is not the last.
-                    next_action = NextAction::WRITE;
+                  // Might be getting here after doing a 'WritesDone()'
+                  // and now just need to do 'Finish()'.
+                  if (!write_datas_.empty()) {
+                    write_datas_.pop_front();
                   }
-                } else if (finish_) {
-                  // We've written out the last request, but we didn't use
-                  // `WriteLast` to do it, otherwise we wouldn't be in this
-                  // callback. We'll use a `WritesDone` to close our end of the
-                  // connection instead.
-                  next_action = NextAction::WRITES_DONE;
-                }
 
-                mutex_.Unlock();
+                  if (!write_datas_.empty()) {
+                    // There is at least one more request for us to write out.
+                    request = &write_datas_.front().request;
+                    options = &write_datas_.front().options;
+                    if (finish_ && write_datas_.size() == 1) {
+                      // The request we're about to write is the last one.
+                      next_action = NextAction::WRITE_LAST;
+                    } else {
+                      // This request is not the last.
+                      next_action = NextAction::WRITE;
+                    }
+                  } else if (finish_) {
+                    // We've written out the last request, but we didn't use
+                    // `WriteLast` to do it, otherwise we wouldn't be in this
+                    // callback. We'll use a `WritesDone` to close our end of the
+                    // connection instead.
+                    next_action = NextAction::WRITES_DONE;
+                  }
+                }
 
                 if (next_action == NextAction::WRITE) {
                   stream_->Write(*request, *options, &write_callback_);
@@ -188,10 +186,11 @@ struct _Call {
                   stream_->WritesDone(&writes_done_callback_);
                 }
               } else {
-                mutex_.Lock();
-                write_datas_.clear();
-                write_callback_ = Callback<bool>();
-                mutex_.Unlock();
+                {
+                  absl::MutexLock l(&mutex_);
+                  write_datas_.clear();
+                  write_callback_ = Callback<bool>();
+                }
 
                 // NOTE: the invariant here is that we won't exeute
                 // 'Finish()' more than once because it's callback is
@@ -274,19 +273,20 @@ struct _Call {
     //
     // You must call exactly one of `WritesDone()` or `WriteLast()` at the end
     // of a message stream.
-    void WritesDone() {
+    void WritesDone() LOCKS_EXCLUDED(&mutex_) {
       bool write = false;
 
-      mutex_.Lock();
-      assert(!finish_); // Only call one of WriteLast() or WritesDone() once.
-      finish_ = true;
-      if (write_callback_ && write_datas_.empty()) {
-        // There is no current async write in flight, so there won't be a  call
-        // to `write_callback_` to do a `WriteLast()` or `WritesDone()` for us.
-        // We'll do a `WritesDone()` ourselves.
-        write = true;
+      {
+        absl::MutexLock l(&mutex_);
+        assert(!finish_); // Only call one of WriteLast() or WritesDone() once.
+        finish_ = true;
+        if (write_callback_ && write_datas_.empty()) {
+          // There is no current async write in flight, so there won't be a  call
+          // to `write_callback_` to do a `WriteLast()` or `WritesDone()` for us.
+          // We'll do a `WritesDone()` ourselves.
+          write = true;
+        }
       }
-      mutex_.Unlock();
 
       if (write) {
         stream_->WritesDone(&writes_done_callback_);
@@ -301,10 +301,10 @@ struct _Call {
     void WriteMaybeLast(
         const RequestType_& request,
         const ::grpc::WriteOptions& options,
-        bool last) {
+        bool last) LOCKS_EXCLUDED(mutex_) {
       bool write = false;
 
-      mutex_.Lock();
+      absl::ReleasableMutexLock l(&mutex_);
 
       if (last) {
         assert(!finish_); // Only call one of WriteLast() or WritesDone() once.
@@ -326,7 +326,7 @@ struct _Call {
           write = true;
         }
 
-        mutex_.Unlock();
+        l.Release();
 
         if (write) {
           if (!last) {
@@ -336,8 +336,6 @@ struct _Call {
           }
         }
       }
-
-      mutex_.Unlock();
     }
 
     K_ k_;
@@ -375,9 +373,9 @@ struct _Call {
 
     // TODO(benh): render this lock-free.
     absl::Mutex mutex_;
-    std::list<WriteData> write_datas_;
+    std::list<WriteData> write_datas_ GUARDED_BY(mutex_);
+    bool finish_ GUARDED_BY(mutex_) = false;
 
-    bool finish_ = false;
     ::grpc::Status finish_status_;
   };
 

@@ -463,23 +463,23 @@ struct _ServerHandler {
 
       write_callback_ = [this](bool ok) {
         if (ok) {
-          mutex_.Lock();
-
-          CHECK(!write_datas_.empty());
-          write_datas_.pop_front();
-
           ::grpc::ByteBuffer* buffer = nullptr;
           ::grpc::WriteOptions* options = nullptr;
           ::grpc::Status* status = nullptr;
 
-          if (!write_datas_.empty()) {
-            buffer = &write_datas_.front().buffer;
-            options = &write_datas_.front().options;
-          } else if (status_) {
-            status = &status_.value();
-          }
+          {
+            absl::MutexLock l(&mutex_);
 
-          mutex_.Unlock();
+            CHECK(!write_datas_.empty());
+            write_datas_.pop_front();
+
+            if (!write_datas_.empty()) {
+              buffer = &write_datas_.front().buffer;
+              options = &write_datas_.front().options;
+            } else if (status_) {
+              status = &status_.value();
+            }
+          }
 
           if (buffer != nullptr) {
             stream()->Write(*buffer, *options, &write_callback_);
@@ -487,10 +487,9 @@ struct _ServerHandler {
             stream()->Finish(*status, &finish_callback_);
           }
         } else {
-          mutex_.Lock();
+          absl::MutexLock l(&mutex_);
           write_datas_.clear();
           write_callback_ = Callback<bool>();
-          mutex_.Unlock();
         }
       };
 
@@ -577,17 +576,15 @@ struct _ServerHandler {
       WriteAndFinish(response, ::grpc::WriteOptions(), status);
     }
 
-    void Finish(const ::grpc::Status& status) {
-      mutex_.Lock();
-
-      status_ = status;
-
-      if (write_datas_.empty()) {
-        mutex_.Unlock();
-        stream()->Finish(status, &finish_callback_);
-      } else {
-        mutex_.Unlock();
+    void Finish(const ::grpc::Status& status) LOCKS_EXCLUDED(mutex_) {
+      {
+        absl::MutexLock l(&mutex_);
+        status_ = status;
+        if (!write_datas_.empty()) {
+          return;
+        }
       }
+      stream()->Finish(status, &finish_callback_);
     }
 
     auto* context() {
@@ -636,8 +633,8 @@ struct _ServerHandler {
     void WriteMaybeFinish(
         ::grpc::ByteBuffer* buffer,
         const ::grpc::WriteOptions& options,
-        const std::optional<::grpc::Status>& status) {
-      mutex_.Lock();
+        const std::optional<::grpc::Status>& status) LOCKS_EXCLUDED(mutex_) {
+      absl::ReleasableMutexLock l(&mutex_);
 
       if (write_callback_) {
         write_datas_.emplace_back();
@@ -653,7 +650,7 @@ struct _ServerHandler {
           buffer = nullptr;
         }
 
-        mutex_.Unlock();
+        l.Release();
 
         if (buffer != nullptr) {
           if (!status) {
@@ -667,8 +664,6 @@ struct _ServerHandler {
           }
         }
       }
-
-      mutex_.Unlock();
     }
 
     K_ k_;
@@ -693,9 +688,8 @@ struct _ServerHandler {
 
     // TODO(benh): render this lock-free.
     absl::Mutex mutex_;
-    std::list<WriteData> write_datas_;
-
-    std::optional<::grpc::Status> status_;
+    std::list<WriteData> write_datas_ GUARDED_BY(mutex_);
+    std::optional<::grpc::Status> status_ GUARDED_BY(mutex_);
 
     std::once_flag finish_;
     std::atomic<bool> done_ = false;
