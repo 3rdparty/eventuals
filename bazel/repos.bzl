@@ -42,7 +42,7 @@ def repos(external = True, repo_mapping = {}):
         git_repository(
             name = "com_github_3rdparty_stout_grpc",
             remote = "https://github.com/3rdparty/stout-grpc",
-            commit = "716259b114f41905d41797d9b0bcf0142952a2f2",
-            shallow_since = "1629614156 +0200",
+            commit = "fef528dea479b09dec7bc49aa7535c0e87bca310",
+            shallow_since = "1632152723 -0700"
             repo_mapping = repo_mapping,
         )
