@@ -11,22 +11,21 @@
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
-
-load("//3rdparty/stout-eventuals:repos.bzl", stout_eventuals_repos="repos")
-load("//3rdparty/stout-borrowed-ptr:repos.bzl", stout_borrowed_ptr_repos="repos")
-load("//3rdparty/stout-notification:repos.bzl", stout_notification_repos="repos")
+load("//3rdparty/stout-eventuals:repos.bzl", stout_eventuals_repos = "repos")
+load("//3rdparty/stout-borrowed-ptr:repos.bzl", stout_borrowed_ptr_repos = "repos")
+load("//3rdparty/stout-notification:repos.bzl", stout_notification_repos = "repos")
 
 def repos(external = True, repo_mapping = {}):
     stout_eventuals_repos(
-        repo_mapping = repo_mapping
+        repo_mapping = repo_mapping,
     )
 
     stout_borrowed_ptr_repos(
-        repo_mapping = repo_mapping
+        repo_mapping = repo_mapping,
     )
 
     stout_notification_repos(
-        repo_mapping = repo_mapping
+        repo_mapping = repo_mapping,
     )
 
     if "com_github_grpc_grpc" not in native.existing_rules():
@@ -37,12 +36,11 @@ def repos(external = True, repo_mapping = {}):
             sha256 = "13e7c6460cd979726e5b3b129bb01c34532f115883ac696a75eb7f1d6a9765ed",
         )
 
-
     if external and "com_github_3rdparty_stout_grpc" not in native.existing_rules():
         git_repository(
             name = "com_github_3rdparty_stout_grpc",
             remote = "https://github.com/3rdparty/stout-grpc",
             commit = "fef528dea479b09dec7bc49aa7535c0e87bca310",
-            shallow_since = "1632152723 -0700"
+            shallow_since = "1632152723 -0700",
             repo_mapping = repo_mapping,
         )
