@@ -58,13 +58,17 @@ struct _Call {
     }
 
     ~Continuation() {
-      // NOTE: there isn't an AsyncNotifyWhenDone() on a client
-      // context so we need to improvise and make sure we wait until
-      // we're done reading before we delete the context.
-      while (reading_.load()) {
-        // TODO(benh): cpu relax and LOG_EVERY(WARNING, N) to give
-        // some insight into this spin loop.
-      }
+      // Make sure we're done reading and writing before we delete the context.
+      // Locks `mutex_` when `reads_done_` and `writes_done_` are both true.
+      auto flags = std::make_pair(&reads_done_, &writes_done_);
+      absl::Condition done_reading_writing(
+          // The `+` makes the lambda a function pointer:
+          //   https://stackoverflow.com/questions/18889028/a-positive-lambda-what-sorcery-is-this
+          +[](std::pair<bool*, bool*>* flags) {
+            return *flags->first && *flags->second;
+          },
+          &flags);
+      absl::MutexLock l(&mutex_, done_reading_writing);
     }
 
     template <typename... Args>
@@ -112,7 +116,11 @@ struct _Call {
             start_callback_ = [this](bool ok) {
               if (ok) {
                 k_.Ready(*this);
-                reading_.store(true);
+                {
+                  absl::MutexLock l(&mutex_);
+                  reads_done_ = false;
+                  writes_done_ = false;
+                }
                 stream_->Read(response_.get(), &read_callback_);
               } else {
                 auto status = ::grpc::Status(
@@ -131,7 +139,11 @@ struct _Call {
                 });
                 k_.Body(*this, std::move(response));
               } else {
-                reading_.store(false);
+                {
+                  absl::MutexLock l(&mutex_);
+                  reads_done_ = true;
+                  MaybeFinish();
+                }
 
                 // Signify end of stream (or error).
                 k_.Body(*this, borrowed_ptr<ResponseType_>());
@@ -186,21 +198,18 @@ struct _Call {
                   stream_->WritesDone(&writes_done_callback_);
                 }
               } else {
-                {
-                  absl::MutexLock l(&mutex_);
-                  write_datas_.clear();
-                  write_callback_ = Callback<bool>();
-                }
-
-                // NOTE: the invariant here is that we won't exeute
-                // 'Finish()' more than once because it's callback is
-                // always 'finish_callback_' not 'write_callback_'.
-                stream_->Finish(&finish_status_, &finish_callback_);
+                absl::MutexLock l(&mutex_);
+                write_datas_.clear();
+                write_callback_ = Callback<bool>();
+                writes_done_ = true;
+                MaybeFinish();
               }
             };
 
             writes_done_callback_ = [this](bool ok) mutable {
-              stream_->Finish(&finish_status_, &finish_callback_);
+              absl::MutexLock l(&mutex_);
+              writes_done_ = true;
+              MaybeFinish();
             };
 
             finish_callback_ = [this](bool ok) mutable {
@@ -338,6 +347,15 @@ struct _Call {
       }
     }
 
+    void MaybeFinish() EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+      // We can only call `stream_->Finish()` when BOTH reads AND writes are
+      // known to be done (see #12).
+      if (!reads_done_ || !writes_done_) {
+        return;
+      }
+      stream_->Finish(&finish_status_, &finish_callback_);
+    }
+
     K_ k_;
     std::string name_;
     std::optional<std::string> host_;
@@ -363,7 +381,6 @@ struct _Call {
     Callback<bool> writes_done_callback_;
     Callback<bool> finish_callback_;
 
-    std::atomic<bool> reading_ = false;
     Borrowable<ResponseType_> response_;
 
     struct WriteData {
@@ -374,6 +391,9 @@ struct _Call {
     // TODO(benh): render this lock-free.
     absl::Mutex mutex_;
     std::list<WriteData> write_datas_ GUARDED_BY(mutex_);
+    // Tracking whether reads/writes are done starts when reads/writes start.
+    bool reads_done_ GUARDED_BY(mutex_) = true;
+    bool writes_done_ GUARDED_BY(mutex_) = true;
     bool finish_ GUARDED_BY(mutex_) = false;
 
     ::grpc::Status finish_status_;
