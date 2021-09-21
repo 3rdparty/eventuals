@@ -79,20 +79,29 @@ void EventLoop::Clock::Advance(const std::chrono::nanoseconds& nanoseconds) {
 
 ////////////////////////////////////////////////////////////////////////
 
-static EventLoop* loop = new EventLoop();
+// NOTE: If loop is nullptr then memory isn't initialized.
+static int8_t loop_memory[sizeof(EventLoop)] = {};
+static EventLoop* loop = nullptr;
 
 ////////////////////////////////////////////////////////////////////////
 
 EventLoop& EventLoop::Default() {
+  if (!loop) {
+    loop = new (loop_memory) EventLoop();
+  }
+
   return *CHECK_NOTNULL(loop);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-EventLoop& EventLoop::Default(EventLoop* replacement) {
-  delete CHECK_NOTNULL(loop);
-  loop = CHECK_NOTNULL(replacement);
-  return Default();
+void EventLoop::DefaultReset() {
+  if (loop) {
+    loop->~EventLoop();
+    loop = nullptr;
+  }
+
+  loop = new (loop_memory) EventLoop();
 }
 
 ////////////////////////////////////////////////////////////////////////

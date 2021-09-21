@@ -5,7 +5,7 @@
 class EventLoopTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    stout::eventuals::EventLoop::Default(new stout::eventuals::EventLoop());
+    stout::eventuals::EventLoop::DefaultReset();
   }
 
   void TearDown() override {

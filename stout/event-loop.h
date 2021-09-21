@@ -198,11 +198,9 @@ class EventLoop : public Scheduler {
     std::string name_;
   };
 
-  // Getter/Setter for default event loop.
-  //
-  // NOTE: takes ownership of event loop pointer.
+  // Getter/Resetter for default event loop.
   static EventLoop& Default();
-  static EventLoop& Default(EventLoop* replacement);
+  static void DefaultReset();
 
   EventLoop();
   EventLoop(const EventLoop&) = delete;
