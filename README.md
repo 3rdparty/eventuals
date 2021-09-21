@@ -305,46 +305,6 @@ interrupt.Trigger();
 
 Note that there may be other reasons why you want to "interrupt" an eventual, so rather than call this functionality explicitly "cancel", we chose the more broad "interrupt". When creating a general abstraction, however, error on the side of assuming that interrupt means cancel.
 
-### `Lambda`
-
-Sometimes your continuation is ***synchronous***, i.e., it won't block the current thread. While you can still use an `Eventual` you can simplify by using a `Lambda`:
-
-```cpp
-auto e = Eventual<T>()
-  .start([](auto& k) {
-    auto thread = std::thread(
-        [&k]() mutable {
-          // Perform some asynchronous computation ...
-          auto result = ...;
-          succeed(k, result);
-        });
-    thread.detach();
-  })
-  | Lambda([](auto&& result) {
-    // Return some value ***synchronously**.
-    return stringify(result);
-  });
-```
-
-In many cases you can be even more *implicit* and just use a C++ lambda directly too:
-
-```cpp
-auto e = Eventual<T>()
-  .start([](auto& k) {
-    auto thread = std::thread(
-        [&k]() mutable {
-          // Perform some asynchronous computation ...
-          auto result = ...;
-          succeed(k, result);
-        });
-    thread.detach();
-  })
-  | [](auto&& result) {
-    // Return some value ***synchronously**.
-    return stringify(result);
-  };
-```
-
 ### `Then`
 
 When your continuation is ***asynchronous*** (i.e., you need to create another eventual based on the result of an eventual) but you *don't* need the explicit control that you have with an `Eventual` you can use `Then`:
@@ -364,6 +324,25 @@ auto e = Eventual<T>()
     // Return an eventual that will automatically get started.
     return SomeAsynchronousComputation(result);
   };
+```
+
+Sometimes your continuation is synchronous, i.e., it will block the current thread. While you can still use an `Eventual` you can also simplify by using a `Then`:
+
+```cpp
+auto e = Eventual<T>()
+  .start([](auto& k) {
+    auto thread = std::thread(
+        [&k]() mutable {
+          // Perform some asynchronous computation ...
+          auto result = ...;
+          succeed(k, result);
+        });
+    thread.detach();
+  })
+  | Then([](auto&& result) {
+    // Return some value ***synchronously**.
+    return stringify(result);
+  });
 ```
 
 ### `Just`
