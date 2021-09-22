@@ -40,6 +40,7 @@ cc_library(
         "stout/signal.h",
         "stout/collect.h",
         "stout/filter.h",
+        "stout/take.h",
     ],
     srcs = [
         "stout/scheduler.cc",
