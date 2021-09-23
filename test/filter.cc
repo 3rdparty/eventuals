@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "stout/collect.h"
 #include "stout/iterate.h"
@@ -18,6 +19,8 @@ using stout::eventuals::Iterate;
 using stout::eventuals::Loop;
 using stout::eventuals::Map;
 using stout::eventuals::Then;
+using testing::ElementsAre;
+using testing::UnorderedElementsAre;
 
 TEST(Filter, OddLoopFlow) {
   std::vector<int> v = {5, 12, 17};
@@ -54,11 +57,7 @@ TEST(Filter, OddCollectFlow) {
         | Collect<std::set<int>>();
   };
 
-  auto res = *s();
-
-  ASSERT_EQ(res.size(), 2);
-  EXPECT_EQ(*res.begin(), 5);
-  EXPECT_EQ(*(++res.begin()), 17);
+  EXPECT_THAT(*s(), ElementsAre(5, 17));
 }
 
 TEST(Filter, OddMapLoopFlow) {
@@ -82,23 +81,15 @@ TEST(Filter, OddMapLoopFlow) {
   EXPECT_EQ(24, *s());
 }
 
-// NOTE: Works on Linux, MacOS.
-// TODO(onelxj): Fix this test for Windows.
-// *res.begin() returns 6.
-// *++res.begin() returns 18.
-// TEST(Filter, OddMapCollectFlow) {
-//   std::vector<int> v = {5, 12, 17};
-//
-//   auto s = [&]() {
-//     return Iterate(v)
-//         | Filter([](int x) { return x % 2 == 1; })
-//         | Map(Then([](int x) { return x + 1; }))
-//         | Collect<std::unordered_set<int>>();
-//   };
-//
-//   auto res = *s();
-//
-//   ASSERT_EQ(res.size(), 2);
-//   EXPECT_EQ(*res.begin(), 18);
-//   EXPECT_EQ(*++res.begin(), 6);
-// }
+TEST(Filter, OddMapCollectFlow) {
+  std::vector<int> v = {5, 12, 17};
+
+  auto s = [&]() {
+    return Iterate(v)
+        | Filter([](int x) { return x % 2 == 1; })
+        | Map(Then([](int x) { return x + 1; }))
+        | Collect<std::unordered_set<int>>();
+  };
+
+  EXPECT_THAT(*s(), UnorderedElementsAre(6, 18));
+}
