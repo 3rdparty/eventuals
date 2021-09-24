@@ -19,7 +19,7 @@ cc_test(
         "event-loop-test.h",
         "iterate.cc",
         "dns-resolver.cc",
-        # "signal.cc",
+        "signal.cc",
         "collect.cc",
         "filter.cc",
         "take.cc",
