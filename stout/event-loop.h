@@ -179,6 +179,53 @@ class EventLoop : public Scheduler {
     uv_signal_t* handle_ = nullptr;
   };
 
+  class Timer {
+   public:
+    Timer(EventLoop& loop) {
+      handle_ = new uv_timer_t();
+      CHECK_EQ(
+          uv_timer_init(loop, handle_),
+          0);
+    }
+
+    Timer(const Timer& that) = delete;
+
+    Timer(Timer&& that) {
+      handle_ = that.handle_;
+      that.handle_ = nullptr;
+    }
+
+    ~Timer() {
+      if (handle_ == nullptr) {
+        return;
+      }
+
+      if (uv_is_active(reinterpret_cast<uv_handle_t*>(handle_))) {
+        uv_timer_stop(handle_);
+      }
+
+      uv_close(
+          reinterpret_cast<uv_handle_t*>(handle_),
+          EventLoop::CloseCallback);
+    }
+
+    // Adaptors to libuv functions.
+    uv_timer_t* handle() {
+      CHECK_NOTNULL(handle_);
+      return handle_;
+    }
+
+    uv_handle_t* base_handle() {
+      CHECK_NOTNULL(handle_);
+      return reinterpret_cast<uv_handle_t*>(handle_);
+    }
+
+   private:
+    // NOTE: Determines the ownership over the handle.
+    // If pointer is nullptr then it was transfered to another object.
+    uv_timer_t* handle_ = nullptr;
+  };
+
   class Clock {
    public:
     Clock(const Clock&) = delete;
@@ -522,13 +569,14 @@ inline auto EventLoop::Clock::Timer(
     Data(EventLoop& loop, std::chrono::nanoseconds nanoseconds)
       : loop(loop),
         nanoseconds(nanoseconds),
+        timer(loop),
         start(&loop, "Timer (start)"),
         interrupt(&loop, "Timer (interrupt)") {}
 
     EventLoop& loop;
     std::chrono::nanoseconds nanoseconds;
+    EventLoop::Timer timer;
     void* k = nullptr;
-    uv_timer_t timer;
     bool started = false;
     bool completed = false;
 
@@ -556,7 +604,7 @@ inline auto EventLoop::Clock::Timer(
                  data.completed = false;
 
                  data.k = &k;
-                 data.timer.data = &data;
+                 uv_handle_set_data(data.timer.base_handle(), &data);
 
                  auto start = [&data](const auto& nanoseconds) {
                    // NOTE: need to update nanoseconds in the event the clock
@@ -566,39 +614,29 @@ inline auto EventLoop::Clock::Timer(
                    data.loop.Submit(
                        [&data]() {
                          if (!data.completed) {
-                           auto error = uv_timer_init(data.loop, &data.timer);
+                           auto milliseconds =
+                               std::chrono::duration_cast<
+                                   std::chrono::milliseconds>(
+                                   data.nanoseconds);
+
+                           auto error = uv_timer_start(
+                               data.timer.handle(),
+                               [](uv_timer_t* timer) {
+                                 auto& data = *(Data*) timer->data;
+                                 CHECK_EQ(timer, data.timer.handle());
+                                 if (!data.completed) {
+                                   data.completed = true;
+                                   static_cast<K*>(data.k)->Start();
+                                 }
+                               },
+                               milliseconds.count(),
+                               0);
+
                            if (error) {
-                             data.completed = true;
-                             static_cast<K*>(data.k)->Fail(uv_strerror(error));
+                             static_cast<K*>(data.k)->Fail(
+                                 uv_strerror(error));
                            } else {
-                             auto milliseconds =
-                                 std::chrono::duration_cast<
-                                     std::chrono::milliseconds>(
-                                     data.nanoseconds);
-
-                             auto error = uv_timer_start(
-                                 &data.timer,
-                                 [](uv_timer_t* timer) {
-                                   auto& data = *(Data*) timer->data;
-                                   CHECK_EQ(timer, &data.timer);
-                                   if (!data.completed) {
-                                     data.completed = true;
-                                     uv_close(
-                                         (uv_handle_t*) &data.timer,
-                                         nullptr);
-                                     static_cast<K*>(data.k)->Start();
-                                   }
-                                 },
-                                 milliseconds.count(),
-                                 0);
-
-                             if (error) {
-                               uv_close((uv_handle_t*) &data.timer, nullptr);
-                               static_cast<K*>(data.k)->Fail(
-                                   uv_strerror(error));
-                             } else {
-                               data.started = true;
-                             }
+                             data.started = true;
                            }
                          }
                        },
@@ -628,16 +666,14 @@ inline auto EventLoop::Clock::Timer(
                          static_cast<K*>(data.k)->Stop();
                        } else if (!data.completed) {
                          data.completed = true;
-                         if (uv_is_active((uv_handle_t*) &data.timer)) {
-                           auto error = uv_timer_stop(&data.timer);
-                           uv_close((uv_handle_t*) &data.timer, nullptr);
+                         if (uv_is_active(data.timer.base_handle())) {
+                           auto error = uv_timer_stop(data.timer.handle());
                            if (error) {
                              static_cast<K*>(data.k)->Fail(uv_strerror(error));
                            } else {
                              static_cast<K*>(data.k)->Stop();
                            }
                          } else {
-                           uv_close((uv_handle_t*) &data.timer, nullptr);
                            static_cast<K*>(data.k)->Stop();
                          }
                        }

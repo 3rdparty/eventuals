@@ -14,7 +14,7 @@ cc_test(
         "task.cc",
         "closure.cc",
         # "parallel.cc",
-        # "timer.cc",
+        "timer.cc",
         "filesystem.cc",
         "event-loop-test.h",
         "iterate.cc",
