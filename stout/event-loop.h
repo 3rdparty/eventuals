@@ -132,6 +132,53 @@ class EventLoop : public Scheduler {
     uv_buf_t buffer_ = {};
   };
 
+  class Signal {
+   public:
+    Signal(EventLoop& loop) {
+      handle_ = new uv_signal_t();
+      CHECK_EQ(
+          uv_signal_init(loop, handle_),
+          0);
+    }
+
+    Signal(const Signal& that) = delete;
+
+    Signal(Signal&& that) {
+      handle_ = that.handle_;
+      that.handle_ = nullptr;
+    }
+
+    ~Signal() {
+      if (handle_ == nullptr) {
+        return;
+      }
+
+      if (uv_is_active(reinterpret_cast<uv_handle_t*>(handle_))) {
+        uv_signal_stop(handle_);
+      }
+
+      uv_close(
+          reinterpret_cast<uv_handle_t*>(handle_),
+          EventLoop::CloseCallback);
+    }
+
+    // Adaptors to libuv functions.
+    uv_signal_t* handle() {
+      CHECK_NOTNULL(handle_);
+      return handle_;
+    }
+
+    uv_handle_t* base_handle() {
+      CHECK_NOTNULL(handle_);
+      return reinterpret_cast<uv_handle_t*>(handle_);
+    }
+
+   private:
+    // NOTE: Determines the ownership over the handle.
+    // If pointer is nullptr then it was transfered to another object.
+    uv_signal_t* handle_ = nullptr;
+  };
+
   class Clock {
    public:
     Clock(const Clock&) = delete;
@@ -255,6 +302,10 @@ class EventLoop : public Scheduler {
 
  private:
   void Prepare();
+
+  static void CloseCallback(uv_handle_t* handle) {
+    delete handle;
+  }
 
   uv_loop_t loop_;
   uv_prepare_t prepare_;
