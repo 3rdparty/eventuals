@@ -138,8 +138,8 @@ Add the following to your `WORKSPACE` (or `WORKSPACE.bazel`):
 git_repository(
   name = "stout-eventuals",
   remote = "https://github.com/3rdparty/stout-eventuals",
-  commit = "579b62a16da74a4e197c96b39b3ecca39c00452f",
-  shallow_since = "1624126303 -0700",
+  commit = "fbfb1a8061b198b6393cae284d6930cf92518168",
+  shallow_since = "1632389695 +0300",
 )
 ```
 
