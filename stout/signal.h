@@ -12,17 +12,19 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Signal(stout::eventuals::EventLoop& loop, const int signum) {
+inline auto Signal(stout::eventuals::EventLoop& loop, const int& signum) {
   struct Data {
-    Data(EventLoop& loop, const int signum)
+    Data(EventLoop& loop, const int& signum)
       : loop(loop),
         signum(signum),
+        signal(loop),
         interrupt(&loop, "Signal (interrupt)") {}
 
     EventLoop& loop;
     int signum;
+    EventLoop::Signal signal;
+
     void* k = nullptr;
-    uv_signal_t signal;
 
     EventLoop::Waiter interrupt;
   };
@@ -35,25 +37,21 @@ inline auto Signal(stout::eventuals::EventLoop& loop, const int signum) {
             using K = std::decay_t<decltype(k)>;
 
             data.k = static_cast<void*>(&k);
-            data.signal.data = &data;
 
-            auto status = uv_signal_init(data.loop, &(data.signal));
-            if (status) {
-              k.Fail(uv_err_name(status));
-            } else {
-              auto error = uv_signal_start_oneshot(
-                  &(data.signal),
-                  [](uv_signal_t* signal, int signum) {
-                    auto& data = *static_cast<Data*>(signal->data);
-                    uv_close((uv_handle_t*) (&data.signal), nullptr);
-                    static_cast<K*>(data.k)->Start(signum);
-                  },
-                  data.signum);
+            uv_handle_set_data(
+                data.signal.base_handle(),
+                &data);
 
-              if (error) {
-                uv_close((uv_handle_t*) (&data.signal), nullptr);
-                k.Fail(uv_err_name(error));
-              }
+            auto error = uv_signal_start_oneshot(
+                data.signal.handle(),
+                [](uv_signal_t* signal, int signum) {
+                  auto& data = *static_cast<Data*>(signal->data);
+                  static_cast<K*>(data.k)->Start(signum);
+                },
+                data.signum);
+
+            if (error) {
+              k.Fail(uv_err_name(error));
             }
           })
           .interrupt([](auto& data, auto& k) {
@@ -70,18 +68,7 @@ inline auto Signal(stout::eventuals::EventLoop& loop, const int signum) {
 
             data.loop.Submit(
                 [&data]() {
-                  if (uv_is_active((uv_handle_t*) &data.signal)) {
-                    auto error = uv_signal_stop(&data.signal);
-                    uv_close((uv_handle_t*) (&data.signal), nullptr);
-                    if (error) {
-                      static_cast<K*>(data.k)->Fail(uv_strerror(error));
-                    } else {
-                      static_cast<K*>(data.k)->Stop();
-                    }
-                  } else {
-                    uv_close((uv_handle_t*) &data.signal, nullptr);
-                    static_cast<K*>(data.k)->Stop();
-                  }
+                  static_cast<K*>(data.k)->Stop();
                 },
                 &data.interrupt);
           }));

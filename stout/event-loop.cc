@@ -139,7 +139,7 @@ EventLoop::~EventLoop() {
     uv_print_all_handles(&loop_, stderr);
   }
 
-  uv_loop_close(&loop_);
+  CHECK_EQ(uv_loop_close(&loop_), 0);
 }
 
 ////////////////////////////////////////////////////////////////////////
