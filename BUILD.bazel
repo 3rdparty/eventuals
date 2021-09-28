@@ -62,6 +62,7 @@ cc_library(
     deps = [
         ":eventuals-base",
         "@com_github_libuv_libuv//:libuv",
+        "@com_github_3rdparty_stout_stateful_tally//:stateful-tally",
     ],
     visibility = ["//visibility:private"],
 )

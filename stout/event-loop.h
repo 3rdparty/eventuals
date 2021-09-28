@@ -12,6 +12,7 @@
 #include "stout/closure.h"
 #include "stout/context.h"
 #include "stout/eventual.h"
+#include "stout/stateful-tally.h"
 #include "stout/then.h"
 #include "uv.h"
 
@@ -357,6 +358,16 @@ class EventLoop : public Scheduler {
   uv_loop_t loop_;
   uv_prepare_t prepare_;
   uv_async_t async_;
+
+  // Denotes whether or not a thread can attempt to interrupt the loop
+  // or if the loop is shutting down and shouldn't be interrupted.
+  enum class Interruptible : uint8_t {
+    Yes,
+    No,
+  };
+
+  // Initially interruptible, uninterruptible during destruction.
+  StatefulTally<Interruptible> interrupters_ = Interruptible::Yes;
 
   std::atomic<bool> running_ = false;
 

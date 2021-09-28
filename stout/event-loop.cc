@@ -129,6 +129,17 @@ EventLoop::~EventLoop() {
   uv_prepare_stop(&prepare_);
   uv_close((uv_handle_t*) &prepare_, nullptr);
 
+  // Wait until all of the interrupters have finished before trying to
+  // close 'async_' (see 'Interrupt()' for more details).
+  auto interruptible = Interruptible::Yes;
+  if (!interrupters_.Update(interruptible, Interruptible::No)) {
+    std::abort(); // Invalid state encountered.
+  } else {
+    interrupters_.Wait([](auto /* interruptible */, auto count) {
+      return count == 0;
+    });
+  }
+
   uv_close((uv_handle_t*) &async_, nullptr);
 
   // Run the event loop one last time to handle uv_close()'s.
@@ -169,13 +180,21 @@ void EventLoop::Run() {
 
 ////////////////////////////////////////////////////////////////////////
 
-// Interrupts the event loop; necessary to have the loop redetermine
-// an I/O polling timeout in the event that a timer was removed
-// while it was executing.
 void EventLoop::Interrupt() {
-  auto error = uv_async_send(&async_);
-  if (error) {
-    LOG(FATAL) << uv_strerror(error);
+  // NOTE: the loop might be shutting down in which case there is a
+  // race with using 'async_' which could lead to undefined behavior
+  // and thus we try to increment 'interrupters_' thus signallying our
+  // presence and blocking the destructor from running until we've
+  // completed using 'async_'. If we can't interrupt then the
+  // increment will fail (because we're in 'Interruptible::No') and we
+  // wont attempt to use 'async_'.
+  auto interruptible = Interruptible::Yes;
+  if (interrupters_.Increment(interruptible)) {
+    auto error = uv_async_send(&async_);
+    if (error) {
+      LOG(FATAL) << uv_strerror(error);
+    }
+    interrupters_.Decrement();
   }
 }
 
