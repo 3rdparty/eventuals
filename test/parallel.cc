@@ -32,11 +32,11 @@ TEST(ParallelTest, Succeed) {
                  k.Ended();
                })
         | Parallel([]() {
-            return Then([](int i) {
-              std::this_thread::sleep_for(std::chrono::milliseconds(100));
-              return i + 1;
-            });
-          })
+             return Then([](int i) {
+               std::this_thread::sleep_for(std::chrono::milliseconds(100));
+               return i + 1;
+             });
+           })
         | Reduce(
                std::set<int>{2, 3, 4, 5, 6},
                [](auto& values) {
@@ -68,11 +68,11 @@ TEST(ParallelTest, Done) {
                  k.Ended();
                })
         | Parallel([]() {
-            return Then([](int i) {
-              std::this_thread::sleep_for(std::chrono::milliseconds(100));
-              return i + 1;
-            });
-          })
+             return Then([](int i) {
+               std::this_thread::sleep_for(std::chrono::milliseconds(100));
+               return i + 1;
+             });
+           })
         | Reduce(
                std::set<int>{2, 3, 4, 5, 6},
                [](auto& values) {
@@ -100,11 +100,11 @@ TEST(ParallelTest, IngressFail) {
                  k.Ended();
                })
         | Parallel([]() {
-            return Then([](int i) {
-              std::this_thread::sleep_for(std::chrono::milliseconds(100));
-              return i + 1;
-            });
-          })
+             return Then([](int i) {
+               std::this_thread::sleep_for(std::chrono::milliseconds(100));
+               return i + 1;
+             });
+           })
         | Reduce(
                std::set<int>{2, 3, 4, 5, 6},
                [](auto& values) {
@@ -130,11 +130,11 @@ TEST(ParallelTest, IngressStop) {
                  k.Ended();
                })
         | Parallel([]() {
-            return Then([](int i) {
-              std::this_thread::sleep_for(std::chrono::milliseconds(100));
-              return i + 1;
-            });
-          })
+             return Then([](int i) {
+               std::this_thread::sleep_for(std::chrono::milliseconds(100));
+               return i + 1;
+             });
+           })
         | Reduce(
                std::set<int>{2, 3, 4, 5, 6},
                [](auto& values) {
@@ -160,8 +160,8 @@ TEST(ParallelTest, WorkerFail) {
                  k.Ended();
                })
         | Parallel([]() {
-            return Raise("error");
-          })
+             return Raise("error");
+           })
         | Reduce(
                std::set<int>{2, 3, 4, 5, 6},
                [](auto& values) {
@@ -187,11 +187,11 @@ TEST(ParallelTest, WorkerStop) {
                  k.Ended();
                })
         | Parallel([]() {
-            return Eventual<int>()
-                .start([](auto& k, auto&&...) {
-                  k.Stop();
-                });
-          })
+             return Eventual<int>()
+                 .start([](auto& k, auto&&...) {
+                   k.Stop();
+                 });
+           })
         | Reduce(
                std::set<int>{2, 3, 4, 5, 6},
                [](auto& values) {
