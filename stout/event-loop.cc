@@ -131,13 +131,46 @@ EventLoop::~EventLoop() {
 
   uv_close((uv_handle_t*) &async_, nullptr);
 
-  // Run the event loop one last time to handle uv_close()'s.
-  uv_run(&loop_, UV_RUN_NOWAIT);
+  // NOTE: ideally we can just run 'uv_run()' once now in order to
+  // properly from the 'uv_close()' calls we just made. Unfortunately
+  // libuv has a peculiar behavior where if 'async_' has an
+  // outstanding 'uv_async_send()' then we won't actually process the
+  // 'uv_close()' call we just made for 'async_' with a single
+  // 'uv_run()' but need to run 'uv_run()' at least twice.
+  //
+  // Moreover, it's possible that there are _other_ handles and/or
+  // requests that are still referenced or active which should be
+  // considered a bug since we're trying to destruct the event loop
+  // here!
+  //
+  // To manage both of these requirements we run 'uv_run()' repeatedly
+  // until the loop is no longer alive (i.e., no more referenced or
+  // active handles/requests) and emit warnings every 100k
+  // iterations. The reason we're not using something like
+  // 'LOG_IF_EVERY_N()' is because we explicitly _don't_ want to emit
+  // a warning the first time since the loop might still be alive only
+  // because of the 'async_' situation explained above.
+  static constexpr size_t ITERATIONS = 100000;
+  size_t iterations = ITERATIONS;
 
-  if (Alive()) {
-    LOG(WARNING) << "destructing EventLoop with active handles: ";
-    uv_print_all_handles(&loop_, stderr);
-  }
+  auto alive = Alive();
+
+  CHECK(alive) << "should still have prepare and async handles to close";
+
+  do {
+    alive = uv_run(&loop_, UV_RUN_NOWAIT);
+
+    if (alive && --iterations == 0) {
+      LOG(WARNING) << "destructing EventLoop with active handles:\n";
+
+      // TODO(benh): use 'uv_walk()' instead of
+      // 'uv_print_all_handles()' so we can use 'LOG(WARNING)' instead
+      // of 'stderr'.
+      uv_print_all_handles(&loop_, stderr);
+
+      iterations = ITERATIONS;
+    }
+  } while (alive);
 
   CHECK_EQ(uv_loop_close(&loop_), 0);
 }
