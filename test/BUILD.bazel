@@ -1,29 +1,44 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 
+
+eventuals_base_sources = [
+    "eventual.cc",
+    "stream.cc",
+    "lock.cc",
+    "repeat.cc",
+    "then.cc",
+    "conditional.cc",
+    "callback.cc",
+    "static-thread-pool.cc",
+    "task.cc",
+    "closure.cc",
+    # "parallel.cc",
+    "iterate.cc",
+    "collect.cc",
+    "filter.cc",
+    "take.cc",
+]
+
+eventuals_events_sources = [
+    "timer.cc",
+    "filesystem.cc",
+    "event-loop-test.h",
+    "dns-resolver.cc",
+    "signal.cc",
+]
+
+eventuals_http_sources = select({
+    "@bazel_tools//src/conditions:windows": [],
+    "//conditions:default": [
+        # NOTE: we don't compile any of the tests for eventuals-http
+        # on Windows because we currently can't reliably compile
+        # either OpenSSL or boringssl on Windows (see #59).
+    ],
+})
+
 cc_test(
     name = "eventuals",
-    srcs = [
-        "eventual.cc",
-        "stream.cc",
-        "lock.cc",
-        "repeat.cc",
-        "then.cc",
-        "conditional.cc",
-        "callback.cc",
-        "static-thread-pool.cc",
-        "task.cc",
-        "closure.cc",
-        # "parallel.cc",
-        "timer.cc",
-        "filesystem.cc",
-        "event-loop-test.h",
-        "iterate.cc",
-        "dns-resolver.cc",
-        "signal.cc",
-        "collect.cc",
-        "filter.cc",
-        "take.cc",
-    ],
+    srcs = eventuals_base_sources + eventuals_events_sources + eventuals_http_sources,
     deps = [
         "//:eventuals",
         "@com_github_google_googletest//:gtest_main",

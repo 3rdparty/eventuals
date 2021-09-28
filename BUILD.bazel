@@ -1,7 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
-    name = "eventuals",
+    name = "eventuals-base",
     hdrs = [
         "stout/undefined.h",
         "stout/sequence.h",
@@ -30,14 +30,9 @@ cc_library(
         "stout/closure.h",
         "stout/compose.h",
         "stout/catch.h",
-        "stout/event-loop.h",
-        "stout/timer.h",
         "stout/head.h",
-        "stout/filesystem.h",
         "stout/parallel.h",
         "stout/iterate.h",
-        "stout/dns-resolver.h",
-        "stout/signal.h",
         "stout/collect.h",
         "stout/filter.h",
         "stout/take.h",
@@ -45,12 +40,54 @@ cc_library(
     srcs = [
         "stout/scheduler.cc",
         "stout/static-thread-pool.cc",
-        "stout/event-loop.cc",
     ],
     deps = [
         "@com_github_google_glog//:glog",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "eventuals-events",
+    hdrs = [
+        "stout/event-loop.h",
+        "stout/timer.h",
+        "stout/filesystem.h",
+        "stout/dns-resolver.h",
+        "stout/signal.h",
+    ],
+    srcs = [
+        "stout/event-loop.cc",
+    ],
+    deps = [
+        ":eventuals-base",
         "@com_github_libuv_libuv//:libuv",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "eventuals-http",
+    deps = [
+        ":eventuals-base",
         "@com_github_curl_curl//:libcurl",
     ],
+    visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "eventuals",
+    deps = [
+        ":eventuals-base",
+        ":eventuals-events",
+    ] + select({
+        "@bazel_tools//src/conditions:windows": [],
+        "//conditions:default": [
+            # NOTE: we don't link eventuals-http on Windows because we
+            # currently can't reliably compile either OpenSSL or
+            # boringssl on Windows (see #59).
+            "//:eventuals-http",
+        ],
+    }),
     visibility = ["//visibility:public"],
 )
