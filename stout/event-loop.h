@@ -132,137 +132,6 @@ class EventLoop : public Scheduler {
     uv_buf_t buffer_ = {};
   };
 
-  class Signal {
-   public:
-    Signal(EventLoop& loop) {
-      handle_ = new uv_signal_t();
-      CHECK_EQ(
-          uv_signal_init(loop, handle_),
-          0);
-    }
-
-    Signal(const Signal& that) = delete;
-
-    Signal(Signal&& that) {
-      handle_ = that.handle_;
-      that.handle_ = nullptr;
-    }
-
-    ~Signal() {
-      if (handle_ == nullptr) {
-        return;
-      }
-
-      if (uv_is_active(reinterpret_cast<uv_handle_t*>(handle_))) {
-        uv_signal_stop(handle_);
-      }
-
-      uv_close(
-          reinterpret_cast<uv_handle_t*>(handle_),
-          EventLoop::CloseCallback);
-    }
-
-    // Adaptors to libuv functions.
-    uv_signal_t* handle() {
-      CHECK_NOTNULL(handle_);
-      return handle_;
-    }
-
-    uv_handle_t* base_handle() {
-      CHECK_NOTNULL(handle_);
-      return reinterpret_cast<uv_handle_t*>(handle_);
-    }
-
-   private:
-    // NOTE: Determines the ownership over the handle.
-    // If pointer is nullptr then it was transfered to another object.
-    uv_signal_t* handle_ = nullptr;
-  };
-
-  class Timer {
-   public:
-    Timer(EventLoop& loop) {
-      handle_ = new uv_timer_t();
-      CHECK_EQ(
-          uv_timer_init(loop, handle_),
-          0);
-    }
-
-    Timer(const Timer& that) = delete;
-
-    Timer(Timer&& that) {
-      handle_ = that.handle_;
-      that.handle_ = nullptr;
-    }
-
-    ~Timer() {
-      if (handle_ == nullptr) {
-        return;
-      }
-
-      if (uv_is_active(reinterpret_cast<uv_handle_t*>(handle_))) {
-        uv_timer_stop(handle_);
-      }
-
-      uv_close(
-          reinterpret_cast<uv_handle_t*>(handle_),
-          EventLoop::CloseCallback);
-    }
-
-    // Adaptors to libuv functions.
-    uv_timer_t* handle() {
-      CHECK_NOTNULL(handle_);
-      return handle_;
-    }
-
-    uv_handle_t* base_handle() {
-      CHECK_NOTNULL(handle_);
-      return reinterpret_cast<uv_handle_t*>(handle_);
-    }
-
-   private:
-    // NOTE: Determines the ownership over the handle.
-    // If pointer is nullptr then it was transfered to another object.
-    uv_timer_t* handle_ = nullptr;
-  };
-
-  class Clock {
-   public:
-    Clock(const Clock&) = delete;
-
-    Clock(EventLoop& loop)
-      : loop_(loop) {}
-
-    std::chrono::nanoseconds Now();
-
-    auto Timer(const std::chrono::nanoseconds& nanoseconds);
-
-    bool Paused();
-
-    void Pause();
-
-    void Resume();
-
-    void Advance(const std::chrono::nanoseconds& nanoseconds);
-
-   private:
-    EventLoop& loop_;
-
-    // Stores paused time, no time means clock is not paused.
-    std::optional<std::chrono::nanoseconds> paused_;
-    std::chrono::nanoseconds advanced_;
-
-    struct Pending {
-      std::chrono::nanoseconds nanoseconds;
-      stout::Callback<const std::chrono::nanoseconds&> start;
-    };
-
-    // NOTE: using "blocking" synchronization here as pausing the
-    // clock should only be done in tests.
-    std::mutex mutex_;
-    std::list<Pending> pending_;
-  };
-
   struct Waiter : public Scheduler::Context {
    public:
     Waiter(EventLoop* loop, std::string&& name)
@@ -290,6 +159,295 @@ class EventLoop : public Scheduler {
 
    private:
     std::string name_;
+  };
+
+  class Signal {
+   public:
+    Signal(EventLoop& loop) {
+      handle_ = new uv_signal_t();
+      CHECK_EQ(
+          uv_signal_init(loop, handle_),
+          0);
+    }
+
+    Signal(const Signal& that) = delete;
+
+    Signal(Signal&& that) {
+      handle_ = that.handle_;
+      that.handle_ = nullptr;
+    }
+
+    ~Signal() {
+      if (handle_ == nullptr) {
+        return;
+      }
+
+      if (uv_is_active(reinterpret_cast<uv_handle_t*>(handle_))) {
+        uv_signal_stop(handle_);
+      }
+
+      uv_close(base_handle(), [](uv_handle_t* handle) {
+        delete handle;
+      });
+    }
+
+    // Adaptors to libuv functions.
+    uv_signal_t* handle() {
+      CHECK_NOTNULL(handle_);
+      return handle_;
+    }
+
+    uv_handle_t* base_handle() {
+      CHECK_NOTNULL(handle_);
+      return reinterpret_cast<uv_handle_t*>(handle_);
+    }
+
+   private:
+    // NOTE: Determines the ownership over the handle.
+    // If pointer is nullptr then it was transfered to another object.
+    uv_signal_t* handle_ = nullptr;
+  };
+
+  class Clock {
+   public:
+    Clock(const Clock&) = delete;
+
+    Clock(EventLoop& loop)
+      : loop_(loop) {}
+
+    std::chrono::nanoseconds Now();
+
+    auto Timer(const std::chrono::nanoseconds& nanoseconds);
+
+    bool Paused();
+
+    void Pause();
+
+    void Resume();
+
+    void Advance(const std::chrono::nanoseconds& nanoseconds);
+
+    // Submits the given callback to be invoked when the clock is not
+    // paused or the specified number of nanoseconds have been
+    // advanced from the paused time.
+    void Submit(
+        Callback<const std::chrono::nanoseconds&> callback,
+        const std::chrono::nanoseconds& nanoseconds) {
+      if (!Paused()) { // TODO(benh): add 'unlikely()'.
+        callback(nanoseconds);
+      } else {
+        std::scoped_lock lock(mutex_);
+        pending_.emplace_back(
+            Pending{nanoseconds + advanced_, std::move(callback)});
+      }
+    }
+
+    EventLoop& loop() {
+      return loop_;
+    }
+
+   private:
+    struct _Timer {
+      template <typename K_>
+      struct Continuation {
+        Continuation(K_ k, Clock& clock, std::chrono::nanoseconds&& nanoseconds)
+          : k_(std::move(k)),
+            clock_(clock),
+            nanoseconds_(std::move(nanoseconds)),
+            start_(&clock.loop(), "Timer (start)"),
+            interrupt_(&clock.loop(), "Timer (interrupt)") {
+          // NOTE: we need to heap allocate because when closing the timer
+          // in the destructor the memory needs to remain valid until
+          // _after_ the callback passed to 'uv_close()' gets executed!
+          timer_ = new uv_timer_t();
+          CHECK_EQ(0, uv_timer_init(loop(), timer()));
+        }
+
+        Continuation(Continuation&& that)
+          : k_(std::move(that.k_)),
+            clock_(that.clock_),
+            nanoseconds_(std::move(that.nanoseconds_)),
+            start_(&that.clock_.loop(), "Timer (start)"),
+            interrupt_(&that.clock_.loop(), "Timer (interrupt)") {
+          CHECK(!started_ || completed_) << "moving after starting";
+          CHECK(!handler_);
+          timer_ = that.timer_;
+          that.timer_ = nullptr;
+        }
+
+        ~Continuation() {
+          if (timer_ != nullptr) {
+            if (uv_is_active(handle())) {
+              uv_timer_stop(timer());
+            }
+
+            uv_close(handle(), [](uv_handle_t* handle) {
+              delete handle;
+            });
+          }
+        }
+
+        void Start() {
+          CHECK(!started_ || completed_)
+              << "starting timer that hasn't completed";
+
+          started_ = false;
+          completed_ = false;
+
+          uv_handle_set_data(handle(), this);
+
+          // Clock is basically a "scheduler" for timers so we need to
+          // "submit" a callback to be executed when the clock is not
+          // paused which might be right away but might also be at
+          // some later timer after a paused clock has been advanced
+          // or unpaused.
+          clock_.Submit(
+              [this](const auto& nanoseconds) {
+                // NOTE: need to update nanoseconds in the event the clock
+                // was paused/advanced and the nanosecond count differs.
+                nanoseconds_ = nanoseconds;
+
+                loop().Submit(
+                    [this]() {
+                      if (!completed_) {
+                        auto milliseconds =
+                            std::chrono::duration_cast<
+                                std::chrono::milliseconds>(
+                                nanoseconds_);
+
+                        auto error = uv_timer_start(
+                            timer(),
+                            [](uv_timer_t* timer) {
+                              auto& continuation = *(Continuation*) timer->data;
+                              CHECK_EQ(timer, continuation.timer());
+                              if (!continuation.completed_) {
+                                continuation.completed_ = true;
+                                continuation.k_.Start();
+                              }
+                            },
+                            milliseconds.count(),
+                            0);
+
+                        if (error) {
+                          k_.Fail(uv_strerror(error));
+                        } else {
+                          started_ = true;
+                        }
+                      }
+                    },
+                    &start_);
+              },
+              nanoseconds_);
+        }
+
+        template <typename... Args>
+        void Fail(Args&&... args) {
+          k_.Fail(std::forward<Args>(args)...);
+        }
+
+        void Stop() {
+          k_.Stop();
+        }
+
+        void Register(Interrupt& interrupt) {
+          k_.Register(interrupt);
+
+          handler_.emplace(&interrupt, [this]() {
+            // NOTE: even though we execute the interrupt handler on
+            // the event loop we will properly context switch to the
+            // scheduling context that first created the timer because
+            // we compose '_Timer::Composable' with 'Reschedule()' in
+            // 'EventLoop::Close::Timer()'.
+            loop().Submit(
+                [this]() {
+                  if (!started_) {
+                    CHECK(!completed_);
+                    completed_ = true;
+                    k_.Stop();
+                  } else if (!completed_) {
+                    completed_ = true;
+                    if (uv_is_active(handle())) {
+                      auto error = uv_timer_stop(timer());
+                      if (error) {
+                        k_.Fail(uv_strerror(error));
+                      } else {
+                        k_.Stop();
+                      }
+                    } else {
+                      k_.Stop();
+                    }
+                  }
+                },
+                &interrupt_);
+          });
+
+          // NOTE: we always install the handler in case 'Start()'
+          // never gets called i.e., due to a paused clock.
+          handler_->Install();
+        }
+
+       private:
+        EventLoop& loop() {
+          return clock_.loop();
+        }
+
+        // Adaptors to libuv functions.
+        uv_timer_t* timer() {
+          CHECK_NOTNULL(timer_);
+          return timer_;
+        }
+
+        uv_handle_t* handle() {
+          CHECK_NOTNULL(timer_);
+          return reinterpret_cast<uv_handle_t*>(timer_);
+        }
+
+        K_ k_;
+        Clock& clock_;
+        std::chrono::nanoseconds nanoseconds_;
+
+        // NOTE: Determines the ownership over the handle.
+        // If pointer is nullptr then it was transfered to another object.
+        uv_timer_t* timer_ = nullptr;
+
+        bool started_ = false;
+        bool completed_ = false;
+
+        EventLoop::Waiter start_;
+        EventLoop::Waiter interrupt_;
+
+        std::optional<Interrupt::Handler> handler_;
+      };
+
+      struct Composable {
+        template <typename Arg>
+        using ValueFrom = void;
+
+        template <typename Arg, typename K>
+        auto k(K k) && {
+          return Continuation<K>{std::move(k), clock_, std::move(nanoseconds_)};
+        }
+
+        Clock& clock_;
+        std::chrono::nanoseconds nanoseconds_;
+      };
+    };
+
+    EventLoop& loop_;
+
+    // Stores paused time, no time means clock is not paused.
+    std::optional<std::chrono::nanoseconds> paused_;
+    std::chrono::nanoseconds advanced_;
+
+    struct Pending {
+      std::chrono::nanoseconds nanoseconds;
+      Callback<const std::chrono::nanoseconds&> callback;
+    };
+
+    // NOTE: using "blocking" synchronization here as pausing the
+    // clock should only be done in tests.
+    std::mutex mutex_;
+    std::list<Pending> pending_;
   };
 
   // Getter/Resetter for default event loop.
@@ -353,10 +511,6 @@ class EventLoop : public Scheduler {
 
  private:
   void Check();
-
-  static void CloseCallback(uv_handle_t* handle) {
-    delete handle;
-  }
 
   uv_loop_t loop_;
   uv_check_t check_;
@@ -568,123 +722,14 @@ inline std::chrono::nanoseconds EventLoop::Clock::Now() {
 
 inline auto EventLoop::Clock::Timer(
     const std::chrono::nanoseconds& nanoseconds) {
-  // Helper struct storing multiple data fields.
-  struct Data {
-    Data(EventLoop& loop, std::chrono::nanoseconds nanoseconds)
-      : loop(loop),
-        nanoseconds(nanoseconds),
-        timer(loop),
-        start(&loop, "Timer (start)"),
-        interrupt(&loop, "Timer (interrupt)") {}
-
-    EventLoop& loop;
-    std::chrono::nanoseconds nanoseconds;
-    EventLoop::Timer timer;
-    void* k = nullptr;
-    bool started = false;
-    bool completed = false;
-
-    EventLoop::Waiter start;
-    EventLoop::Waiter interrupt;
-  };
-
   // NOTE: we use a 'Closure' so that we can reschedule using the
   // existing context after the timer has fired (or was interrupted).
   //
-  // TODO(benh): consider creating a 'struct _Timer' if it simplifies
-  // reasoning about this code or speeds up compile times.
-  //
   // TODO(benh): borrow 'this' so we avoid timers that outlive a clock.
-  return Closure([this, data = Data(loop_, nanoseconds)]() mutable {
+  return Closure([this, nanoseconds]() mutable {
     Scheduler::Context* previous = Scheduler::Context::Get();
-    return Eventual<void>()
-               .start([&](auto& k) mutable {
-                 using K = std::decay_t<decltype(k)>;
-
-                 CHECK(!data.started || data.completed)
-                     << "starting timer that hasn't completed";
-
-                 data.started = false;
-                 data.completed = false;
-
-                 data.k = &k;
-                 uv_handle_set_data(data.timer.base_handle(), &data);
-
-                 auto start = [&data](const auto& nanoseconds) {
-                   // NOTE: need to update nanoseconds in the event the clock
-                   // was paused/advanced and the nanosecond count differs.
-                   data.nanoseconds = nanoseconds;
-
-                   data.loop.Submit(
-                       [&data]() {
-                         if (!data.completed) {
-                           auto milliseconds =
-                               std::chrono::duration_cast<
-                                   std::chrono::milliseconds>(
-                                   data.nanoseconds);
-
-                           auto error = uv_timer_start(
-                               data.timer.handle(),
-                               [](uv_timer_t* timer) {
-                                 auto& data = *(Data*) timer->data;
-                                 CHECK_EQ(timer, data.timer.handle());
-                                 if (!data.completed) {
-                                   data.completed = true;
-                                   static_cast<K*>(data.k)->Start();
-                                 }
-                               },
-                               milliseconds.count(),
-                               0);
-
-                           if (error) {
-                             static_cast<K*>(data.k)->Fail(
-                                 uv_strerror(error));
-                           } else {
-                             data.started = true;
-                           }
-                         }
-                       },
-                       &data.start);
-                 };
-
-                 if (!Paused()) { // TODO(benh): add 'unlikely()'.
-                   start(data.nanoseconds);
-                 } else {
-                   std::scoped_lock lock(mutex_);
-                   pending_.emplace_back(
-                       Pending{data.nanoseconds + advanced_, std::move(start)});
-                 }
-               })
-               .interrupt([&data](auto& k) {
-                 using K = std::decay_t<decltype(k)>;
-
-                 // NOTE: we need to save the continuation here in
-                 // case we never started and set it above!
-                 data.k = static_cast<void*>(&k);
-
-                 data.loop.Submit(
-                     [&data]() {
-                       if (!data.started) {
-                         CHECK(!data.completed);
-                         data.completed = true;
-                         static_cast<K*>(data.k)->Stop();
-                       } else if (!data.completed) {
-                         data.completed = true;
-                         if (uv_is_active(data.timer.base_handle())) {
-                           auto error = uv_timer_stop(data.timer.handle());
-                           if (error) {
-                             static_cast<K*>(data.k)->Fail(uv_strerror(error));
-                           } else {
-                             static_cast<K*>(data.k)->Stop();
-                           }
-                         } else {
-                           static_cast<K*>(data.k)->Stop();
-                         }
-                       }
-                     },
-                     &data.interrupt);
-               })
-        | Reschedule(previous);
+    return _Timer::Composable{*this, std::move(nanoseconds)}
+    | Reschedule(previous);
   });
 }
 
