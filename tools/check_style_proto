@@ -1,0 +1,84 @@
+#!/bin/bash
+
+# Check for existence of prototool
+which prototool >/dev/null
+if [[ $? != 0 ]]; then
+  printf "Failed to find 'prototool'\n"
+  exit 1
+fi
+
+# Find all .proto files in the root directory
+current_directory=$(pwd)
+printf "Finding all .proto files in the %s\n" "${current_directory} directory..."
+IFS=:
+proto_file_paths=($(find . -type f -name "*.proto"))
+unset IFS
+
+# Check every .proto file on correct code style
+check(){
+  if [[ ${#proto_file_paths[@]} == 0 ]]; then
+    printf "There are no .proto files to check!\n"
+    exit 0
+  fi  
+
+  status_exit=0
+
+  for file in ${proto_file_paths}
+  do
+    # Check if the specific file has correct code format
+    # !!! RJ, GORM, BEN 
+    # IMPORTANT TO READ!!!
+    # In the documentation they tell us that in order to
+    # write a lint error in the form file:line:column:message
+    # if a file is unformatted we should use the next command:
+    # prototool format [file] -l (or --lint)
+    # but in fact it only prints that Format returned a diff.
+    # Actually if the file is well formatted the command above will
+    # return 0. So I used this fact in the code below!
+    # The link to the official doc:
+    # https://github.com/uber/prototool#prototool-format
+    # Read the Command Overview section!
+
+    printf "Checking ${file:2} ...\n"
+    prototool format -l ${file:2}
+    format_status=$(echo $?)
+
+    if [[ ${format_status} != 0 ]]; then
+      tput bold # Bold text in terminal
+      tput setaf 1 # Red font in terminal
+      printf "${file:2} file has incorrect code format!\n"
+      tput sgr0
+      printf "You can format proto files with prototool.\n"
+      tput bold # Bold text in terminal
+      printf "Command to format .proto files: "
+      tput setaf 2 # Green font in terminal
+      printf "prototool format -w file_name\n"
+      tput sgr0 # Reset terminal.
+      exit 1
+    fi
+
+    # Check if the specific line has more than 80 characters
+    local -i number=1
+    IFS='\n'
+    while read line; do
+      local -i length=${#line}
+      if (( length > 80 )); then
+        status_exit=1
+        tput bold
+        printf "%s:%i:%i: " "${file}" "${number}" "${length}"
+        tput setaf 1 # Red
+        printf "error: "
+        tput sgr0 # Reset terminal.
+        tput bold
+        printf "line exceeds 80 characters\n"
+        tput sgr0 # Reset terminal.
+        printf "%s\n" "${line}"
+      fi
+      (( number++ ))
+    done < ${file}
+    unset IFS
+  done
+  exit ${status_exit}
+} # End of check() function
+
+check
