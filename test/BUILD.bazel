@@ -17,6 +17,7 @@ eventuals_base_sources = [
     "collect.cc",
     "filter.cc",
     "take.cc",
+    "range.cc",
 ]
 
 eventuals_events_sources = [

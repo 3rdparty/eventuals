@@ -1,0 +1,89 @@
+#include "stout/range.h"
+
+#include <vector>
+
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "stout/collect.h"
+#include "stout/terminal.h"
+
+using stout::eventuals::Collect;
+using stout::eventuals::Range;
+using testing::ElementsAre;
+
+TEST(Range, CommonFlow) {
+  auto s = Range(0, 5)
+      | Collect<std::vector<int>>();
+
+  EXPECT_THAT(*s, ElementsAre(0, 1, 2, 3, 4));
+}
+
+TEST(Range, IncorrectSetup) {
+  auto s = Range(2, 0)
+      | Collect<std::vector<int>>();
+
+  EXPECT_THAT(*s, ElementsAre());
+}
+
+TEST(Range, NegativeRange) {
+  auto s = Range(-2, 2)
+      | Collect<std::vector<int>>();
+
+  EXPECT_THAT(*s, ElementsAre(-2, -1, 0, 1));
+}
+
+TEST(Range, NegativeFrom) {
+  auto s = Range(-2)
+      | Collect<std::vector<int>>();
+
+  EXPECT_THAT(*s, ElementsAre());
+}
+
+TEST(Range, DefaultFrom) {
+  auto s = Range(3)
+      | Collect<std::vector<int>>();
+
+  EXPECT_THAT(*s, ElementsAre(0, 1, 2));
+}
+
+TEST(Range, SpecifiedStep) {
+  auto s = Range(0, 10, 2)
+      | Collect<std::vector<int>>();
+
+  EXPECT_THAT(*s, ElementsAre(0, 2, 4, 6, 8));
+}
+
+TEST(Range, SpecifiedNegativeStep) {
+  auto s = Range(10, 0, -2)
+      | Collect<std::vector<int>>();
+
+  EXPECT_THAT(*s, ElementsAre(10, 8, 6, 4, 2));
+}
+
+TEST(Range, SpecifiedStepIncorrect) {
+  auto s = Range(10, 0, 2)
+      | Collect<std::vector<int>>();
+
+  EXPECT_THAT(*s, ElementsAre());
+}
+
+TEST(Range, SpecifiedStepIncorrectNegative) {
+  auto s = Range(0, -10, 2)
+      | Collect<std::vector<int>>();
+
+  EXPECT_THAT(*s, ElementsAre());
+}
+
+TEST(Range, SpecifiedIncorrect) {
+  auto s = Range(0, 10, -2)
+      | Collect<std::vector<int>>();
+
+  EXPECT_THAT(*s, ElementsAre());
+}
+
+TEST(Range, SpecifiedStepNegative) {
+  auto s = Range(0, -10, -2)
+      | Collect<std::vector<int>>();
+
+  EXPECT_THAT(*s, ElementsAre(0, -2, -4, -6, -8));
+}
