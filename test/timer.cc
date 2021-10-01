@@ -114,11 +114,11 @@ TEST_F(EventLoopTest, InterruptTimer) {
     interrupt.Trigger();
   });
 
-  thread.detach();
-
   EventLoop::Default().Run();
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
+
+  thread.join();
 }
 
 
