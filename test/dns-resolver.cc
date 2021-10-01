@@ -20,7 +20,7 @@ using testing::MockFunction;
 class DomainNameResolveTest : public EventLoopTest {};
 
 TEST_F(DomainNameResolveTest, Succeed) {
-  std::string address = "docs.libuv.org", port = "6667";
+  std::string address = "localhost", port = "6667";
 
   auto e = DomainNameResolve(address, port);
 
@@ -38,7 +38,7 @@ TEST_F(DomainNameResolveTest, Succeed) {
 
 
 TEST_F(DomainNameResolveTest, Fail) {
-  std::string address = "wwww.google.com", port = "6667";
+  std::string address = "localhost1", port = "6667";
 
   auto e = DomainNameResolve(address, port);
 
@@ -53,7 +53,7 @@ TEST_F(DomainNameResolveTest, Fail) {
 
 
 TEST_F(DomainNameResolveTest, Stop) {
-  std::string address = "www.google.com", port = "6667";
+  std::string address = "localhost", port = "6667";
   auto e = DomainNameResolve(address, port)
       | Eventual<int>()
             .start([](auto& k, auto&& ip) {
