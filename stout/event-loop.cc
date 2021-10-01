@@ -146,15 +146,31 @@ EventLoop::EventLoop()
   : clock_(*this) {
   uv_loop_init(&loop_);
 
-  uv_prepare_init(&loop_, &prepare_);
+  // NOTE: we use 'uv_check_t' instead of 'uv_prepare_t' because it
+  // runs after the event loop has performed all of it's functionality
+  // so we know that once 'Check()' has completed _and_ the loop is no
+  // longer alive there shouldn't be any more work to do (with the
+  // caveat that another thread can still 'Submit()' a callback at any
+  // point in time that we may "miss" but there isn't anything we can
+  // do about that except 'RunForever()' or application-level
+  // synchronization).
+  uv_check_init(&loop_, &check_);
 
-  prepare_.data = this;
+  check_.data = this;
 
-  uv_prepare_start(&prepare_, [](uv_prepare_t* prepare) {
-    ((EventLoop*) prepare->data)->Prepare();
+  uv_check_start(&check_, [](uv_check_t* check) {
+    ((EventLoop*) check->data)->Check();
   });
 
+  // NOTE: we unreference 'check_' so that when we run the event
+  // loop it's presence doesn't factor into whether or not the loop is
+  // considered alive.
+  uv_unref((uv_handle_t*) &check_);
+
   uv_async_init(&loop_, &async_, nullptr);
+
+  // NOTE: see comments in 'Run()' as to why we don't unreference
+  // 'async_' like we do with 'check_'.
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -162,8 +178,8 @@ EventLoop::EventLoop()
 EventLoop::~EventLoop() {
   CHECK(!Running());
 
-  uv_prepare_stop(&prepare_);
-  uv_close((uv_handle_t*) &prepare_, nullptr);
+  uv_check_stop(&check_);
+  uv_close((uv_handle_t*) &check_, nullptr);
 
   uv_close((uv_handle_t*) &async_, nullptr);
 
@@ -191,7 +207,7 @@ EventLoop::~EventLoop() {
 
   auto alive = Alive();
 
-  CHECK(alive) << "should still have prepare and async handles to close";
+  CHECK(alive) << "should still have check and async handles to close";
 
   do {
     alive = uv_run(&loop_, UV_RUN_NOWAIT);
@@ -244,28 +260,40 @@ EventLoop::~EventLoop() {
 ////////////////////////////////////////////////////////////////////////
 
 void EventLoop::Run() {
-  bool again = false;
+  bool alive = false;
   do {
     in_event_loop_ = true;
     running_ = true;
 
-    again = uv_run(&loop_, UV_RUN_NOWAIT);
+    // NOTE: the semantics of 'Run()' are to run until the loop is no
+    // longer alive but _NOT_ to block when polling for I/O (need to
+    // use 'RunForever()' for that).
+    //
+    // We can't use 'UV_RUN_DEFAULT' because we don't want to block on
+    // I/O.
+    //
+    // Moreover, even 'UV_RUN_NOWAIT' poses problems because our
+    // 'async_' handle means 'uv_run()' will always return that the
+    // loop is still alive and it's ambiguous whether or not that is
+    // due to our 'async_' handle or another handle/request. We can't
+    // unreferene the 'async_' handle because emperically that shown
+    // to make 'uv_async_send()' no longer work. Thus, we use
+    // 'UV_RUN_NOWAIT' but then unreference our 'async_' handle and
+    // check if the loop is _really_ alive to determine if we should
+    // continue running the loop or not.
+    alive = uv_run(&loop_, UV_RUN_NOWAIT);
+
+    CHECK(alive) << "should still have async handle";
 
     running_ = false;
     in_event_loop_ = false;
 
-    uv_unref((uv_handle_t*) &prepare_);
     uv_unref((uv_handle_t*) &async_);
 
-    again = Alive();
+    alive = Alive();
 
-    uv_ref((uv_handle_t*) &prepare_);
     uv_ref((uv_handle_t*) &async_);
-
-    if (!again) {
-      again = waiters_.load(std::memory_order_relaxed) != nullptr;
-    }
-  } while (again);
+  } while (alive);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -324,7 +352,7 @@ void EventLoop::Submit(Callback<> callback, Scheduler::Context* context) {
 
 ////////////////////////////////////////////////////////////////////////
 
-void EventLoop::Prepare() {
+void EventLoop::Check() {
   Waiter* waiter = nullptr;
   do {
   load:

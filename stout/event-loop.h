@@ -352,14 +352,14 @@ class EventLoop : public Scheduler {
   }
 
  private:
-  void Prepare();
+  void Check();
 
   static void CloseCallback(uv_handle_t* handle) {
     delete handle;
   }
 
   uv_loop_t loop_;
-  uv_prepare_t prepare_;
+  uv_check_t check_;
   uv_async_t async_;
 
   std::atomic<bool> running_ = false;
