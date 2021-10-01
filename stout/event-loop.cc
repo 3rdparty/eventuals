@@ -1,5 +1,7 @@
 #include "stout/event-loop.h"
 
+#include <sstream>
+
 ////////////////////////////////////////////////////////////////////////
 
 namespace stout {
@@ -161,12 +163,42 @@ EventLoop::~EventLoop() {
     alive = uv_run(&loop_, UV_RUN_NOWAIT);
 
     if (alive && --iterations == 0) {
-      LOG(WARNING) << "destructing EventLoop with active handles:\n";
+      std::ostringstream out;
 
-      // TODO(benh): use 'uv_walk()' instead of
-      // 'uv_print_all_handles()' so we can use 'LOG(WARNING)' instead
-      // of 'stderr'.
-      uv_print_all_handles(&loop_, stderr);
+      out << "destructing EventLoop with active handles:\n";
+
+      // NOTE: we use 'uv_walk()' instead of 'uv_print_all_handles()'
+      // so that we can use 'LOG(WARNING)' since
+      // 'uv_print_all_handles()' requires a FILE*.
+      uv_walk(
+          &loop_,
+          [](uv_handle_t* handle, void* arg) {
+            auto& out = *static_cast<std::ostringstream*>(arg);
+
+            out << "[";
+
+            if (uv_has_ref(handle)) {
+              out << "R";
+            } else {
+              out << "-";
+            }
+
+            if (uv_is_active(handle)) {
+              out << "A";
+            } else {
+              out << "-";
+            }
+
+            // NOTE: internal handles are skipped by 'uv_walk()' by
+            // default but since we're trying to mimic the output from
+            // 'uv_print_all_handles()' we still insert an '-' here.
+            out << "-";
+
+            out << "] " << uv_handle_type_name(handle->type) << " " << handle;
+          },
+          &out);
+
+      LOG(WARNING) << out.str();
 
       iterations = ITERATIONS;
     }
