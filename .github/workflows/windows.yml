@@ -16,11 +16,6 @@ jobs:
       # Checkout the repository under $GITHUB_WORKSPACE.
       - uses: actions/checkout@v1
 
-      - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v1
-        with:
-          version: "12.0"
-
       - name: Check for bazel
         run: bazel --version
 
@@ -28,14 +23,14 @@ jobs:
         run: pip install wheel
 
       - name: Build
-        run: bazel build --spawn_strategy=local --copt="-g" --strip="never" :grpc
+        run: bazel build --spawn_strategy=local --strip="never" :grpc
 
       - name: Debug Build using tmate (if failure)
         if: ${{ failure() }}
         uses: mxschmitt/action-tmate@v3
 
       - name: Test
-        run: bazel test --spawn_strategy=local --copt="-g" --strip="never" --test_output=errors test:grpc --test_arg=--gtest_shuffle --test_arg=--gtest_repeat=100
+        run: bazel test --spawn_strategy=local --strip="never" --test_output=errors test:grpc --test_arg=--gtest_shuffle --test_arg=--gtest_repeat=100
 
       - name: Debug Test using tmate (if failure)
         if: ${{ failure() }}
