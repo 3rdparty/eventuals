@@ -294,13 +294,17 @@ class EventLoop : public Scheduler {
 
   // Getter/Resetter for default event loop.
   static EventLoop& Default();
-  static void DefaultReset();
+  static void ConstructDefault();
+  static void DestructDefault();
+
+  static void ConstructDefaultAndRunForeverDetached();
 
   EventLoop();
   EventLoop(const EventLoop&) = delete;
   virtual ~EventLoop();
 
   void Run();
+  void RunForever();
 
   template <typename T>
   void RunUntil(std::future<T>& future) {

@@ -89,21 +89,55 @@ static EventLoop* loop = nullptr;
 
 EventLoop& EventLoop::Default() {
   if (!loop) {
-    loop = new (loop_memory) EventLoop();
+    LOG(FATAL)
+        << "\n"
+        << "\n"
+        << "****************************************************************\n"
+        << "*  A default event loop has not yet been constructed!          *\n"
+        << "*                                                              *\n"
+        << "*  If you're seeing this message it probably means you forgot  *\n"
+        << "*  to do 'EventLoop::ConstructDefault()' or possibly           *\n"
+        << "*  'EventLoop::ConstructDefaultAndRunForeverDetached()'.       *\n"
+        << "*                                                              *\n"
+        << "*  If you're seeing this message coming from a test it means   *\n"
+        << "*  you forgot to inherit from 'EventLoopTest'.                 *\n"
+        << "*                                                              *\n"
+        << "*  And don't forgeet that you not only need to construct the   *\n"
+        << "*  event loop but you also need to run it!                     *\n"
+        << "****************************************************************\n"
+        << "\n";
+  } else {
+    return *loop;
   }
-
-  return *CHECK_NOTNULL(loop);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-void EventLoop::DefaultReset() {
-  if (loop) {
-    loop->~EventLoop();
-    loop = nullptr;
-  }
+void EventLoop::ConstructDefault() {
+  CHECK(!loop) << "default already constructed";
 
   loop = new (loop_memory) EventLoop();
+}
+
+////////////////////////////////////////////////////////////////////////
+
+void EventLoop::DestructDefault() {
+  CHECK(loop) << "default not yet constructed";
+
+  loop->~EventLoop();
+  loop = nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////
+
+void EventLoop::ConstructDefaultAndRunForeverDetached() {
+  ConstructDefault();
+
+  auto thread = std::thread([]() {
+    EventLoop::Default().RunForever();
+  });
+
+  thread.detach();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -214,7 +248,9 @@ void EventLoop::Run() {
   do {
     in_event_loop_ = true;
     running_ = true;
+
     again = uv_run(&loop_, UV_RUN_NOWAIT);
+
     running_ = false;
     in_event_loop_ = false;
 
@@ -230,6 +266,20 @@ void EventLoop::Run() {
       again = waiters_.load(std::memory_order_relaxed) != nullptr;
     }
   } while (again);
+}
+
+////////////////////////////////////////////////////////////////////////
+
+void EventLoop::RunForever() {
+  in_event_loop_ = true;
+  running_ = true;
+
+  // NOTE: we'll truly run forever because handles like 'async_' will
+  // keep the loop alive forever.
+  uv_run(&loop_, UV_RUN_DEFAULT);
+
+  running_ = false;
+  in_event_loop_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////
