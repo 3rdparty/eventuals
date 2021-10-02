@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gtest/gtest.h"
+#include "stout/event-loop.h"
 
 class EventLoopTest : public ::testing::Test {
  protected:
