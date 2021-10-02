@@ -73,6 +73,10 @@ cc_library(
     visibility = ["//visibility:private"],
     deps = [
         ":eventuals-base",
+        ":eventuals-events",
+        # NOTE: Links against BoringSSL for HTTPS stuff.
+        # Compiles without any SSL support on Windows.
+        # See bazel-rules-curl for more details.
         "@com_github_curl_curl//:libcurl",
     ],
 )
@@ -83,13 +87,6 @@ cc_library(
     deps = [
         ":eventuals-base",
         ":eventuals-events",
-    ] + select({
-        "@bazel_tools//src/conditions:windows": [],
-        "//conditions:default": [
-            # NOTE: we don't link eventuals-http on Windows because we
-            # currently can't reliably compile either OpenSSL or
-            # boringssl on Windows (see #59).
-            "//:eventuals-http",
-        ],
-    }),
+        ":eventuals-http",
+    ],
 )
