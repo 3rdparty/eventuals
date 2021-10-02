@@ -1,5 +1,7 @@
 load("//bazel:repos.bzl", "repos")
+
 repos(external = False)
 
 load("//bazel:deps.bzl", "deps")
+
 deps()
