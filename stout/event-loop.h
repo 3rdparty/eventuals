@@ -255,13 +255,7 @@ class EventLoop : public Scheduler {
             clock_(clock),
             nanoseconds_(std::move(nanoseconds)),
             start_(&clock.loop(), "Timer (start)"),
-            interrupt_(&clock.loop(), "Timer (interrupt)") {
-          // NOTE: we need to heap allocate because when closing the timer
-          // in the destructor the memory needs to remain valid until
-          // _after_ the callback passed to 'uv_close()' gets executed!
-          timer_ = new uv_timer_t();
-          CHECK_EQ(0, uv_timer_init(loop(), timer()));
-        }
+            interrupt_(&clock.loop(), "Timer (interrupt)") {}
 
         Continuation(Continuation&& that)
           : k_(std::move(that.k_)),
@@ -269,32 +263,23 @@ class EventLoop : public Scheduler {
             nanoseconds_(std::move(that.nanoseconds_)),
             start_(&that.clock_.loop(), "Timer (start)"),
             interrupt_(&that.clock_.loop(), "Timer (interrupt)") {
-          CHECK(!started_ || completed_) << "moving after starting";
+          CHECK(!that.started_ || !that.completed_) << "moving after starting";
           CHECK(!handler_);
-          timer_ = that.timer_;
-          that.timer_ = nullptr;
         }
 
         ~Continuation() {
-          if (timer_ != nullptr) {
-            if (uv_is_active(handle())) {
-              uv_timer_stop(timer());
-            }
+          CHECK(!InEventLoop())
+              << "attempting to destruct a timer on the event loop "
+              << "is unsupported as it may lead to a deadlock";
 
-            uv_close(handle(), [](uv_handle_t* handle) {
-              delete handle;
-            });
+          if (started_) {
+            // Wait until we can destruct the timer/handle.
+            while (!closed_.load()) {}
           }
         }
 
         void Start() {
-          CHECK(!started_ || completed_)
-              << "starting timer that hasn't completed";
-
-          started_ = false;
-          completed_ = false;
-
-          uv_handle_set_data(handle(), this);
+          CHECK(!started_ && !completed_);
 
           // Clock is basically a "scheduler" for timers so we need to
           // "submit" a callback to be executed when the clock is not
@@ -310,10 +295,14 @@ class EventLoop : public Scheduler {
                 loop().Submit(
                     [this]() {
                       if (!completed_) {
-                        auto milliseconds =
-                            std::chrono::duration_cast<
-                                std::chrono::milliseconds>(
-                                nanoseconds_);
+                        started_ = true;
+
+                        CHECK_EQ(0, uv_timer_init(loop(), timer()));
+
+                        uv_handle_set_data(handle(), this);
+
+                        auto timeout = std::chrono::duration_cast<
+                            std::chrono::milliseconds>(nanoseconds_);
 
                         auto error = uv_timer_start(
                             timer(),
@@ -323,15 +312,30 @@ class EventLoop : public Scheduler {
                               if (!continuation.completed_) {
                                 continuation.completed_ = true;
                                 continuation.k_.Start();
+                                uv_timer_stop(continuation.timer());
+                                CHECK_EQ(
+                                    &continuation,
+                                    continuation.handle()->data);
+                                uv_close(
+                                    continuation.handle(),
+                                    [](uv_handle_t* handle) {
+                                      auto& continuation =
+                                          *(Continuation*) handle->data;
+                                      continuation.closed_ = true;
+                                    });
                               }
                             },
-                            milliseconds.count(),
-                            0);
+                            timeout.count(),
+                            /* repeat = */ 0);
 
                         if (error) {
+                          completed_ = true;
                           k_.Fail(uv_strerror(error));
-                        } else {
-                          started_ = true;
+                          CHECK_EQ(this, handle()->data);
+                          uv_close(handle(), [](uv_handle_t* handle) {
+                            auto& continuation = *(Continuation*) handle->data;
+                            continuation.closed_ = true;
+                          });
                         }
                       }
                     },
@@ -365,6 +369,7 @@ class EventLoop : public Scheduler {
                     completed_ = true;
                     k_.Stop();
                   } else if (!completed_) {
+                    CHECK(started_);
                     completed_ = true;
                     if (uv_is_active(handle())) {
                       auto error = uv_timer_stop(timer());
@@ -376,6 +381,11 @@ class EventLoop : public Scheduler {
                     } else {
                       k_.Stop();
                     }
+                    CHECK_EQ(this, handle()->data);
+                    uv_close(handle(), [](uv_handle_t* handle) {
+                      auto& continuation = *(Continuation*) handle->data;
+                      continuation.closed_.store(true);
+                    });
                   }
                 },
                 &interrupt_);
@@ -393,25 +403,23 @@ class EventLoop : public Scheduler {
 
         // Adaptors to libuv functions.
         uv_timer_t* timer() {
-          CHECK_NOTNULL(timer_);
-          return timer_;
+          return &timer_;
         }
 
         uv_handle_t* handle() {
-          CHECK_NOTNULL(timer_);
-          return reinterpret_cast<uv_handle_t*>(timer_);
+          return reinterpret_cast<uv_handle_t*>(&timer_);
         }
 
         K_ k_;
         Clock& clock_;
         std::chrono::nanoseconds nanoseconds_;
 
-        // NOTE: Determines the ownership over the handle.
-        // If pointer is nullptr then it was transfered to another object.
-        uv_timer_t* timer_ = nullptr;
+        uv_timer_t timer_;
 
         bool started_ = false;
         bool completed_ = false;
+
+        std::atomic<bool> closed_ = false;
 
         EventLoop::Waiter start_;
         EventLoop::Waiter interrupt_;
@@ -497,7 +505,7 @@ class EventLoop : public Scheduler {
     return running_.load();
   }
 
-  bool InEventLoop() {
+  static bool InEventLoop() {
     return in_event_loop_;
   }
 
