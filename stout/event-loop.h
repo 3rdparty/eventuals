@@ -360,8 +360,7 @@ class EventLoop : public Scheduler {
             // NOTE: even though we execute the interrupt handler on
             // the event loop we will properly context switch to the
             // scheduling context that first created the timer because
-            // we compose '_Timer::Composable' with 'Reschedule()' in
-            // 'EventLoop::Close::Timer()'.
+            // we used 'RescheduleAfter()' in 'EventLoop::Close::Timer()'.
             loop().Submit(
                 [this]() {
                   if (!started_) {
@@ -730,15 +729,12 @@ inline std::chrono::nanoseconds EventLoop::Clock::Now() {
 
 inline auto EventLoop::Clock::Timer(
     const std::chrono::nanoseconds& nanoseconds) {
-  // NOTE: we use a 'Closure' so that we can reschedule using the
-  // existing context after the timer has fired (or was interrupted).
-  //
-  // TODO(benh): borrow 'this' so we avoid timers that outlive a clock.
-  return Closure([this, nanoseconds]() mutable {
-    Scheduler::Context* previous = Scheduler::Context::Get();
-    return _Timer::Composable{*this, std::move(nanoseconds)}
-    | Reschedule(previous);
-  });
+  // NOTE: we use a 'RescheduleAfter()' to ensure we use current
+  // scheduling context to invoke the continuation after the timer has
+  // fired (or was interrupted).
+  return RescheduleAfter(
+      // TODO(benh): borrow 'this' so timers can't outlive a clock.
+      _Timer::Composable{*this, std::move(nanoseconds)});
 }
 
 ////////////////////////////////////////////////////////////////////////
