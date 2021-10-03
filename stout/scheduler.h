@@ -5,6 +5,7 @@
 #include <tuple>
 
 #include "stout/callback.h"
+#include "stout/closure.h"
 #include "stout/compose.h"
 #include "stout/interrupt.h"
 #include "stout/undefined.h"
@@ -183,8 +184,24 @@ struct _Reschedule {
 
 ////////////////////////////////////////////////////////////////////////
 
+// Returns an eventual which will switch to the specified context
+// before continuing it's continuation.
 inline auto Reschedule(Scheduler::Context* context) {
   return detail::_Reschedule::Composable{context};
+}
+
+////////////////////////////////////////////////////////////////////////
+
+// Returns an eventual which will ensure that after the specified
+// eventual 'e' has completed the scheduler context used before 'e'
+// will be used to reschedule the next continuation.
+template <typename E>
+auto RescheduleAfter(E e) {
+  return Closure([e = std::move(e)]() mutable {
+    Scheduler::Context* previous = Scheduler::Context::Get();
+    return std::move(e)
+        | Reschedule(previous);
+  });
 }
 
 ////////////////////////////////////////////////////////////////////////
