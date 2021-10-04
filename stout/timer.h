@@ -5,7 +5,7 @@
 namespace stout {
 namespace eventuals {
 
-auto Timer(const std::chrono::milliseconds& milliseconds) {
+inline auto Timer(const std::chrono::milliseconds& milliseconds) {
   return Clock().Timer(milliseconds);
 }
 

@@ -294,13 +294,17 @@ class EventLoop : public Scheduler {
 
   // Getter/Resetter for default event loop.
   static EventLoop& Default();
-  static void DefaultReset();
+  static void ConstructDefault();
+  static void DestructDefault();
+
+  static void ConstructDefaultAndRunForeverDetached();
 
   EventLoop();
   EventLoop(const EventLoop&) = delete;
   virtual ~EventLoop();
 
   void Run();
+  void RunForever();
 
   template <typename T>
   void RunUntil(std::future<T>& future) {
@@ -348,14 +352,14 @@ class EventLoop : public Scheduler {
   }
 
  private:
-  void Prepare();
+  void Check();
 
   static void CloseCallback(uv_handle_t* handle) {
     delete handle;
   }
 
   uv_loop_t loop_;
-  uv_prepare_t prepare_;
+  uv_check_t check_;
   uv_async_t async_;
 
   std::atomic<bool> running_ = false;

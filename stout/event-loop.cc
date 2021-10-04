@@ -1,5 +1,7 @@
 #include "stout/event-loop.h"
 
+#include <sstream>
+
 ////////////////////////////////////////////////////////////////////////
 
 namespace stout {
@@ -87,21 +89,55 @@ static EventLoop* loop = nullptr;
 
 EventLoop& EventLoop::Default() {
   if (!loop) {
-    loop = new (loop_memory) EventLoop();
+    LOG(FATAL)
+        << "\n"
+        << "\n"
+        << "****************************************************************\n"
+        << "*  A default event loop has not yet been constructed!          *\n"
+        << "*                                                              *\n"
+        << "*  If you're seeing this message it probably means you forgot  *\n"
+        << "*  to do 'EventLoop::ConstructDefault()' or possibly           *\n"
+        << "*  'EventLoop::ConstructDefaultAndRunForeverDetached()'.       *\n"
+        << "*                                                              *\n"
+        << "*  If you're seeing this message coming from a test it means   *\n"
+        << "*  you forgot to inherit from 'EventLoopTest'.                 *\n"
+        << "*                                                              *\n"
+        << "*  And don't forgeet that you not only need to construct the   *\n"
+        << "*  event loop but you also need to run it!                     *\n"
+        << "****************************************************************\n"
+        << "\n";
+  } else {
+    return *loop;
   }
-
-  return *CHECK_NOTNULL(loop);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-void EventLoop::DefaultReset() {
-  if (loop) {
-    loop->~EventLoop();
-    loop = nullptr;
-  }
+void EventLoop::ConstructDefault() {
+  CHECK(!loop) << "default already constructed";
 
   loop = new (loop_memory) EventLoop();
+}
+
+////////////////////////////////////////////////////////////////////////
+
+void EventLoop::DestructDefault() {
+  CHECK(loop) << "default not yet constructed";
+
+  loop->~EventLoop();
+  loop = nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////
+
+void EventLoop::ConstructDefaultAndRunForeverDetached() {
+  ConstructDefault();
+
+  auto thread = std::thread([]() {
+    EventLoop::Default().RunForever();
+  });
+
+  thread.detach();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -110,15 +146,31 @@ EventLoop::EventLoop()
   : clock_(*this) {
   uv_loop_init(&loop_);
 
-  uv_prepare_init(&loop_, &prepare_);
+  // NOTE: we use 'uv_check_t' instead of 'uv_prepare_t' because it
+  // runs after the event loop has performed all of it's functionality
+  // so we know that once 'Check()' has completed _and_ the loop is no
+  // longer alive there shouldn't be any more work to do (with the
+  // caveat that another thread can still 'Submit()' a callback at any
+  // point in time that we may "miss" but there isn't anything we can
+  // do about that except 'RunForever()' or application-level
+  // synchronization).
+  uv_check_init(&loop_, &check_);
 
-  prepare_.data = this;
+  check_.data = this;
 
-  uv_prepare_start(&prepare_, [](uv_prepare_t* prepare) {
-    ((EventLoop*) prepare->data)->Prepare();
+  uv_check_start(&check_, [](uv_check_t* check) {
+    ((EventLoop*) check->data)->Check();
   });
 
+  // NOTE: we unreference 'check_' so that when we run the event
+  // loop it's presence doesn't factor into whether or not the loop is
+  // considered alive.
+  uv_unref((uv_handle_t*) &check_);
+
   uv_async_init(&loop_, &async_, nullptr);
+
+  // NOTE: see comments in 'Run()' as to why we don't unreference
+  // 'async_' like we do with 'check_'.
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -126,18 +178,81 @@ EventLoop::EventLoop()
 EventLoop::~EventLoop() {
   CHECK(!Running());
 
-  uv_prepare_stop(&prepare_);
-  uv_close((uv_handle_t*) &prepare_, nullptr);
+  uv_check_stop(&check_);
+  uv_close((uv_handle_t*) &check_, nullptr);
 
   uv_close((uv_handle_t*) &async_, nullptr);
 
-  // Run the event loop one last time to handle uv_close()'s.
-  uv_run(&loop_, UV_RUN_NOWAIT);
+  // NOTE: ideally we can just run 'uv_run()' once now in order to
+  // properly from the 'uv_close()' calls we just made. Unfortunately
+  // libuv has a peculiar behavior where if 'async_' has an
+  // outstanding 'uv_async_send()' then we won't actually process the
+  // 'uv_close()' call we just made for 'async_' with a single
+  // 'uv_run()' but need to run 'uv_run()' at least twice.
+  //
+  // Moreover, it's possible that there are _other_ handles and/or
+  // requests that are still referenced or active which should be
+  // considered a bug since we're trying to destruct the event loop
+  // here!
+  //
+  // To manage both of these requirements we run 'uv_run()' repeatedly
+  // until the loop is no longer alive (i.e., no more referenced or
+  // active handles/requests) and emit warnings every 100k
+  // iterations. The reason we're not using something like
+  // 'LOG_IF_EVERY_N()' is because we explicitly _don't_ want to emit
+  // a warning the first time since the loop might still be alive only
+  // because of the 'async_' situation explained above.
+  static constexpr size_t ITERATIONS = 100000;
+  size_t iterations = ITERATIONS;
 
-  if (Alive()) {
-    LOG(WARNING) << "destructing EventLoop with active handles: ";
-    uv_print_all_handles(&loop_, stderr);
-  }
+  auto alive = Alive();
+
+  CHECK(alive) << "should still have check and async handles to close";
+
+  do {
+    alive = uv_run(&loop_, UV_RUN_NOWAIT);
+
+    if (alive && --iterations == 0) {
+      std::ostringstream out;
+
+      out << "destructing EventLoop with active handles:\n";
+
+      // NOTE: we use 'uv_walk()' instead of 'uv_print_all_handles()'
+      // so that we can use 'LOG(WARNING)' since
+      // 'uv_print_all_handles()' requires a FILE*.
+      uv_walk(
+          &loop_,
+          [](uv_handle_t* handle, void* arg) {
+            auto& out = *static_cast<std::ostringstream*>(arg);
+
+            out << "[";
+
+            if (uv_has_ref(handle)) {
+              out << "R";
+            } else {
+              out << "-";
+            }
+
+            if (uv_is_active(handle)) {
+              out << "A";
+            } else {
+              out << "-";
+            }
+
+            // NOTE: internal handles are skipped by 'uv_walk()' by
+            // default but since we're trying to mimic the output from
+            // 'uv_print_all_handles()' we still insert an '-' here.
+            out << "-";
+
+            out << "] " << uv_handle_type_name(handle->type) << " " << handle;
+          },
+          &out);
+
+      LOG(WARNING) << out.str();
+
+      iterations = ITERATIONS;
+    }
+  } while (alive);
 
   CHECK_EQ(uv_loop_close(&loop_), 0);
 }
@@ -145,26 +260,54 @@ EventLoop::~EventLoop() {
 ////////////////////////////////////////////////////////////////////////
 
 void EventLoop::Run() {
-  bool again = false;
+  bool alive = false;
   do {
     in_event_loop_ = true;
     running_ = true;
-    again = uv_run(&loop_, UV_RUN_NOWAIT);
+
+    // NOTE: the semantics of 'Run()' are to run until the loop is no
+    // longer alive but _NOT_ to block when polling for I/O (need to
+    // use 'RunForever()' for that).
+    //
+    // We can't use 'UV_RUN_DEFAULT' because we don't want to block on
+    // I/O.
+    //
+    // Moreover, even 'UV_RUN_NOWAIT' poses problems because our
+    // 'async_' handle means 'uv_run()' will always return that the
+    // loop is still alive and it's ambiguous whether or not that is
+    // due to our 'async_' handle or another handle/request. We can't
+    // unreferene the 'async_' handle because emperically that shown
+    // to make 'uv_async_send()' no longer work. Thus, we use
+    // 'UV_RUN_NOWAIT' but then unreference our 'async_' handle and
+    // check if the loop is _really_ alive to determine if we should
+    // continue running the loop or not.
+    alive = uv_run(&loop_, UV_RUN_NOWAIT);
+
+    CHECK(alive) << "should still have async handle";
+
     running_ = false;
     in_event_loop_ = false;
 
-    uv_unref((uv_handle_t*) &prepare_);
     uv_unref((uv_handle_t*) &async_);
 
-    again = Alive();
+    alive = Alive();
 
-    uv_ref((uv_handle_t*) &prepare_);
     uv_ref((uv_handle_t*) &async_);
+  } while (alive);
+}
 
-    if (!again) {
-      again = waiters_.load(std::memory_order_relaxed) != nullptr;
-    }
-  } while (again);
+////////////////////////////////////////////////////////////////////////
+
+void EventLoop::RunForever() {
+  in_event_loop_ = true;
+  running_ = true;
+
+  // NOTE: we'll truly run forever because handles like 'async_' will
+  // keep the loop alive forever.
+  uv_run(&loop_, UV_RUN_DEFAULT);
+
+  running_ = false;
+  in_event_loop_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -209,7 +352,7 @@ void EventLoop::Submit(Callback<> callback, Scheduler::Context* context) {
 
 ////////////////////////////////////////////////////////////////////////
 
-void EventLoop::Prepare() {
+void EventLoop::Check() {
   Waiter* waiter = nullptr;
   do {
   load:

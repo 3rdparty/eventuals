@@ -38,7 +38,7 @@ TEST_F(DomainNameResolveTest, Succeed) {
 
 
 TEST_F(DomainNameResolveTest, Fail) {
-  std::string address = "localhost1", port = "6667";
+  std::string address = ";;!(*#!()%$%*(#*!~_+", port = "6667";
 
   auto e = DomainNameResolve(address, port);
 
