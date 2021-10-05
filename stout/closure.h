@@ -1,7 +1,8 @@
 #pragma once
 
-#include "stout/eventual.h"
-#include "stout/stream.h"
+#include <optional>
+
+#include "stout/interrupt.h"
 
 ////////////////////////////////////////////////////////////////////////
 
