@@ -72,4 +72,9 @@ SpacesInSquareBrackets: false
 Standard: c++17
 TabWidth: 8
 UseTab: Never
+
+---
+Language: Proto
+BasedOnStyle: Google
+ColumnLimit: 0
 ...

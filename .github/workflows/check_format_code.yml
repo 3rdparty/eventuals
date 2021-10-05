@@ -15,8 +15,6 @@ jobs:
     - uses: actions/checkout@v2
     - name: Run bootstrap
       run: cd tools/ && ./bootstrap
-    - name: Run clang-format style check for C/C++ programs.
-      uses: jidicula/clang-format-action@v4.0.0
-      with:
-        clang-format-version: '12'
-        check-path: '.'
+    - name: Check all .cc , .h, .proto files for correct code format
+      run: chmod +x tools/check_style.sh && tools/./check_style.sh
+
