@@ -69,7 +69,7 @@ struct _Loop {
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      if constexpr (IsUndefined<Start_>::value) {
+      if constexpr (IsUndefined<Fail_>::value) {
         k_().Fail(std::forward<Args>(args)...);
       } else if constexpr (IsUndefined<Context_>::value) {
         fail_(k_(), std::forward<Args>(args)...);
@@ -79,7 +79,7 @@ struct _Loop {
     }
 
     void Stop() {
-      if constexpr (IsUndefined<Start_>::value) {
+      if constexpr (IsUndefined<Stop_>::value) {
         k_().Stop();
       } else if constexpr (IsUndefined<Context_>::value) {
         stop_(k_());

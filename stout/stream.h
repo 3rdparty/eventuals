@@ -191,7 +191,7 @@ struct _Stream {
     }
 
     void Stop() {
-      if constexpr (!IsUndefined<Stop_>::value) {
+      if constexpr (IsUndefined<Stop_>::value) {
         k_.Stop();
       } else if constexpr (IsUndefined<Context_>::value) {
         stop_(k_);
