@@ -33,7 +33,7 @@ class SignalTest : public EventLoopTest {};
 
 TEST_F(SignalTest, SignalComposition) {
   auto e = Signal(SIGQUIT)
-      | Then([](auto signum) {
+      | Then([]() {
              return "quit";
            });
 
