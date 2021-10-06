@@ -31,7 +31,8 @@ void EventLoop::Clock::Pause() {
       },
       &timers);
 
-  CHECK_EQ(0, timers)
+  // NOTE: We use 0u to suppress -Wsign-compare (on GCC)
+  CHECK_EQ(0u, timers)
       << "pausing the clock with outstanding timers is unsupported";
 
   paused_.emplace(Now());
