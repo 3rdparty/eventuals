@@ -63,7 +63,7 @@ struct _Call {
       auto flags = std::make_pair(&reads_done_, &writes_done_);
       absl::Condition done_reading_writing(
           // The `+` makes the lambda a function pointer:
-          //   https://stackoverflow.com/questions/18889028/a-positive-lambda-what-sorcery-is-this
+          // https://tinyurl.com/y3nx5f6w
           +[](std::pair<bool*, bool*>* flags) {
             return *flags->first && *flags->second;
           },
@@ -183,8 +183,8 @@ struct _Call {
                   } else if (finish_) {
                     // We've written out the last request, but we didn't use
                     // `WriteLast` to do it, otherwise we wouldn't be in this
-                    // callback. We'll use a `WritesDone` to close our end of the
-                    // connection instead.
+                    // callback. We'll use a `WritesDone` to close our end of
+                    // the connection instead.
                     next_action = NextAction::WRITES_DONE;
                   }
                 }
@@ -290,9 +290,9 @@ struct _Call {
         assert(!finish_); // Only call one of WriteLast() or WritesDone() once.
         finish_ = true;
         if (write_callback_ && write_datas_.empty()) {
-          // There is no current async write in flight, so there won't be a  call
-          // to `write_callback_` to do a `WriteLast()` or `WritesDone()` for us.
-          // We'll do a `WritesDone()` ourselves.
+          // There is no current async write in flight, so there won't be a
+          // call to `write_callback_` to do a `WriteLast()` or `WritesDone()`
+          // for us. We'll do a `WritesDone()` ourselves.
           write = true;
         }
       }
