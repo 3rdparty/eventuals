@@ -161,53 +161,6 @@ class EventLoop : public Scheduler {
     std::string name_;
   };
 
-  class Signal {
-   public:
-    Signal(EventLoop& loop) {
-      handle_ = new uv_signal_t();
-      CHECK_EQ(
-          uv_signal_init(loop, handle_),
-          0);
-    }
-
-    Signal(const Signal& that) = delete;
-
-    Signal(Signal&& that) {
-      handle_ = that.handle_;
-      that.handle_ = nullptr;
-    }
-
-    ~Signal() {
-      if (handle_ == nullptr) {
-        return;
-      }
-
-      if (uv_is_active(reinterpret_cast<uv_handle_t*>(handle_))) {
-        uv_signal_stop(handle_);
-      }
-
-      uv_close(base_handle(), [](uv_handle_t* handle) {
-        delete handle;
-      });
-    }
-
-    // Adaptors to libuv functions.
-    uv_signal_t* handle() {
-      CHECK_NOTNULL(handle_);
-      return handle_;
-    }
-
-    uv_handle_t* base_handle() {
-      CHECK_NOTNULL(handle_);
-      return reinterpret_cast<uv_handle_t*>(handle_);
-    }
-
-   private:
-    // NOTE: Determines the ownership over the handle.
-    // If pointer is nullptr then it was transfered to another object.
-    uv_signal_t* handle_ = nullptr;
-  };
-
   class Clock {
    public:
     Clock(const Clock&) = delete;
@@ -321,7 +274,7 @@ class EventLoop : public Scheduler {
                                     [](uv_handle_t* handle) {
                                       auto& continuation =
                                           *(Continuation*) handle->data;
-                                      continuation.closed_ = true;
+                                      continuation.closed_.store(true);
                                     });
                               }
                             },
@@ -334,7 +287,7 @@ class EventLoop : public Scheduler {
                           CHECK_EQ(this, handle()->data);
                           uv_close(handle(), [](uv_handle_t* handle) {
                             auto& continuation = *(Continuation*) handle->data;
-                            continuation.closed_ = true;
+                            continuation.closed_.store(true);
                           });
                         }
                       }
@@ -516,7 +469,177 @@ class EventLoop : public Scheduler {
     return clock_;
   }
 
+  auto Signal(const int signum);
+
  private:
+  struct _Signal {
+    template <typename K_>
+    struct Continuation {
+      Continuation(K_ k, EventLoop& loop, const int signum)
+        : k_(std::move(k)),
+          loop_(loop),
+          signum_(signum),
+          start_(&loop, "Signal (start)"),
+          interrupt_(&loop, "Signal (interrupt)") {}
+
+      Continuation(Continuation&& that)
+        : k_(std::move(that.k_)),
+          loop_(that.loop_),
+          signum_(that.signum_),
+          start_(&that.loop_, "Signal (start)"),
+          interrupt_(&that.loop_, "Signal (interrupt)") {
+        CHECK(!that.started_ || !that.completed_) << "moving after starting";
+        CHECK(!handler_);
+      }
+
+      ~Continuation() {
+        CHECK(!InEventLoop())
+            << "attempting to destruct a signal on the event loop "
+            << "is unsupported as it may lead to a deadlock";
+
+        if (started_) {
+          // Wait until we can destruct the signal/handle.
+          while (!closed_.load()) {}
+        }
+      }
+
+      void Start() {
+        CHECK(!started_ && !completed_);
+
+        loop_.Submit(
+            [this]() {
+              if (!completed_) {
+                started_ = true;
+
+                CHECK_EQ(0, uv_signal_init(loop_, signal()));
+
+                uv_handle_set_data(handle(), this);
+
+                auto error = uv_signal_start_oneshot(
+                    signal(),
+                    [](uv_signal_t* signal, int signum) {
+                      auto& continuation = *(Continuation*) signal->data;
+                      CHECK_EQ(signal, continuation.signal());
+                      CHECK_EQ(signum, continuation.signum_);
+                      if (!continuation.completed_) {
+                        continuation.completed_ = true;
+                        continuation.k_.Start();
+                        CHECK_EQ(
+                            &continuation,
+                            continuation.handle()->data);
+                        uv_close(
+                            continuation.handle(),
+                            [](uv_handle_t* handle) {
+                              auto& continuation =
+                                  *(Continuation*) handle->data;
+                              continuation.closed_.store(true);
+                            });
+                      }
+                    },
+                    signum_);
+
+                if (error) {
+                  completed_ = true;
+                  k_.Fail(uv_strerror(error));
+                  CHECK_EQ(this, handle()->data);
+                  uv_close(handle(), [](uv_handle_t* handle) {
+                    auto& continuation = *(Continuation*) handle->data;
+                    continuation.closed_.store(true);
+                  });
+                }
+              }
+            },
+            &start_);
+      }
+
+      template <typename... Args>
+      void Fail(Args&&... args) {
+        k_.Fail(std::forward<Args>(args)...);
+      }
+
+      void Stop() {
+        k_.Stop();
+      }
+
+      void Register(class Interrupt& interrupt) {
+        k_.Register(interrupt);
+
+        handler_.emplace(&interrupt, [this]() {
+          loop_.Submit(
+              [this]() {
+                if (!started_) {
+                  CHECK(!completed_);
+                  completed_ = true;
+                  k_.Stop();
+                } else if (!completed_) {
+                  CHECK(started_);
+                  completed_ = true;
+                  if (uv_is_active(handle())) {
+                    auto error = uv_signal_stop(signal());
+                    if (error) {
+                      k_.Fail(uv_strerror(error));
+                    } else {
+                      k_.Stop();
+                    }
+                  } else {
+                    k_.Stop();
+                  }
+                  CHECK_EQ(this, handle()->data);
+                  uv_close(handle(), [](uv_handle_t* handle) {
+                    auto& continuation = *(Continuation*) handle->data;
+                    continuation.closed_.store(true);
+                  });
+                }
+              },
+              &interrupt_);
+        });
+
+        // NOTE: we always install the handler in case 'Start()'
+        // never gets called.
+        handler_->Install();
+      }
+
+     private:
+      // Adaptors to libuv functions.
+      uv_signal_t* signal() {
+        return &signal_;
+      }
+
+      uv_handle_t* handle() {
+        return reinterpret_cast<uv_handle_t*>(&signal_);
+      }
+
+      K_ k_;
+      EventLoop& loop_;
+      const int signum_;
+
+      uv_signal_t signal_;
+
+      bool started_ = false;
+      bool completed_ = false;
+
+      std::atomic<bool> closed_ = false;
+
+      EventLoop::Waiter start_;
+      EventLoop::Waiter interrupt_;
+
+      std::optional<Interrupt::Handler> handler_;
+    };
+
+    struct Composable {
+      template <typename Arg>
+      using ValueFrom = void;
+
+      template <typename Arg, typename K>
+      auto k(K k) && {
+        return Continuation<K>{std::move(k), loop_, signum_};
+      }
+
+      EventLoop& loop_;
+      const int signum_;
+    };
+  };
+
   void Check();
 
   uv_loop_t loop_;
@@ -735,6 +858,18 @@ inline auto EventLoop::Clock::Timer(
   return RescheduleAfter(
       // TODO(benh): borrow 'this' so timers can't outlive a clock.
       _Timer::Composable{*this, std::move(nanoseconds)});
+}
+
+////////////////////////////////////////////////////////////////////////
+
+inline auto EventLoop::Signal(
+    const int signum) {
+  // NOTE: we use a 'RescheduleAfter()' to ensure we use current
+  // scheduling context to invoke the continuation after the signal has
+  // fired (or was interrupted).
+  return RescheduleAfter(
+      // TODO(benh): borrow 'this' so signal can't outlive a loop.
+      _Signal::Composable{*this, signum});
 }
 
 ////////////////////////////////////////////////////////////////////////
