@@ -1,4 +1,5 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
+load("//bazel:copts.bzl", "copts")
 
 eventuals_base_sources = [
     "eventual.cc",
@@ -37,6 +38,7 @@ eventuals_http_sources = [
 cc_test(
     name = "eventuals",
     srcs = eventuals_base_sources + eventuals_events_sources + eventuals_http_sources,
+    copts = copts(),
     deps = [
         "//:eventuals",
         "@com_github_google_googletest//:gtest_main",
