@@ -1,5 +1,10 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 
+copts_ = [
+    "-Werror",
+    "-Wno-error=deprecated-declarations",
+]
+
 eventuals_base_sources = [
     "eventual.cc",
     "stream.cc",
@@ -41,6 +46,7 @@ eventuals_http_sources = select({
 cc_test(
     name = "eventuals",
     srcs = eventuals_base_sources + eventuals_events_sources + eventuals_http_sources,
+    copts = copts_,
     deps = [
         "//:eventuals",
         "@com_github_google_googletest//:gtest_main",
