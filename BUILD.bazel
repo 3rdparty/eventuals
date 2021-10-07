@@ -47,6 +47,7 @@ cc_library(
         "stout/type-traits.h",
         "stout/undefined.h",
         "stout/until.h",
+        "stout/stream-for-each.h",
     ],
     copts = copts_,
     visibility = ["//visibility:private"],
