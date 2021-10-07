@@ -223,7 +223,7 @@ TEST_F(StreamForEachTest, Interrupt) {
 
   auto result = future.get();
 
-  CHECK_EQ(result.size(), 0);
+  CHECK_EQ(result.size(), 0u);
 }
 
 TEST(StreamForEach, InterruptReturn) {
