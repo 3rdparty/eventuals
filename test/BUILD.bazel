@@ -18,6 +18,7 @@ eventuals_base_sources = [
     "take.cc",
     "range.cc",
     "let.cc",
+    "stream-for-each.cc",
 ]
 
 eventuals_events_sources = [
