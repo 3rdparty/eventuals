@@ -1,5 +1,7 @@
 #include "stout/static-thread-pool.h"
 
+#include "stout/os.h"
+
 ////////////////////////////////////////////////////////////////////////
 
 namespace stout {
@@ -20,6 +22,13 @@ StaticThreadPool::StaticThreadPool()
         [this, core]() {
           StaticThreadPool::member = true;
           StaticThreadPool::core = core;
+
+          SetAffinity(threads_[core], core);
+
+          STOUT_EVENTUALS_LOG(3) << "Thread " << core << " (id="
+                                 << std::this_thread::get_id()
+                                 << ") is running on core "
+                                 << GetRunningCPU();
 
           // NOTE: we store each 'semaphore' and 'head' in each thread
           // so as to hopefully get less false sharing when other

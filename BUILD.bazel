@@ -25,6 +25,7 @@ cc_library(
         "stout/lock.h",
         "stout/loop.h",
         "stout/map.h",
+        "stout/os.h",
         "stout/parallel.h",
         "stout/raise.h",
         "stout/range.h",
@@ -35,6 +36,7 @@ cc_library(
         "stout/sequence.h",
         "stout/static-thread-pool.h",
         "stout/stream.h",
+        "stout/stream-for-each.h",
         "stout/take.h",
         "stout/task.h",
         "stout/terminal.h",
@@ -42,7 +44,6 @@ cc_library(
         "stout/type-traits.h",
         "stout/undefined.h",
         "stout/until.h",
-        "stout/stream-for-each.h",
     ],
     visibility = ["//visibility:private"],
     deps = [
