@@ -1,5 +1,10 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
+copts_ = [
+    "-Werror",
+    "-Wno-error=deprecated-declarations",
+]
+
 cc_library(
     name = "eventuals-base",
     srcs = [
@@ -43,6 +48,7 @@ cc_library(
         "stout/undefined.h",
         "stout/until.h",
     ],
+    copts = copts_,
     visibility = ["//visibility:private"],
     deps = [
         "@com_github_google_glog//:glog",
@@ -61,6 +67,7 @@ cc_library(
         "stout/signal.h",
         "stout/timer.h",
     ],
+    copts = copts_,
     visibility = ["//visibility:private"],
     deps = [
         ":eventuals-base",
@@ -70,6 +77,7 @@ cc_library(
 
 cc_library(
     name = "eventuals-http",
+    copts = copts_,
     visibility = ["//visibility:private"],
     deps = [
         ":eventuals-base",
@@ -83,6 +91,7 @@ cc_library(
 
 cc_library(
     name = "eventuals",
+    copts = copts_,
     visibility = ["//visibility:public"],
     deps = [
         ":eventuals-base",
