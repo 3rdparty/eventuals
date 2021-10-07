@@ -2,6 +2,7 @@
 
 #include <array>
 #include <deque>
+#include <initializer_list>
 #include <list>
 #include <map>
 #include <set>
@@ -753,4 +754,21 @@ TEST(Iterate, VectorStringContcatenatePartial) {
   };
 
   EXPECT_EQ("Hello World", *s());
+}
+
+TEST(Iterate, InitializerList) {
+  auto s = []() {
+    return Iterate({5, 12, 13})
+        | Loop<int>()
+              .context(0)
+              .body([](auto& sum, auto& stream, auto&& value) {
+                sum += value;
+                stream.Next();
+              })
+              .ended([](auto& sum, auto& k) {
+                k.Start(sum);
+              });
+  };
+
+  EXPECT_EQ(30, *s());
 }

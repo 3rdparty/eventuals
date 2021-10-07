@@ -1,8 +1,10 @@
 #pragma once
 
 #include <array>
+#include <initializer_list>
 #include <iterator>
 #include <optional>
+#include <vector>
 
 #include "stout/stream.h"
 
@@ -107,6 +109,35 @@ auto Iterate(T* begin, T* end) {
 template <typename T>
 auto Iterate(T container[], size_t n) {
   return Iterate(&container[0], &container[n]);
+}
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+auto Iterate(std::initializer_list<T>&& values) {
+  using Iterator = typename std::vector<T>::const_iterator;
+
+  struct Data {
+    std::vector<T> container;
+    std::optional<Iterator> begin;
+  };
+
+  return Stream<T>()
+      .context(Data{std::vector<T>(std::move(values)), std::nullopt})
+      .start([](auto& data, auto& k) {
+        data.begin = data.container.cbegin();
+        k.Start();
+      })
+      .next([](auto& data, auto& k) {
+        if (data.begin.value() != data.container.cend()) {
+          k.Emit(*(data.begin.value()++));
+        } else {
+          k.Ended();
+        }
+      })
+      .done([](auto&, auto& k) {
+        k.Ended();
+      });
 }
 
 ////////////////////////////////////////////////////////////////////////
