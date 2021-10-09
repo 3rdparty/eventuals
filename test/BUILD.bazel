@@ -29,12 +29,15 @@ eventuals_events_sources = [
     "signal.cc",
 ]
 
-eventuals_http_sources = select({
+eventuals_http_sources = [
+    "http.cc",
+] + select({
     "@bazel_tools//src/conditions:windows": [],
     "//conditions:default": [
-        # NOTE: we don't compile any of the tests for eventuals-http
-        # on Windows because we currently can't reliably compile
+        # NOTE: we don't compile https tests on Windows
+        # because we currently can't reliably compile
         # either OpenSSL or boringssl on Windows (see #59).
+        "https.cc",
     ],
 })
 
