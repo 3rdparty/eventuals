@@ -30,6 +30,7 @@ eventuals_events_sources = [
 ]
 
 eventuals_http_sources = [
+    "http-server-mock.h",
     "http.cc",
 ] + select({
     "@bazel_tools//src/conditions:windows": [],

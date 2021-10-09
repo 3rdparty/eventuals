@@ -1,5 +1,6 @@
 #include "event-loop-test.h"
 #include "gtest/gtest.h"
+#include "http-server-mock.h"
 #include "stout/eventual.h"
 #include "stout/http.h"
 #include "stout/interrupt.h"
@@ -11,6 +12,7 @@ namespace eventuals = stout::eventuals;
 using eventuals::EventLoop;
 using eventuals::Interrupt;
 using eventuals::Terminate;
+using eventuals::Then;
 
 using eventuals::http::Get;
 using eventuals::http::Post;
