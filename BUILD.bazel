@@ -73,6 +73,19 @@ cc_library(
 
 cc_library(
     name = "eventuals-http",
+    srcs = [
+        "stout/http.cc",
+    ],
+    hdrs = [
+        "stout/http.h",
+    ],
+    defines = [
+        # Windows build fails without this define.
+        "GLOG_NO_ABBREVIATED_SEVERITIES",
+    ],
+    # Gives the error "undefined symbol: curl_global_init" if False.
+    # Default is False.
+    linkstatic = True,
     visibility = ["//visibility:private"],
     deps = [
         ":eventuals-base",
