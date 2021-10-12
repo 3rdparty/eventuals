@@ -20,11 +20,11 @@ TEST(Collect, CommonVectorPass) {
         | Collect<std::vector<int>>();
   };
 
-  std::vector<int> res = *s();
+  std::vector<int> result = *s();
 
-  EXPECT_EQ(5, res.at(0));
-  EXPECT_EQ(12, res.at(1));
-  EXPECT_EQ(2, res.size());
+  EXPECT_EQ(5, result.at(0));
+  EXPECT_EQ(12, result.at(1));
+  EXPECT_EQ(2, result.size());
 }
 
 TEST(Collect, CommonSetPass) {
@@ -35,9 +35,9 @@ TEST(Collect, CommonSetPass) {
         | Collect<std::set<int>>();
   };
 
-  std::set<int> res = *s();
+  std::set<int> result = *s();
 
-  ASSERT_EQ(2, res.size());
-  EXPECT_EQ(5, *res.begin());
-  EXPECT_EQ(12, *++res.begin());
+  ASSERT_EQ(2, result.size());
+  EXPECT_EQ(5, *result.begin());
+  EXPECT_EQ(12, *++result.begin());
 }
