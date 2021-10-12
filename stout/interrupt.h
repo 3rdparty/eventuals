@@ -1,8 +1,8 @@
 #pragma once
 
 #include <atomic>
-#include <cassert>
 
+#include "glog/logging.h"
 #include "stout/callback.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -17,9 +17,8 @@ class Interrupt {
   struct Handler {
     template <typename F>
     Handler(Interrupt* interrupt, F f)
-      : interrupt_(interrupt),
+      : interrupt_(CHECK_NOTNULL(interrupt)),
         f_(std::move(f)) {
-      assert(interrupt != nullptr);
     }
 
     Handler(const Handler& that) = delete;
@@ -27,16 +26,16 @@ class Interrupt {
     Handler(Handler&& that)
       : interrupt_(that.interrupt_),
         f_(std::move(that.f_)) {
-      assert(that.next_ == nullptr);
+      CHECK(that.next_ == nullptr);
     }
 
     bool Install() {
-      assert(interrupt_ != nullptr);
+      CHECK_NOTNULL(interrupt_);
       return interrupt_->Install(this);
     }
 
     void Invoke() {
-      assert(f_);
+      CHECK(f_);
       f_();
     }
 
@@ -49,7 +48,7 @@ class Interrupt {
     : handler_(this, []() {}) {}
 
   bool Install(Handler* handler) {
-    assert(handler->next_ == nullptr);
+    CHECK(handler->next_ == nullptr);
 
     handler->next_ = head_.load(std::memory_order_relaxed);
 
@@ -70,11 +69,13 @@ class Interrupt {
   void Trigger() {
     // NOTE: nullptr signifies that the interrupt has been triggered.
     auto* handler = head_.exchange(nullptr);
-    while (handler != &handler_) {
-      handler->Invoke();
-      auto* next = handler->next_;
-      handler->next_ = nullptr;
-      handler = next;
+    if (handler != nullptr) {
+      while (handler != &handler_) {
+        handler->Invoke();
+        auto* next = handler->next_;
+        handler->next_ = nullptr;
+        handler = next;
+      }
     }
   }
 
