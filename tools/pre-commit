@@ -14,6 +14,13 @@ if [[ $? != 0 ]]; then
   exit 1
 fi
 
+# Check for existence of buildifier
+which buildifier >/dev/null
+if [[ $? != 0 ]]; then
+  printf "Failed to find 'buildifier' (please install or update your path)\n"
+  exit 1
+fi
+
 # Returns 0 if the version in the first argument is greater than or
 # equal to the version in the second argument, otherwise returns 1.
 check_version() {
@@ -40,6 +47,19 @@ if [[ $? != 0 ]]; then
   exit 1
 fi
 
+# Check version of buildifier.
+buildifier_version_found="$(buildifier --version | head -n1 | cut -d" " -f3)"
+buildifier_version_required="4.2.0"
+
+check_version ${buildifier_version_found} ${buildifier_version_required}
+
+if [[ $? != 0 ]]; then
+  printf "buildifier version '%s' is required but found '%s'\n" \
+    "${buildifier_version_required}" \
+    "${buildifier_version_found}"
+  exit 1
+fi
+
 # Get top-level directory so we can look for .clang-format file.
 directory=$(git rev-parse --show-toplevel)
 
@@ -51,9 +71,11 @@ fi
 
 run_checks() {
   local -i status=0
-  files=`git diff --cached --name-only --diff-filter=ACM HEAD | grep -iE '\.(cc|h)$'`
-  for file in ${files}; do
-    # Check file is formatted correctly.
+
+  # C++ checks
+  cpp_files=`git diff --cached --name-only --diff-filter=ACM HEAD | grep -iE '\.(cc|h)$'`
+  for file in ${cpp_files}; do
+    # Check if file is formatted correctly.
     clang-format --dry-run -Werror --ferror-limit=0  ${file}
     if [[ $? != 0 ]]; then
       status=1
@@ -81,9 +103,19 @@ run_checks() {
       fi
       (( number++ ))
     done < "${file}"
-
-    # TODO: add more pre-commit checks here ...
   done
+
+  # Starlark checks
+  bzl_files=`git diff --cached --name-only --diff-filter=ACM HEAD | grep -iE '\.(bzl|bazel)$'`
+  for file in ${bzl_files}; do
+    # Check if file is formatted correctly or if there are any warnings.
+    buildifier -v -lint=warn -warnings=all -mode=check  ${file}
+    if [[ $? != 0 ]]; then
+      status=1
+    fi
+  done
+
+  # TODO: add more pre-commit checks here ...
   exit ${status}
 }
 
