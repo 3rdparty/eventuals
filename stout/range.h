@@ -20,6 +20,8 @@ struct _Range {
         step_(step) {}
 
     void Start() {
+      previous_ = Scheduler::Context::Get();
+
       k_.Start(*this);
     }
 
@@ -47,20 +49,26 @@ struct _Range {
           || (from_ < to_ && step_ < 0)) {
         k_.Ended();
       } else {
-        int temp = from_;
-        from_ += step_;
-        k_.Body(temp);
+        previous_->Continue([this]() {
+          int temp = from_;
+          from_ += step_;
+          k_.Body(temp);
+        });
       }
     }
 
     void Done() override {
-      k_.Ended();
+      previous_->Continue([this]() {
+        k_.Ended();
+      });
     }
 
     K_ k_;
     int from_;
     const int to_;
     const int step_;
+
+    Scheduler::Context* previous_ = nullptr;
   };
 
   struct Composable {

@@ -23,6 +23,8 @@ struct _TakeLastN {
 
     void Start(TypeErasedStream& stream) {
       stream_ = &stream;
+      previous_ = Scheduler::Context::Get();
+
       k_.Start(*this);
     }
 
@@ -64,22 +66,26 @@ struct _TakeLastN {
       // If the stream_ has not produced its values yet,
       // make it do so by calling stream_.Next().
       // When it has produced all its values we'll receive an Ended() call.
-      if (!ended_) {
-        stream_->Next();
-        return;
-      }
-      if (data_.empty()) {
-        // There are no more stored values, our stream has ended.
-        k_.Ended();
-        return;
-      }
-      auto value = std::move(data_.front());
-      data_.pop_front();
-      k_.Body(std::move(value));
+      previous_->Continue([this]() {
+        if (!ended_) {
+          stream_->Next();
+          return;
+        }
+        if (data_.empty()) {
+          // There are no more stored values, our stream has ended.
+          k_.Ended();
+          return;
+        }
+        auto value = std::move(data_.front());
+        data_.pop_front();
+        k_.Body(std::move(value));
+      });
     }
 
     void Done() override {
-      k_.Ended();
+      previous_->Continue([this]() {
+        k_.Ended();
+      });
     }
 
     K_ k_;
@@ -88,6 +94,7 @@ struct _TakeLastN {
     bool ended_ = false;
 
     TypeErasedStream* stream_ = nullptr;
+    Scheduler::Context* previous_ = nullptr;
   };
 
   struct Composable {
