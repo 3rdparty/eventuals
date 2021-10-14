@@ -60,11 +60,8 @@ TEST_F(StoutGrpcTest, ServerDeathTest) {
     auto serve = [&]() {
       return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
           | Head()
-          | Then([](auto&& context) {
-               return Server::Handler(std::move(context))
-                   .ready([&](auto& call) {
-                     exit(1);
-                   });
+          | Then([](auto&& call) {
+               exit(1);
              });
     };
 

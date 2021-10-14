@@ -1,8 +1,13 @@
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 #include "gtest/gtest.h"
+#include "stout/closure.h"
 #include "stout/grpc/client.h"
 #include "stout/grpc/server.h"
 #include "stout/head.h"
+#include "stout/iterate.h"
+#include "stout/let.h"
+#include "stout/loop.h"
+#include "stout/map.h"
 #include "stout/sequence.h"
 #include "stout/then.h"
 #include "test/test.h"
@@ -10,7 +15,12 @@
 using stout::Borrowable;
 using stout::Sequence;
 
+using stout::eventuals::Closure;
 using stout::eventuals::Head;
+using stout::eventuals::Iterate;
+using stout::eventuals::Let;
+using stout::eventuals::Loop;
+using stout::eventuals::Map;
 using stout::eventuals::Terminate;
 using stout::eventuals::Then;
 
@@ -65,23 +75,25 @@ void test_client_behavior(T&& handler) {
                Stream<keyvaluestore::Response>>(
                "keyvaluestore.KeyValueStore.GetValues")
         | Head()
-        | Then([](auto&& context) {
-             return Server::Handler(std::move(context))
-                 .body([&](auto& call, auto&& request) {
-                   if (request) {
-                     keyvaluestore::Response response;
-                     response.set_value(request->key());
-                     call.Write(response);
-                   } else {
-                     for (size_t i = 0; i < 3; i++) {
-                       keyvaluestore::Response response;
-                       response.set_value(stringify(i + 10));
-                       call.Write(response);
-                     }
-                     call.Finish(grpc::Status::OK);
-                   }
-                 });
-           });
+        | Then(Let([](auto& call) {
+             return call.Reader().Read()
+                 | Map(Then([&](auto&& request) {
+                      keyvaluestore::Response response;
+                      response.set_value(request.key());
+                      return call.Writer().Write(response);
+                    }))
+                 | Loop()
+                 | Closure([]() {
+                      std::vector<keyvaluestore::Response> responses;
+                      for (size_t i = 0; i < 3; i++) {
+                        keyvaluestore::Response response;
+                        response.set_value(stringify(i + 10));
+                        responses.push_back(response);
+                      }
+                      return Iterate(std::move(responses));
+                    })
+                 | StreamingEpilogue(call);
+           }));
   };
 
   auto [cancelled, k] = Terminate(serve());

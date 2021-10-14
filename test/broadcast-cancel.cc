@@ -8,6 +8,7 @@
 #include "stout/grpc/cluster.h"
 #include "stout/grpc/server.h"
 #include "stout/head.h"
+#include "stout/let.h"
 #include "stout/terminal.h"
 #include "stout/then.h"
 #include "test/test.h"
@@ -22,6 +23,7 @@ using stout::Borrowable;
 
 using stout::eventuals::Context;
 using stout::eventuals::Head;
+using stout::eventuals::Let;
 using stout::eventuals::Terminate;
 using stout::eventuals::Then;
 
@@ -64,9 +66,9 @@ TEST_F(StoutGrpcTest, BroadcastCancel) {
   auto serve = [](std::unique_ptr<Server>& server) {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
         | Head()
-        | Then([](auto&& context) {
-             return Server::Handler(std::move(context));
-           });
+        | Then(Let([](auto& call) {
+             return call.WaitForDone();
+           }));
   };
 
   using K = std::decay_t<

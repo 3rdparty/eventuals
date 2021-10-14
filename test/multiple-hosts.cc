@@ -3,6 +3,7 @@
 #include "stout/grpc/client.h"
 #include "stout/grpc/server.h"
 #include "stout/head.h"
+#include "stout/let.h"
 #include "stout/terminal.h"
 #include "stout/then.h"
 #include "test/test.h"
@@ -14,6 +15,7 @@ using helloworld::HelloRequest;
 using stout::Borrowable;
 
 using stout::eventuals::Head;
+using stout::eventuals::Let;
 using stout::eventuals::Terminate;
 using stout::eventuals::Then;
 
@@ -43,12 +45,17 @@ TEST_F(StoutGrpcTest, MultipleHosts) {
   auto serve = [&](auto&& host) {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello", host)
         | Head()
-        | Then([](auto&& context) {
-             return Server::Handler(std::move(context))
-                 .ready([&](auto& call) {
-                   call.Finish(grpc::Status::OK);
-                 });
-           });
+        | Then(Let([](auto& call) {
+             return call.Reader().Read()
+                 | Head() // Only get the first element.
+                 | Then([](auto&& request) {
+                      HelloReply reply;
+                      std::string prefix("Hello ");
+                      reply.set_message(prefix + request.name());
+                      return reply;
+                    })
+                 | UnaryEpilogue(call);
+           }));
   };
 
   auto [berkeley_cancelled, b] = Terminate(serve("cs.berkeley.edu"));
@@ -70,7 +77,9 @@ TEST_F(StoutGrpcTest, MultipleHosts) {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", host)
         | (Client::Handler()
                .ready([](auto& call) {
-                 call.WritesDone();
+                 HelloRequest request;
+                 request.set_name("Emily");
+                 call.WriteLast(request);
                }));
   };
 

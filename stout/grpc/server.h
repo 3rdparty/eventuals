@@ -112,9 +112,228 @@ struct ServerContext {
 
 ////////////////////////////////////////////////////////////////////////
 
+// 'ServerReader' abstraction acts like the synchronous
+// '::grpc::ServerReader' but instead of a blocking 'Read()' call we
+// return a stream!
+template <typename RequestType_>
+class ServerReader {
+ public:
+  // TODO(benh): borrow 'stream' or the enclosing 'ServerCall' so
+  // that we ensure that it doesn't get destructed while our
+  // eventuals are still outstanding.
+  ServerReader(::grpc::GenericServerAsyncReaderWriter* stream)
+    : stream_(stream) {}
+
+  auto Read() {
+    return eventuals::Stream<RequestType_>()
+        .next([this](auto& k) {
+          using K = std::decay_t<decltype(k)>;
+
+          if (!callback_) {
+            k_ = &k;
+            callback_ = [this](bool ok) mutable {
+              if (ok) {
+                RequestType_ request;
+                if (deserialize(&buffer_, &request)) {
+                  static_cast<K*>(k_)->Emit(std::move(request));
+                } else {
+                  static_cast<K*>(k_)->Fail("request failed to deserialize");
+                }
+              } else {
+                // Signify end of stream (or error).
+                static_cast<K*>(k_)->Ended();
+              }
+            };
+          }
+
+          // Initiate the read!
+          stream_->Read(&buffer_, &callback_);
+        });
+  }
+
+ private:
+  template <typename T>
+  static bool deserialize(::grpc::ByteBuffer* buffer, T* t) {
+    auto status = ::grpc::SerializationTraits<T>::Deserialize(
+        buffer,
+        t);
+
+    if (status.ok()) {
+      return true;
+    } else {
+      STOUT_GRPC_LOG(1)
+          << "failed to deserialize " << t->GetTypeName()
+          << ": " << status.error_message() << std::endl;
+      return false;
+    }
+  }
+
+  ::grpc::GenericServerAsyncReaderWriter* stream_;
+  void* k_ = nullptr;
+  ::grpc::ByteBuffer buffer_;
+  Callback<bool> callback_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+// 'ServerWriter' abstraction acts like the synchronous
+// '::grpc::ServerWriter' but instead of the blocking 'Write*()'
+// family of functions our functions all return an eventual!
+template <typename ResponseType_>
+class ServerWriter {
+ public:
+  // TODO(benh): borrow 'stream' or the enclosing 'ServerCall' so
+  // that we ensure that it doesn't get destructed while our
+  // eventuals are still outstanding.
+  ServerWriter(::grpc::GenericServerAsyncReaderWriter* stream)
+    : stream_(stream) {}
+
+  auto Write(
+      ResponseType_ response,
+      ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
+    return Eventual<void>(
+        [this,
+         callback = Callback<bool>(),
+         response = std::move(response),
+         options = std::move(options)](auto& k) mutable {
+          ::grpc::ByteBuffer buffer;
+          if (serialize(response, &buffer)) {
+            callback = [&k](bool ok) mutable {
+              if (ok) {
+                k.Start();
+              } else {
+                k.Fail("failed to write");
+              }
+            };
+            stream_->Write(buffer, options, &callback);
+          } else {
+            k.Fail("failed to serialize");
+          }
+        });
+  }
+
+  auto WriteLast(
+      ResponseType_ response,
+      ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
+    return Eventual<void>(
+        [this,
+         callback = Callback<bool>(),
+         response = std::move(response),
+         options = std::move(options)](auto& k) mutable {
+          ::grpc::ByteBuffer buffer;
+          if (serialize(response, &buffer)) {
+            // NOTE: 'WriteLast()' will block until calling
+            // 'Finish()' so we start the next continuation and
+            // expect any errors to come from 'Finish()'.
+            callback = [](bool ok) mutable {};
+            stream_->WriteLast(buffer, options, &callback);
+            k.Start();
+          } else {
+            k.Fail("failed to serialize");
+          }
+        });
+  }
+
+ private:
+  template <typename T>
+  static bool serialize(const T& t, ::grpc::ByteBuffer* buffer) {
+    bool own = true;
+
+    auto status = ::grpc::SerializationTraits<T>::Serialize(
+        t,
+        buffer,
+        &own);
+
+    if (status.ok()) {
+      return true;
+    } else {
+      STOUT_GRPC_LOG(1)
+          << "failed to serialize " << t.GetTypeName()
+          << ": " << status.error_message() << std::endl;
+      return false;
+    }
+  }
+
+  ::grpc::GenericServerAsyncReaderWriter* stream_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+// 'ServerCall' provides reading, writing, and finishing
+// functionality for a gRPC call.
+//
+// NOTE: the semantics of the gRPC asynchronous APIs that we wrap must
+// be respected. For example, you can't do more than one read at a
+// time or more than one write at a time. This is relatively
+// straightforward for read because it returns a stream, but there
+// still isn't anything stopping you from calling 'Reader().Read()'
+// multiple places. We don't do anything to check that you don't do
+// that because gRPC doesn't check that either. It might not be that
+// hard to check, but we've left that for a future project.
 template <typename Request_, typename Response_>
-struct TypedServerContext {
-  std::unique_ptr<ServerContext> context;
+class ServerCall {
+ public:
+  // We use 'RequestResponseTraits' in order to get the actual
+  // request/response types vs the 'Stream<Request>' or
+  // 'Stream<Response>' that you're currently required to specify so
+  // that we can check at runtime that you've correctly specified the
+  // method signature.
+  using Traits_ = RequestResponseTraits;
+
+  using RequestType_ = typename Traits_::Details<Request_>::Type;
+  using ResponseType_ = typename Traits_::Details<Response_>::Type;
+
+  ServerCall(std::unique_ptr<ServerContext>&& context)
+    : context_(std::move(context)),
+      reader_(context_->stream()),
+      writer_(context_->stream()) {}
+
+  ServerCall(ServerCall&& that)
+    : context_(std::move(that.context_)),
+      reader_(context_->stream()),
+      writer_(context_->stream()) {}
+
+  auto* context() {
+    return context_->context();
+  }
+
+  auto& Reader() {
+    return reader_;
+  }
+
+  auto& Writer() {
+    return writer_;
+  }
+
+  auto Finish(const ::grpc::Status& status) {
+    return Eventual<void>(
+        [this,
+         callback = Callback<bool>(),
+         status](auto& k, auto&&...) mutable {
+          callback = [&k](bool ok) {
+            if (ok) {
+              k.Start();
+            } else {
+              k.Fail("failed to finish");
+            }
+          };
+          context_->stream()->Finish(status, &callback);
+        });
+  }
+
+  auto WaitForDone() {
+    return Eventual<bool>(
+        [this](auto& k, auto&&...) mutable {
+          context_->OnDone([&k](bool cancelled) {
+            k.Start(cancelled);
+          });
+        });
+  }
+
+ private:
+  std::unique_ptr<ServerContext> context_;
+  ServerReader<RequestType_> reader_;
+  ServerWriter<ResponseType_> writer_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -204,12 +423,6 @@ class Server : public Synchronizable {
   void Shutdown();
 
   void Wait();
-
-  template <typename Value, typename Request, typename Response>
-  static auto Handler(TypedServerContext<Request, Response>&& context);
-
-  template <typename Request, typename Response>
-  static auto Handler(TypedServerContext<Request, Response>&& context);
 
   template <typename Service, typename Request, typename Response>
   auto Accept(std::string name, std::string host = "*");
@@ -364,440 +577,21 @@ auto Server::Accept(std::string name, std::string host) {
   // NOTE: we need a generic/untyped "server context" object to be
   // able to store generic/untyped "endpoints" but we want to expose
   // the types below so that the compiler can enforce we use the right
-  // request/response types so we use the below helper to reintroduce
-  // the types using a 'TypedServerContext'.
+  // request/response types on the 'ServerCall'.
   //
   // We only grab a pointer to 'endpoint' so we can move it via
   // 'Insert()' and we know that this code won't get executed if
   // 'Insert()' fails so we won't be using a dangling pointer.
   auto Dequeue = [endpoint = endpoint.get()]() {
     return endpoint->Dequeue()
-        | Lambda([](auto&& context) {
-             return TypedServerContext<Request, Response>{std::move(context)};
+        | Then([](auto&& context) {
+             return ServerCall<Request, Response>(std::move(context));
            });
   };
 
   return Validate<Request, Response>(name)
       | Insert(std::move(endpoint))
       | Repeat(Dequeue());
-}
-
-////////////////////////////////////////////////////////////////////////
-
-struct _ServerHandler {
-  template <
-      typename K_,
-      typename Request_,
-      typename Response_,
-      typename Ready_,
-      typename Body_,
-      typename Finished_>
-  struct Continuation {
-    using Traits_ = RequestResponseTraits;
-
-    using RequestType_ = typename Traits_::Details<Request_>::Type;
-    using ResponseType_ = typename Traits_::Details<Response_>::Type;
-
-    Continuation(
-        K_ k,
-        std::unique_ptr<ServerContext>&& context,
-        Ready_ ready,
-        Body_ body,
-        Finished_ finished)
-      : k_(std::move(k)),
-        context_(std::move(context)),
-        ready_(std::move(ready)),
-        body_(std::move(body)),
-        finished_(std::move(finished)) {}
-
-    Continuation(Continuation&& that)
-      : k_(std::move(that.k_)),
-        context_(std::move(that.context_)),
-        ready_(std::move(that.ready_)),
-        body_(std::move(that.body_)),
-        finished_(std::move(that.finished_)) {
-      // NOTE: only expecting move construction before starting.
-      CHECK(!read_callback_) << "moving after starting";
-    }
-
-    ~Continuation() {
-      /// Wait for 'done' so that we know that grpc will let us free
-      // it, but only wait for "done" if we actually started.
-      if (read_callback_) {
-        while (!done_.load()) {
-          // TODO(benh): portably pause CPU as part of spin loop and
-          // consider doing a LOG_EVERY(WARNING, N) as well.
-        }
-      }
-    }
-
-    void Start() {
-      if (handler_) {
-        if (!handler_->Install()) {
-          handler_->Invoke();
-        }
-      }
-
-      read_callback_ = [this](bool ok) mutable {
-        if constexpr (IsUndefined<Body_>::value) {
-          if (ok) {
-            stream()->Read(&read_buffer_, &read_callback_);
-          }
-        } else {
-          if (ok) {
-            if (deserialize(&read_buffer_, request_.get())) {
-              auto request = request_.Borrow();
-              request_.Watch([this]() {
-                stream()->Read(&read_buffer_, &read_callback_);
-              });
-              body_(*this, std::move(request));
-            } else {
-              LOG(WARNING) << "dropping request that failed to deserialize";
-            }
-          } else {
-            // Signify end of stream (or error).
-            body_(*this, borrowed_ptr<RequestType_>());
-          }
-        }
-      };
-
-      write_callback_ = [this](bool ok) {
-        if (ok) {
-          ::grpc::ByteBuffer* buffer = nullptr;
-          ::grpc::WriteOptions* options = nullptr;
-          ::grpc::Status* status = nullptr;
-
-          {
-            absl::MutexLock l(&mutex_);
-
-            CHECK(!write_datas_.empty());
-            write_datas_.pop_front();
-
-            if (!write_datas_.empty()) {
-              buffer = &write_datas_.front().buffer;
-              options = &write_datas_.front().options;
-            } else if (status_) {
-              status = &status_.value();
-            }
-          }
-
-          if (buffer != nullptr) {
-            stream()->Write(*buffer, *options, &write_callback_);
-          } else if (status != nullptr) {
-            stream()->Finish(*status, &finish_callback_);
-          }
-        } else {
-          absl::MutexLock l(&mutex_);
-          write_datas_.clear();
-          write_callback_ = Callback<bool>();
-        }
-      };
-
-      finish_callback_ = [this](bool /* ok */) {
-        // NOTE: it's possible that we may get a finish callback from
-        // calling 'Finish()' (or 'WriteAndFinish()' as well as from
-        // doing an 'AsyncNotifyWhenDone()' so we use
-        // 'std::call_once()' to make sure we only "finish" once.
-        std::call_once(finish_, [this]() {
-          if constexpr (IsUndefined<Finished_>::value) {
-            k_.Start(context()->IsCancelled());
-          } else {
-            finished_(*this, k_);
-          }
-        });
-      };
-
-      context_->OnDone([this](bool /* cancelled */) {
-        finish_callback_(/* ok = */ true);
-        done_.store(true);
-      });
-
-      if constexpr (!IsUndefined<Ready_>::value) {
-        ready_(*this);
-      }
-
-      stream()->Read(&read_buffer_, &read_callback_);
-    }
-
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      // TODO(benh): TryCancel() so that we don't leak resources?
-      k_.Fail(std::forward<Args>(args)...);
-    }
-
-    void Stop() {
-      // TODO(benh): TryCancel() so that we don't leak resources?
-      k_.Stop();
-    }
-
-    void Register(Interrupt& interrupt) {
-      k_.Register(interrupt);
-
-      handler_.emplace(&interrupt, [this]() {
-        context()->TryCancel();
-      });
-    }
-
-    void Write(
-        const ResponseType_& response,
-        const ::grpc::WriteOptions& options = ::grpc::WriteOptions()) {
-      ::grpc::ByteBuffer buffer;
-
-      if (serialize(response, &buffer)) {
-        WriteMaybeFinish(&buffer, options, std::nullopt);
-      } else {
-        LOG(WARNING) << "dropping response that failed to serialize";
-      }
-    }
-
-    void WriteLast(
-        const ResponseType_& response,
-        ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
-      options.set_last_message();
-      Write(response, options);
-    }
-
-    void WriteAndFinish(
-        const ResponseType_& response,
-        const ::grpc::WriteOptions& options,
-        const ::grpc::Status& status) {
-      ::grpc::ByteBuffer buffer;
-
-      if (serialize(response, &buffer)) {
-        WriteMaybeFinish(&buffer, options, status);
-      } else {
-        LOG(WARNING) << "dropping response that failed to serialize";
-      }
-    }
-
-    void WriteAndFinish(
-        const ResponseType_& response,
-        const ::grpc::Status& status) {
-      WriteAndFinish(response, ::grpc::WriteOptions(), status);
-    }
-
-    void Finish(const ::grpc::Status& status) LOCKS_EXCLUDED(mutex_) {
-      {
-        absl::MutexLock l(&mutex_);
-        status_ = status;
-        if (!write_datas_.empty()) {
-          return;
-        }
-      }
-      stream()->Finish(status, &finish_callback_);
-    }
-
-    auto* context() {
-      return context_->context();
-    }
-
-    auto* stream() {
-      return context_->stream();
-    }
-
-    template <typename T>
-    bool serialize(const T& t, ::grpc::ByteBuffer* buffer) {
-      bool own = true;
-
-      auto status = ::grpc::SerializationTraits<T>::Serialize(
-          t,
-          buffer,
-          &own);
-
-      if (status.ok()) {
-        return true;
-      } else {
-        STOUT_GRPC_LOG(1)
-            << "failed to serialize " << t.GetTypeName()
-            << ": " << status.error_message() << std::endl;
-        return false;
-      }
-    }
-
-    template <typename T>
-    bool deserialize(::grpc::ByteBuffer* buffer, T* t) {
-      auto status = ::grpc::SerializationTraits<T>::Deserialize(
-          buffer,
-          t);
-
-      if (status.ok()) {
-        return true;
-      } else {
-        STOUT_GRPC_LOG(1)
-            << "failed to deserialize " << t->GetTypeName()
-            << ": " << status.error_message() << std::endl;
-        return false;
-      }
-    }
-
-    void WriteMaybeFinish(
-        ::grpc::ByteBuffer* buffer,
-        const ::grpc::WriteOptions& options,
-        const std::optional<::grpc::Status>& status) LOCKS_EXCLUDED(mutex_) {
-      absl::ReleasableMutexLock l(&mutex_);
-
-      if (write_callback_) {
-        write_datas_.emplace_back();
-
-        auto& data = write_datas_.back();
-
-        data.buffer.Swap(buffer);
-        data.options = options;
-
-        if (write_datas_.size() == 1) {
-          buffer = &write_datas_.front().buffer;
-        } else {
-          buffer = nullptr;
-        }
-
-        l.Release();
-
-        if (buffer != nullptr) {
-          if (!status) {
-            stream()->Write(*buffer, options, &write_callback_);
-          } else {
-            stream()->WriteAndFinish(
-                *buffer,
-                options,
-                status.value(),
-                &finish_callback_);
-          }
-        }
-      }
-    }
-
-    K_ k_;
-    std::unique_ptr<ServerContext> context_;
-    Ready_ ready_;
-    Body_ body_;
-    Finished_ finished_;
-
-    std::optional<Interrupt::Handler> handler_;
-
-    Callback<bool> read_callback_;
-    Callback<bool> write_callback_;
-    Callback<bool> finish_callback_;
-
-    ::grpc::ByteBuffer read_buffer_;
-    Borrowable<RequestType_> request_;
-
-    struct WriteData {
-      ::grpc::ByteBuffer buffer;
-      ::grpc::WriteOptions options;
-    };
-
-    // TODO(benh): render this lock-free.
-    absl::Mutex mutex_;
-    std::list<WriteData> write_datas_ GUARDED_BY(mutex_);
-    std::optional<::grpc::Status> status_ GUARDED_BY(mutex_);
-
-    std::once_flag finish_;
-    std::atomic<bool> done_ = false;
-  };
-
-  template <
-      typename Request_,
-      typename Response_,
-      typename Ready_,
-      typename Body_,
-      typename Finished_,
-      typename Value_>
-  struct Composable {
-    template <typename Arg>
-    using ValueFrom = Value_;
-
-    template <typename Arg, typename K>
-    auto k(K k) && {
-      return Continuation<K, Request_, Response_, Ready_, Body_, Finished_>(
-          std::move(k),
-          std::move(context_),
-          std::move(ready_),
-          std::move(body_),
-          std::move(finished_));
-    }
-
-    template <
-        typename Request,
-        typename Response,
-        typename Value,
-        typename Ready,
-        typename Body,
-        typename Finished>
-    static auto create(
-        std::unique_ptr<ServerContext>&& context,
-        Ready ready,
-        Body body,
-        Finished finished) {
-      return Composable<Request, Response, Ready, Body, Finished, Value>{
-          std::move(context),
-          std::move(ready),
-          std::move(body),
-          std::move(finished)};
-    }
-
-    template <typename Ready>
-    auto ready(Ready ready) && {
-      static_assert(IsUndefined<Ready_>::value, "Duplicate 'ready'");
-      return create<Request_, Response_, Value_>(
-          std::move(context_),
-          std::move(ready),
-          std::move(body_),
-          std::move(finished_));
-    }
-
-    template <typename Body>
-    auto body(Body body) && {
-      static_assert(IsUndefined<Body_>::value, "Duplicate 'body'");
-      return create<Request_, Response_, Value_>(
-          std::move(context_),
-          std::move(ready_),
-          std::move(body),
-          std::move(finished_));
-    }
-
-    template <typename Finished>
-    auto finished(Finished finished) && {
-      static_assert(IsUndefined<Finished_>::value, "Duplicate 'finished'");
-      return create<Request_, Response_, Value_>(
-          std::move(context_),
-          std::move(ready_),
-          std::move(body_),
-          std::move(finished));
-    }
-
-    std::unique_ptr<ServerContext> context_;
-    Ready_ ready_;
-    Body_ body_;
-    Finished_ finished_;
-  };
-};
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename Value, typename Request, typename Response>
-auto Server::Handler(TypedServerContext<Request, Response>&& context) {
-  return _ServerHandler::Composable<
-      Request,
-      Response,
-      Undefined,
-      Undefined,
-      Undefined,
-      Value>{
-      std::move(context.context)};
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename Request, typename Response>
-auto Server::Handler(TypedServerContext<Request, Response>&& context) {
-  return _ServerHandler::Composable<
-      Request,
-      Response,
-      Undefined,
-      Undefined,
-      Undefined,
-      bool>{
-      std::move(context.context)};
 }
 
 ////////////////////////////////////////////////////////////////////////

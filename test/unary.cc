@@ -1,8 +1,11 @@
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
+#include "stout/catch.h"
 #include "stout/grpc/client.h"
 #include "stout/grpc/server.h"
 #include "stout/head.h"
+#include "stout/just.h"
+#include "stout/let.h"
 #include "stout/sequence.h"
 #include "stout/then.h"
 #include "test/test.h"
@@ -16,6 +19,7 @@ using stout::Notification;
 using stout::Sequence;
 
 using stout::eventuals::Head;
+using stout::eventuals::Let;
 using stout::eventuals::Terminate;
 using stout::eventuals::Then;
 
@@ -23,6 +27,7 @@ using stout::eventuals::grpc::Client;
 using stout::eventuals::grpc::CompletionPool;
 using stout::eventuals::grpc::Server;
 using stout::eventuals::grpc::ServerBuilder;
+using stout::eventuals::grpc::ServerCall;
 
 TEST_F(StoutGrpcTest, Unary) {
   ServerBuilder builder;
@@ -45,17 +50,17 @@ TEST_F(StoutGrpcTest, Unary) {
   auto serve = [&]() {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
         | Head()
-        | Then([](auto&& context) {
-             return Server::Handler(std::move(context))
-                 .body([](auto& call, auto&& request) {
-                   if (request) {
-                     HelloReply reply;
-                     std::string prefix("Hello ");
-                     reply.set_message(prefix + request->name());
-                     call.WriteAndFinish(reply, grpc::Status::OK);
-                   }
-                 });
-           });
+        | Then(Let([](auto& call) {
+             return call.Reader().Read()
+                 | Head() // Only get the first element.
+                 | Then([](auto&& request) {
+                      HelloReply reply;
+                      std::string prefix("Hello ");
+                      reply.set_message(prefix + request.name());
+                      return reply;
+                    })
+                 | UnaryEpilogue(call);
+           }));
   };
 
   auto [cancelled, k] = Terminate(serve());
