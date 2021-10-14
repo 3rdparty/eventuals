@@ -61,6 +61,8 @@ struct _StreamForEach {
 
     void Start(detail::TypeErasedStream& stream) {
       outer_ = &stream;
+      previous_ = Scheduler::Context::Get();
+
       k_.Start(*this);
     }
 
@@ -101,20 +103,24 @@ struct _StreamForEach {
     }
 
     void Next() override {
-      if (adaptor_.has_value()) {
-        CHECK_NOTNULL(inner_)->Next();
-      } else {
-        outer_->Next();
-      }
+      previous_->Continue([this]() {
+        if (adaptor_.has_value()) {
+          CHECK_NOTNULL(inner_)->Next();
+        } else {
+          outer_->Next();
+        }
+      });
     }
 
     void Done() override {
-      done_ = true;
-      if (adaptor_.has_value()) {
-        CHECK_NOTNULL(inner_)->Done();
-      } else {
-        outer_->Done();
-      }
+      previous_->Continue([this]() {
+        done_ = true;
+        if (adaptor_.has_value()) {
+          CHECK_NOTNULL(inner_)->Done();
+        } else {
+          outer_->Done();
+        }
+      });
     }
 
     K_ k_;
@@ -133,6 +139,8 @@ struct _StreamForEach {
     Interrupt* interrupt_ = nullptr;
 
     bool done_ = false;
+
+    Scheduler::Context* previous_ = nullptr;
   };
 
   template <typename F_>
