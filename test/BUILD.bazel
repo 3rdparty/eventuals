@@ -15,28 +15,10 @@ cc_test(
         "multiple-hosts.cc",
         "server-death-test.cc",
         "server-unavailable.cc",
+        "streaming.cc",
         "test.h",
         "unary.cc",
         "unimplemented.cc",
-    ],
-    # NOTE: need to add 'linkstatic = True' in order to get this to
-    # link until https://github.com/grpc/grpc/issues/13856 gets
-    # resolved.
-    linkstatic = True,
-    deps = [
-        "//:grpc",
-        "@com_github_google_googletest//:gtest_main",
-        "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
-        "@com_github_grpc_grpc//examples/protos:keyvaluestore",
-    ],
-)
-
-cc_test(
-    name = "streaming",
-    timeout = "short",
-    srcs = [
-        "streaming.cc",
-        "test.h",
     ],
     # NOTE: need to add 'linkstatic = True' in order to get this to
     # link until https://github.com/grpc/grpc/issues/13856 gets
