@@ -22,6 +22,7 @@ class Lock {
     Callback<> f;
     Waiter* next = nullptr;
     bool acquired = false;
+    Scheduler::Context* context = nullptr;
   };
 
   bool AcquireFast(Waiter* waiter) {
@@ -108,6 +109,19 @@ class Lock {
     return head_.load(std::memory_order_relaxed) == nullptr;
   }
 
+  bool IsLockedBy(Scheduler::Context* context) {
+    Waiter* current_waiter = head_.load(std::memory_order_acquire);
+    if (current_waiter != nullptr) {
+      if (current_waiter->context == context) {
+        return true;
+      } else {
+        return false;
+      }
+    } else {
+      return false;
+    }
+  }
+
  private:
   std::atomic<Waiter*> head_ = nullptr;
 };
@@ -142,6 +156,8 @@ struct _Acquire {
         if constexpr (!std::is_void_v<Arg_>) {
           arg_.emplace(std::forward<Args>(args)...);
         }
+
+        waiter_.context = context_;
 
         waiter_.f = [this]() mutable {
           STOUT_EVENTUALS_LOG(2)
@@ -180,6 +196,8 @@ struct _Acquire {
         // pre-allocated buffer based on composing with Errors.
         auto* tuple = new std::tuple{this, std::forward<Args>(args)...};
 
+        waiter_.context = context_;
+
         waiter_.f = [tuple]() mutable {
           std::apply(
               [tuple](auto* acquire, auto&&...) {
@@ -213,6 +231,8 @@ struct _Acquire {
       if (lock_->AcquireFast(&waiter_)) {
         k_.Stop();
       } else {
+        waiter_.context = context_;
+
         waiter_.f = [this]() mutable {
           context_->Unblock([this]() mutable {
             k_.Stop();
@@ -352,6 +372,8 @@ struct _Wait {
         }
 
         context_ = Scheduler::Context::Get();
+
+        waiter_.context = context_;
 
         waiter_.f = [this]() mutable {
           STOUT_EVENTUALS_LOG(2)
