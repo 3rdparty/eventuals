@@ -9,19 +9,18 @@
 # instructions at https://github.com/3rdparty/stout-eventuals.
 ########################################################################
 
-load("//3rdparty/bazel-rules-libuv:repos.bzl", libuv_repos="repos")
-load("//3rdparty/bazel-rules-curl:repos.bzl", curl_repos="repos")
-
+load("//3rdparty/bazel-rules-libuv:repos.bzl", libuv_repos = "repos")
+load("//3rdparty/bazel-rules-curl:repos.bzl", curl_repos = "repos")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 def repos(external = True, repo_mapping = {}):
     libuv_repos(
-        repo_mapping = repo_mapping
+        repo_mapping = repo_mapping,
     )
 
     curl_repos(
-        repo_mapping = repo_mapping
+        repo_mapping = repo_mapping,
     )
 
     if external:
@@ -29,7 +28,7 @@ def repos(external = True, repo_mapping = {}):
             git_repository,
             name = "com_github_3rdparty_stout_eventuals",
             remote = "https://github.com/3rdparty/stout-eventuals",
-            commit = "bd8c08df20a88db840d4cb8024b806647b997610",
-            shallow_since = "1633339602 +0300",
+            commit = "41e07911478e9d02c1fa9bb9d20ea9afabb04eac",
+            shallow_since = "1633607453 +0300",
             repo_mapping = repo_mapping,
         )
