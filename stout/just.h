@@ -11,13 +11,13 @@ namespace eventuals {
 
 template <typename T>
 auto Just(T t) {
-  return Eventual<T>([t = std::move(t)](auto& k) {
+  return Eventual<T>([t = std::move(t)](auto& k, auto&&...) {
     k.Start(std::move(t));
   });
 }
 
 inline auto Just() {
-  return Eventual<void>([](auto& k) {
+  return Eventual<void>([](auto& k, auto&&...) {
     k.Start();
   });
 }
