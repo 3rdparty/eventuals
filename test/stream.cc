@@ -5,6 +5,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "stout/context.h"
+#include "stout/head.h"
 #include "stout/loop.h"
 #include "stout/map.h"
 #include "stout/reduce.h"
@@ -15,6 +16,7 @@ namespace eventuals = stout::eventuals;
 
 using stout::eventuals::Context;
 using stout::eventuals::Eventual;
+using stout::eventuals::Head;
 using stout::eventuals::Interrupt;
 using stout::eventuals::Loop;
 using stout::eventuals::Map;
@@ -373,7 +375,7 @@ TEST(StreamTest, MapThenReduce) {
 
 
 TEST(StreamTest, MapEventualReduce) {
-  auto s = [&]() {
+  auto s = []() {
     return Stream<int>()
                .context(5)
                .next([](auto& count, auto& k) {
@@ -401,4 +403,27 @@ TEST(StreamTest, MapEventualReduce) {
   };
 
   EXPECT_EQ(20, *s());
+}
+
+
+TEST(StreamTest, Head) {
+  auto s1 = []() {
+    return Stream<int>()
+               .next([](auto& k) {
+                 k.Emit(42);
+               })
+        | Head();
+  };
+
+  EXPECT_EQ(42, *s1());
+
+  auto s2 = []() {
+    return Stream<int>()
+               .next([](auto& k) {
+                 k.Ended();
+               })
+        | Head();
+  };
+
+  EXPECT_THROW(*s2(), const char*);
 }

@@ -36,7 +36,11 @@ struct _Head {
     }
 
     void Ended() {
-      k_.Start(std::move(*arg_));
+      if (arg_) {
+        k_.Start(std::move(*arg_));
+      } else {
+        k_.Fail("empty stream");
+      }
     }
 
     void Register(Interrupt& interrupt) {
