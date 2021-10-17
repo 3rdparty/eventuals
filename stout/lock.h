@@ -22,6 +22,7 @@ class Lock {
     Callback<> f;
     Waiter* next = nullptr;
     bool acquired = false;
+    Scheduler::Context* context = nullptr;
   };
 
   bool AcquireFast(Waiter* waiter) {
@@ -36,6 +37,7 @@ class Lock {
               waiter,
               std::memory_order_release,
               std::memory_order_relaxed)) {
+        owner_.store(CHECK_NOTNULL(waiter->context));
         waiter->acquired = true;
         return true;
       }
@@ -83,6 +85,10 @@ class Lock {
     CHECK_NOTNULL(waiter);
 
     if (waiter->next == nullptr) {
+      // Unset owner _now_ instead of _after_ the "compare and swap"
+      // to avoid racing with 'AcquireFast()' trying to set the owner.
+      owner_.store(nullptr);
+
       if (!head_.compare_exchange_weak(
               waiter,
               nullptr,
@@ -99,6 +105,8 @@ class Lock {
       waiter->next->acquired = false;
       waiter->next = nullptr;
 
+      owner_.store(CHECK_NOTNULL(waiter->context));
+
       waiter->acquired = true;
       waiter->f();
     }
@@ -108,8 +116,22 @@ class Lock {
     return head_.load(std::memory_order_relaxed) == nullptr;
   }
 
+  bool OwnedByCurrentSchedulerContext() {
+    // NOTE: using 'CHECK_NOTNULL' because the intention here is that
+    // the caller expects to have a current scheduler context.
+    return owner_.load() == CHECK_NOTNULL(Scheduler::Context::Get());
+  }
+
  private:
   std::atomic<Waiter*> head_ = nullptr;
+
+  // NOTE: we store the owning scheduler context pointer in 'owner_'
+  // rather than using 'head_' to lookup the context because of the
+  // possibility that the lookup will end up dereferencing a 'Waiter'
+  // that has since been deleted leading to undefined
+  // behavior. Instead, it's possible that 'owner_' may be out of date
+  // or a 'nullptr' but it will never read deallocated memory.
+  std::atomic<Scheduler::Context*> owner_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -123,14 +145,14 @@ struct _Acquire {
   struct Continuation {
     template <typename... Args>
     void Start(Args&&... args) {
-      context_ = Scheduler::Context::Get();
+      waiter_.context = Scheduler::Context::Get();
 
       STOUT_EVENTUALS_LOG(2)
-          << "'" << context_->name() << "' acquiring";
+          << "'" << waiter_.context->name() << "' acquiring";
 
       if (lock_->AcquireFast(&waiter_)) {
         STOUT_EVENTUALS_LOG(2)
-            << "'" << context_->name() << "' (fast) acquired";
+            << "'" << waiter_.context->name() << "' (fast) acquired";
         k_.Start(std::forward<Args>(args)...);
       } else {
         static_assert(
@@ -145,9 +167,9 @@ struct _Acquire {
 
         waiter_.f = [this]() mutable {
           STOUT_EVENTUALS_LOG(2)
-              << "'" << context_->name() << "' (very slow) acquired";
+              << "'" << waiter_.context->name() << "' (very slow) acquired";
 
-          context_->Unblock([this]() mutable {
+          waiter_.context->Unblock([this]() mutable {
             if constexpr (sizeof...(args) == 1) {
               k_.Start(std::move(*arg_));
             } else {
@@ -158,7 +180,7 @@ struct _Acquire {
 
         if (lock_->AcquireSlow(&waiter_)) {
           STOUT_EVENTUALS_LOG(2)
-              << "'" << context_->name() << "' (slow) acquired";
+              << "'" << waiter_.context->name() << "' (slow) acquired";
 
           if constexpr (sizeof...(args) == 1) {
             k_.Start(std::move(*arg_));
@@ -171,7 +193,7 @@ struct _Acquire {
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      context_ = Scheduler::Context::Get();
+      waiter_.context = Scheduler::Context::Get();
 
       if (lock_->AcquireFast(&waiter_)) {
         k_.Fail(std::forward<Args>(args)...);
@@ -183,7 +205,7 @@ struct _Acquire {
         waiter_.f = [tuple]() mutable {
           std::apply(
               [tuple](auto* acquire, auto&&...) {
-                acquire->context_->Unblock([tuple]() mutable {
+                acquire->waiter_.context->Unblock([tuple]() mutable {
                   std::apply(
                       [](auto* acquire, auto&&... args) {
                         auto& k_ = acquire->k_;
@@ -208,13 +230,13 @@ struct _Acquire {
     }
 
     void Stop() {
-      context_ = Scheduler::Context::Get();
+      waiter_.context = Scheduler::Context::Get();
 
       if (lock_->AcquireFast(&waiter_)) {
         k_.Stop();
       } else {
         waiter_.f = [this]() mutable {
-          context_->Unblock([this]() mutable {
+          waiter_.context->Unblock([this]() mutable {
             k_.Stop();
           });
         };
@@ -240,7 +262,6 @@ struct _Acquire {
     std::optional<
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
-    Scheduler::Context* context_ = nullptr;
   };
 
   struct Composable {
@@ -325,7 +346,8 @@ struct _Wait {
                 CHECK(!lock_->Available());
 
                 STOUT_EVENTUALS_LOG(2)
-                    << "'" << context_->name() << "' notified";
+                    << "'" << CHECK_NOTNULL(waiter_.context)->name()
+                    << "' notified";
 
                 notifiable_ = false;
 
@@ -351,13 +373,13 @@ struct _Wait {
           arg_.emplace(std::forward<Args>(args)...);
         }
 
-        context_ = Scheduler::Context::Get();
+        waiter_.context = Scheduler::Context::Get();
 
         waiter_.f = [this]() mutable {
           STOUT_EVENTUALS_LOG(2)
-              << "'" << context_->name() << "' (notify) acquired";
+              << "'" << waiter_.context->name() << "' (notify) acquired";
 
-          context_->Unblock([this]() mutable {
+          waiter_.context->Unblock([this]() mutable {
             if constexpr (sizeof...(args) == 1) {
               Start(std::move(*arg_));
             } else {
@@ -366,7 +388,8 @@ struct _Wait {
           });
 
           STOUT_EVENTUALS_LOG(2)
-              << "'" << context_->name() << "' (notify) submitted";
+              << "'" << CHECK_NOTNULL(waiter_.context)->name()
+              << "' (notify) submitted";
         };
 
         lock_->Release();
@@ -398,7 +421,6 @@ struct _Wait {
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
     bool notifiable_ = false;
-    Scheduler::Context* context_ = nullptr;
   };
 
   template <typename F_>
@@ -457,8 +479,8 @@ class Synchronizable {
     return eventuals::Wait(&lock_, std::move(f));
   }
 
-  Lock* lock() {
-    return &lock_;
+  Lock& lock() {
+    return lock_;
   }
 
  private:

@@ -18,6 +18,7 @@ using stout::eventuals::Interrupt;
 using stout::eventuals::Just;
 using stout::eventuals::Lock;
 using stout::eventuals::Release;
+using stout::eventuals::Scheduler;
 using stout::eventuals::Synchronizable;
 using stout::eventuals::Terminate;
 using stout::eventuals::Then;
@@ -184,6 +185,7 @@ TEST(LockTest, Wait) {
   ASSERT_TRUE(callback);
 
   Lock::Waiter waiter;
+  waiter.context = Scheduler::Context::Get();
 
   ASSERT_TRUE(lock.AcquireFast(&waiter));
 
@@ -232,8 +234,31 @@ TEST(LockTest, SynchronizableThen) {
                return i;
              });
     }
+  };
 
-    Lock lock;
+  Foo foo;
+
+  EXPECT_EQ(42, *foo.Operation());
+}
+
+
+TEST(LockTest, OwnedByCurrentSchedulerContext) {
+  struct Foo : public Synchronizable {
+    auto Operation() {
+      return Synchronized(
+                 Then([this]() {
+                   if (!lock().OwnedByCurrentSchedulerContext()) {
+                     ADD_FAILURE() << "lock should be owned";
+                   }
+                   return Just(42);
+                 }))
+          | Then([this](auto i) {
+               if (lock().OwnedByCurrentSchedulerContext()) {
+                 ADD_FAILURE() << "lock should not be owned";
+               }
+               return i;
+             });
+    }
   };
 
   Foo foo;
