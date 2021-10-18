@@ -4,6 +4,7 @@
 
 #include "grpcpp/completion_queue.h"
 #include "grpcpp/server.h"
+#include "stout/catch.h"
 #include "stout/closure.h"
 #include "stout/conditional.h"
 #include "stout/grpc/logging.h"
@@ -97,6 +98,7 @@ auto Server::Unimplemented(ServerContext* context) {
 ////////////////////////////////////////////////////////////////////////
 
 Server::Server(
+    std::vector<Service*>&& services,
     std::unique_ptr<::grpc::AsyncGenericService>&& service,
     std::unique_ptr<::grpc::Server>&& server,
     std::vector<std::unique_ptr<::grpc::ServerCompletionQueue>>&& cqs,
@@ -105,6 +107,37 @@ Server::Server(
     server_(std::move(server)),
     cqs_(std::move(cqs)),
     threads_(std::move(threads)) {
+  for (auto* service : services) {
+    auto& serve = serves_.emplace_back(std::make_unique<Serve>());
+
+    serve->service = service;
+
+    serve->service->Register(this);
+
+    serve->task = service->Serve();
+
+    serve->task->Start(
+        serve->interrupt,
+        [&serve](auto&&...) {
+          STOUT_GRPC_LOG(1)
+              << serve->service->service_full_name()
+              << " completed serving";
+          serve->done.store(true);
+        },
+        [&serve](std::exception_ptr) {
+          STOUT_GRPC_LOG(1)
+              << serve->service->service_full_name()
+              << " failed serving";
+          serve->done.store(true);
+        },
+        [&serve]() {
+          STOUT_GRPC_LOG(1)
+              << serve->service->service_full_name()
+              << " stopped serving";
+          serve->done.store(true);
+        });
+  }
+
   workers_.reserve(cqs_.size());
 
   for (auto&& cq : cqs_) {
@@ -134,17 +167,24 @@ Server::Server(
                                  return Unimplemented(context.release());
                                }))
                     | Loop()
+                    | Catch([this](auto&&...) {
+                         // TODO(benh): refactor so we only call
+                         // 'ShutdownEndpoints()' once on server
+                         // shutdown, not for each worker (which
+                         // should be harmless but unnecessary).
+                         return ShutdownEndpoints();
+                       })
                     | Just(Undefined()); // TODO(benh): render this unnecessary.
               });
         });
 
     worker->task->Start(
         worker->interrupt,
-        [](auto&&...) {
-          LOG(FATAL) << "Unreachable";
-        },
-        [&worker](std::exception_ptr) {
+        [&worker](auto&&...) {
           worker->done.store(true);
+        },
+        [](std::exception_ptr) {
+          LOG(FATAL) << "Unreachable";
         },
         []() {
           LOG(FATAL) << "Unreachable";
@@ -170,6 +210,12 @@ void Server::Shutdown() {
   for (auto& cq : cqs_) {
     cq->Shutdown();
   }
+
+  // Interrupt serving each service in the event that either shutting
+  // down the server or the completion queues was insufficient.
+  for (auto& serve : serves_) {
+    serve->interrupt.Trigger();
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -179,6 +225,13 @@ void Server::Wait() {
   // queues before anything else.
   for (auto& worker : workers_) {
     while (!worker->done.load()) {
+      // TODO(benh): cpu relax or some other spin loop strategy.
+    }
+  }
+
+  // Now wait for the serve tasks to be done.
+  for (auto& serve : serves_) {
+    while (!serve->done.load()) {
       // TODO(benh): cpu relax or some other spin loop strategy.
     }
   }
@@ -244,6 +297,13 @@ ServerBuilder& ServerBuilder::AddListeningPort(
 
 ////////////////////////////////////////////////////////////////////////
 
+ServerBuilder& ServerBuilder::RegisterService(Service* service) {
+  services_.push_back(service);
+  return *this;
+}
+
+////////////////////////////////////////////////////////////////////////
+
 ServerStatusOrServer ServerBuilder::BuildAndStart() {
   if (addresses_.empty()) {
     const std::string error = "no listening addresses specified";
@@ -260,9 +320,9 @@ ServerStatusOrServer ServerBuilder::BuildAndStart() {
         nullptr};
   }
 
-  service_ = std::make_unique<::grpc::AsyncGenericService>();
+  auto service = std::make_unique<::grpc::AsyncGenericService>();
 
-  builder_.RegisterAsyncGenericService(service_.get());
+  builder_.RegisterAsyncGenericService(service.get());
 
   if (!numberOfCompletionQueues_) {
     numberOfCompletionQueues_ = 1;
@@ -281,12 +341,10 @@ ServerStatusOrServer ServerBuilder::BuildAndStart() {
   std::unique_ptr<::grpc::Server> server = builder_.BuildAndStart();
 
   if (!server) {
-    // TODO(benh): Are invalid addresses the only reason the server
-    // wouldn't start? What about bad credentials?
-    status_ = ServerStatus::Error("Error building server: invalid address(es)");
-
     return ServerStatusOrServer{
-        status_,
+        // TODO(benh): Are invalid addresses the only reason the
+        // server wouldn't start? What about bad credentials?
+        ServerStatus::Error("Error building server: invalid address(es)"),
         nullptr};
   } else {
     // NOTE: we wait to start the threads until after a succesful
@@ -309,8 +367,11 @@ ServerStatusOrServer ServerBuilder::BuildAndStart() {
 
     return ServerStatusOrServer{
         ServerStatus::Ok(),
+        // NOTE: using 'new' here because constructor for 'Server' is
+        // private and can't be invoked by 'std::make_unique()'.
         std::unique_ptr<Server>(new Server(
-            std::move(service_),
+            std::move(services_),
+            std::move(service),
             std::move(server),
             std::move(cqs),
             std::move(threads)))};

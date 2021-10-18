@@ -5,7 +5,6 @@
 #include <thread>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/synchronization/mutex.h"
 #include "google/protobuf/descriptor.h"
 #include "grpcpp/completion_queue.h"
 #include "grpcpp/generic/async_generic_service.h"
@@ -15,14 +14,23 @@
 #include "grpcpp/server_builder.h"
 #include "grpcpp/server_context.h"
 #include "stout/borrowable.h"
+#include "stout/catch.h"
 #include "stout/eventual.h"
 #include "stout/grpc/logging.h"
+#include "stout/grpc/server.h"
 #include "stout/grpc/traits.h"
+#include "stout/head.h"
+#include "stout/iterate.h"
+#include "stout/just.h"
 #include "stout/lambda.h"
 #include "stout/lock.h"
+#include "stout/loop.h"
+#include "stout/map.h"
 #include "stout/notification.h"
 #include "stout/repeat.h"
 #include "stout/task.h"
+#include "stout/then.h"
+#include "stout/until.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +41,32 @@ namespace grpc {
 ////////////////////////////////////////////////////////////////////////
 
 using stout::eventuals::detail::operator|;
+
+////////////////////////////////////////////////////////////////////////
+
+// Forward declaration.
+class Server;
+
+////////////////////////////////////////////////////////////////////////
+
+class Service {
+ public:
+  virtual Task<Undefined> Serve() = 0;
+
+  virtual const std::string& service_full_name() = 0;
+
+  void Register(Server* server) {
+    server_ = server;
+  }
+
+ protected:
+  Server& server() {
+    return *CHECK_NOTNULL(server_);
+  }
+
+ private:
+  Server* server_;
+};
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -352,19 +386,38 @@ class Endpoint : public Synchronizable {
   }
 
   auto Dequeue() {
-    return Synchronized(
-        Wait([this](auto notify) {
-          notify_ = std::move(notify);
-          return [this]() {
-            return contexts_.empty();
-          };
-        })
-        | Lambda([this]() {
-            CHECK(!contexts_.empty());
-            auto context = std::move(contexts_.front());
-            contexts_.pop_front();
-            return context;
-          }));
+    return Repeat(
+               Synchronized(
+                   Wait([this](auto notify) {
+                     notify_ = std::move(notify);
+                     return [this]() {
+                       return contexts_.empty() && !shutdown_;
+                     };
+                   })
+                   | Then([this]() {
+                       if (!shutdown_) {
+                         CHECK(!contexts_.empty());
+                         auto context = std::move(contexts_.front());
+                         contexts_.pop_front();
+                         return std::make_optional(std::move(context));
+                       } else {
+                         return std::optional<std::unique_ptr<ServerContext>>();
+                       }
+                     })))
+        | Until([](auto& context) {
+             return !context.has_value();
+           })
+        | Map(Then([](auto&& context) {
+             CHECK(context);
+             return std::move(*context);
+           }));
+  }
+
+  auto Shutdown() {
+    return Synchronized(Then([this]() {
+      shutdown_ = true;
+      notify_();
+    }));
   }
 
   const std::string& path() {
@@ -384,6 +437,9 @@ class Endpoint : public Synchronizable {
   Callback<> notify_ = []() {};
 
   std::deque<std::unique_ptr<ServerContext>> contexts_;
+
+  // Used to indicate the server is shutting down.
+  bool shutdown_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -434,6 +490,7 @@ class Server : public Synchronizable {
   friend class ServerBuilder;
 
   Server(
+      std::vector<Service*>&& services,
       std::unique_ptr<::grpc::AsyncGenericService>&& service,
       std::unique_ptr<::grpc::Server>&& server,
       std::vector<std::unique_ptr<::grpc::ServerCompletionQueue>>&& cqs,
@@ -443,6 +500,8 @@ class Server : public Synchronizable {
   auto Validate(const std::string& name);
 
   auto Insert(std::unique_ptr<Endpoint>&& endpoint);
+
+  auto ShutdownEndpoints();
 
   auto RequestCall(ServerContext* context, ::grpc::ServerCompletionQueue* cq);
 
@@ -454,6 +513,15 @@ class Server : public Synchronizable {
   std::unique_ptr<::grpc::Server> server_;
   std::vector<std::unique_ptr<::grpc::ServerCompletionQueue>> cqs_;
   std::vector<std::thread> threads_;
+
+  struct Serve {
+    Service* service;
+    Interrupt interrupt;
+    std::optional<Task<Undefined>> task;
+    std::atomic<bool> done = false;
+  };
+
+  std::vector<std::unique_ptr<Serve>> serves_;
 
   struct Worker {
     Interrupt interrupt;
@@ -490,6 +558,8 @@ class ServerBuilder {
       std::shared_ptr<::grpc::ServerCredentials> credentials,
       int* selectedPort = nullptr);
 
+  ServerBuilder& RegisterService(Service* service);
+
   ServerStatusOrServer BuildAndStart();
 
  private:
@@ -497,10 +567,9 @@ class ServerBuilder {
   std::optional<size_t> numberOfCompletionQueues_;
   std::optional<size_t> minimumThreadsPerCompletionQueue_;
   std::vector<std::string> addresses_;
+  std::vector<Service*> services_;
 
   ::grpc::ServerBuilder builder_;
-
-  std::unique_ptr<::grpc::AsyncGenericService> service_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -545,6 +614,24 @@ inline auto Server::Insert(std::unique_ptr<Endpoint>&& endpoint) {
 
 ////////////////////////////////////////////////////////////////////////
 
+inline auto Server::ShutdownEndpoints() {
+  return Synchronized(Then([this]() {
+    // TODO(benh): replace this with just 'Iterate(endpoints_)' once
+    // we fix the bugs with types in 'Iterate()'.
+    std::vector<Endpoint*> endpoints;
+    for (auto& pair : endpoints_) {
+      endpoints.push_back(pair.second.get());
+    }
+    return Iterate(endpoints)
+        | Map(Then([](auto* endpoint) {
+             return endpoint->Shutdown();
+           }))
+        | Loop();
+  }));
+}
+
+////////////////////////////////////////////////////////////////////////
+
 template <typename Service, typename Request, typename Response>
 auto Server::Accept(std::string name, std::string host) {
   static_assert(
@@ -584,14 +671,64 @@ auto Server::Accept(std::string name, std::string host) {
   // 'Insert()' fails so we won't be using a dangling pointer.
   auto Dequeue = [endpoint = endpoint.get()]() {
     return endpoint->Dequeue()
-        | Then([](auto&& context) {
+        | Map(Then([](auto&& context) {
              return ServerCall<Request, Response>(std::move(context));
-           });
+           }));
   };
 
   return Validate<Request, Response>(name)
       | Insert(std::move(endpoint))
-      | Repeat(Dequeue());
+      | Dequeue();
+}
+
+////////////////////////////////////////////////////////////////////////
+
+// Helper that reads only a single request for a unary call
+template <typename Request, typename Response>
+auto UnaryPrologue(ServerCall<Request, Response>& call) {
+  return call.Reader().Read()
+      | Head(); // Only get the first request.
+}
+
+// Helper that does the writing and finishing for a unary call as well
+// as catching failures and handling appropriately.
+template <typename Request, typename Response>
+auto UnaryEpilogue(ServerCall<Request, Response>& call) {
+  return Then([&](auto&& response) {
+           return call.Writer().WriteLast(
+               std::forward<decltype(response)>(response));
+         })
+      | Just(::grpc::Status::OK)
+      | Catch([&](auto&&...) {
+           call.context()->TryCancel();
+           return Just(
+               ::grpc::Status(::grpc::UNKNOWN, "error"));
+         })
+      | Then([&](auto&& status) {
+           return call.Finish(status)
+               | call.WaitForDone();
+         });
+}
+
+
+// Helper that does the writing and finishing for a server streaming
+// call as well as catching failures and handling appropriately.
+template <typename Request, typename Response>
+auto StreamingEpilogue(ServerCall<Request, Response>& call) {
+  return Map(Then([&](auto&& response) {
+           return call.Writer().Write(response);
+         }))
+      | Loop()
+      | Just(::grpc::Status::OK)
+      | Catch([&](auto&&...) {
+           call.context()->TryCancel();
+           return Just(
+               ::grpc::Status(::grpc::UNKNOWN, "error"));
+         })
+      | Then([&](auto&& status) {
+           return call.Finish(status)
+               | call.WaitForDone();
+         });
 }
 
 ////////////////////////////////////////////////////////////////////////
