@@ -16,6 +16,7 @@ cc_library(
         "eventuals/concurrent.h",
         "eventuals/conditional.h",
         "eventuals/context.h",
+        "eventuals/do-all.h",
         "eventuals/eventual.h",
         "eventuals/filter.h",
         "eventuals/head.h",
