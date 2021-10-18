@@ -37,7 +37,12 @@ struct _Stream {
   struct StreamK {
     S_* stream_ = nullptr;
     K_* k_ = nullptr;
-    std::optional<Arg_> arg_;
+    std::optional<
+        std::conditional_t<
+            std::is_reference_v<Arg_>,
+            std::reference_wrapper<std::remove_reference_t<Arg_>>,
+            Arg_>>
+        arg_;
 
     void Start() {
       stream_->previous_->Continue([this]() {
@@ -90,8 +95,12 @@ struct _Stream {
             }
 
             return [this]() {
-              if constexpr (sizeof...(args) == 1) {
-                k_->Body(std::move(*arg_));
+              if constexpr (!std::is_void_v<Arg_>) {
+                if constexpr (std::is_reference_v<Arg_>) {
+                  k_->Body(arg_->get());
+                } else {
+                  k_->Body(std::move(*arg_));
+                }
               } else {
                 k_->Body();
               }

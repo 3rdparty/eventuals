@@ -139,3 +139,25 @@ TEST(Take, TakeRangeAmountOutOfRange) {
 
   EXPECT_THAT(*s(), ElementsAre("12", "17", "3"));
 }
+
+TEST(Take, UniquePtr) {
+  std::vector<std::unique_ptr<int>> v;
+
+  v.emplace_back(std::make_unique<int>(1));
+  v.emplace_back(std::make_unique<int>(2));
+
+  auto s = [&]() {
+    return Iterate(std::move(v))
+        | TakeRange(0, 100)
+        | Collect<std::vector<std::unique_ptr<int>>>();
+  };
+
+  auto result = *s();
+
+  EXPECT_TRUE(v.empty());
+
+  // NOTE: not using 'ElementsAre()' due to 'std::unique_ptr'.
+  ASSERT_EQ(2, result.size());
+  EXPECT_EQ(1, *result[0]);
+  EXPECT_EQ(2, *result[1]);
+}

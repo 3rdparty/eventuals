@@ -13,10 +13,16 @@
 
 #include "gtest/gtest.h"
 #include "stout/loop.h"
+#include "stout/map.h"
+#include "stout/reduce.h"
 #include "stout/terminal.h"
+#include "stout/then.h"
 
 using stout::eventuals::Iterate;
 using stout::eventuals::Loop;
+using stout::eventuals::Map;
+using stout::eventuals::Reduce;
+using stout::eventuals::Then;
 
 TEST(Iterate, VectorLvalue) {
   std::vector<int> v = {5, 12};
@@ -771,4 +777,29 @@ TEST(Iterate, InitializerList) {
   };
 
   EXPECT_EQ(30, *s());
+}
+
+TEST(Iterate, UniquePtr) {
+  std::vector<std::unique_ptr<int>> v;
+
+  v.emplace_back(std::make_unique<int>(1));
+  v.emplace_back(std::make_unique<int>(2));
+
+  auto s = [&]() {
+    return Iterate(v)
+        | Map(Then([](auto& i) -> decltype(i) {
+             (*i)++;
+             return i;
+           }))
+        | Reduce(
+               /* sum = */ 0,
+               [](auto& sum) {
+                 return Then([&](auto& i) {
+                   sum += *i;
+                   return true;
+                 });
+               });
+  };
+
+  EXPECT_EQ(5, *s());
 }

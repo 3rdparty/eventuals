@@ -37,9 +37,9 @@ auto Collect() {
       .context(Container())
       .body([](auto& data, auto& stream, auto&& value) {
         if constexpr (detail::HasEmplaceBack<Container>::value) {
-          data.emplace_back(std::move(value));
+          data.emplace_back(std::forward<decltype(value)>(value));
         } else {
-          data.insert(data.cend(), std::move(value));
+          data.insert(data.cend(), std::forward<decltype(value)>(value));
         }
         stream.Next();
       })

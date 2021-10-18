@@ -69,16 +69,14 @@ struct _TakeLastN {
       previous_->Continue([this]() {
         if (!ended_) {
           stream_->Next();
-          return;
-        }
-        if (data_.empty()) {
+        } else if (data_.empty()) {
           // There are no more stored values, our stream has ended.
           k_.Ended();
-          return;
+        } else {
+          auto value = std::move(data_.front());
+          data_.pop_front();
+          k_.Body(std::move(value));
         }
-        auto value = std::move(data_.front());
-        data_.pop_front();
-        k_.Body(std::move(value));
       });
     }
 
@@ -90,7 +88,13 @@ struct _TakeLastN {
 
     K_ k_;
     size_t n_;
-    std::deque<Arg_> data_;
+
+    // NOTE: because we are "taking" we need a value type here (not
+    // lvalue or rvalue) and we'll assume that the 'std::forward' will
+    // either incur a copy or a move and the compiler should emit the
+    // correct errors if those are not allowed.
+    std::deque<std::decay_t<Arg_>> data_;
+
     bool ended_ = false;
 
     TypeErasedStream* stream_ = nullptr;

@@ -17,7 +17,7 @@ namespace eventuals {
 
 template <typename Iterator>
 auto Iterate(Iterator begin, Iterator end) {
-  using T = typename std::iterator_traits<Iterator>::value_type;
+  using T = decltype(*begin);
 
   return Stream<T>()
       .next([begin, end](auto& k) mutable {
@@ -43,24 +43,26 @@ auto Iterate(Container& container) {
 
 template <typename Container>
 auto Iterate(Container&& container) {
-  using Iterator = typename Container::const_iterator;
+  using Iterator = typename Container::iterator;
 
   struct Data {
     Container container;
     std::optional<Iterator> begin;
   };
 
-  using T = typename Container::value_type;
+  // NOTE: using 'std::decay_t' here because we want value semantics
+  // since we'll be doing a 'std::move' below.
+  using T = std::decay_t<decltype(*std::declval<Data>().begin.value())>;
 
   return Stream<T>()
       .context(Data{std::move(container), std::nullopt})
       .start([](auto& data, auto& k) {
-        data.begin = data.container.cbegin();
+        data.begin = data.container.begin();
         k.Start();
       })
       .next([](auto& data, auto& k) {
-        if (data.begin.value() != data.container.cend()) {
-          k.Emit(*(data.begin.value()++));
+        if (data.begin.value() != data.container.end()) {
+          k.Emit(std::move(*(data.begin.value()++)));
         } else {
           k.Ended();
         }
@@ -74,7 +76,7 @@ auto Iterate(Container&& container) {
 
 template <typename T, size_t n>
 auto Iterate(std::array<T, n>&& container) {
-  return Stream<T>()
+  return Stream<decltype(container[0])>()
       .next([container = std::move(container), i = 0u](auto& k) mutable {
         if (i != container.size()) {
           k.Emit(container[i++]);
@@ -91,7 +93,7 @@ auto Iterate(std::array<T, n>&& container) {
 
 template <typename T>
 auto Iterate(T* begin, T* end) {
-  return Stream<T>()
+  return Stream<decltype(*begin)>()
       .next([begin, end](auto& k) mutable {
         if (begin != end) {
           k.Emit(*(begin++));
@@ -122,7 +124,7 @@ auto Iterate(std::initializer_list<T>&& values) {
     std::optional<Iterator> begin;
   };
 
-  return Stream<T>()
+  return Stream<decltype(*std::declval<Data>().begin.value())>()
       .context(Data{std::vector<T>(std::move(values)), std::nullopt})
       .start([](auto& data, auto& k) {
         data.begin = data.container.cbegin();
