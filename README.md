@@ -1,6 +1,6 @@
-[![macOS](https://github.com/3rdparty/stout-eventuals/workflows/macOS/badge.svg?branch=main)](https://github.com/3rdparty/stout-eventuals/actions/workflows/macos.yml)
-[![Ubuntu](https://github.com/3rdparty/stout-eventuals/workflows/Ubuntu/badge.svg?branch=main)](https://github.com/3rdparty/stout-eventuals/actions/workflows/ubuntu.yml)
-[![Windows](https://github.com/3rdparty/stout-eventuals/workflows/Windows/badge.svg?branch=main)](https://github.com/3rdparty/stout-eventuals/actions/workflows/windows.yml)
+[![macOS](https://github.com/3rdparty/eventuals/workflows/macOS/badge.svg?branch=main)](https://github.com/3rdparty/eventuals/actions/workflows/macos.yml)
+[![Ubuntu](https://github.com/3rdparty/eventuals/workflows/Ubuntu/badge.svg?branch=main)](https://github.com/3rdparty/eventuals/actions/workflows/ubuntu.yml)
+[![Windows](https://github.com/3rdparty/eventuals/workflows/Windows/badge.svg?branch=main)](https://github.com/3rdparty/eventuals/actions/workflows/windows.yml)
 
 # Eventuals
 
@@ -17,10 +17,6 @@ Another key difference from futures/promises is that an eventual's continuation 
 The library provides numerous abstractions that simplify asynchronous continuations, for example a `Stream` for performing asynchronous streaming. Each of these abstractions follow a "builder" pattern for constructing them, see [Usage](#usage) below for more details.
 
 This library was inspired from experience building and using the [libprocess](https://github.com/3rdparty/libprocess) library to power [Apache Mesos](https://github.com/apache/mesos), which itself has been used at massive scale (production clusters of > 80k hosts).
-
-### Contact
-
-Please reach out to `stout@3rdparty.dev` for any questions or if you're looking for support.
 
 ## Building/Testing
 
@@ -67,8 +63,8 @@ $ bazel test test:eventuals
      ```
     $ brew upgrade bazel
     ```
-4. Clone [stout-eventuals](https://github.com/3rdparty/stout-eventuals).
-5. Open the stout-eventuals folder via VS Code.
+4. Clone [eventuals](https://github.com/3rdparty/eventuals).
+5. Open the eventuals folder via VS Code.
 6. Check the checkboxes about "Trust the authors".
 7. VS Code -> Terminal -> New Terminal
 
@@ -87,8 +83,8 @@ $ bazel test test:eventuals
 3. Install [Bazel](https://bazel.build).
 4. Install the latest version of the compiler [LLVM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
 5. Install [Git](https://git-scm.com/downloads).
-6. Clone [stout-eventuals](https://github.com/3rdparty/stout-eventuals).
-7. Open the stout-eventuals folder via VS Code.
+6. Clone [eventuals](https://github.com/3rdparty/eventuals).
+7. Open the eventuals folder via VS Code.
 8. Check the checkboxes about "Trust the authors".
 9. VS Code -> Terminal -> New Terminal
 
@@ -120,8 +116,8 @@ $ bazel test test:eventuals
 4. Install the latest version of the compiler [LLVM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
 5. Install [Git](https://git-scm.com/downloads).
 6. Restart your PC. ;-)
-7. Clone [stout-eventuals](https://github.com/3rdparty/stout-eventuals).
-8. Open the stout-eventuals folder via VS Code.
+7. Clone [eventuals](https://github.com/3rdparty/eventuals).
+8. Open the eventuals folder via VS Code.
 9. Check the checkboxes about "Trust the authors".
 10. VS Code -> Terminal -> New Terminal
 
@@ -132,18 +128,21 @@ $ bazel test test:eventuals
 
 ### Bazel
 
-Add the following to your `WORKSPACE` (or `WORKSPACE.bazel`):
+Copy `bazel/repos.bzl` into the directory `3rdparty/eventuals` of your
+own project/workspace and add an empty `BUILD.bazel` into that
+directory as well.
+
+Now you can add the following to your `WORKSPACE` (or `WORKSPACE.bazel`):
 
 ```
-git_repository(
-  name = "stout-eventuals",
-  remote = "https://github.com/3rdparty/stout-eventuals",
-  commit = "bd8c08df20a88db840d4cb8024b806647b997610",
-  shallow_since = "1633339602 +0300",
-)
+load("//3rdparty/eventuals:repos.bzl", eventuals_repos = "repos")
+eventuals_repos()
+
+load("@com_github_3rdparty_eventuals//bazel:deps.bzl", eventuals_deps="deps")
+eventuals_deps()
 ```
 
-You can then depend on `@stout-eventuals//:eventuals` in your Bazel targets.
+You can then depend on `@eventuals//:eventuals` in your Bazel targets.
 
 ### Tutorial
 

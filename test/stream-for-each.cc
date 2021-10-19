@@ -1,4 +1,4 @@
-#include "stout/stream-for-each.h"
+#include "eventuals/stream-for-each.h"
 
 #include <atomic>
 #include <chrono>
@@ -7,31 +7,32 @@
 #include <thread>
 #include <vector>
 
+#include "event-loop-test.h"
+#include "eventuals/collect.h"
+#include "eventuals/event-loop.h"
+#include "eventuals/iterate.h"
+#include "eventuals/let.h"
+#include "eventuals/map.h"
+#include "eventuals/range.h"
+#include "eventuals/stream.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
+#include "eventuals/timer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/collect.h"
-#include "stout/event-loop.h"
-#include "stout/iterate.h"
-#include "stout/let.h"
-#include "stout/map.h"
-#include "stout/range.h"
-#include "stout/stream.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
-#include "stout/timer.h"
-#include "test/event-loop-test.h"
 
-using stout::eventuals::Collect;
-using stout::eventuals::EventLoop;
-using stout::eventuals::Interrupt;
-using stout::eventuals::Iterate;
-using stout::eventuals::Let;
-using stout::eventuals::Map;
-using stout::eventuals::Range;
-using stout::eventuals::Stream;
-using stout::eventuals::StreamForEach;
-using stout::eventuals::Then;
-using stout::eventuals::Timer;
+using eventuals::Collect;
+using eventuals::EventLoop;
+using eventuals::Interrupt;
+using eventuals::Iterate;
+using eventuals::Let;
+using eventuals::Map;
+using eventuals::Range;
+using eventuals::Stream;
+using eventuals::StreamForEach;
+using eventuals::Then;
+using eventuals::Timer;
+
 using testing::ElementsAre;
 
 TEST(StreamForEach, TwoLevelLoop) {
@@ -264,7 +265,7 @@ TEST(StreamForEach, InterruptReturn) {
 
   interrupt.Trigger();
 
-  EXPECT_THROW(future.get(), stout::eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::StoppedException);
 
   ASSERT_TRUE(interrupted.load());
 }

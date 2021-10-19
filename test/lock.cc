@@ -1,28 +1,25 @@
-#include "stout/lock.h"
+#include "eventuals/lock.h"
 
 #include <thread>
 
+#include "eventuals/just.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/just.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
 
-namespace eventuals = stout::eventuals;
-
-using stout::Callback;
-
-using stout::eventuals::Acquire;
-using stout::eventuals::Eventual;
-using stout::eventuals::Interrupt;
-using stout::eventuals::Just;
-using stout::eventuals::Lock;
-using stout::eventuals::Release;
-using stout::eventuals::Scheduler;
-using stout::eventuals::Synchronizable;
-using stout::eventuals::Terminate;
-using stout::eventuals::Then;
-using stout::eventuals::Wait;
+using eventuals::Acquire;
+using eventuals::Callback;
+using eventuals::Eventual;
+using eventuals::Interrupt;
+using eventuals::Just;
+using eventuals::Lock;
+using eventuals::Release;
+using eventuals::Scheduler;
+using eventuals::Synchronizable;
+using eventuals::Terminate;
+using eventuals::Then;
+using eventuals::Wait;
 
 using testing::MockFunction;
 

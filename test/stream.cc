@@ -1,29 +1,27 @@
-#include "stout/stream.h"
+#include "eventuals/stream.h"
 
 #include <thread>
 
+#include "eventuals/context.h"
+#include "eventuals/head.h"
+#include "eventuals/loop.h"
+#include "eventuals/map.h"
+#include "eventuals/reduce.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/context.h"
-#include "stout/head.h"
-#include "stout/loop.h"
-#include "stout/map.h"
-#include "stout/reduce.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
 
-namespace eventuals = stout::eventuals;
-
-using stout::eventuals::Context;
-using stout::eventuals::Eventual;
-using stout::eventuals::Head;
-using stout::eventuals::Interrupt;
-using stout::eventuals::Loop;
-using stout::eventuals::Map;
-using stout::eventuals::Reduce;
-using stout::eventuals::Stream;
-using stout::eventuals::Terminate;
-using stout::eventuals::Then;
+using eventuals::Context;
+using eventuals::Eventual;
+using eventuals::Head;
+using eventuals::Interrupt;
+using eventuals::Loop;
+using eventuals::Map;
+using eventuals::Reduce;
+using eventuals::Stream;
+using eventuals::Terminate;
+using eventuals::Then;
 
 using testing::MockFunction;
 

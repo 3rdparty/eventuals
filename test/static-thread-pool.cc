@@ -1,26 +1,24 @@
-#include "stout/static-thread-pool.h"
+#include "eventuals/static-thread-pool.h"
 
+#include "eventuals/closure.h"
+#include "eventuals/eventual.h"
+#include "eventuals/loop.h"
+#include "eventuals/map.h"
+#include "eventuals/repeat.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
+#include "eventuals/until.h"
 #include "gtest/gtest.h"
-#include "stout/closure.h"
-#include "stout/eventual.h"
-#include "stout/loop.h"
-#include "stout/map.h"
-#include "stout/repeat.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
-#include "stout/until.h"
 
-namespace eventuals = stout::eventuals;
-
-using stout::eventuals::Closure;
-using stout::eventuals::Eventual;
-using stout::eventuals::Loop;
-using stout::eventuals::Map;
-using stout::eventuals::Pinned;
-using stout::eventuals::Repeat;
-using stout::eventuals::StaticThreadPool;
-using stout::eventuals::Then;
-using stout::eventuals::Until;
+using eventuals::Closure;
+using eventuals::Eventual;
+using eventuals::Loop;
+using eventuals::Map;
+using eventuals::Pinned;
+using eventuals::Repeat;
+using eventuals::StaticThreadPool;
+using eventuals::Then;
+using eventuals::Until;
 
 TEST(StaticThreadPoolTest, Schedulable) {
   struct Foo : public StaticThreadPool::Schedulable {

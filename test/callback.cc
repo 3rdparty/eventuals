@@ -1,8 +1,8 @@
-#include "stout/callback.h"
+#include "eventuals/callback.h"
 
 #include "gtest/gtest.h"
 
-using stout::Callback;
+using eventuals::Callback;
 
 TEST(Callback, Destructor) {
   struct Foo {

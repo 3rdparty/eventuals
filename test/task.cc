@@ -1,15 +1,13 @@
-#include "stout/task.h"
+#include "eventuals/task.h"
 
+#include "eventuals/just.h"
+#include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/just.h"
-#include "stout/then.h"
 
-namespace eventuals = stout::eventuals;
-
-using stout::eventuals::Just;
-using stout::eventuals::Task;
-using stout::eventuals::Then;
+using eventuals::Just;
+using eventuals::Task;
+using eventuals::Then;
 
 TEST(TaskTest, Succeed) {
   auto e1 = []() -> Task<int> {
