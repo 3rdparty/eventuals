@@ -59,6 +59,10 @@ struct _TakeLastN {
       k_.Body(std::move(value));
     }
 
+    void Register(Interrupt& interrupt) {
+      k_.Register(interrupt);
+    }
+
     void Next() override {
       // When Next is called from the next eventual,
       // the element should be taken from the stored stream.
@@ -149,6 +153,10 @@ struct _TakeRange {
 
     void Ended() {
       k_.Ended();
+    }
+
+    void Register(Interrupt& interrupt) {
+      k_.Register(interrupt);
     }
 
     bool CheckRange() {

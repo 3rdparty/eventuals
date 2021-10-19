@@ -44,6 +44,10 @@ struct _Filter {
       k_.Ended();
     }
 
+    void Register(Interrupt& interrupt) {
+      k_.Register(interrupt);
+    }
+
     K_ k_;
     F_ f_;
 
