@@ -1,5 +1,8 @@
 #pragma once
 
+#include <optional>
+#include <tuple>
+
 #include "eventuals/eventual.h"
 #include "eventuals/terminal.h"
 
@@ -20,7 +23,10 @@ struct HeapTask {
   template <typename Arg_>
   struct Adaptor {
     Adaptor(
-        Callback<Arg_>* start,
+        std::conditional_t<
+            std::is_void_v<Value_>,
+            Callback<>,
+            Callback<Value_>>* start,
         Callback<std::exception_ptr>* fail,
         Callback<>* stop)
       : start_(start),
@@ -45,7 +51,10 @@ struct HeapTask {
 
     void Register(Interrupt&) {}
 
-    Callback<Arg_>* start_;
+    std::conditional_t<
+        std::is_void_v<Value_>,
+        Callback<>,
+        Callback<Value_>>* start_;
     Callback<std::exception_ptr>* fail_;
     Callback<>* stop_;
   };
@@ -57,7 +66,10 @@ struct HeapTask {
 
   void Start(
       Interrupt& interrupt,
-      Callback<Value_>&& start,
+      std::conditional_t<
+          std::is_void_v<Value_>,
+          Callback<>,
+          Callback<Value_>>&& start,
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop) {
     start_ = std::move(start);
@@ -71,7 +83,50 @@ struct HeapTask {
     adaptor_.Start();
   }
 
-  Callback<Value_> start_;
+  void Fail(
+      Interrupt& interrupt,
+      std::exception_ptr&& fail_exception,
+      std::conditional_t<
+          std::is_void_v<Value_>,
+          Callback<>,
+          Callback<Value_>>&& start,
+      Callback<std::exception_ptr>&& fail,
+      Callback<>&& stop) {
+    start_ = std::move(start);
+    fail_ = std::move(fail);
+    stop_ = std::move(stop);
+
+    // TODO(benh): clarify the semantics of whether or not calling
+    // 'Register()' more than once is well-defined.
+    adaptor_.Register(interrupt);
+
+    adaptor_.Fail(std::move(fail_exception));
+  }
+
+  void Stop(
+      Interrupt& interrupt,
+      std::conditional_t<
+          std::is_void_v<Value_>,
+          Callback<>,
+          Callback<Value_>>&& start,
+      Callback<std::exception_ptr>&& fail,
+      Callback<>&& stop) {
+    start_ = std::move(start);
+    fail_ = std::move(fail);
+    stop_ = std::move(stop);
+
+    // TODO(benh): clarify the semantics of whether or not calling
+    // 'Register()' more than once is well-defined.
+    adaptor_.Register(interrupt);
+
+    adaptor_.Stop();
+  }
+
+  std::conditional_t<
+      std::is_void_v<Value_>,
+      Callback<>,
+      Callback<Value_>>
+      start_;
   Callback<std::exception_ptr> fail_;
   Callback<> stop_;
 
@@ -83,61 +138,228 @@ struct HeapTask {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename Value_, typename... Args_>
 struct _TaskWith {
-  template <typename... Args>
-  void Start(Args&&...) {
-    std::apply(
-        [&](auto&&... args) {
-          start_(
-              std::forward<decltype(args)>(args)...,
-              e_,
-              *interrupt_,
-              [this](auto&&... args) {
-                k_.Start(std::forward<decltype(args)>(args)...);
-              },
-              [this](std::exception_ptr e) {
-                k_.Fail(std::move(e));
-              },
-              [this]() {
-                k_.Stop();
+  // Since we move lambda function at 'Composable' constructor we need to
+  // specify the callback that should be triggered on the produced eventual.
+  // For this reason we use 'Action'.
+  enum class Action {
+    Start = 0,
+    Stop = 1,
+    Fail = 2,
+  };
+
+  template <typename K_, typename Value_, typename... Args_>
+  struct Continuation {
+    template <typename... Args>
+    void Start(Args&&...) {
+      std::apply(
+          [&](auto&&... args) {
+            dispatch_(
+                Action::Start,
+                std::nullopt,
+                std::forward<decltype(args)>(args)...,
+                e_,
+                *interrupt_,
+                [this](auto&&... args) {
+                  k_.Start(std::forward<decltype(args)>(args)...);
+                },
+                [this](std::exception_ptr e) {
+                  k_.Fail(std::move(e));
+                },
+                [this]() {
+                  k_.Stop();
+                });
+          },
+          std::move(args_));
+    }
+
+    template <typename... Args>
+    void Fail(Args&&... args) {
+      std::exception_ptr exception;
+
+      if constexpr (sizeof...(args) > 0) {
+        exception = std::make_exception_ptr(
+            std::forward<decltype(args)>(args)...);
+      } else {
+        exception = std::make_exception_ptr(
+            std::runtime_error("ingress failed (without an error)"));
+      }
+
+      std::apply(
+          [&](auto&&... args) {
+            dispatch_(
+                Action::Fail,
+                std::move(exception),
+                std::forward<decltype(args)>(args)...,
+                e_,
+                *interrupt_,
+                [this](auto&&... args) {
+                  k_.Start(std::forward<decltype(args)>(args)...);
+                },
+                [this](std::exception_ptr e) {
+                  k_.Fail(std::move(e));
+                },
+                [this]() {
+                  k_.Stop();
+                });
+          },
+          std::move(args_));
+    }
+
+    void Stop() {
+      std::apply(
+          [&](auto&&... args) {
+            dispatch_(
+                Action::Stop,
+                std::nullopt,
+                std::forward<decltype(args)>(args)...,
+                e_,
+                *interrupt_,
+                [this](auto&&... args) {
+                  k_.Start(std::forward<decltype(args)>(args)...);
+                },
+                [this](std::exception_ptr e) {
+                  k_.Fail(std::move(e));
+                },
+                [this]() {
+                  k_.Stop();
+                });
+          },
+          std::move(args_));
+    }
+
+    void Register(Interrupt& interrupt) {
+      interrupt_ = &interrupt;
+      k_.Register(interrupt);
+    }
+
+    K_ k_;
+    std::tuple<Args_...> args_;
+
+    Callback<
+        Action,
+        std::optional<std::exception_ptr>,
+        Args_&&...,
+        std::unique_ptr<void, Callback<void*>>&,
+        Interrupt&,
+        std::conditional_t<
+            std::is_void_v<Value_>,
+            Callback<>&&,
+            Callback<Value_>&&>,
+        Callback<std::exception_ptr>&&,
+        Callback<>&&>
+        dispatch_;
+
+    std::unique_ptr<void, Callback<void*>> e_;
+    Interrupt* interrupt_ = nullptr;
+  };
+
+  template <typename Value_, typename... Args_>
+  struct Composable {
+    template <typename>
+    using ValueFrom = Value_;
+
+    template <typename F>
+    Composable(Args_... args, F f)
+      : args_(std::tuple<Args_...>(std::move(args)...)) {
+      static_assert(
+          std::tuple_size<decltype(args_)>{} > 0 || std::is_invocable_v<F>,
+          "'Task' expects a callable that "
+          "takes no arguments");
+
+      static_assert(
+          std::tuple_size<decltype(args_)>{}
+              || std::is_invocable_v<F, Args_...>,
+          "'Task' expects a callable that "
+          "takes the arguments specified");
+
+      static_assert(
+          sizeof(f) <= sizeof(void*),
+          "'Task' expects a callable that "
+          "can be captured in a 'Callback'");
+
+      using E = decltype(std::apply(f, args_));
+
+      using Value = typename E::template ValueFrom<void>;
+
+      static_assert(
+          std::is_convertible_v<Value, Value_>,
+          "eventual result type can not be converted into type of 'Task'");
+
+      dispatch_ = [f = std::move(f)](
+                      Action action,
+                      std::optional<std::exception_ptr> fail_exception,
+                      Args_&&... args,
+                      std::unique_ptr<void, Callback<void*>>& e_,
+                      Interrupt& interrupt,
+                      std::conditional_t<
+                          std::is_void_v<Value_>,
+                          Callback<>&&,
+                          Callback<Value_>&&> start,
+                      Callback<std::exception_ptr>&& fail,
+                      Callback<>&& stop) {
+        if (!e_) {
+          e_ = std::unique_ptr<void, Callback<void*>>(
+              new HeapTask<E>(f(std::move(args)...)),
+              [](void* e) {
+                delete static_cast<detail::HeapTask<E>*>(e);
               });
-        },
-        std::move(args_));
-  }
+        }
 
-  template <typename... Args>
-  void Fail(Args&&... args) {
-    // TODO(benh): propagate through 'Task'.
-    k_.Fail(std::forward<Args>(args)...);
-  }
+        auto* e = static_cast<HeapTask<E>*>(e_.get());
 
-  void Stop() {
-    // TODO(benh): propagate through 'Task'.
-    k_.Stop();
-  }
+        switch (action) {
+          case Action::Start:
+            e->Start(
+                interrupt,
+                std::move(start),
+                std::move(fail),
+                std::move(stop));
+            break;
+          case Action::Fail:
+            e->Fail(
+                interrupt,
+                std::move(fail_exception.value()),
+                std::move(start),
+                std::move(fail),
+                std::move(stop));
+            break;
+          case Action::Stop:
+            e->Stop(
+                interrupt,
+                std::move(start),
+                std::move(fail),
+                std::move(stop));
+            break;
+          default:
+            LOG(FATAL) << "unreachable";
+        }
+      };
+    }
 
-  void Register(Interrupt& interrupt) {
-    interrupt_ = &interrupt;
-    k_.Register(interrupt);
-  }
+    template <typename Arg, typename K>
+    auto k(K k) && {
+      return Continuation<K, Value_, Args_...>{
+          std::move(k),
+          std::move(args_),
+          std::move(dispatch_)};
+    }
 
-  K_ k_;
-
-  std::tuple<Args_...> args_;
-
-  Callback<
-      Args_&&...,
-      std::unique_ptr<void, Callback<void*>>&,
-      Interrupt&,
-      Callback<Value_>&&,
-      Callback<std::exception_ptr>&&,
-      Callback<>&&>
-      start_;
-
-  std::unique_ptr<void, Callback<void*>> e_;
-
-  Interrupt* interrupt_ = nullptr;
+    Callback<
+        Action,
+        std::optional<std::exception_ptr>,
+        Args_&&...,
+        std::unique_ptr<void, Callback<void*>>&,
+        Interrupt&,
+        std::conditional_t<
+            std::is_void_v<Value_>,
+            Callback<>&&,
+            Callback<Value_>&&>,
+        Callback<std::exception_ptr>&&,
+        Callback<>&&>
+        dispatch_;
+    std::tuple<Args_...> args_;
+  };
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -146,148 +368,23 @@ struct _TaskWith {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Value_, typename... Args_>
-struct TaskWith {
-  template <typename Arg>
-  using ValueFrom = Value_;
-
-  template <typename F>
-  TaskWith(Args_... args, F f)
-    : args_(std::move(args)...) {
-    // static_assert(
-    //     !IsContinuation<F>::value,
-    //     "'Task' expects a callable "
-    //     "NOT an eventual continuation");
-
-    static_assert(
-        sizeof...(args) > 0 || std::is_invocable_v<F>,
-        "'Task' expects a callable that "
-        "takes no arguments");
-
-    static_assert(
-        sizeof...(args) == 0 || std::is_invocable_v<F, Args_...>,
-        "'Task' expects a callable that "
-        "takes the arguments specified");
-
-    static_assert(
-        sizeof(f) <= sizeof(void*),
-        "'Task' expects a callable that "
-        "can be captured in a 'Callback'");
-
-    using E = decltype(f(std::move(args)...));
-
-    // static_assert(
-    //     IsContinuation<E>::value,
-    //     "'Task' expects a callable that returns "
-    //     "an eventual continuation");
-
-    using Value = typename E::template ValueFrom<void>;
-
-    static_assert(
-        std::is_convertible_v<Value, Value_>,
-        "eventual result type can not be converted into type of 'Task'");
-
-    start_ = [f = std::move(f)](
-                 Args_&&... args,
-                 std::unique_ptr<void, Callback<void*>>& e_,
-                 Interrupt& interrupt,
-                 Callback<Value>&& start,
-                 Callback<std::exception_ptr>&& fail,
-                 Callback<>&& stop) {
-      if (!e_) {
-        e_ = std::unique_ptr<void, Callback<void*>>(
-            // TODO(benh): pass the args to 'Start()' instead so that
-            // they don't have to get copied more than once in the
-            // event that the eventual returned from 'f' copies them?
-            new detail::HeapTask<E>(f(std::move(args)...)),
-            [](void* e) {
-              delete static_cast<detail::HeapTask<E>*>(e);
-            });
-      }
-
-      auto* e = static_cast<detail::HeapTask<E>*>(e_.get());
-
-      e->Start(interrupt, std::move(start), std::move(fail), std::move(stop));
-    };
-  }
-
-  template <typename Arg, typename K>
-  auto k(K k) && {
-    // TODO(benh): ensure we haven't already called 'Start()'.
-    return detail::_TaskWith<K, Value_, Args_...>{
-        std::move(k),
-        std::move(args_),
-        std::move(start_)};
-  }
-
-  void Start(
-      Interrupt& interrupt,
-      Callback<Value_>&& start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
-    // TODO(benh): ensure we haven't already called 'k()'.
-    std::apply(
-        [&](auto&&... args) {
-          start_(
-              std::forward<decltype(args)>(args)...,
-              e_,
-              interrupt,
-              std::move(start),
-              std::move(fail),
-              std::move(stop));
-        },
-        std::move(args_));
-  }
-
-  auto operator*() && {
-    auto [future, k] = Terminate(std::move(*this));
-
-    k.Start();
-
-    return future.get();
-  }
-
-  std::tuple<Args_...> args_;
-
-  Callback<
-      Args_&&...,
-      std::unique_ptr<void, Callback<void*>>&,
-      Interrupt&,
-      Callback<Value_>&&,
-      Callback<std::exception_ptr>&&,
-      Callback<>&&>
-      start_;
-
-  std::unique_ptr<void, Callback<void*>> e_;
-};
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename Value_>
 class Task {
  public:
-  template <typename... Args>
-  using With = TaskWith<Value_, Args...>;
-
   template <typename Arg>
   using ValueFrom = Value_;
 
-  template <typename F>
-  Task(F f)
-    : task_(std::move(f)) {}
+  template <typename... Args>
+  using With = detail::_TaskWith::Composable<Value_, Args...>;
 
   template <typename Arg, typename K>
   auto k(K k) && {
     return std::move(task_).template k<Arg>(std::move(k));
   }
 
-  void Start(
-      Interrupt& interrupt,
-      Callback<Value_>&& start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
-    task_.Start(interrupt, std::move(start), std::move(fail), std::move(stop));
-  }
+  template <typename F>
+  Task(F f)
+    : task_(std::move(f)) {}
 
   auto operator*() && {
     auto [future, k] = Terminate(std::move(*this));
@@ -298,7 +395,7 @@ class Task {
   }
 
  private:
-  TaskWith<Value_> task_;
+  detail::_TaskWith::Composable<Value_> task_;
 };
 
 ////////////////////////////////////////////////////////////////////////

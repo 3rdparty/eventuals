@@ -63,9 +63,19 @@ struct _Terminal {
             << " but undefined";
       } else {
         if constexpr (IsUndefined<Context_>::value) {
-          fail_(std::forward<Args>(args)...);
+          if constexpr (sizeof...(args) > 0) {
+            fail_(std::forward<Args>(args)...);
+          } else {
+            fail_(std::runtime_error("ingress failed (without an error)"));
+          }
         } else {
-          fail_(context_, std::forward<Args>(args)...);
+          if constexpr (sizeof...(args) > 0) {
+            fail_(context_, std::forward<Args>(args)...);
+          } else {
+            fail_(
+                context_,
+                std::runtime_error("ingress failed (without an error)"));
+          }
         }
       }
     }
