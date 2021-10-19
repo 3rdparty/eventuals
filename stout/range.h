@@ -34,12 +34,12 @@ struct _Range {
       k_.Stop();
     }
 
-    void Register(Interrupt& interrupt) {
-      k_.Register(interrupt);
-    }
-
     void Ended() {
       k_.Ended();
+    }
+
+    void Register(Interrupt& interrupt) {
+      k_.Register(interrupt);
     }
 
     void Next() override {
