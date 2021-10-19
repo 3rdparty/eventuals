@@ -1,26 +1,24 @@
-#include "stout/eventual.h"
+#include "eventuals/eventual.h"
 
 #include <thread>
 
+#include "eventuals/catch.h"
+#include "eventuals/just.h"
+#include "eventuals/raise.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/catch.h"
-#include "stout/just.h"
-#include "stout/raise.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
 
-namespace eventuals = stout::eventuals;
-
-using stout::eventuals::Build;
-using stout::eventuals::Catch;
-using stout::eventuals::Eventual;
-using stout::eventuals::Interrupt;
-using stout::eventuals::Just;
-using stout::eventuals::Raise;
-using stout::eventuals::Terminal;
-using stout::eventuals::Terminate;
-using stout::eventuals::Then;
+using eventuals::Build;
+using eventuals::Catch;
+using eventuals::Eventual;
+using eventuals::Interrupt;
+using eventuals::Just;
+using eventuals::Raise;
+using eventuals::Terminal;
+using eventuals::Terminate;
+using eventuals::Then;
 
 using testing::MockFunction;
 

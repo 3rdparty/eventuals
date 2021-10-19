@@ -1,20 +1,20 @@
-#include "stout/signal.h"
+#include "eventuals/signal.h"
 
 #include <thread>
 
+#include "event-loop-test.h"
+#include "eventuals/event-loop.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/event-loop.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
-#include "test/event-loop-test.h"
 
-using stout::eventuals::EventLoop;
-using stout::eventuals::Eventual;
-using stout::eventuals::Interrupt;
-using stout::eventuals::Signal;
-using stout::eventuals::Terminate;
-using stout::eventuals::Then;
+using eventuals::EventLoop;
+using eventuals::Eventual;
+using eventuals::Interrupt;
+using eventuals::Signal;
+using eventuals::Terminate;
+using eventuals::Then;
 
 using namespace std::chrono_literals;
 
@@ -75,5 +75,5 @@ TEST_F(SignalTest, SignalInterrupt) {
 
   EventLoop::Default().Run();
 
-  EXPECT_THROW(future.get(), stout::eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::StoppedException);
 }

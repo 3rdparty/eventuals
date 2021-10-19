@@ -1,29 +1,27 @@
-#include "stout/repeat.h"
+#include "eventuals/repeat.h"
 
+#include "eventuals/lock.h"
+#include "eventuals/loop.h"
+#include "eventuals/map.h"
+#include "eventuals/reduce.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
+#include "eventuals/until.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/lock.h"
-#include "stout/loop.h"
-#include "stout/map.h"
-#include "stout/reduce.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
-#include "stout/until.h"
 
-namespace eventuals = stout::eventuals;
-
-using stout::eventuals::Acquire;
-using stout::eventuals::Eventual;
-using stout::eventuals::Interrupt;
-using stout::eventuals::Lock;
-using stout::eventuals::Loop;
-using stout::eventuals::Map;
-using stout::eventuals::Reduce;
-using stout::eventuals::Release;
-using stout::eventuals::Repeat;
-using stout::eventuals::Terminate;
-using stout::eventuals::Then;
-using stout::eventuals::Until;
+using eventuals::Acquire;
+using eventuals::Eventual;
+using eventuals::Interrupt;
+using eventuals::Lock;
+using eventuals::Loop;
+using eventuals::Map;
+using eventuals::Reduce;
+using eventuals::Release;
+using eventuals::Repeat;
+using eventuals::Terminate;
+using eventuals::Then;
+using eventuals::Until;
 
 using testing::MockFunction;
 

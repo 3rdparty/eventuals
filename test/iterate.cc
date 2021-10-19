@@ -1,4 +1,4 @@
-#include "stout/iterate.h"
+#include "eventuals/iterate.h"
 
 #include <array>
 #include <deque>
@@ -11,18 +11,18 @@
 #include <unordered_set>
 #include <vector>
 
+#include "eventuals/loop.h"
+#include "eventuals/map.h"
+#include "eventuals/reduce.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "gtest/gtest.h"
-#include "stout/loop.h"
-#include "stout/map.h"
-#include "stout/reduce.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
 
-using stout::eventuals::Iterate;
-using stout::eventuals::Loop;
-using stout::eventuals::Map;
-using stout::eventuals::Reduce;
-using stout::eventuals::Then;
+using eventuals::Iterate;
+using eventuals::Loop;
+using eventuals::Map;
+using eventuals::Reduce;
+using eventuals::Then;
 
 TEST(Iterate, VectorLvalue) {
   std::vector<int> v = {5, 12};

@@ -1,20 +1,21 @@
-#include "stout/take.h"
+#include "eventuals/take.h"
 
 #include <vector>
 
+#include "eventuals/collect.h"
+#include "eventuals/filter.h"
+#include "eventuals/iterate.h"
+#include "eventuals/terminal.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/collect.h"
-#include "stout/filter.h"
-#include "stout/iterate.h"
-#include "stout/terminal.h"
 
-using stout::eventuals::Collect;
-using stout::eventuals::Filter;
-using stout::eventuals::Iterate;
-using stout::eventuals::TakeFirstN;
-using stout::eventuals::TakeLastN;
-using stout::eventuals::TakeRange;
+using eventuals::Collect;
+using eventuals::Filter;
+using eventuals::Iterate;
+using eventuals::TakeFirstN;
+using eventuals::TakeLastN;
+using eventuals::TakeRange;
+
 using testing::ElementsAre;
 
 TEST(Take, IterateTakeLastCollect) {

@@ -1,26 +1,23 @@
-#include "stout/filesystem.h"
+#include "eventuals/filesystem.h"
 
 #include <filesystem>
 #include <fstream>
 
 #include "event-loop-test.h"
+#include "eventuals/closure.h"
+#include "eventuals/eventual.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "gtest/gtest.h"
-#include "stout/closure.h"
-#include "stout/eventual.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
-
-namespace eventuals = stout::eventuals;
 
 using eventuals::Closure;
 using eventuals::EventLoop;
 using eventuals::Terminate;
 using eventuals::Then;
 
-using eventuals::filesystem::File;
-
 using eventuals::filesystem::CloseFile;
 using eventuals::filesystem::CopyFile;
+using eventuals::filesystem::File;
 using eventuals::filesystem::MakeDirectory;
 using eventuals::filesystem::OpenFile;
 using eventuals::filesystem::ReadFile;

@@ -1,19 +1,17 @@
-#include "stout/timer.h"
+#include "eventuals/timer.h"
 
+#include "event-loop-test.h"
+#include "eventuals/event-loop.h"
+#include "eventuals/just.h"
+#include "eventuals/terminal.h"
 #include "gtest/gtest.h"
-#include "stout/event-loop.h"
-#include "stout/just.h"
-#include "stout/terminal.h"
-#include "test/event-loop-test.h"
 
-namespace eventuals = stout::eventuals;
-
-using stout::eventuals::Clock;
-using stout::eventuals::EventLoop;
-using stout::eventuals::Interrupt;
-using stout::eventuals::Just;
-using stout::eventuals::Terminate;
-using stout::eventuals::Timer;
+using eventuals::Clock;
+using eventuals::EventLoop;
+using eventuals::Interrupt;
+using eventuals::Just;
+using eventuals::Terminate;
+using eventuals::Timer;
 
 TEST_F(EventLoopTest, Timer) {
   auto e = []() {

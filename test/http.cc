@@ -1,13 +1,11 @@
-#include "stout/http.h"
+#include "eventuals/http.h"
 
 #include "event-loop-test.h"
+#include "eventuals/eventual.h"
+#include "eventuals/interrupt.h"
+#include "eventuals/lambda.h"
+#include "eventuals/terminal.h"
 #include "gtest/gtest.h"
-#include "stout/eventual.h"
-#include "stout/interrupt.h"
-#include "stout/lambda.h"
-#include "stout/terminal.h"
-
-namespace eventuals = stout::eventuals;
 
 using eventuals::EventLoop;
 using eventuals::Interrupt;

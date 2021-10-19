@@ -1,35 +1,32 @@
-#include "stout/concurrent.h"
+#include "eventuals/concurrent.h"
 
 #include <deque>
 
+#include "eventuals/callback.h"
+#include "eventuals/collect.h"
+#include "eventuals/eventual.h"
+#include "eventuals/range.h"
+#include "eventuals/reduce.h"
+#include "eventuals/stream-for-each.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/callback.h"
-#include "stout/collect.h"
-#include "stout/eventual.h"
-#include "stout/range.h"
-#include "stout/reduce.h"
-#include "stout/stream-for-each.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
 
-namespace eventuals = stout::eventuals;
-
-using stout::Callback;
-
-using stout::eventuals::Collect;
-using stout::eventuals::Concurrent;
-using stout::eventuals::Eventual;
-using stout::eventuals::Interrupt;
-using stout::eventuals::Iterate;
-using stout::eventuals::Loop;
-using stout::eventuals::Map;
-using stout::eventuals::Range;
-using stout::eventuals::Reduce;
-using stout::eventuals::Stream;
-using stout::eventuals::StreamForEach;
-using stout::eventuals::Terminate;
-using stout::eventuals::Then;
+using eventuals::Callback;
+using eventuals::Collect;
+using eventuals::Concurrent;
+using eventuals::Eventual;
+using eventuals::Interrupt;
+using eventuals::Iterate;
+using eventuals::Loop;
+using eventuals::Map;
+using eventuals::Range;
+using eventuals::Reduce;
+using eventuals::Stream;
+using eventuals::StreamForEach;
+using eventuals::Terminate;
+using eventuals::Then;
 
 using testing::Contains;
 

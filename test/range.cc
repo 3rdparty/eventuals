@@ -1,14 +1,15 @@
-#include "stout/range.h"
+#include "eventuals/range.h"
 
 #include <vector>
 
+#include "eventuals/collect.h"
+#include "eventuals/terminal.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/collect.h"
-#include "stout/terminal.h"
 
-using stout::eventuals::Collect;
-using stout::eventuals::Range;
+using eventuals::Collect;
+using eventuals::Range;
+
 using testing::ElementsAre;
 
 TEST(Range, CommonFlow) {

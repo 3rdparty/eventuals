@@ -1,16 +1,14 @@
-#include "stout/collect.h"
+#include "eventuals/collect.h"
 
 #include <set>
 #include <vector>
 
+#include "eventuals/iterate.h"
+#include "eventuals/terminal.h"
 #include "gtest/gtest.h"
-#include "stout/iterate.h"
-#include "stout/terminal.h"
 
-namespace eventuals = stout::eventuals;
-
-using stout::eventuals::Collect;
-using stout::eventuals::Iterate;
+using eventuals::Collect;
+using eventuals::Iterate;
 
 TEST(Collect, CommonVectorPass) {
   std::vector<int> v = {5, 12};

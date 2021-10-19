@@ -1,21 +1,19 @@
-#include "stout/parallel.h"
+#include "eventuals/parallel.h"
 
 #include <set>
 
+#include "eventuals/eventual.h"
+#include "eventuals/raise.h"
+#include "eventuals/reduce.h"
+#include "eventuals/terminal.h"
 #include "gtest/gtest.h"
-#include "stout/eventual.h"
-#include "stout/raise.h"
-#include "stout/reduce.h"
-#include "stout/terminal.h"
 
-namespace eventuals = stout::eventuals;
-
-using stout::eventuals::Eventual;
-using stout::eventuals::Parallel;
-using stout::eventuals::Raise;
-using stout::eventuals::Reduce;
-using stout::eventuals::Stream;
-using stout::eventuals::Then;
+using eventuals::Eventual;
+using eventuals::Parallel;
+using eventuals::Raise;
+using eventuals::Reduce;
+using eventuals::Stream;
+using eventuals::Then;
 
 TEST(ParallelTest, Succeed) {
   auto s = []() {

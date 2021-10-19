@@ -1,24 +1,25 @@
-#include "stout/filter.h"
+#include "eventuals/filter.h"
 
 #include <set>
 #include <unordered_set>
 #include <vector>
 
+#include "eventuals/collect.h"
+#include "eventuals/iterate.h"
+#include "eventuals/loop.h"
+#include "eventuals/map.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/collect.h"
-#include "stout/iterate.h"
-#include "stout/loop.h"
-#include "stout/map.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
 
-using stout::eventuals::Collect;
-using stout::eventuals::Filter;
-using stout::eventuals::Iterate;
-using stout::eventuals::Loop;
-using stout::eventuals::Map;
-using stout::eventuals::Then;
+using eventuals::Collect;
+using eventuals::Filter;
+using eventuals::Iterate;
+using eventuals::Loop;
+using eventuals::Map;
+using eventuals::Then;
+
 using testing::ElementsAre;
 using testing::UnorderedElementsAre;
 

@@ -1,18 +1,18 @@
-#include "stout/let.h"
+#include "eventuals/let.h"
 
+#include "event-loop-test.h"
+#include "eventuals/event-loop.h"
+#include "eventuals/just.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
+#include "eventuals/timer.h"
 #include "gtest/gtest.h"
-#include "stout/event-loop.h"
-#include "stout/just.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
-#include "stout/timer.h"
-#include "test/event-loop-test.h"
 
-using stout::eventuals::EventLoop;
-using stout::eventuals::Just;
-using stout::eventuals::Let;
-using stout::eventuals::Then;
-using stout::eventuals::Timer;
+using eventuals::EventLoop;
+using eventuals::Just;
+using eventuals::Let;
+using eventuals::Then;
+using eventuals::Timer;
 
 class LetTest : public EventLoopTest {};
 

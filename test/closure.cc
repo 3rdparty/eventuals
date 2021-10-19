@@ -1,36 +1,34 @@
-#include "stout/closure.h"
+#include "eventuals/closure.h"
 
 #include <deque>
 #include <string>
 #include <thread>
 
+#include "eventuals/just.h"
+#include "eventuals/map.h"
+#include "eventuals/raise.h"
+#include "eventuals/reduce.h"
+#include "eventuals/repeat.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
+#include "eventuals/until.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "stout/just.h"
-#include "stout/map.h"
-#include "stout/raise.h"
-#include "stout/reduce.h"
-#include "stout/repeat.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
-#include "stout/until.h"
 
 using std::deque;
 using std::string;
 
-namespace eventuals = stout::eventuals;
-
-using stout::eventuals::Closure;
-using stout::eventuals::Eventual;
-using stout::eventuals::Interrupt;
-using stout::eventuals::Just;
-using stout::eventuals::Map;
-using stout::eventuals::Raise;
-using stout::eventuals::Reduce;
-using stout::eventuals::Repeat;
-using stout::eventuals::Terminate;
-using stout::eventuals::Then;
-using stout::eventuals::Until;
+using eventuals::Closure;
+using eventuals::Eventual;
+using eventuals::Interrupt;
+using eventuals::Just;
+using eventuals::Map;
+using eventuals::Raise;
+using eventuals::Reduce;
+using eventuals::Repeat;
+using eventuals::Terminate;
+using eventuals::Then;
+using eventuals::Until;
 
 using testing::MockFunction;
 
