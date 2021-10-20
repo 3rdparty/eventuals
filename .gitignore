@@ -1,4 +1,4 @@
 bazel-bin
 bazel-out
-bazel-stout-eventuals
+bazel-eventuals
 bazel-testlogs
