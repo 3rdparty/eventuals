@@ -178,7 +178,7 @@ struct _StaticThreadPoolSchedule {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
           Adapt();
           auto* previous = Scheduler::Context::Switch(this);
-          adaptor_->Start(std::forward<Args>(args)...);
+          adapted_->Start(std::forward<Args>(args)...);
           previous = Scheduler::Context::Switch(previous);
           CHECK_EQ(previous, this);
         } else {
@@ -192,9 +192,9 @@ struct _StaticThreadPoolSchedule {
               [this]() {
                 Adapt();
                 if constexpr (sizeof...(args) > 0) {
-                  adaptor_->Start(std::move(*arg_));
+                  adapted_->Start(std::move(*arg_));
                 } else {
-                  adaptor_->Start();
+                  adapted_->Start();
                 }
               },
               this);
@@ -228,7 +228,7 @@ struct _StaticThreadPoolSchedule {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
           Adapt();
           auto* previous = Scheduler::Context::Switch(this);
-          adaptor_->Fail(std::forward<Args>(args)...);
+          adapted_->Fail(std::forward<Args>(args)...);
           previous = Scheduler::Context::Switch(previous);
           CHECK_EQ(previous, this);
         } else {
@@ -243,7 +243,7 @@ struct _StaticThreadPoolSchedule {
                 std::apply(
                     [](auto* schedule, auto&&... args) {
                       schedule->Adapt();
-                      schedule->adaptor_->Fail(
+                      schedule->adapted_->Fail(
                           std::forward<decltype(args)>(args)...);
                     },
                     std::move(*tuple));
@@ -279,7 +279,7 @@ struct _StaticThreadPoolSchedule {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
           Adapt();
           auto* previous = Scheduler::Context::Switch(this);
-          adaptor_->Stop();
+          adapted_->Stop();
           previous = Scheduler::Context::Switch(previous);
           CHECK_EQ(previous, this);
         } else {
@@ -288,7 +288,7 @@ struct _StaticThreadPoolSchedule {
           pool()->Submit(
               [this]() {
                 Adapt();
-                adaptor_->Stop();
+                adapted_->Stop();
               },
               this);
         }
@@ -301,11 +301,11 @@ struct _StaticThreadPoolSchedule {
     }
 
     void Adapt() {
-      if (!adaptor_) {
+      if (!adapted_) {
         // Save previous context (even if it's us).
         Scheduler::Context* previous = Scheduler::Context::Get();
 
-        adaptor_.reset(
+        adapted_.reset(
             // NOTE: for now we're assuming usage of something like
             // 'jemalloc' so 'new' should use lock-free and thread-local
             // arenas. Ideally allocating memory during runtime should
@@ -314,13 +314,13 @@ struct _StaticThreadPoolSchedule {
             // (i.e., a local NUMA node). However, we should reconsider
             // this design decision if in practice this performance
             // tradeoff is not emperically a benefit.
-            new Adaptor_(
+            new Adapted_(
                 std::move(e_).template k<Arg_>(
                     Reschedule(previous).template k<Value_>(
                         _Then::Adaptor<K_>{k_}))));
 
         if (interrupt_ != nullptr) {
-          adaptor_->Register(*interrupt_);
+          adapted_->Register(*interrupt_);
         }
       }
     }
@@ -336,11 +336,11 @@ struct _StaticThreadPoolSchedule {
 
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
-    using Adaptor_ = decltype(std::declval<E_>().template k<Arg_>(
+    using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
         std::declval<detail::_Reschedule::Composable>()
             .template k<Value_>(std::declval<_Then::Adaptor<K_>>())));
 
-    std::unique_ptr<Adaptor_> adaptor_;
+    std::unique_ptr<Adapted_> adapted_;
   };
 
   template <typename E_>

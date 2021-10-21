@@ -62,17 +62,17 @@ struct _Reduce {
 
     template <typename... Args>
     void Body(Args&&... args) {
-      if (!adaptor_) {
-        adaptor_.emplace(
+      if (!adapted_) {
+        adapted_.emplace(
             f_(static_cast<T_&>(t_))
                 .template k<Arg_>(Adaptor<K_>{k_, stream_}));
 
         if (interrupt_ != nullptr) {
-          adaptor_->Register(*interrupt_);
+          adapted_->Register(*interrupt_);
         }
       }
 
-      adaptor_->Start(std::forward<Args>(args)...);
+      adapted_->Start(std::forward<Args>(args)...);
     }
 
     void Ended() {
@@ -98,10 +98,10 @@ struct _Reduce {
         std::is_same_v<bool, typename E_::template ValueFrom<Arg_>>,
         "expecting an eventually returned bool for 'Reduce'");
 
-    using Adaptor_ = decltype(std::declval<E_>().template k<Arg_>(
+    using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
         std::declval<Adaptor<K_>>()));
 
-    std::optional<Adaptor_> adaptor_;
+    std::optional<Adapted_> adapted_;
   };
 
   template <typename T_, typename F_>

@@ -127,14 +127,14 @@ struct _Then::Continuation<K_, F_, Arg_, true> {
 
   template <typename... Args>
   void Start(Args&&... args) {
-    adaptor_.emplace(
+    adapted_.emplace(
         f_(std::forward<Args>(args)...).template k<void>(Adaptor<K_>{k_}));
 
     if (interrupt_ != nullptr) {
-      adaptor_->Register(*interrupt_);
+      adapted_->Register(*interrupt_);
     }
 
-    adaptor_->Start();
+    adapted_->Start();
   }
 
   template <typename... Args>
@@ -157,10 +157,10 @@ struct _Then::Continuation<K_, F_, Arg_, true> {
 
   Interrupt* interrupt_ = nullptr;
 
-  using Adaptor_ = decltype(std::declval<E_>().template k<void>(
+  using Adapted_ = decltype(std::declval<E_>().template k<void>(
       std::declval<Adaptor<K_>>()));
 
-  std::optional<Adaptor_> adaptor_;
+  std::optional<Adapted_> adapted_;
 };
 
 ////////////////////////////////////////////////////////////////////////

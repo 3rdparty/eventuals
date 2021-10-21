@@ -16,7 +16,7 @@ struct _StreamForEach {
   template <typename StreamForEach_>
   struct Adaptor {
     void Start(detail::TypeErasedStream& stream) {
-      CHECK(streamforeach_->adaptor_.has_value());
+      CHECK(streamforeach_->adapted_.has_value());
       CHECK(streamforeach_->inner_ == nullptr);
       streamforeach_->inner_ = &stream;
       streamforeach_->inner_->Next();
@@ -28,8 +28,8 @@ struct _StreamForEach {
     }
 
     void Ended() {
-      CHECK(streamforeach_->adaptor_.has_value());
-      streamforeach_->adaptor_.reset();
+      CHECK(streamforeach_->adapted_.has_value());
+      streamforeach_->adapted_.reset();
       CHECK(streamforeach_->inner_ != nullptr);
       streamforeach_->inner_ = nullptr;
 
@@ -83,27 +83,27 @@ struct _StreamForEach {
 
     template <typename... Args>
     void Body(Args&&... args) {
-      CHECK(!adaptor_.has_value());
+      CHECK(!adapted_.has_value());
 
-      adaptor_.emplace(
+      adapted_.emplace(
           f_(std::forward<Args>(args)...)
               .template k<void>(Adaptor<Continuation>{this}));
 
       if (interrupt_ != nullptr) {
-        adaptor_->Register(*interrupt_);
+        adapted_->Register(*interrupt_);
       }
 
-      adaptor_->Start();
+      adapted_->Start();
     }
 
     void Ended() {
-      CHECK(!adaptor_.has_value());
+      CHECK(!adapted_.has_value());
       k_.Ended();
     }
 
     void Next() override {
       previous_->Continue([this]() {
-        if (adaptor_.has_value()) {
+        if (adapted_.has_value()) {
           CHECK_NOTNULL(inner_)->Next();
         } else {
           outer_->Next();
@@ -114,7 +114,7 @@ struct _StreamForEach {
     void Done() override {
       previous_->Continue([this]() {
         done_ = true;
-        if (adaptor_.has_value()) {
+        if (adapted_.has_value()) {
           CHECK_NOTNULL(inner_)->Done();
         } else {
           outer_->Done();
@@ -130,10 +130,10 @@ struct _StreamForEach {
 
     using E_ = typename std::invoke_result<F_, Arg_>::type;
 
-    using Adaptor_ = decltype(std::declval<E_>().template k<void>(
+    using Adapted_ = decltype(std::declval<E_>().template k<void>(
         std::declval<Adaptor<Continuation>>()));
 
-    std::optional<Adaptor_> adaptor_;
+    std::optional<Adapted_> adapted_;
 
     Interrupt* interrupt_ = nullptr;
 
