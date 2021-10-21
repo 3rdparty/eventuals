@@ -180,20 +180,20 @@ struct _Until::Continuation<K_, F_, Arg_, true> {
     }
 
     if constexpr (!std::is_void_v<Arg_>) {
-      adaptor_.emplace(
+      adapted_.emplace(
           f_(*arg_) // NOTE: passing '&' not '&&'.
               .template k<void>(Adaptor<K_, Arg_>{k_, *arg_, *stream_}));
     } else {
-      adaptor_.emplace(
+      adapted_.emplace(
           f_()
               .template k<void>(Adaptor<K_, Arg_>{k_, *stream_}));
     }
 
     if (interrupt_ != nullptr) {
-      adaptor_->Register(*interrupt_);
+      adapted_->Register(*interrupt_);
     }
 
-    adaptor_->Start();
+    adapted_->Start();
   }
 
   void Ended() {
@@ -211,10 +211,10 @@ struct _Until::Continuation<K_, F_, Arg_, true> {
       std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
       arg_;
 
-  using Adaptor_ = decltype(std::declval<E_>().template k<void>(
+  using Adapted_ = decltype(std::declval<E_>().template k<void>(
       std::declval<Adaptor<K_, Arg_>>()));
 
-  std::optional<Adaptor_> adaptor_;
+  std::optional<Adapted_> adapted_;
 };
 
 ////////////////////////////////////////////////////////////////////////

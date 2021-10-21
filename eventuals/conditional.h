@@ -35,25 +35,25 @@ struct _Conditional {
       //     "*DOES NOT* return an eventual continuation");
 
       if (condition_(std::forward<Args>(args)...)) {
-        then_adaptor_.emplace(
+        then_adapted_.emplace(
             then_(std::forward<Args>(args)...)
                 .template k<void>(_Then::Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
-          then_adaptor_->Register(*interrupt_);
+          then_adapted_->Register(*interrupt_);
         }
 
-        then_adaptor_->Start();
+        then_adapted_->Start();
       } else {
-        else_adaptor_.emplace(
+        else_adapted_.emplace(
             else_(std::forward<Args>(args)...)
                 .template k<void>(_Then::Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
-          else_adaptor_->Register(*interrupt_);
+          else_adapted_->Register(*interrupt_);
         }
 
-        else_adaptor_->Start();
+        else_adapted_->Start();
       }
     }
 
@@ -100,14 +100,14 @@ struct _Conditional {
         "\"then\" and \"else\" branch of 'Conditional' *DO NOT* return "
         "an eventual value of the same type");
 
-    using ThenAdaptor_ = decltype(std::declval<ThenE_>().template k<void>(
+    using ThenAdapted_ = decltype(std::declval<ThenE_>().template k<void>(
         std::declval<_Then::Adaptor<K_>>()));
 
-    using ElseAdaptor_ = decltype(std::declval<ElseE_>().template k<void>(
+    using ElseAdapted_ = decltype(std::declval<ElseE_>().template k<void>(
         std::declval<_Then::Adaptor<K_>>()));
 
-    std::optional<ThenAdaptor_> then_adaptor_;
-    std::optional<ElseAdaptor_> else_adaptor_;
+    std::optional<ThenAdapted_> then_adapted_;
+    std::optional<ElseAdapted_> else_adapted_;
   };
 
   template <typename Condition_, typename Then_, typename Else_>

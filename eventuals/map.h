@@ -56,15 +56,15 @@ struct _Map {
 
     template <typename... Args>
     void Body(Args&&... args) {
-      if (!adaptor_) {
-        adaptor_.emplace(std::move(e_).template k<Arg_>(Adaptor<K_>{k_}));
+      if (!adapted_) {
+        adapted_.emplace(std::move(e_).template k<Arg_>(Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
-          adaptor_->Register(*interrupt_);
+          adapted_->Register(*interrupt_);
         }
       }
 
-      adaptor_->Start(std::forward<Args>(args)...);
+      adapted_->Start(std::forward<Args>(args)...);
     }
 
     void Ended() {
@@ -80,10 +80,10 @@ struct _Map {
     K_ k_;
     E_ e_;
 
-    using Adaptor_ = decltype(std::declval<E_>().template k<Arg_>(
+    using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
         std::declval<Adaptor<K_>>()));
 
-    std::optional<Adaptor_> adaptor_;
+    std::optional<Adapted_> adapted_;
 
     Interrupt* interrupt_ = nullptr;
   };

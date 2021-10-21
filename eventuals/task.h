@@ -60,7 +60,7 @@ struct HeapTask {
   };
 
   HeapTask(E_ e)
-    : adaptor_(
+    : adapted_(
         std::move(e).template k<void>(
             Adaptor<Value_>{&start_, &fail_, &stop_})) {}
 
@@ -78,9 +78,9 @@ struct HeapTask {
 
     // TODO(benh): clarify the semantics of whether or not calling
     // 'Register()' more than once is well-defined.
-    adaptor_.Register(interrupt);
+    adapted_.Register(interrupt);
 
-    adaptor_.Start();
+    adapted_.Start();
   }
 
   void Fail(
@@ -98,9 +98,9 @@ struct HeapTask {
 
     // TODO(benh): clarify the semantics of whether or not calling
     // 'Register()' more than once is well-defined.
-    adaptor_.Register(interrupt);
+    adapted_.Register(interrupt);
 
-    adaptor_.Fail(std::move(fail_exception));
+    adapted_.Fail(std::move(fail_exception));
   }
 
   void Stop(
@@ -117,9 +117,9 @@ struct HeapTask {
 
     // TODO(benh): clarify the semantics of whether or not calling
     // 'Register()' more than once is well-defined.
-    adaptor_.Register(interrupt);
+    adapted_.Register(interrupt);
 
-    adaptor_.Stop();
+    adapted_.Stop();
   }
 
   std::conditional_t<
@@ -130,10 +130,10 @@ struct HeapTask {
   Callback<std::exception_ptr> fail_;
   Callback<> stop_;
 
-  using Adaptor_ = decltype(std::declval<E_>().template k<void>(
+  using Adapted_ = decltype(std::declval<E_>().template k<void>(
       std::declval<Adaptor<Value_>>()));
 
-  Adaptor_ adaptor_;
+  Adapted_ adapted_;
 };
 
 ////////////////////////////////////////////////////////////////////////
