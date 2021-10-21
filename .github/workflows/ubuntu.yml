@@ -4,7 +4,7 @@ name: Ubuntu
 on:
   push:
     branches:
-      - "**"
+      - "inc"
   pull_request:
     branches:
       - "main"
