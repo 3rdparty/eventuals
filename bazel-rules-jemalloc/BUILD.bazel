@@ -10,12 +10,13 @@ configure_make(
     name = "jemalloc",
     autoconf = True,
     configure_in_place = True,
-    env = select({
-        # Without this option on macOS we will have the following issue:
-        # .../libtool: no output file specified (specify with -o output).
-        "@bazel_tools//src/conditions:darwin": {"AR": ""},
-        "//conditions:default": {},
-    }),
+    #env = select({
+    #    # Without this option on macOS we will have the following issue:
+    #    # .../libtool: no output file specified (specify with -o output).
+    #    "@bazel_tools//src/conditions:darwin": {"AR": ""},
+    #    "//conditions:default": {},
+    #}),
+    env = {"AR": ""},
     lib_source = ":all",
     out_static_libs = select({
         "@bazel_tools//src/conditions:windows": [
