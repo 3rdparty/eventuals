@@ -10,6 +10,7 @@ configure_make(
     name = "jemalloc",
     #autoconf = True,
     autogen = True,
+    autogen_command = "autogen.sh",
     configure_in_place = True,
     env = select({
         # Without this option on macOS we will have the following issue:
