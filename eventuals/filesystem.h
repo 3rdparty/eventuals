@@ -286,6 +286,8 @@ inline auto ReadFile(
             data.k = &k;
             data.request->data = &data;
 
+            data.buffer.Resize(data.bytes_to_read);
+
             auto error = uv_fs_read(
                 data.loop,
                 data.request,

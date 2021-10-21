@@ -31,7 +31,7 @@ class EventLoop : public Scheduler {
     }
 
     Buffer(const size_t& size) {
-      data_.resize(size);
+      data_.reserve(size);
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), size);
     }
 
@@ -115,6 +115,11 @@ class EventLoop : public Scheduler {
 
     void Resize(const size_t& size) {
       data_.resize(size, 0);
+      buffer_ = uv_buf_init(const_cast<char*>(data_.data()), size);
+    }
+
+    void Reserve(const size_t& size) {
+      data_.reserve(size);
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), size);
     }
 
