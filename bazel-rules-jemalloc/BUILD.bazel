@@ -14,7 +14,7 @@ configure_make(
     env = select({
         # Without this option on macOS we will have the following issue:
         # .../libtool: no output file specified (specify with -o output).
-        "@bazel_tools//src/conditions:darwin": {"AR": ""},
+        "@bazel_tools//src/conditions:darwin": {"AR": "", "CC": "clang"},
         "//conditions:default": {},
     }),
     lib_source = ":all",
