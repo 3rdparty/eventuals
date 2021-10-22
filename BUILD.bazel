@@ -79,6 +79,8 @@ cc_library(
         "eventuals/event-loop.h",
         "eventuals/filesystem.h",
         "eventuals/signal.h",
+        "eventuals/tcp.h",
+        "eventuals/tcp2.h",
         "eventuals/timer.h",
     ],
     copts = copts(),
