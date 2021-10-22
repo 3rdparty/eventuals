@@ -53,7 +53,18 @@ cc_library(
     visibility = ["//visibility:private"],
     deps = [
         "@com_github_google_glog//:glog",
-    ],
+    ] + select({
+        # NOTE!
+        # For now we build jemalloc on macOS and Linux.
+        # The way how to build jemalloc on Windows is more
+        # complicated. In future we are going to make this
+        # lib build on Windows too.
+        # https://github.com/3rdparty/bazel-rules-jemalloc/tree/ArthurBandaryk.jemalloc-windows
+        "@bazel_tools//src/conditions:windows": [],
+        "//conditions:default": [
+            "@com_github_jemalloc_jemalloc//:jemalloc",
+        ],
+    }),
 )
 
 cc_library(
