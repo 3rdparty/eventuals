@@ -24,8 +24,8 @@ jobs:
       - name: Check for bazel
         run: bazel --version
         
-      - name: autoconf
-        run: autoconf --version && sugo apt-get update
+      - name: upd
+        run: sugo apt-get update
 
       - name: Build
         run: bazel build --spawn_strategy=local --copt="-g" --strip="never" :eventuals
