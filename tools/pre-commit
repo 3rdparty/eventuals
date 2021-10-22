@@ -106,7 +106,15 @@ run_checks() {
     local -i number=1
     while IFS= read -r line; do
       local -i length=${#line}
+      local has_exceed_80=false
+      local has_exceed_macro=false
       if (( length > 80 )); then
+        has_exceed_80=true
+      fi
+      if [[ $line == *#exceed80 ]]; then
+        has_exceed_macro=true
+      fi
+      if [[ $has_exceed_80 == true && $has_exceed_macro == false ]]; then
         status=1
         tput bold
         printf "%s:%i:%i: " "${file}" "${number}" "${length}"
