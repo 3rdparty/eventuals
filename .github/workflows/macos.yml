@@ -25,7 +25,7 @@ jobs:
         run: bazel --version
         
       - name: upd
-        run: sudo apt-get update
+        run: brew upgrade
 
       - name: Build
         run: bazel build --spawn_strategy=local --copt="-g" --strip="never" :eventuals
