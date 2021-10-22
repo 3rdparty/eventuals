@@ -28,7 +28,7 @@ def repos(external = True, repo_mapping = {}):
             git_repository,
             name = "com_github_3rdparty_bazel_rules_jemalloc",
             remote = "https://github.com/3rdparty/bazel-rules-jemalloc",
-            commit = "a5a399e4615fd4a6bb5c547d9831d4d97ed47a3f",
-            shallow_since = "1633213624 +0300",
+            commit = "29a706360a8ce9f425599d862a5d9328e2ae4d14",
+            shallow_since = "1634890910 +0300",
             repo_mapping = repo_mapping,
         )
