@@ -45,6 +45,11 @@ struct HeapTask {
               std::forward<decltype(args)>(args)...));
     }
 
+    // NOTE: overload so we don't create nested std::exception_ptr.
+    void Fail(std::exception_ptr exception) {
+      (*fail_)(std::move(exception));
+    }
+
     void Stop() {
       (*stop_)();
     }
@@ -368,18 +373,27 @@ struct _TaskWith {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Value_>
-class Task {
+// A task can act BOTH as a composable or a continuation that can be
+// started via 'TaskWith::Start()'. If used as a continuation then it
+// can't be moved after starting, just like all other continuations.
+template <typename Value_, typename... Args_>
+class TaskWith {
  public:
   template <typename Arg>
   using ValueFrom = Value_;
 
-  template <typename... Args>
-  using With = detail::_TaskWith::Composable<Value_, Args...>;
+  template <typename F>
+  TaskWith(Args_... args, F f)
+    : e_(std::move(args)..., std::move(f)) {}
+
+  TaskWith(TaskWith&& that)
+    : e_(std::move(that.e_)) {
+    CHECK(!k_.has_value()) << "moving after starting";
+  }
 
   template <typename Arg, typename K>
   auto k(K k) && {
-    return std::move(task_).template k<Arg>(std::move(k));
+    return std::move(e_).template k<Arg>(std::move(k));
   }
 
   void Start(
@@ -390,19 +404,63 @@ class Task {
           Callback<Value_>&&> start,
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop) {
-    k_.emplace(Build(std::move(task_) | Terminal().start(std::move(start)).fail(std::move(fail)).stop(std::move(stop))));
+    k_.emplace(Build(
+        std::move(e_)
+        | Terminal()
+              .start(std::move(start))
+              .fail(std::move(fail))
+              .stop(std::move(stop))));
 
     k_->Register(interrupt);
 
     k_->Start();
   }
 
-  template <typename F>
-  Task(F f)
-    : task_(std::move(f)) {}
+  template <typename Arg>
+  void Fail(
+      Arg&& arg,
+      Interrupt& interrupt,
+      std::conditional_t<
+          std::is_void_v<Value_>,
+          Callback<>&&,
+          Callback<Value_>&&> start,
+      Callback<std::exception_ptr>&& fail,
+      Callback<>&& stop) {
+    k_.emplace(Build(
+        std::move(e_)
+        | Terminal()
+              .start(std::move(start))
+              .fail(std::move(fail))
+              .stop(std::move(stop))));
 
+    k_->Register(interrupt);
+
+    k_->Fail(std::forward<Arg>(arg));
+  }
+
+  void Stop(
+      Interrupt& interrupt,
+      std::conditional_t<
+          std::is_void_v<Value_>,
+          Callback<>&&,
+          Callback<Value_>&&> start,
+      Callback<std::exception_ptr>&& fail,
+      Callback<>&& stop) {
+    k_.emplace(Build(
+        std::move(e_)
+        | Terminal()
+              .start(std::move(start))
+              .fail(std::move(fail))
+              .stop(std::move(stop))));
+
+    k_->Register(interrupt);
+
+    k_->Stop();
+  }
+
+  // NOTE: should only be used in tests!
   auto operator*() && {
-    auto [future, k] = Terminate(std::move(*this));
+    auto [future, k] = Terminate(std::move(e_));
 
     k.Start();
 
@@ -410,16 +468,36 @@ class Task {
   }
 
  private:
-  detail::_TaskWith::Composable<Value_> task_;
+  detail::_TaskWith::Composable<Value_, Args_...> e_;
 
+  // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
+  // a composable but also a continuation which has a terminal made up
+  // of the callbacks passed to 'Task::Start()'.
   using K_ = decltype(Build(
-      std::move(task_)
+      std::move(e_)
       | Terminal()
-            .start(std::declval<std::conditional_t<std::is_void_v<Value_>, Callback<>&&, Callback<Value_>&&>>())
+            .start(std::declval<
+                   std::conditional_t<
+                       std::is_void_v<Value_>,
+                       Callback<>&&,
+                       Callback<Value_>&&>>())
             .fail(std::declval<Callback<std::exception_ptr>&&>())
             .stop(std::declval<Callback<>&&>())));
 
   std::optional<K_> k_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Value_>
+class Task : public TaskWith<Value_> {
+ public:
+  template <typename... Args_>
+  using With = TaskWith<Value_, Args_...>;
+
+  template <typename F>
+  Task(F f)
+    : TaskWith<Value_>(std::move(f)) {}
 };
 
 ////////////////////////////////////////////////////////////////////////

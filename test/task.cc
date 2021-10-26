@@ -198,16 +198,86 @@ TEST(TaskTest, Start) {
     };
   };
 
+  std::optional<Task<int>> task;
+
+  task.emplace(e());
+
   Interrupt interrupt;
-  e().Start(
+
+  int result = 0;
+
+  task->Start(
       interrupt,
-      [](int x) {
-        EXPECT_EQ(x, 42);
+      [&](int x) {
+        result = x;
       },
       [](std::exception_ptr) {
-        FAIL() << "Test should not have failed";
+        FAIL() << "test should not have failed";
       },
       []() {
-        FAIL() << "Test should not have stopped";
+        FAIL() << "test should not have stopped";
       });
+
+  EXPECT_EQ(42, result);
+}
+
+TEST(TaskTest, Fail) {
+  auto e = []() -> Task<int> {
+    return [x = 42]() {
+      return Just(x);
+    };
+  };
+
+  std::optional<Task<int>> task;
+
+  task.emplace(e());
+
+  Interrupt interrupt;
+
+  std::exception_ptr result;
+
+  task->Fail(
+      "error",
+      interrupt,
+      [](int) {
+        FAIL() << "test should not have succeeded";
+      },
+      [&](std::exception_ptr exception) {
+        result = std::move(exception);
+      },
+      []() {
+        FAIL() << "test should not have stopped";
+      });
+
+  EXPECT_THROW(std::rethrow_exception(result), const char*);
+}
+
+TEST(TaskTest, Stop) {
+  auto e = []() -> Task<int> {
+    return [x = 42]() {
+      return Just(x);
+    };
+  };
+
+  std::optional<Task<int>> task;
+
+  task.emplace(e());
+
+  Interrupt interrupt;
+
+  bool stopped = false;
+
+  task->Stop(
+      interrupt,
+      [](int) {
+        FAIL() << "test should not have succeeded";
+      },
+      [](std::exception_ptr) {
+        FAIL() << "test should not have failed";
+      },
+      [&]() {
+        stopped = true;
+      });
+
+  EXPECT_TRUE(stopped);
 }
