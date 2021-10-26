@@ -2,26 +2,22 @@
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
-load("@com_github_3rdparty_stout_eventuals//bazel:deps.bzl", stout_eventuals_deps="deps")
-
-load("@com_github_3rdparty_stout_borrowed_ptr//bazel:deps.bzl", stout_borrowed_ptr_deps="deps")
-
-load("@com_github_3rdparty_stout_notification//bazel:deps.bzl", stout_notification_deps="deps")
-
+load("@com_github_3rdparty_eventuals//bazel:deps.bzl", eventuals_deps = "deps")
+load("@com_github_3rdparty_stout_borrowed_ptr//bazel:deps.bzl", stout_borrowed_ptr_deps = "deps")
+load("@com_github_3rdparty_stout_notification//bazel:deps.bzl", stout_notification_deps = "deps")
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
 
 def deps(repo_mapping = {}):
-    stout_eventuals_deps(
-        repo_mapping = repo_mapping
+    eventuals_deps(
+        repo_mapping = repo_mapping,
     )
 
     stout_borrowed_ptr_deps(
-        repo_mapping = repo_mapping
+        repo_mapping = repo_mapping,
     )
 
     stout_notification_deps(
-        repo_mapping = repo_mapping
+        repo_mapping = repo_mapping,
     )
 
     # !!! Here be dragons !!!
@@ -38,6 +34,7 @@ def deps(repo_mapping = {}):
             strip_prefix = "abseil-cpp-20210324.2",
             sha256 = "59b862f50e710277f8ede96f083a5bb8d7c9595376146838b9580be90374ee1f",
         )
+
     # and then boringssl
     if "boringssl" not in native.existing_rules():
         git_repository(
