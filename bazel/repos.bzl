@@ -28,7 +28,7 @@ def repos(external = True, repo_mapping = {}):
             git_repository,
             name = "com_github_3rdparty_eventuals",
             remote = "https://github.com/3rdparty/eventuals",
-            commit = "4fddbb7cdde3912900028ff88c28b91ad7fedd71",
-            shallow_since = "1635276105 +0300",
+            commit = "bf13a6bf7ef2f7924ee9320af12fa56d41e4b251",
+            shallow_since = "1635285198 -0600",
             repo_mapping = repo_mapping,
         )
