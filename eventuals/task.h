@@ -85,7 +85,7 @@ struct HeapTask {
 
   void Fail(
       Interrupt& interrupt,
-      std::exception_ptr&& fail_exception,
+      std::exception_ptr&& exception,
       std::conditional_t<
           std::is_void_v<Value_>,
           Callback<>,
@@ -100,7 +100,7 @@ struct HeapTask {
     // 'Register()' more than once is well-defined.
     adapted_.Register(interrupt);
 
-    adapted_.Fail(std::move(fail_exception));
+    adapted_.Fail(std::move(exception));
   }
 
   void Stop(
@@ -288,7 +288,7 @@ struct _TaskWith {
 
       dispatch_ = [f = std::move(f)](
                       Action action,
-                      std::optional<std::exception_ptr> fail_exception,
+                      std::optional<std::exception_ptr> exception,
                       Args_&&... args,
                       std::unique_ptr<void, Callback<void*>>& e_,
                       Interrupt& interrupt,
@@ -319,7 +319,7 @@ struct _TaskWith {
           case Action::Fail:
             e->Fail(
                 interrupt,
-                std::move(fail_exception.value()),
+                std::move(exception.value()),
                 std::move(start),
                 std::move(fail),
                 std::move(stop));
@@ -382,6 +382,21 @@ class Task {
     return std::move(task_).template k<Arg>(std::move(k));
   }
 
+  void Start(
+      Interrupt& interrupt,
+      std::conditional_t<
+          std::is_void_v<Value_>,
+          Callback<>&&,
+          Callback<Value_>&&> start,
+      Callback<std::exception_ptr>&& fail,
+      Callback<>&& stop) {
+    k_.emplace(Build(std::move(task_) | Terminal().start(std::move(start)).fail(std::move(fail)).stop(std::move(stop))));
+
+    k_->Register(interrupt);
+
+    k_->Start();
+  }
+
   template <typename F>
   Task(F f)
     : task_(std::move(f)) {}
@@ -396,6 +411,15 @@ class Task {
 
  private:
   detail::_TaskWith::Composable<Value_> task_;
+
+  using K_ = decltype(Build(
+      std::move(task_)
+      | Terminal()
+            .start(std::declval<std::conditional_t<std::is_void_v<Value_>, Callback<>&&, Callback<Value_>&&>>())
+            .fail(std::declval<Callback<std::exception_ptr>&&>())
+            .stop(std::declval<Callback<>&&>())));
+
+  std::optional<K_> k_;
 };
 
 ////////////////////////////////////////////////////////////////////////
