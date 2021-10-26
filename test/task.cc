@@ -1,6 +1,7 @@
 #include "eventuals/task.h"
 
 #include "eventuals/eventual.h"
+#include "eventuals/interrupt.h"
 #include "eventuals/just.h"
 #include "eventuals/map.h"
 #include "eventuals/terminal.h"
@@ -9,6 +10,7 @@
 #include "gtest/gtest.h"
 
 using eventuals::Eventual;
+using eventuals::Interrupt;
 using eventuals::Just;
 using eventuals::Map;
 using eventuals::Task;
@@ -187,4 +189,25 @@ TEST(Task, Stop) {
   k.Stop();
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
+}
+
+TEST(TaskTest, Start) {
+  auto e = []() -> Task<int> {
+    return [x = 42]() {
+      return Just(x);
+    };
+  };
+
+  Interrupt interrupt;
+  e().Start(
+      interrupt,
+      [](int x) {
+        EXPECT_EQ(x, 42);
+      },
+      [](std::exception_ptr) {
+        FAIL() << "Test should not been failed";
+      },
+      []() {
+        FAIL() << "Test should not been stopped";
+      });
 }
