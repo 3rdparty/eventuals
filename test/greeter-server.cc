@@ -1,21 +1,24 @@
+#include "eventuals/grpc/client.h"
+#include "eventuals/grpc/server.h"
+#include "eventuals/sequence.h"
 #include "gtest/gtest.h"
-#include "stout/grpc/client.h"
-#include "stout/grpc/server.h"
-#include "stout/sequence.h"
 #include "test/helloworld.eventuals.h"
 #include "test/test.h"
 
 using stout::Borrowable;
-using stout::Sequence;
 
-using stout::eventuals::grpc::Client;
-using stout::eventuals::grpc::CompletionPool;
-using stout::eventuals::grpc::ServerBuilder;
+using eventuals::Sequence;
 
-using namespace helloworld;
+using eventuals::grpc::Client;
+using eventuals::grpc::CompletionPool;
+using eventuals::grpc::ServerBuilder;
 
-class GreeterServiceImpl final
-  : public eventuals::Greeter::Service<GreeterServiceImpl> {
+using helloworld::HelloReply;
+using helloworld::HelloRequest;
+
+using helloworld::eventuals::Greeter;
+
+class GreeterServiceImpl final : public Greeter::Service<GreeterServiceImpl> {
  public:
   auto SayHello(::grpc::ServerContext* context, HelloRequest&& request) {
     std::string prefix("Hello ");
@@ -25,7 +28,7 @@ class GreeterServiceImpl final
   }
 };
 
-TEST_F(StoutGrpcTest, Greeter) {
+TEST_F(EventualsGrpcTest, Greeter) {
   std::string server_address("0.0.0.0:50051");
   GreeterServiceImpl service;
 

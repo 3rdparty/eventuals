@@ -1,13 +1,13 @@
+#include "eventuals/eventual.h"
+#include "eventuals/grpc/client.h"
+#include "eventuals/grpc/server.h"
+#include "eventuals/head.h"
+#include "eventuals/let.h"
+#include "eventuals/loop.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "stout/eventual.h"
-#include "stout/grpc/client.h"
-#include "stout/grpc/server.h"
-#include "stout/head.h"
-#include "stout/let.h"
-#include "stout/loop.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
 #include "test/test.h"
 
 using helloworld::Greeter;
@@ -16,19 +16,19 @@ using helloworld::HelloRequest;
 
 using stout::Borrowable;
 
-using stout::eventuals::Eventual;
-using stout::eventuals::Head;
-using stout::eventuals::Let;
-using stout::eventuals::Loop;
-using stout::eventuals::Terminate;
-using stout::eventuals::Then;
+using eventuals::Eventual;
+using eventuals::Head;
+using eventuals::Let;
+using eventuals::Loop;
+using eventuals::Terminate;
+using eventuals::Then;
 
-using stout::eventuals::grpc::Client;
-using stout::eventuals::grpc::CompletionPool;
-using stout::eventuals::grpc::Server;
-using stout::eventuals::grpc::ServerBuilder;
+using eventuals::grpc::Client;
+using eventuals::grpc::CompletionPool;
+using eventuals::grpc::Server;
+using eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutGrpcTest, ClientDeathTest) {
+TEST_F(EventualsGrpcTest, ClientDeathTest) {
   // NOTE: need pipes so that (1) the client can tell us when it's
   // forked so we know we can start the server because we can't call
   // into grpc before we've forked (see

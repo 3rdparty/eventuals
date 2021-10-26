@@ -3,18 +3,22 @@
 #include <optional>
 #include <string>
 
+#include "eventuals/grpc/call-type.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message_lite.h"
-#include "stout/grpc/call-type.h"
 
-namespace stout {
+////////////////////////////////////////////////////////////////////////
+
 namespace eventuals {
 namespace grpc {
+
+////////////////////////////////////////////////////////////////////////
 
 // Used to "decorate" requests/responses streams.
 template <typename T>
 struct Stream {};
 
+////////////////////////////////////////////////////////////////////////
 
 template <typename T>
 class IsService {
@@ -32,6 +36,7 @@ class IsService {
   enum { value = sizeof(test<T>(0)) == sizeof(Yes) };
 };
 
+////////////////////////////////////////////////////////////////////////
 
 template <typename T>
 struct IsMessage
@@ -42,6 +47,7 @@ template <typename T>
 struct IsMessage<Stream<T>>
   : std::is_base_of<google::protobuf::MessageLite, T> {};
 
+////////////////////////////////////////////////////////////////////////
 
 struct RequestResponseTraits {
   struct Error {
@@ -118,6 +124,9 @@ struct RequestResponseTraits {
   }
 };
 
+////////////////////////////////////////////////////////////////////////
+
 } // namespace grpc
 } // namespace eventuals
-} // namespace stout
+
+////////////////////////////////////////////////////////////////////////

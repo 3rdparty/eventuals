@@ -1,34 +1,34 @@
+#include "eventuals/closure.h"
+#include "eventuals/grpc/client.h"
+#include "eventuals/grpc/server.h"
+#include "eventuals/head.h"
+#include "eventuals/iterate.h"
+#include "eventuals/let.h"
+#include "eventuals/loop.h"
+#include "eventuals/map.h"
+#include "eventuals/sequence.h"
+#include "eventuals/then.h"
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "stout/closure.h"
-#include "stout/grpc/client.h"
-#include "stout/grpc/server.h"
-#include "stout/head.h"
-#include "stout/iterate.h"
-#include "stout/let.h"
-#include "stout/loop.h"
-#include "stout/map.h"
-#include "stout/sequence.h"
-#include "stout/then.h"
 #include "test/test.h"
 
 using stout::Borrowable;
-using stout::Sequence;
 
-using stout::eventuals::Closure;
-using stout::eventuals::Head;
-using stout::eventuals::Iterate;
-using stout::eventuals::Let;
-using stout::eventuals::Loop;
-using stout::eventuals::Map;
-using stout::eventuals::Terminate;
-using stout::eventuals::Then;
+using eventuals::Closure;
+using eventuals::Head;
+using eventuals::Iterate;
+using eventuals::Let;
+using eventuals::Loop;
+using eventuals::Map;
+using eventuals::Sequence;
+using eventuals::Terminate;
+using eventuals::Then;
 
-using stout::eventuals::grpc::Client;
-using stout::eventuals::grpc::CompletionPool;
-using stout::eventuals::grpc::Server;
-using stout::eventuals::grpc::ServerBuilder;
-using stout::eventuals::grpc::Stream;
+using eventuals::grpc::Client;
+using eventuals::grpc::CompletionPool;
+using eventuals::grpc::Server;
+using eventuals::grpc::ServerBuilder;
+using eventuals::grpc::Stream;
 
 // We can vary the usage of the streaming API on three dimensions, each of which
 // leads to different concurrency situations in `client.h`:
@@ -122,7 +122,7 @@ void test_client_behavior(T&& handler) {
   EXPECT_FALSE(cancelled.get());
 }
 
-TEST_F(StoutGrpcTest, Streaming_WriteLast_AfterReply_TwoRequests) {
+TEST_F(EventualsGrpcTest, Streaming_WriteLast_AfterReply_TwoRequests) {
   test_client_behavior(Client::Handler()
                            .ready([](auto& call) {
                              keyvaluestore::Request request;
@@ -153,7 +153,7 @@ TEST_F(StoutGrpcTest, Streaming_WriteLast_AfterReply_TwoRequests) {
                                      })));
 }
 
-TEST_F(StoutGrpcTest, Streaming_WriteLast_BeforeReply_OneRequest) {
+TEST_F(EventualsGrpcTest, Streaming_WriteLast_BeforeReply_OneRequest) {
   test_client_behavior(Client::Handler()
                            .ready([](auto& call) {
                              keyvaluestore::Request request;
@@ -178,7 +178,7 @@ TEST_F(StoutGrpcTest, Streaming_WriteLast_BeforeReply_OneRequest) {
                                      })));
 }
 
-TEST_F(StoutGrpcTest, Streaming_WriteLast_BeforeReply_TwoRequests) {
+TEST_F(EventualsGrpcTest, Streaming_WriteLast_BeforeReply_TwoRequests) {
   test_client_behavior(Client::Handler()
                            .ready([](auto& call) {
                              keyvaluestore::Request request1;
@@ -209,7 +209,7 @@ TEST_F(StoutGrpcTest, Streaming_WriteLast_BeforeReply_TwoRequests) {
                                      })));
 }
 
-TEST_F(StoutGrpcTest, Streaming_WritesDone_AfterReply_OneRequest) {
+TEST_F(EventualsGrpcTest, Streaming_WritesDone_AfterReply_OneRequest) {
   test_client_behavior(Client::Handler()
                            .ready([](auto& call) {
                              keyvaluestore::Request request;
@@ -236,7 +236,7 @@ TEST_F(StoutGrpcTest, Streaming_WritesDone_AfterReply_OneRequest) {
 }
 
 
-TEST_F(StoutGrpcTest, Streaming_WritesDone_AfterReply_TwoRequests) {
+TEST_F(EventualsGrpcTest, Streaming_WritesDone_AfterReply_TwoRequests) {
   test_client_behavior(Client::Handler()
                            .ready([](auto& call) {
                              keyvaluestore::Request request;
@@ -268,7 +268,7 @@ TEST_F(StoutGrpcTest, Streaming_WritesDone_AfterReply_TwoRequests) {
                                      })));
 }
 
-TEST_F(StoutGrpcTest, Streaming_WritesDone_BeforeReply_OneRequest) {
+TEST_F(EventualsGrpcTest, Streaming_WritesDone_BeforeReply_OneRequest) {
   test_client_behavior(Client::Handler()
                            .ready([](auto& call) {
                              keyvaluestore::Request request1;
@@ -294,7 +294,7 @@ TEST_F(StoutGrpcTest, Streaming_WritesDone_BeforeReply_OneRequest) {
                                      })));
 }
 
-TEST_F(StoutGrpcTest, Streaming_WritesDone_BeforeReply_TwoRequests) {
+TEST_F(EventualsGrpcTest, Streaming_WritesDone_BeforeReply_TwoRequests) {
   test_client_behavior(Client::Handler()
                            .ready([](auto& call) {
                              keyvaluestore::Request request1;

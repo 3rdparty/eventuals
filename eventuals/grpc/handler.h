@@ -1,10 +1,9 @@
 #pragma once
 
-#include "stout/eventual.h"
+#include "eventuals/eventual.h"
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace stout {
 namespace eventuals {
 namespace grpc {
 
@@ -297,6 +296,5 @@ struct _ClientHandler {
 
 } // namespace grpc
 } // namespace eventuals
-} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

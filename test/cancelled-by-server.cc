@@ -1,10 +1,10 @@
+#include "eventuals/grpc/client.h"
+#include "eventuals/grpc/server.h"
+#include "eventuals/head.h"
+#include "eventuals/let.h"
+#include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "stout/grpc/client.h"
-#include "stout/grpc/server.h"
-#include "stout/head.h"
-#include "stout/let.h"
-#include "stout/then.h"
 #include "test/test.h"
 
 using helloworld::Greeter;
@@ -13,17 +13,17 @@ using helloworld::HelloRequest;
 
 using stout::Borrowable;
 
-using stout::eventuals::Head;
-using stout::eventuals::Let;
-using stout::eventuals::Terminate;
-using stout::eventuals::Then;
+using eventuals::Head;
+using eventuals::Let;
+using eventuals::Terminate;
+using eventuals::Then;
 
-using stout::eventuals::grpc::Client;
-using stout::eventuals::grpc::CompletionPool;
-using stout::eventuals::grpc::Server;
-using stout::eventuals::grpc::ServerBuilder;
+using eventuals::grpc::Client;
+using eventuals::grpc::CompletionPool;
+using eventuals::grpc::Server;
+using eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutGrpcTest, CancelledByServer) {
+TEST_F(EventualsGrpcTest, CancelledByServer) {
   ServerBuilder builder;
 
   int port = 0;

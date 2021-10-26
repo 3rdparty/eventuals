@@ -1,6 +1,5 @@
 #pragma once
 
-namespace stout {
 namespace eventuals {
 namespace grpc {
 
@@ -13,4 +12,3 @@ enum class CallType {
 
 } // namespace grpc
 } // namespace eventuals
-} // namespace stout

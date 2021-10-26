@@ -1,10 +1,10 @@
+#include "eventuals/grpc/client.h"
+#include "eventuals/grpc/server.h"
+#include "eventuals/head.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "stout/grpc/client.h"
-#include "stout/grpc/server.h"
-#include "stout/head.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
 #include "test/test.h"
 
 using helloworld::Greeter;
@@ -13,16 +13,16 @@ using helloworld::HelloRequest;
 
 using stout::Borrowable;
 
-using stout::eventuals::Head;
-using stout::eventuals::Terminate;
-using stout::eventuals::Then;
+using eventuals::Head;
+using eventuals::Terminate;
+using eventuals::Then;
 
-using stout::eventuals::grpc::Client;
-using stout::eventuals::grpc::CompletionPool;
-using stout::eventuals::grpc::Server;
-using stout::eventuals::grpc::ServerBuilder;
+using eventuals::grpc::Client;
+using eventuals::grpc::CompletionPool;
+using eventuals::grpc::Server;
+using eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutGrpcTest, ServerDeathTest) {
+TEST_F(EventualsGrpcTest, ServerDeathTest) {
   // NOTE: need pipes to get the server's port, this also helps
   // synchronize when the server is ready to have the client connect.
   int pipefds[2];

@@ -1,20 +1,19 @@
-#include "stout/grpc/server.h"
+#include "eventuals/grpc/server.h"
 
 #include <thread>
 
+#include "eventuals/catch.h"
+#include "eventuals/closure.h"
+#include "eventuals/conditional.h"
+#include "eventuals/grpc/logging.h"
+#include "eventuals/just.h"
+#include "eventuals/loop.h"
+#include "eventuals/repeat.h"
 #include "grpcpp/completion_queue.h"
 #include "grpcpp/server.h"
-#include "stout/catch.h"
-#include "stout/closure.h"
-#include "stout/conditional.h"
-#include "stout/grpc/logging.h"
-#include "stout/just.h"
-#include "stout/loop.h"
-#include "stout/repeat.h"
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace stout {
 namespace eventuals {
 namespace grpc {
 
@@ -81,7 +80,7 @@ auto Server::Lookup(ServerContext* context) {
 
 auto Server::Unimplemented(ServerContext* context) {
   return Lambda([context]() {
-    STOUT_GRPC_LOG(1)
+    EVENTUALS_GRPC_LOG(1)
         << "Dropping " << context->method()
         << " for host " << context->host();
 
@@ -114,25 +113,25 @@ Server::Server(
 
     serve->service->Register(this);
 
-    serve->task = service->Serve();
+    serve->task.emplace(service->Serve());
 
     serve->task->Start(
         serve->interrupt,
-        [&serve](auto&&...) {
-          STOUT_GRPC_LOG(1)
-              << serve->service->service_full_name()
+        [&serve]() {
+          EVENTUALS_GRPC_LOG(1)
+              << serve->service->name()
               << " completed serving";
           serve->done.store(true);
         },
         [&serve](std::exception_ptr) {
-          STOUT_GRPC_LOG(1)
-              << serve->service->service_full_name()
+          EVENTUALS_GRPC_LOG(1)
+              << serve->service->name()
               << " failed serving";
           serve->done.store(true);
         },
         [&serve]() {
-          STOUT_GRPC_LOG(1)
-              << serve->service->service_full_name()
+          EVENTUALS_GRPC_LOG(1)
+              << serve->service->name()
               << " stopped serving";
           serve->done.store(true);
         });
@@ -173,14 +172,13 @@ Server::Server(
                          // shutdown, not for each worker (which
                          // should be harmless but unnecessary).
                          return ShutdownEndpoints();
-                       })
-                    | Just(Undefined()); // TODO(benh): render this unnecessary.
+                       });
               });
         });
 
     worker->task->Start(
         worker->interrupt,
-        [&worker](auto&&...) {
+        [&worker]() {
           worker->done.store(true);
         },
         [](std::exception_ptr) {
@@ -207,15 +205,11 @@ void Server::Shutdown() {
     server_->Shutdown();
   }
 
-  for (auto& cq : cqs_) {
-    cq->Shutdown();
-  }
-
-  // Interrupt serving each service in the event that either shutting
-  // down the server or the completion queues was insufficient.
-  for (auto& serve : serves_) {
-    serve->interrupt.Trigger();
-  }
+  // NOTE: we don't interrupt 'workers_' or 'serves_' as shutting down
+  // the server should force each worker waiting on 'RequestCall()' to
+  // get an error which should then cause 'ShutdownEndpoints()' which
+  // should propagate through to each 'serve_' that might have been
+  // waiting for the next accepted call.
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -237,8 +231,22 @@ void Server::Wait() {
     }
   }
 
+  // At this point we should be able to wait for the server.
   if (server_) {
     server_->Wait();
+  }
+
+  // We shutdown the completion queues _after_ all 'workers_' and
+  // 'serves_' have completed because if they try to use the
+  // completion queues after they're shutdown that may cause internal
+  // grpc assertions to fire (which makes sense, we called shutdown on
+  // them and then tried to use them).
+  //
+  // NOTE: it's unclear if we need to shutdown the completion queues
+  // before we wait on the server but at least emperically it appears
+  // that it doesn't matter.
+  for (auto& cq : cqs_) {
+    cq->Shutdown();
   }
 
   for (auto& thread : threads_) {
@@ -383,6 +391,5 @@ ServerStatusOrServer ServerBuilder::BuildAndStart() {
 
 } // namespace grpc
 } // namespace eventuals
-} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

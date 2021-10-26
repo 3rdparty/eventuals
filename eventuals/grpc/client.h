@@ -3,27 +3,26 @@
 #include <cassert>
 
 #include "absl/synchronization/mutex.h"
+#include "eventuals/callback.h"
+#include "eventuals/eventual.h"
+#include "eventuals/grpc/completion-pool.h"
+#include "eventuals/grpc/handler.h"
+#include "eventuals/grpc/traits.h"
 #include "grpcpp/client_context.h"
 #include "grpcpp/completion_queue.h"
 #include "grpcpp/create_channel.h"
 #include "grpcpp/generic/generic_stub.h"
 #include "stout/borrowable.h"
-#include "stout/callback.h"
-#include "stout/eventual.h"
-#include "stout/grpc/completion-pool.h"
-#include "stout/grpc/handler.h"
-#include "stout/grpc/traits.h"
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace stout {
 namespace eventuals {
 namespace grpc {
 namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-using stout::eventuals::detail::operator|;
+using eventuals::detail::operator|;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +38,7 @@ struct _Call {
         K_ k,
         std::string name,
         std::optional<std::string> host,
-        borrowed_ptr<::grpc::CompletionQueue> cq,
+        stout::borrowed_ptr<::grpc::CompletionQueue> cq,
         ::grpc::TemplatedGenericStub<RequestType_, ResponseType_> stub)
       : k_(std::move(k)),
         name_(std::move(name)),
@@ -146,7 +145,7 @@ struct _Call {
                 }
 
                 // Signify end of stream (or error).
-                k_.Body(*this, borrowed_ptr<ResponseType_>());
+                k_.Body(*this, stout::borrowed_ptr<ResponseType_>());
               }
             };
 
@@ -363,7 +362,7 @@ struct _Call {
     // NOTE: we need to keep this around until after the call terminates
     // as it represents a "lease" on this completion queue that once
     // relinquished will allow another call to use this queue.
-    borrowed_ptr<::grpc::CompletionQueue> cq_;
+    stout::borrowed_ptr<::grpc::CompletionQueue> cq_;
 
     ::grpc::TemplatedGenericStub<RequestType_, ResponseType_> stub_;
 
@@ -381,7 +380,7 @@ struct _Call {
     Callback<bool> writes_done_callback_;
     Callback<bool> finish_callback_;
 
-    Borrowable<ResponseType_> response_;
+    stout::Borrowable<ResponseType_> response_;
 
     struct WriteData {
       RequestType_ request;
@@ -407,7 +406,7 @@ struct _Call {
     using ResponseType_ = typename Traits_::Details<Response_>::Type;
 
     template <typename Arg>
-    using ValueFrom = borrowed_ptr<ResponseType_>;
+    using ValueFrom = stout::borrowed_ptr<ResponseType_>;
 
     template <typename Arg, typename K>
     auto k(K k) && {
@@ -425,7 +424,7 @@ struct _Call {
     // NOTE: we need to keep this around until after the call terminates
     // as it represents a "lease" on this completion queue that once
     // relinquished will allow another call to use this queue.
-    borrowed_ptr<::grpc::CompletionQueue> cq_;
+    stout::borrowed_ptr<::grpc::CompletionQueue> cq_;
 
     ::grpc::TemplatedGenericStub<RequestType_, ResponseType_> stub_;
   };
@@ -447,7 +446,7 @@ class Client {
   Client(
       const std::string& target,
       const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
-      borrowed_ptr<CompletionPool> pool)
+      stout::borrowed_ptr<CompletionPool> pool)
     : channel_(::grpc::CreateChannel(target, credentials)),
       pool_(std::move(pool)) {}
 
@@ -489,7 +488,7 @@ class Client {
 
  private:
   std::shared_ptr<::grpc::Channel> channel_;
-  borrowed_ptr<CompletionPool> pool_;
+  stout::borrowed_ptr<CompletionPool> pool_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -526,6 +525,5 @@ inline auto Client::Handler() {
 
 } // namespace grpc
 } // namespace eventuals
-} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

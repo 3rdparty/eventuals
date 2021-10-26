@@ -1,21 +1,23 @@
 #include "test/helloworld.eventuals.h"
 
-#include "stout/grpc/server.h"
-#include "stout/just.h"
-#include "stout/let.h"
-#include "stout/loop.h"
-#include "stout/map.h"
-#include "stout/task.h"
-#include "stout/then.h"
+#include "eventuals/concurrent.h"
+#include "eventuals/do-all.h"
+#include "eventuals/grpc/server.h"
+#include "eventuals/just.h"
+#include "eventuals/let.h"
+#include "eventuals/loop.h"
+#include "eventuals/map.h"
+#include "eventuals/task.h"
+#include "eventuals/then.h"
 
-using stout::Undefined;
-
-using stout::eventuals::Just;
-using stout::eventuals::Let;
-using stout::eventuals::Loop;
-using stout::eventuals::Map;
-using stout::eventuals::Task;
-using stout::eventuals::Then;
+using eventuals::Concurrent;
+using eventuals::DoAll;
+using eventuals::Just;
+using eventuals::Let;
+using eventuals::Loop;
+using eventuals::Map;
+using eventuals::Task;
+using eventuals::Then;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -24,38 +26,38 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename F>
-auto Concurrent(F f) {
-  return f();
-}
-
-////////////////////////////////////////////////////////////////////////
-
-Task<Undefined> Greeter::TypeErasedService::Serve() {
+Task<void> Greeter::TypeErasedService::Serve() {
   return [this]() {
-    return server()
-               .Accept<
-                   helloworld::Greeter,
-                   helloworld::HelloRequest,
-                   helloworld::HelloReply>("SayHello")
-        | Concurrent([this]() {
-             return Map(Then(Let([this](auto& call) {
-               return UnaryPrologue(call)
-                   | Then(Let([&](auto& request) {
-                        return Then(
-                            [this,
-                             args = std::tuple{
-                                 this, // Downcasted in 'TypeErasedSayHello()'.
-                                 call.context(),
-                                 &request}]() mutable {
-                              return TypeErasedSayHello(&args);
-                            });
-                      }))
-                   | UnaryEpilogue(call);
-             })));
-           })
-        | Loop()
-        | Just(Undefined());
+    return DoAll(
+               // SayHello
+               server()
+                   .Accept<
+                       helloworld::Greeter,
+                       helloworld::HelloRequest,
+                       helloworld::HelloReply>("SayHello")
+               | Concurrent([this]() {
+                   return Map(Then(Let([this](auto& call) {
+                     return UnaryPrologue(call)
+                         | Then(Let([&](auto& request) {
+                              return Then(
+                                  [this,
+                                   // NOTE: using a tuple because need
+                                   // to pass more than one
+                                   // argument. Also 'this' will be
+                                   // downcasted appropriately in
+                                   // 'TypeErasedSayHello()'.
+                                   args = std::tuple{
+                                       this,
+                                       call.context(),
+                                       &request}]() mutable {
+                                    return TypeErasedSayHello(&args);
+                                  });
+                            }))
+                         | UnaryEpilogue(call);
+                   })));
+                 })
+               | Loop())
+        | Just(); // Return 'void'.
   };
 }
 

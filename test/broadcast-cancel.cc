@@ -2,18 +2,16 @@
 #include <string>
 #include <vector>
 
+#include "eventuals/context.h"
+#include "eventuals/grpc/cluster.h"
+#include "eventuals/grpc/server.h"
+#include "eventuals/head.h"
+#include "eventuals/let.h"
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "stout/context.h"
-#include "stout/grpc/cluster.h"
-#include "stout/grpc/server.h"
-#include "stout/head.h"
-#include "stout/let.h"
-#include "stout/terminal.h"
-#include "stout/then.h"
 #include "test/test.h"
-
-namespace eventuals = stout::eventuals;
 
 using helloworld::Greeter;
 using helloworld::HelloReply;
@@ -21,19 +19,19 @@ using helloworld::HelloRequest;
 
 using stout::Borrowable;
 
-using stout::eventuals::Context;
-using stout::eventuals::Head;
-using stout::eventuals::Let;
-using stout::eventuals::Terminate;
-using stout::eventuals::Then;
+using eventuals::Context;
+using eventuals::Head;
+using eventuals::Let;
+using eventuals::Terminate;
+using eventuals::Then;
 
-using stout::eventuals::grpc::Client;
-using stout::eventuals::grpc::Cluster;
-using stout::eventuals::grpc::CompletionPool;
-using stout::eventuals::grpc::Server;
-using stout::eventuals::grpc::ServerBuilder;
+using eventuals::grpc::Client;
+using eventuals::grpc::Cluster;
+using eventuals::grpc::CompletionPool;
+using eventuals::grpc::Server;
+using eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutGrpcTest, BroadcastCancel) {
+TEST_F(EventualsGrpcTest, BroadcastCancel) {
   const size_t SERVERS = 2;
 
   std::vector<std::unique_ptr<Server>> servers;

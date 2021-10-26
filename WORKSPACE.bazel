@@ -18,7 +18,7 @@ grpc_extra_deps()
 #       (deps, extra_deps, etc).
 #
 #   (2) They're only used for tests and we assume those depending on
-#       stout-grpc don't need to build the tests.
+#       eventuals-grpc don't need to build the tests.
 
 load("@io_bazel_rules_python//python:pip.bzl", "pip_import", "pip_repositories")
 

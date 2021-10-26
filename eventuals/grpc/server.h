@@ -5,6 +5,22 @@
 #include <thread>
 
 #include "absl/container/flat_hash_map.h"
+#include "eventuals/catch.h"
+#include "eventuals/eventual.h"
+#include "eventuals/grpc/logging.h"
+#include "eventuals/grpc/server.h"
+#include "eventuals/grpc/traits.h"
+#include "eventuals/head.h"
+#include "eventuals/iterate.h"
+#include "eventuals/just.h"
+#include "eventuals/lambda.h"
+#include "eventuals/lock.h"
+#include "eventuals/loop.h"
+#include "eventuals/map.h"
+#include "eventuals/repeat.h"
+#include "eventuals/task.h"
+#include "eventuals/then.h"
+#include "eventuals/until.h"
 #include "google/protobuf/descriptor.h"
 #include "grpcpp/completion_queue.h"
 #include "grpcpp/generic/async_generic_service.h"
@@ -13,34 +29,16 @@
 #include "grpcpp/server.h"
 #include "grpcpp/server_builder.h"
 #include "grpcpp/server_context.h"
-#include "stout/borrowable.h"
-#include "stout/catch.h"
-#include "stout/eventual.h"
-#include "stout/grpc/logging.h"
-#include "stout/grpc/server.h"
-#include "stout/grpc/traits.h"
-#include "stout/head.h"
-#include "stout/iterate.h"
-#include "stout/just.h"
-#include "stout/lambda.h"
-#include "stout/lock.h"
-#include "stout/loop.h"
-#include "stout/map.h"
 #include "stout/notification.h"
-#include "stout/repeat.h"
-#include "stout/task.h"
-#include "stout/then.h"
-#include "stout/until.h"
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace stout {
 namespace eventuals {
 namespace grpc {
 
 ////////////////////////////////////////////////////////////////////////
 
-using stout::eventuals::detail::operator|;
+using eventuals::detail::operator|;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -51,9 +49,11 @@ class Server;
 
 class Service {
  public:
-  virtual Task<Undefined> Serve() = 0;
+  virtual ~Service() = default;
 
-  virtual const std::string& service_full_name() = 0;
+  virtual Task<void> Serve() = 0;
+
+  virtual char const* name() = 0;
 
   void Register(Server* server) {
     server_ = server;
@@ -141,7 +141,7 @@ struct ServerContext {
 
   std::function<void(bool)> finish_on_done_;
 
-  Notification<bool> done_;
+  stout::Notification<bool> done_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -195,7 +195,7 @@ class ServerReader {
     if (status.ok()) {
       return true;
     } else {
-      STOUT_GRPC_LOG(1)
+      EVENTUALS_GRPC_LOG(1)
           << "failed to deserialize " << t->GetTypeName()
           << ": " << status.error_message() << std::endl;
       return false;
@@ -281,7 +281,7 @@ class ServerWriter {
     if (status.ok()) {
       return true;
     } else {
-      STOUT_GRPC_LOG(1)
+      EVENTUALS_GRPC_LOG(1)
           << "failed to serialize " << t.GetTypeName()
           << ": " << status.error_message() << std::endl;
       return false;
@@ -518,7 +518,7 @@ class Server : public Synchronizable {
   struct Serve {
     Service* service;
     Interrupt interrupt;
-    std::optional<Task<Undefined>> task;
+    std::optional<Task<void>> task;
     std::atomic<bool> done = false;
   };
 
@@ -526,7 +526,7 @@ class Server : public Synchronizable {
 
   struct Worker {
     Interrupt interrupt;
-    std::optional<Task<Undefined>::With<::grpc::ServerCompletionQueue*>> task;
+    std::optional<Task<void>::With<::grpc::ServerCompletionQueue*>> task;
     std::atomic<bool> done = false;
   };
 
@@ -617,14 +617,9 @@ inline auto Server::Insert(std::unique_ptr<Endpoint>&& endpoint) {
 
 inline auto Server::ShutdownEndpoints() {
   return Synchronized(Then([this]() {
-    // TODO(benh): replace this with just 'Iterate(endpoints_)' once
-    // we fix the bugs with types in 'Iterate()'.
-    std::vector<Endpoint*> endpoints;
-    for (auto& pair : endpoints_) {
-      endpoints.push_back(pair.second.get());
-    }
-    return Iterate(endpoints)
-        | Map(Then([](auto* endpoint) {
+    return Iterate(endpoints_)
+        | Map(Then([](auto& entry) {
+             auto& [_, endpoint] = entry;
              return endpoint->Shutdown();
            }))
         | Loop();
@@ -736,6 +731,5 @@ auto StreamingEpilogue(ServerCall<Request, Response>& call) {
 
 } // namespace grpc
 } // namespace eventuals
-} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

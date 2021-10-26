@@ -1,9 +1,9 @@
 #pragma once
 
+#include "eventuals/grpc/server.h"
 #include "gtest/gtest.h"
-#include "stout/grpc/server.h"
 
-class StoutGrpcTest : public ::testing::Test {
+class EventualsGrpcTest : public ::testing::Test {
  protected:
   void SetUp() override {
     ASSERT_EQ(1, GetThreadCount());

@@ -1,18 +1,18 @@
+#include "eventuals/grpc/server.h"
+#include "eventuals/head.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "stout/grpc/server.h"
-#include "stout/head.h"
 #include "test/test.h"
 
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
-using stout::eventuals::Head;
+using eventuals::Head;
 
-using stout::eventuals::grpc::ServerBuilder;
-using stout::eventuals::grpc::Stream;
+using eventuals::grpc::ServerBuilder;
+using eventuals::grpc::Stream;
 
 #define EXPECT_THROW_WHAT(_expression_, _what_)                        \
   [&]() {                                                              \
@@ -34,7 +34,7 @@ using stout::eventuals::grpc::Stream;
   }()
 
 
-TEST_F(StoutGrpcTest, ServeValidate) {
+TEST_F(EventualsGrpcTest, ServeValidate) {
   ServerBuilder builder;
 
   builder.AddListeningPort("0.0.0.0:0", grpc::InsecureServerCredentials());

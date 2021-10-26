@@ -1,7 +1,7 @@
+#include "eventuals/grpc/client.h"
+#include "eventuals/grpc/server.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "stout/grpc/client.h"
-#include "stout/grpc/server.h"
 #include "test/test.h"
 
 using helloworld::Greeter;
@@ -10,11 +10,11 @@ using helloworld::HelloRequest;
 
 using stout::Borrowable;
 
-using stout::eventuals::grpc::Client;
-using stout::eventuals::grpc::CompletionPool;
-using stout::eventuals::grpc::ServerBuilder;
+using eventuals::grpc::Client;
+using eventuals::grpc::CompletionPool;
+using eventuals::grpc::ServerBuilder;
 
-TEST_F(StoutGrpcTest, Unimplemented) {
+TEST_F(EventualsGrpcTest, Unimplemented) {
   ServerBuilder builder;
 
   int port = 0;

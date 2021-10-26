@@ -4,13 +4,12 @@
 #include <string>
 #include <vector>
 
+#include "eventuals/grpc/client.h"
+#include "eventuals/lock.h"
 #include "stout/borrowable.h"
-#include "stout/grpc/client.h"
-#include "stout/lock.h"
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace stout {
 namespace eventuals {
 namespace grpc {
 namespace detail {
@@ -28,6 +27,8 @@ struct _Broadcast {
     template <typename F, typename... Args>
     void Serialize(Lock::Waiter* waiter, F&& f, Args&&... args) {
       CHECK(waiter->next == nullptr);
+
+      waiter->context = Scheduler::Context::Get();
 
       if (broadcast_.lock_.AcquireFast(waiter)) {
         f(std::forward<Args>(args)...);
@@ -120,7 +121,7 @@ struct _Broadcast {
     Continuation(
         K_ k,
         std::string name,
-        std::vector<borrowed_ptr<Client>> clients)
+        std::vector<stout::borrowed_ptr<Client>> clients)
       : k_(std::move(k)),
         name_(std::move(name)),
         clients_(std::move(clients)) {}
@@ -195,14 +196,14 @@ struct _Broadcast {
 
     K_ k_;
     std::string name_;
-    std::vector<borrowed_ptr<Client>> clients_;
+    std::vector<stout::borrowed_ptr<Client>> clients_;
 
     Lock lock_;
 
     std::optional<Interrupt::Handler> handler_;
 
     using Call_ =
-        decltype(borrowed_ptr<Client>()
+        decltype(stout::borrowed_ptr<Client>()
                      ->Call<Request_, Response_>(name_)
                      .template k<void>(
                          std::declval<Adaptor<Continuation, K_>>()));
@@ -218,7 +219,7 @@ struct _Broadcast {
     using ResponseType_ = typename Traits_::Details<Response_>::Type;
 
     template <typename Arg>
-    using ValueFrom = borrowed_ptr<ResponseType_>;
+    using ValueFrom = stout::borrowed_ptr<ResponseType_>;
 
     template <typename Arg, typename K>
     auto k(K k) && {
@@ -229,7 +230,7 @@ struct _Broadcast {
     }
 
     std::string name_;
-    std::vector<borrowed_ptr<Client>> clients_;
+    std::vector<stout::borrowed_ptr<Client>> clients_;
   };
 };
 
@@ -244,7 +245,7 @@ class Cluster {
   Cluster(
       const std::list<std::string>& targets,
       const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
-      Borrowable<CompletionPool>& pool) {
+      stout::Borrowable<CompletionPool>& pool) {
     clients_.reserve(targets.size());
     for (const auto& target : targets) {
       clients_.emplace_back(Client(target, credentials, pool.Borrow()));
@@ -271,7 +272,7 @@ class Cluster {
         IsMessage<Response>::value,
         "expecting \"response\" type to be a protobuf 'Message'");
 
-    std::vector<borrowed_ptr<Client>> clients;
+    std::vector<stout::borrowed_ptr<Client>> clients;
 
     for (auto& client : clients_) {
       clients.push_back(client.Borrow());
@@ -283,13 +284,12 @@ class Cluster {
   }
 
  private:
-  std::vector<Borrowable<Client>> clients_;
+  std::vector<stout::Borrowable<Client>> clients_;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
 } // namespace grpc
 } // namespace eventuals
-} // namespace stout
 
 ////////////////////////////////////////////////////////////////////////

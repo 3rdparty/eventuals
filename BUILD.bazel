@@ -3,17 +3,17 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "grpc",
     srcs = [
-        "stout/grpc/server.cc",
+        "eventuals/grpc/server.cc",
     ],
     hdrs = [
-        "stout/grpc/call-type.h",
-        "stout/grpc/client.h",
-        "stout/grpc/cluster.h",
-        "stout/grpc/completion-pool.h",
-        "stout/grpc/handler.h",
-        "stout/grpc/logging.h",
-        "stout/grpc/server.h",
-        "stout/grpc/traits.h",
+        "eventuals/grpc/call-type.h",
+        "eventuals/grpc/client.h",
+        "eventuals/grpc/cluster.h",
+        "eventuals/grpc/completion-pool.h",
+        "eventuals/grpc/handler.h",
+        "eventuals/grpc/logging.h",
+        "eventuals/grpc/server.h",
+        "eventuals/grpc/traits.h",
     ],
     visibility = ["//visibility:public"],
     deps = [
