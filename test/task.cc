@@ -205,9 +205,9 @@ TEST(TaskTest, Start) {
         EXPECT_EQ(x, 42);
       },
       [](std::exception_ptr) {
-        FAIL() << "Test should not been failed";
+        FAIL() << "Test should not have failed";
       },
       []() {
-        FAIL() << "Test should not been stopped";
+        FAIL() << "Test should not have stopped";
       });
 }
