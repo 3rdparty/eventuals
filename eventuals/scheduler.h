@@ -278,7 +278,7 @@ struct _Preempt {
       auto* previous = Scheduler::Context::Switch(this);
       CHECK_EQ(previous, previous_);
 
-      adaptor_->Start(std::forward<Args>(args)...);
+      adapted_->Start(std::forward<Args>(args)...);
 
       auto* context = Scheduler::Context::Switch(previous_);
       CHECK_EQ(context, this);
@@ -291,7 +291,7 @@ struct _Preempt {
       auto* previous = Scheduler::Context::Switch(this);
       CHECK_EQ(previous, previous_);
 
-      adaptor_->Fail(std::forward<Args>(args)...);
+      adapted_->Fail(std::forward<Args>(args)...);
 
       auto* context = Scheduler::Context::Switch(previous_);
       CHECK_EQ(context, this);
@@ -303,7 +303,7 @@ struct _Preempt {
       auto* previous = Scheduler::Context::Switch(this);
       CHECK_EQ(previous, previous_);
 
-      adaptor_->Stop();
+      adapted_->Stop();
 
       auto* context = Scheduler::Context::Switch(previous_);
       CHECK_EQ(context, this);
@@ -314,15 +314,15 @@ struct _Preempt {
     }
 
     void Adapt() {
-      if (!adaptor_) {
+      if (!adapted_) {
         // Save previous context (even if it's us).
         previous_ = Scheduler::Context::Get();
 
-        adaptor_.emplace(std::move(e_).template k<Arg_>(
+        adapted_.emplace(std::move(e_).template k<Arg_>(
             Reschedule(previous_).template k<Value_>(std::move(k_))));
 
         if (interrupt_ != nullptr) {
-          adaptor_->Register(*interrupt_);
+          adapted_->Register(*interrupt_);
         }
       }
     }
@@ -337,11 +337,11 @@ struct _Preempt {
 
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
-    using Adaptor_ = decltype(std::declval<E_>().template k<Arg_>(
+    using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
         std::declval<detail::_Reschedule::Composable>()
             .template k<Value_>(std::declval<K_>())));
 
-    std::optional<Adaptor_> adaptor_;
+    std::optional<Adapted_> adapted_;
   };
 
   template <typename E_>
