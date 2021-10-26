@@ -385,6 +385,7 @@ class Endpoint : public Synchronizable {
     }));
   }
 
+  // NOTE: returns a stream rather than a single eventual context.
   auto Dequeue() {
     return Repeat(
                Synchronized(

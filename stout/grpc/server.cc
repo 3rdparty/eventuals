@@ -229,7 +229,8 @@ void Server::Wait() {
     }
   }
 
-  // Now wait for the serve tasks to be done.
+  // Now wait for the serve tasks to be done (not that like workers
+  // ordering is not important since these are each independent).
   for (auto& serve : serves_) {
     while (!serve->done.load()) {
       // TODO(benh): cpu relax or some other spin loop strategy.
