@@ -1,6 +1,8 @@
 #pragma once
 
 #include "eventuals/closure.h"
+#include "eventuals/just.h"
+#include "eventuals/then.h" // For 'HasValueFrom'.
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +42,11 @@ auto Let(F f) {
     // instantiate the nested lambda types (see
     // https://stackoverflow.com/q/66617181).
     return Closure([&, value = std::move(value)]() mutable {
-      return f(value);
+      if constexpr (detail::HasValueFrom<decltype(f(value)), void>::value) {
+        return f(value);
+      } else {
+        return Just(f(value));
+      }
     });
   };
 }
