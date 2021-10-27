@@ -19,6 +19,7 @@ cc_library(
         "eventuals/do-all.h",
         "eventuals/eventual.h",
         "eventuals/filter.h",
+        "eventuals/generator.h",
         "eventuals/head.h",
         "eventuals/interrupt.h",
         "eventuals/iterate.h",

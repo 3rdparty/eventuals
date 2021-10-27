@@ -66,7 +66,7 @@ struct _Terminal {
           if constexpr (sizeof...(args) > 0) {
             fail_(std::forward<Args>(args)...);
           } else {
-            fail_(std::runtime_error("ingress failed (without an error)"));
+            fail_(std::runtime_error("empty error"));
           }
         } else {
           if constexpr (sizeof...(args) > 0) {
@@ -74,7 +74,7 @@ struct _Terminal {
           } else {
             fail_(
                 context_,
-                std::runtime_error("ingress failed (without an error)"));
+                std::runtime_error("empty error"));
           }
         }
       }

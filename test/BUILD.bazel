@@ -22,6 +22,7 @@ eventuals_base_sources = [
     "stream-for-each.cc",
     "concurrent.cc",
     "do-all.cc",
+    "generator.cc",
 ]
 
 eventuals_events_sources = [
