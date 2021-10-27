@@ -9,6 +9,8 @@
 //
 // TODO(benh): disallow calling 'Emit()' before call to 'Next()'.
 
+#include <variant>
+
 #include "eventuals/eventual.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -38,9 +40,12 @@ struct _Stream {
     K_* k_ = nullptr;
     std::optional<
         std::conditional_t<
-            std::is_reference_v<Arg_>,
-            std::reference_wrapper<std::remove_reference_t<Arg_>>,
-            Arg_>>
+            std::is_void_v<Arg_>,
+            std::monostate,
+            std::conditional_t<
+                std::is_reference_v<Arg_>,
+                std::reference_wrapper<std::remove_reference_t<Arg_>>,
+                Arg_>>>
         arg_;
 
     void Start() {

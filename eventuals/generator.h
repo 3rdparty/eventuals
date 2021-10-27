@@ -1,10 +1,10 @@
 #pragma once
 
-#include <memory> // For 'std::unique_ptr'.
 #include <optional>
 #include <tuple>
 
 #include "eventuals/eventual.h"
+#include "eventuals/stream.h"
 #include "eventuals/terminal.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -18,22 +18,27 @@ namespace detail {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E_>
-struct HeapTask {
+struct HeapGenerator {
   using Value_ = typename E_::template ValueFrom<void>;
 
   template <typename Arg_>
   struct Adaptor {
     Adaptor(
+        Callback<TypeErasedStream&>* start,
+        Callback<std::exception_ptr>* fail,
+        Callback<>* stop,
         std::conditional_t<
             std::is_void_v<Value_>,
             Callback<>,
-            Callback<Value_>>* start,
-        Callback<std::exception_ptr>* fail,
-        Callback<>* stop)
+            Callback<Value_>>* body,
+        Callback<>* ended)
       : start_(start),
         fail_(fail),
-        stop_(stop) {}
+        stop_(stop),
+        body_(body),
+        ended_(ended) {}
 
+    // All functions are called as Continuation after produced Stream.
     template <typename... Args>
     void Start(Args&&... args) {
       (*start_)(std::forward<Args>(args)...);
@@ -51,36 +56,53 @@ struct HeapTask {
       (*fail_)(std::move(exception));
     }
 
+
     void Stop() {
       (*stop_)();
     }
 
+    template <typename... Args>
+    void Body(Args&&... args) {
+      (*body_)(std::forward<decltype(args)>(args)...);
+    }
+
+    void Ended() {
+      (*ended_)();
+    }
+
+    // Already registered in 'adapted_'
     void Register(Interrupt&) {}
 
+    Callback<TypeErasedStream&>* start_;
+    Callback<std::exception_ptr>* fail_;
+    Callback<>* stop_;
     std::conditional_t<
         std::is_void_v<Value_>,
         Callback<>,
-        Callback<Value_>>* start_;
-    Callback<std::exception_ptr>* fail_;
-    Callback<>* stop_;
+        Callback<Value_>>* body_;
+    Callback<>* ended_;
   };
 
-  HeapTask(E_ e)
+  HeapGenerator(E_ e)
     : adapted_(
         std::move(e).template k<void>(
-            Adaptor<Value_>{&start_, &fail_, &stop_})) {}
+            Adaptor<Value_>{&start_, &fail_, &stop_, &body_, &ended_})) {}
 
   void Start(
       Interrupt& interrupt,
+      Callback<TypeErasedStream&>&& start,
+      Callback<std::exception_ptr>&& fail,
+      Callback<>&& stop,
       std::conditional_t<
           std::is_void_v<Value_>,
           Callback<>,
-          Callback<Value_>>&& start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
+          Callback<Value_>>&& body,
+      Callback<> ended) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
+    body_ = std::move(body);
+    ended_ = std::move(ended);
 
     // TODO(benh): clarify the semantics of whether or not calling
     // 'Register()' more than once is well-defined.
@@ -91,35 +113,52 @@ struct HeapTask {
 
   void Fail(
       Interrupt& interrupt,
-      std::exception_ptr&& exception,
+      std::exception_ptr&& fail_exception,
+      Callback<TypeErasedStream&>&& start,
+      Callback<std::exception_ptr>&& fail,
+      Callback<>&& stop,
       std::conditional_t<
           std::is_void_v<Value_>,
           Callback<>,
-          Callback<Value_>>&& start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
+          Callback<Value_>>&& body,
+      Callback<> ended) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
+    body_ = std::move(body);
+    ended_ = std::move(ended);
 
     // TODO(benh): clarify the semantics of whether or not calling
     // 'Register()' more than once is well-defined.
     adapted_.Register(interrupt);
 
-    adapted_.Fail(std::move(exception));
+    adapted_.Fail(std::move(fail_exception));
+  }
+
+  // All callbacks and interrupt should be registered before this call.
+  void Next() {
+    adapted_.Next();
+  }
+
+  void Done() {
+    adapted_.Done();
   }
 
   void Stop(
       Interrupt& interrupt,
+      Callback<TypeErasedStream&>&& start,
+      Callback<std::exception_ptr>&& fail,
+      Callback<>&& stop,
       std::conditional_t<
           std::is_void_v<Value_>,
           Callback<>,
-          Callback<Value_>>&& start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
+          Callback<Value_>>&& body,
+      Callback<> ended) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
+    body_ = std::move(body);
+    ended_ = std::move(ended);
 
     // TODO(benh): clarify the semantics of whether or not calling
     // 'Register()' more than once is well-defined.
@@ -128,13 +167,15 @@ struct HeapTask {
     adapted_.Stop();
   }
 
+  Callback<TypeErasedStream&> start_;
+  Callback<std::exception_ptr> fail_;
+  Callback<> stop_;
   std::conditional_t<
       std::is_void_v<Value_>,
       Callback<>,
       Callback<Value_>>
-      start_;
-  Callback<std::exception_ptr> fail_;
-  Callback<> stop_;
+      body_;
+  Callback<> ended_;
 
   using Adapted_ = decltype(std::declval<E_>().template k<void>(
       std::declval<Adaptor<Value_>>()));
@@ -144,7 +185,7 @@ struct HeapTask {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _TaskWith {
+struct _GeneratorWith {
   // Since we move lambda function at 'Composable' constructor we need to
   // specify the callback that should be triggered on the produced eventual.
   // For this reason we use 'Action'.
@@ -152,10 +193,39 @@ struct _TaskWith {
     Start = 0,
     Stop = 1,
     Fail = 2,
+    Next = 3,
+    Done = 4,
   };
 
+  using exception = std::optional<std::exception_ptr>;
+
   template <typename K_, typename Value_, typename... Args_>
-  struct Continuation {
+  struct Continuation : public TypeErasedStream {
+    Continuation(
+        K_ k,
+        std::tuple<Args_...>&& args,
+        Callback<
+            Action,
+            exception,
+            Args_&&...,
+            std::unique_ptr<void, Callback<void*>>&,
+            Interrupt&,
+            Callback<TypeErasedStream&>&&,
+            Callback<std::exception_ptr>&&,
+            Callback<>&&,
+            std::conditional_t<
+                std::is_void_v<Value_>,
+                Callback<>,
+                Callback<Value_>>&&,
+            Callback<>&&>&& dispatch)
+      : k_(std::move(k)),
+        args_(std::move(args)),
+        dispatch_(std::move(dispatch)) {}
+
+    // All Continuation functions just trigger dispatch Callback,
+    // that stores all callbacks for different events
+    // (Start, Stop, Fail, Body, Ended). To specify the function to call
+    // use Action enum state.
     template <typename... Args>
     void Start(Args&&...) {
       std::apply(
@@ -167,13 +237,19 @@ struct _TaskWith {
                 e_,
                 *interrupt_,
                 [this](auto&&... args) {
-                  k_.Start(std::forward<decltype(args)>(args)...);
+                  k_.Start(*this);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
                 },
                 [this]() {
                   k_.Stop();
+                },
+                [this](auto&&... args) {
+                  k_.Body(std::forward<decltype(args)>(args)...);
+                },
+                [this]() {
+                  k_.Ended();
                 });
           },
           std::move(args_));
@@ -200,13 +276,19 @@ struct _TaskWith {
                 e_,
                 *interrupt_,
                 [this](auto&&... args) {
-                  k_.Start(std::forward<decltype(args)>(args)...);
+                  k_.Start(*this);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
                 },
                 [this]() {
                   k_.Stop();
+                },
+                [this](auto&&... args) {
+                  k_.Body(std::forward<decltype(args)>(args)...);
+                },
+                [this]() {
+                  k_.Ended();
                 });
           },
           std::move(args_));
@@ -222,13 +304,75 @@ struct _TaskWith {
                 e_,
                 *interrupt_,
                 [this](auto&&... args) {
-                  k_.Start(std::forward<decltype(args)>(args)...);
+                  k_.Start(*this);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
                 },
                 [this]() {
                   k_.Stop();
+                },
+                [this](auto&&... args) {
+                  k_.Body(std::forward<decltype(args)>(args)...);
+                },
+                [this]() {
+                  k_.Ended();
+                });
+          },
+          std::move(args_));
+    }
+
+    void Next() override {
+      std::apply(
+          [&](auto&&... args) {
+            dispatch_(
+                Action::Next,
+                std::nullopt,
+                std::forward<decltype(args)>(args)...,
+                e_,
+                *interrupt_,
+                [this](auto&&... args) {
+                  k_.Start(*this);
+                },
+                [this](std::exception_ptr e) {
+                  k_.Fail(std::move(e));
+                },
+                [this]() {
+                  k_.Stop();
+                },
+                [this](auto&&... args) {
+                  k_.Body(std::forward<decltype(args)>(args)...);
+                },
+                [this]() {
+                  k_.Ended();
+                });
+          },
+          std::move(args_));
+    }
+
+    void Done() override {
+      std::apply(
+          [&](auto&&... args) {
+            dispatch_(
+                Action::Done,
+                std::nullopt,
+                std::forward<decltype(args)>(args)...,
+                e_,
+                *interrupt_,
+                [this](auto&&... args) {
+                  k_.Start(*this);
+                },
+                [this](std::exception_ptr e) {
+                  k_.Fail(std::move(e));
+                },
+                [this]() {
+                  k_.Stop();
+                },
+                [this](auto&&... args) {
+                  k_.Body(std::forward<decltype(args)>(args)...);
+                },
+                [this]() {
+                  k_.Ended();
                 });
           },
           std::move(args_));
@@ -244,15 +388,17 @@ struct _TaskWith {
 
     Callback<
         Action,
-        std::optional<std::exception_ptr>,
+        exception,
         Args_&&...,
         std::unique_ptr<void, Callback<void*>>&,
         Interrupt&,
+        Callback<TypeErasedStream&>&&,
+        Callback<std::exception_ptr>&&,
+        Callback<>&&,
         std::conditional_t<
             std::is_void_v<Value_>,
-            Callback<>&&,
-            Callback<Value_>&&>,
-        Callback<std::exception_ptr>&&,
+            Callback<>,
+            Callback<Value_>>&&,
         Callback<>&&>
         dispatch_;
 
@@ -270,18 +416,18 @@ struct _TaskWith {
       : args_(std::tuple<Args_...>(std::move(args)...)) {
       static_assert(
           std::tuple_size<decltype(args_)>{} > 0 || std::is_invocable_v<F>,
-          "'Task' expects a callable that "
+          "'Generator' expects a callable that "
           "takes no arguments");
 
       static_assert(
           std::tuple_size<decltype(args_)>{}
               || std::is_invocable_v<F, Args_...>,
-          "'Task' expects a callable that "
+          "'Generator' expects a callable that "
           "takes the arguments specified");
 
       static_assert(
           sizeof(f) <= sizeof(void*),
-          "'Task' expects a callable that "
+          "'Generator' expects a callable that "
           "can be captured in a 'Callback'");
 
       using E = decltype(std::apply(f, args_));
@@ -290,29 +436,31 @@ struct _TaskWith {
 
       static_assert(
           std::is_convertible_v<Value, Value_>,
-          "eventual result type can not be converted into type of 'Task'");
+          "eventual result type can not be converted into type of 'Generator'");
 
       dispatch_ = [f = std::move(f)](
                       Action action,
-                      std::optional<std::exception_ptr> exception,
+                      exception fail_exception,
                       Args_&&... args,
                       std::unique_ptr<void, Callback<void*>>& e_,
                       Interrupt& interrupt,
+                      Callback<TypeErasedStream&>&& start,
+                      Callback<std::exception_ptr>&& fail,
+                      Callback<>&& stop,
                       std::conditional_t<
                           std::is_void_v<Value_>,
-                          Callback<>&&,
-                          Callback<Value_>&&> start,
-                      Callback<std::exception_ptr>&& fail,
-                      Callback<>&& stop) {
+                          Callback<>,
+                          Callback<Value_>>&& body,
+                      Callback<>&& ended) {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void*>>(
-              new HeapTask<E>(f(std::move(args)...)),
+              new HeapGenerator<E>(f(std::move(args)...)),
               [](void* e) {
-                delete static_cast<detail::HeapTask<E>*>(e);
+                delete static_cast<detail::HeapGenerator<E>*>(e);
               });
         }
 
-        auto* e = static_cast<HeapTask<E>*>(e_.get());
+        auto* e = static_cast<HeapGenerator<E>*>(e_.get());
 
         switch (action) {
           case Action::Start:
@@ -320,22 +468,34 @@ struct _TaskWith {
                 interrupt,
                 std::move(start),
                 std::move(fail),
-                std::move(stop));
+                std::move(stop),
+                std::move(body),
+                std::move(ended));
             break;
           case Action::Fail:
             e->Fail(
                 interrupt,
-                std::move(exception.value()),
+                std::move(fail_exception.value()),
                 std::move(start),
                 std::move(fail),
-                std::move(stop));
+                std::move(stop),
+                std::move(body),
+                std::move(ended));
             break;
           case Action::Stop:
             e->Stop(
                 interrupt,
                 std::move(start),
                 std::move(fail),
-                std::move(stop));
+                std::move(stop),
+                std::move(body),
+                std::move(ended));
+            break;
+          case Action::Next:
+            e->Next();
+            break;
+          case Action::Done:
+            e->Done();
             break;
           default:
             LOG(FATAL) << "unreachable";
@@ -345,25 +505,28 @@ struct _TaskWith {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Value_, Args_...>{
+      return Continuation<K, Value_, Args_...>(
           std::move(k),
           std::move(args_),
-          std::move(dispatch_)};
+          std::move(dispatch_));
     }
 
     Callback<
         Action,
-        std::optional<std::exception_ptr>,
+        exception,
         Args_&&...,
         std::unique_ptr<void, Callback<void*>>&,
         Interrupt&,
+        Callback<TypeErasedStream&>&&,
+        Callback<std::exception_ptr>&&,
+        Callback<>&&,
         std::conditional_t<
             std::is_void_v<Value_>,
-            Callback<>&&,
-            Callback<Value_>&&>,
-        Callback<std::exception_ptr>&&,
+            Callback<>,
+            Callback<Value_>>&&,
         Callback<>&&>
         dispatch_;
+
     std::tuple<Args_...> args_;
   };
 };
@@ -374,92 +537,21 @@ struct _TaskWith {
 
 ////////////////////////////////////////////////////////////////////////
 
-// A task can act BOTH as a composable or a continuation that can be
-// started via 'TaskWith::Start()'. If used as a continuation then it
-// can't be moved after starting, just like all other continuations.
 template <typename Value_, typename... Args_>
-class TaskWith {
+class GeneratorWith {
  public:
   template <typename Arg>
   using ValueFrom = Value_;
 
   template <typename F>
-  TaskWith(Args_... args, F f)
+  GeneratorWith(Args_... args, F f)
     : e_(std::move(args)..., std::move(f)) {}
-
-  TaskWith(TaskWith&& that)
-    : e_(std::move(that.e_)) {
-    CHECK(!k_.has_value()) << "moving after starting";
-  }
 
   template <typename Arg, typename K>
   auto k(K k) && {
     return std::move(e_).template k<Arg>(std::move(k));
   }
 
-  void Start(
-      Interrupt& interrupt,
-      std::conditional_t<
-          std::is_void_v<Value_>,
-          Callback<>&&,
-          Callback<Value_>&&> start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
-    k_.emplace(Build(
-        std::move(e_)
-        | Terminal()
-              .start(std::move(start))
-              .fail(std::move(fail))
-              .stop(std::move(stop))));
-
-    k_->Register(interrupt);
-
-    k_->Start();
-  }
-
-  template <typename Arg>
-  void Fail(
-      Arg&& arg,
-      Interrupt& interrupt,
-      std::conditional_t<
-          std::is_void_v<Value_>,
-          Callback<>&&,
-          Callback<Value_>&&> start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
-    k_.emplace(Build(
-        std::move(e_)
-        | Terminal()
-              .start(std::move(start))
-              .fail(std::move(fail))
-              .stop(std::move(stop))));
-
-    k_->Register(interrupt);
-
-    k_->Fail(std::forward<Arg>(arg));
-  }
-
-  void Stop(
-      Interrupt& interrupt,
-      std::conditional_t<
-          std::is_void_v<Value_>,
-          Callback<>&&,
-          Callback<Value_>&&> start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
-    k_.emplace(Build(
-        std::move(e_)
-        | Terminal()
-              .start(std::move(start))
-              .fail(std::move(fail))
-              .stop(std::move(stop))));
-
-    k_->Register(interrupt);
-
-    k_->Stop();
-  }
-
-  // NOTE: should only be used in tests!
   auto operator*() && {
     auto [future, k] = Terminate(std::move(e_));
 
@@ -468,39 +560,21 @@ class TaskWith {
     return future.get();
   }
 
+
  private:
-  detail::_TaskWith::Composable<Value_, Args_...> e_;
-
-  // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
-  // a composable but also a continuation which has a terminal made up
-  // of the callbacks passed to 'Task::Start()'.
-  using K_ = decltype(Build(
-      std::move(e_)
-      | Terminal()
-            .start(std::declval<
-                   std::conditional_t<
-                       std::is_void_v<Value_>,
-                       Callback<>&&,
-                       Callback<Value_>&&>>())
-            .fail(std::declval<Callback<std::exception_ptr>&&>())
-            .stop(std::declval<Callback<>&&>())));
-
-  std::optional<K_> k_;
+  detail::_GeneratorWith::Composable<Value_, Args_...> e_;
 };
-
-////////////////////////////////////////////////////////////////////////
 
 template <typename Value_>
-class Task : public TaskWith<Value_> {
+class Generator : public GeneratorWith<Value_> {
  public:
   template <typename... Args_>
-  using With = TaskWith<Value_, Args_...>;
+  using With = GeneratorWith<Value_, Args_...>;
 
   template <typename F>
-  Task(F f)
-    : TaskWith<Value_>(std::move(f)) {}
+  Generator(F f)
+    : GeneratorWith<Value_>(std::move(f)) {}
 };
-
 ////////////////////////////////////////////////////////////////////////
 
 } // namespace eventuals
