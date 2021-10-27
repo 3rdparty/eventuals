@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory> // For 'std::unique_ptr'.
 #include <optional>
 #include <tuple>
 

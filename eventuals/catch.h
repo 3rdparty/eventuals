@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory> // For 'std::unique_ptr'.
+
 #include "eventuals/eventual.h"
 #include "eventuals/then.h"
 
