@@ -10,7 +10,6 @@ cc_library(
         "eventuals/grpc/client.h",
         "eventuals/grpc/cluster.h",
         "eventuals/grpc/completion-pool.h",
-        "eventuals/grpc/handler.h",
         "eventuals/grpc/logging.h",
         "eventuals/grpc/server.h",
         "eventuals/grpc/traits.h",
@@ -24,6 +23,5 @@ cc_library(
         "@com_github_grpc_grpc//:grpc++",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/synchronization",
     ],
 )

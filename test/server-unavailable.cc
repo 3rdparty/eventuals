@@ -1,10 +1,17 @@
 #include "eventuals/grpc/client.h"
+#include "eventuals/let.h"
 #include "eventuals/terminal.h"
-#include "examples/protos/keyvaluestore.grpc.pb.h"
+#include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
 #include "test/test.h"
 
+using helloworld::Greeter;
+using helloworld::HelloReply;
+using helloworld::HelloRequest;
+
 using stout::Borrowable;
+
+using eventuals::Let;
 
 using eventuals::grpc::Client;
 using eventuals::grpc::CompletionPool;
@@ -20,15 +27,14 @@ TEST_F(EventualsGrpcTest, ServerUnavailable) {
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
+  ::grpc::ClientContext context;
+
   auto call = [&]() {
-    return client.Call<
-               Stream<keyvaluestore::Request>,
-               Stream<keyvaluestore::Response>>(
-               "keyvaluestore.KeyValueStore.GetValues")
-        | Client::Handler();
+    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", &context)
+        | Then(Let([](auto& call) {
+             return call.Finish();
+           }));
   };
 
-  auto status = *call();
-
-  EXPECT_EQ(grpc::UNAVAILABLE, status.error_code());
+  EXPECT_THROW(*call(), const char*);
 }

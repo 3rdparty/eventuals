@@ -1,10 +1,9 @@
-#include "eventuals/catch.h"
 #include "eventuals/grpc/client.h"
 #include "eventuals/grpc/server.h"
 #include "eventuals/head.h"
-#include "eventuals/just.h"
 #include "eventuals/let.h"
-#include "eventuals/sequence.h"
+#include "eventuals/loop.h"
+#include "eventuals/map.h"
 #include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
@@ -18,7 +17,8 @@ using stout::Borrowable;
 
 using eventuals::Head;
 using eventuals::Let;
-using eventuals::Sequence;
+using eventuals::Loop;
+using eventuals::Map;
 using eventuals::Terminate;
 using eventuals::Then;
 
@@ -73,21 +73,21 @@ TEST_F(EventualsGrpcTest, Unary) {
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
+  ::grpc::ClientContext context;
+
   auto call = [&]() {
-    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-        | (Client::Handler()
-               .ready([](auto& call) {
-                 HelloRequest request;
-                 request.set_name("emily");
-                 call.WriteLast(request);
-               })
-               .body(Sequence()
-                         .Once([](auto& call, auto&& response) {
-                           EXPECT_EQ("Hello emily", response->message());
-                         })
-                         .Once([](auto& call, auto&& response) {
-                           EXPECT_FALSE(response);
-                         })));
+    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", &context)
+        | Then(Let([](auto& call) {
+             HelloRequest request;
+             request.set_name("emily");
+             return call.Writer().WriteLast(request)
+                 | call.Reader().Read()
+                 | Map(Then([](auto&& response) {
+                      EXPECT_EQ("Hello emily", response.message());
+                    }))
+                 | Loop()
+                 | call.Finish();
+           }));
   };
 
   auto status = *call();

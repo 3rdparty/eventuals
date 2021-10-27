@@ -6,7 +6,6 @@
 #include "eventuals/let.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
-#include "eventuals/sequence.h"
 #include "eventuals/then.h"
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 #include "gtest/gtest.h"
@@ -20,7 +19,6 @@ using eventuals::Iterate;
 using eventuals::Let;
 using eventuals::Loop;
 using eventuals::Map;
-using eventuals::Sequence;
 using eventuals::Terminate;
 using eventuals::Then;
 
@@ -50,8 +48,8 @@ using eventuals::grpc::Stream;
 //     _[AfterReply|BeforeReply]
 //     _[OneRequest|TwoRequests]
 
-template <class T>
-void test_client_behavior(T&& handler) {
+template <typename Handler>
+void test_client_behavior(Handler handler) {
   ServerBuilder builder;
 
   int port = 0;
@@ -107,12 +105,15 @@ void test_client_behavior(T&& handler) {
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
+  ::grpc::ClientContext context;
+
   auto call = [&]() {
     return client.Call<
                Stream<keyvaluestore::Request>,
                Stream<keyvaluestore::Response>>(
-               "keyvaluestore.KeyValueStore.GetValues")
-        | handler;
+               "keyvaluestore.KeyValueStore.GetValues",
+               &context)
+        | std::move(handler);
   };
 
   auto status = *call();
@@ -123,205 +124,251 @@ void test_client_behavior(T&& handler) {
 }
 
 TEST_F(EventualsGrpcTest, Streaming_WriteLast_AfterReply_TwoRequests) {
-  test_client_behavior(Client::Handler()
-                           .ready([](auto& call) {
-                             keyvaluestore::Request request;
-                             request.set_key("1");
-                             call.Write(request);
-                           })
-                           .body(Sequence()
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("1", response->value());
-                                       keyvaluestore::Request request;
-                                       request.set_key("2");
-                                       call.WriteLast(request);
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("2", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("10", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("11", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("12", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_FALSE(response);
-                                     })));
+  test_client_behavior(
+      Then(Let([](auto& call) {
+        keyvaluestore::Request request;
+        request.set_key("1");
+        return call.Writer().Write(request)
+            | call.Reader().Read()
+            | Head()
+            | Then([&](auto&& response) {
+                 EXPECT_EQ("1", response.value());
+                 keyvaluestore::Request request;
+                 request.set_key("2");
+                 return call.Writer().WriteLast(request);
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("2", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("10", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("11", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("12", response.value());
+               })
+            | call.Finish();
+      })));
 }
 
 TEST_F(EventualsGrpcTest, Streaming_WriteLast_BeforeReply_OneRequest) {
-  test_client_behavior(Client::Handler()
-                           .ready([](auto& call) {
-                             keyvaluestore::Request request;
-                             request.set_key("1");
-                             call.WriteLast(request);
-                           })
-                           .body(Sequence()
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("1", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("10", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("11", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("12", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_FALSE(response);
-                                     })));
+  test_client_behavior(
+      Then(Let([](auto& call) {
+        keyvaluestore::Request request;
+        request.set_key("1");
+        return call.Writer().WriteLast(request)
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("1", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("10", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("11", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("12", response.value());
+               })
+            | call.Finish();
+      })));
 }
 
 TEST_F(EventualsGrpcTest, Streaming_WriteLast_BeforeReply_TwoRequests) {
-  test_client_behavior(Client::Handler()
-                           .ready([](auto& call) {
-                             keyvaluestore::Request request1;
-                             request1.set_key("1");
-                             call.Write(request1);
-                             keyvaluestore::Request request2;
-                             request2.set_key("2");
-                             call.WriteLast(request2);
-                           })
-                           .body(Sequence()
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("1", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("2", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("10", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("11", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("12", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_FALSE(response);
-                                     })));
+  test_client_behavior(
+      Then(Let([](auto& call) {
+        keyvaluestore::Request request1;
+        request1.set_key("1");
+        return call.Writer().Write(request1)
+            | Then([&]() {
+                 keyvaluestore::Request request2;
+                 request2.set_key("2");
+                 return call.Writer().WriteLast(request2);
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("1", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("2", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("10", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("11", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("12", response.value());
+               })
+            | call.Finish();
+      })));
 }
 
 TEST_F(EventualsGrpcTest, Streaming_WritesDone_AfterReply_OneRequest) {
-  test_client_behavior(Client::Handler()
-                           .ready([](auto& call) {
-                             keyvaluestore::Request request;
-                             request.set_key("1");
-                             call.Write(request);
-                           })
-                           .body(Sequence()
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("1", response->value());
-                                       call.WritesDone();
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("10", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("11", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("12", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_FALSE(response);
-                                     })));
+  test_client_behavior(
+      Then(Let([](auto& call) {
+        keyvaluestore::Request request;
+        request.set_key("1");
+        return call.Writer().Write(request)
+            | call.Reader().Read()
+            | Head()
+            | Then([&](auto&& response) {
+                 EXPECT_EQ("1", response.value());
+                 return call.WritesDone();
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("10", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("11", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("12", response.value());
+               })
+            | call.Finish();
+      })));
 }
 
-
 TEST_F(EventualsGrpcTest, Streaming_WritesDone_AfterReply_TwoRequests) {
-  test_client_behavior(Client::Handler()
-                           .ready([](auto& call) {
-                             keyvaluestore::Request request;
-                             request.set_key("1");
-                             call.Write(request);
-                           })
-                           .body(Sequence()
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("1", response->value());
-                                       keyvaluestore::Request request;
-                                       request.set_key("2");
-                                       call.Write(request);
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("2", response->value());
-                                       call.WritesDone();
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("10", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("11", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("12", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_FALSE(response);
-                                     })));
+  test_client_behavior(
+      Then(Let([](auto& call) {
+        keyvaluestore::Request request;
+        request.set_key("1");
+        return call.Writer().Write(request)
+            | call.Reader().Read()
+            | Head()
+            | Then([&](auto&& response) {
+                 EXPECT_EQ("1", response.value());
+                 keyvaluestore::Request request;
+                 request.set_key("2");
+                 return call.Writer().Write(request);
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([&](auto&& response) {
+                 EXPECT_EQ("2", response.value());
+                 return call.WritesDone();
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("10", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("11", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("12", response.value());
+               })
+            | call.Finish();
+      })));
 }
 
 TEST_F(EventualsGrpcTest, Streaming_WritesDone_BeforeReply_OneRequest) {
-  test_client_behavior(Client::Handler()
-                           .ready([](auto& call) {
-                             keyvaluestore::Request request1;
-                             request1.set_key("1");
-                             call.Write(request1);
-                             call.WritesDone();
-                           })
-                           .body(Sequence()
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("1", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("10", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("11", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("12", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_FALSE(response);
-                                     })));
+  test_client_behavior(
+      Then(Let([](auto& call) {
+        keyvaluestore::Request request1;
+        request1.set_key("1");
+        return call.Writer().Write(request1)
+            | call.WritesDone()
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("1", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("10", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("11", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("12", response.value());
+               })
+            | call.Finish();
+      })));
 }
 
 TEST_F(EventualsGrpcTest, Streaming_WritesDone_BeforeReply_TwoRequests) {
-  test_client_behavior(Client::Handler()
-                           .ready([](auto& call) {
-                             keyvaluestore::Request request1;
-                             request1.set_key("1");
-                             call.Write(request1);
-                             keyvaluestore::Request request2;
-                             request2.set_key("2");
-                             call.Write(request2);
-                             call.WritesDone();
-                           })
-                           .body(Sequence()
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("1", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("2", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("10", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("11", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_EQ("12", response->value());
-                                     })
-                                     .Once([](auto& call, auto&& response) {
-                                       EXPECT_FALSE(response);
-                                     })));
+  test_client_behavior(
+      Then(Let([](auto& call) {
+        keyvaluestore::Request request1;
+        request1.set_key("1");
+        return call.Writer().Write(request1)
+            | Then([&]() {
+                 keyvaluestore::Request request2;
+                 request2.set_key("2");
+                 return call.Writer().Write(request2)
+                     | call.WritesDone();
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("1", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("2", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("10", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("11", response.value());
+               })
+            | call.Reader().Read()
+            | Head()
+            | Then([](auto&& response) {
+                 EXPECT_EQ("12", response.value());
+               })
+            | call.Finish();
+      })));
 }

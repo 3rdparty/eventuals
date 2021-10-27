@@ -159,29 +159,36 @@ class ServerReader {
     : stream_(stream) {}
 
   auto Read() {
+    struct Data {
+      ::grpc::ByteBuffer buffer;
+      void* k = nullptr;
+    };
     return eventuals::Stream<RequestType_>()
-        .next([this](auto& k) {
+        .next([this,
+               data = Data{},
+               callback = Callback<bool>()](auto& k) mutable {
           using K = std::decay_t<decltype(k)>;
 
-          if (!callback_) {
-            k_ = &k;
-            callback_ = [this](bool ok) mutable {
+          if (!callback) {
+            data.k = &k;
+            callback = [&data](bool ok) mutable {
+              auto& k = *reinterpret_cast<K*>(data.k);
               if (ok) {
                 RequestType_ request;
-                if (deserialize(&buffer_, &request)) {
-                  static_cast<K*>(k_)->Emit(std::move(request));
+                if (deserialize(&data.buffer, &request)) {
+                  k.Emit(std::move(request));
                 } else {
-                  static_cast<K*>(k_)->Fail("request failed to deserialize");
+                  k.Fail("request failed to deserialize");
                 }
               } else {
                 // Signify end of stream (or error).
-                static_cast<K*>(k_)->Ended();
+                k.Ended();
               }
             };
           }
 
           // Initiate the read!
-          stream_->Read(&buffer_, &callback_);
+          stream_->Read(&data.buffer, &callback);
         });
   }
 
@@ -203,9 +210,6 @@ class ServerReader {
   }
 
   ::grpc::GenericServerAsyncReaderWriter* stream_;
-  void* k_ = nullptr;
-  ::grpc::ByteBuffer buffer_;
-  Callback<bool> callback_;
 };
 
 ////////////////////////////////////////////////////////////////////////

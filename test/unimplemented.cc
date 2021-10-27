@@ -1,5 +1,6 @@
 #include "eventuals/grpc/client.h"
 #include "eventuals/grpc/server.h"
+#include "eventuals/let.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
 #include "test/test.h"
@@ -9,6 +10,8 @@ using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
 using stout::Borrowable;
+
+using eventuals::Let;
 
 using eventuals::grpc::Client;
 using eventuals::grpc::CompletionPool;
@@ -39,13 +42,13 @@ TEST_F(EventualsGrpcTest, Unimplemented) {
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
+  ::grpc::ClientContext context;
+
   auto call = [&]() {
-    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-        | (Client::Handler()
-               .body([](auto& call, auto&& response) {
-                 EXPECT_FALSE(response);
-                 call.WritesDone();
-               }));
+    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", &context)
+        | Then(Let([](auto& call) {
+             return call.Finish();
+           }));
   };
 
   auto status = *call();

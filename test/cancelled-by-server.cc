@@ -61,13 +61,14 @@ TEST_F(EventualsGrpcTest, CancelledByServer) {
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
+  ::grpc::ClientContext context;
+
   auto call = [&]() {
-    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-        | (Client::Handler()
-               .body([](auto& call, auto&& response) {
-                 EXPECT_FALSE(response);
-                 call.WritesDone();
-               }));
+    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", &context)
+        | Then(Let([](auto& call) {
+             return call.WritesDone()
+                 | call.Finish();
+           }));
   };
 
   auto status = *call();

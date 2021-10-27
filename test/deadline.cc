@@ -1,3 +1,4 @@
+#include "eventuals/closure.h"
 #include "eventuals/grpc/client.h"
 #include "eventuals/grpc/server.h"
 #include "eventuals/head.h"
@@ -14,6 +15,7 @@ using helloworld::HelloRequest;
 
 using stout::Borrowable;
 
+using eventuals::Closure;
 using eventuals::Head;
 using eventuals::Let;
 using eventuals::Terminate;
@@ -61,18 +63,19 @@ TEST_F(EventualsGrpcTest, Deadline) {
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
+  ::grpc::ClientContext context;
+
+  auto now = std::chrono::system_clock::now();
+  context.set_deadline(now + std::chrono::milliseconds(100));
+
   auto call = [&]() {
-    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-        | (Client::Handler()
-               .prepare([](auto& context) {
-                 auto now = std::chrono::system_clock::now();
-                 context.set_deadline(now + std::chrono::milliseconds(100));
-               })
-               .ready([](auto& call) {
-                 HelloRequest request;
-                 request.set_name("emily");
-                 call.WriteLast(request);
-               }));
+    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", &context)
+        | Then(Let([](auto& call) {
+             HelloRequest request;
+             request.set_name("emily");
+             return call.Writer().WriteLast(request)
+                 | call.Finish();
+           }));
   };
 
   auto status = *call();

@@ -73,23 +73,32 @@ TEST_F(EventualsGrpcTest, MultipleHosts) {
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
-  auto call = [&](auto&& host) {
-    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", host)
-        | (Client::Handler()
-               .ready([](auto& call) {
-                 HelloRequest request;
-                 request.set_name("Emily");
-                 call.WriteLast(request);
-               }));
+  auto call = [&](auto* context, auto&& host) {
+    return client.Call<Greeter, HelloRequest, HelloReply>(
+               "SayHello",
+               context,
+               host)
+        | Then(Let([](auto& call) {
+             HelloRequest request;
+             request.set_name("Emily");
+             return call.Writer().WriteLast(request)
+                 | call.Reader().Read()
+                 | Head() // Expecting but ignoring the response.
+                 | call.Finish();
+           }));
   };
 
-  auto status = *call("cs.berkeley.edu");
+  ::grpc::ClientContext berkeley_context;
+
+  auto status = *call(&berkeley_context, "cs.berkeley.edu");
 
   EXPECT_TRUE(status.ok());
 
   EXPECT_FALSE(berkeley_cancelled.get());
 
-  status = *call("cs.washington.edu");
+  ::grpc::ClientContext washington_context;
+
+  status = *call(&washington_context, "cs.washington.edu");
 
   EXPECT_TRUE(status.ok());
 

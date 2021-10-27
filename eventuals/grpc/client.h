@@ -1,13 +1,11 @@
 #pragma once
 
-#include <cassert>
-
-#include "absl/synchronization/mutex.h"
 #include "eventuals/callback.h"
+#include "eventuals/context.h"
 #include "eventuals/eventual.h"
 #include "eventuals/grpc/completion-pool.h"
-#include "eventuals/grpc/handler.h"
 #include "eventuals/grpc/traits.h"
+#include "eventuals/stream.h"
 #include "grpcpp/client_context.h"
 #include "grpcpp/completion_queue.h"
 #include "grpcpp/create_channel.h"
@@ -18,431 +16,207 @@
 
 namespace eventuals {
 namespace grpc {
-namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-using eventuals::detail::operator|;
+// 'ClientReader' abstraction acts like the synchronous
+// '::grpc::ClientReader' but instead of a blocking 'Read()' call we
+// return a stream!
+template <typename ResponseType_>
+class ClientReader {
+ public:
+  // TODO(benh): borrow 'stream' or the enclosing 'ClientCall' so
+  // that we ensure that it doesn't get destructed while our
+  // eventuals are still outstanding.
+  ClientReader(::grpc::internal::AsyncReaderInterface<ResponseType_>* stream)
+    : stream_(stream) {}
 
-////////////////////////////////////////////////////////////////////////
-
-struct _Call {
-  template <typename K_, typename Request_, typename Response_>
-  struct Continuation {
-    using Traits_ = RequestResponseTraits;
-
-    using RequestType_ = typename Traits_::Details<Request_>::Type;
-    using ResponseType_ = typename Traits_::Details<Response_>::Type;
-
-    Continuation(
-        K_ k,
-        std::string name,
-        std::optional<std::string> host,
-        stout::borrowed_ptr<::grpc::CompletionQueue> cq,
-        ::grpc::TemplatedGenericStub<RequestType_, ResponseType_> stub)
-      : k_(std::move(k)),
-        name_(std::move(name)),
-        host_(std::move(host)),
-        cq_(std::move(cq)),
-        stub_(std::move(stub)) {}
-
-    Continuation(Continuation&& that)
-      : k_(std::move(that.k_)),
-        name_(std::move(that.name_)),
-        host_(std::move(that.host_)),
-        cq_(std::move(that.cq_)),
-        stub_(std::move(that.stub_)) {
-      // NOTE: only expecting move construction before starting.
-      CHECK(!stream_) << "moving after starting";
-    }
-
-    ~Continuation() {
-      // Make sure we're done reading and writing before we delete the context.
-      // Locks `mutex_` when `reads_done_` and `writes_done_` are both true.
-      auto flags = std::make_pair(&reads_done_, &writes_done_);
-      absl::Condition done_reading_writing(
-          // The `+` makes the lambda a function pointer:
-          // https://tinyurl.com/y3nx5f6w
-          +[](std::pair<bool*, bool*>* flags) {
-            return *flags->first && *flags->second;
-          },
-          &flags);
-      absl::MutexLock l(&mutex_, done_reading_writing);
-    }
-
-    template <typename... Args>
-    void Start(Args&&...) {
-      const auto* method =
-          google::protobuf::DescriptorPool::generated_pool()
-              ->FindMethodByName(name_);
-
-      if (method == nullptr) {
-        auto status = ::grpc::Status(
-            ::grpc::INVALID_ARGUMENT,
-            "method not found");
-        k_.Finished(std::move(status));
-      } else {
-        auto error = Traits_::Validate<Request_, Response_>(method);
-        if (error) {
-          auto status = ::grpc::Status(
-              ::grpc::INVALID_ARGUMENT,
-              error->message);
-          k_.Finished(std::move(status));
-        } else {
-          if (host_) {
-            context_.set_authority(host_.value());
-          }
-
-          // Let handler modify context, e.g., to set a deadline.
-          k_.Prepare(context_);
-
-          std::string path = "/" + name_;
-          size_t index = path.find_last_of(".");
-          path.replace(index, 1, "/");
-
-          stream_ = stub_.PrepareCall(&context_, path, cq_.get());
-
-          if (!stream_) {
-            // TODO(benh): Check status of channel, is this a redundant
-            // check because PrepareCall also does this? At the very
-            // least we'll probably give a better error message by
-            // checking.
-            auto status = ::grpc::Status(
-                ::grpc::INTERNAL,
-                "GenericStub::PrepareCall returned nullptr");
-            k_.Finished(std::move(status));
-          } else {
-            start_callback_ = [this](bool ok) {
-              if (ok) {
-                k_.Ready(*this);
-                {
-                  absl::MutexLock l(&mutex_);
-                  reads_done_ = false;
-                  writes_done_ = false;
-                }
-                stream_->Read(response_.get(), &read_callback_);
-              } else {
-                auto status = ::grpc::Status(
-                    ::grpc::UNAVAILABLE,
-                    "channel is either permanently broken or transiently broken"
-                    " but with the fail-fast option");
-                k_.Finished(std::move(status));
-              }
-            };
-
-            read_callback_ = [this](bool ok) mutable {
-              if (ok) {
-                auto response = response_.Borrow();
-                response_.Watch([this]() {
-                  stream_->Read(response_.get(), &read_callback_);
-                });
-                k_.Body(*this, std::move(response));
-              } else {
-                {
-                  absl::MutexLock l(&mutex_);
-                  reads_done_ = true;
-                  MaybeFinish();
-                }
-
-                // Signify end of stream (or error).
-                k_.Body(*this, stout::borrowed_ptr<ResponseType_>());
-              }
-            };
-
-            write_callback_ = [this](bool ok) mutable {
-              if (ok) {
-                ::grpc::WriteOptions* options = nullptr;
-                RequestType_* request = nullptr;
-                enum class NextAction { NOTHING,
-                                        WRITE,
-                                        WRITE_LAST,
-                                        WRITES_DONE
-                };
-                NextAction next_action = NextAction::NOTHING;
-                {
-                  absl::MutexLock l(&mutex_);
-
-                  // Might be getting here after doing a 'WritesDone()'
-                  // and now just need to do 'Finish()'.
-                  if (!write_datas_.empty()) {
-                    write_datas_.pop_front();
-                  }
-
-                  if (!write_datas_.empty()) {
-                    // There is at least one more request for us to write out.
-                    request = &write_datas_.front().request;
-                    options = &write_datas_.front().options;
-                    if (finish_ && write_datas_.size() == 1) {
-                      // The request we're about to write is the last one.
-                      next_action = NextAction::WRITE_LAST;
-                    } else {
-                      // This request is not the last.
-                      next_action = NextAction::WRITE;
-                    }
-                  } else if (finish_) {
-                    // We've written out the last request, but we didn't use
-                    // `WriteLast` to do it, otherwise we wouldn't be in this
-                    // callback. We'll use a `WritesDone` to close our end of
-                    // the connection instead.
-                    next_action = NextAction::WRITES_DONE;
-                  }
-                }
-
-                if (next_action == NextAction::WRITE) {
-                  stream_->Write(*request, *options, &write_callback_);
-                } else if (next_action == NextAction::WRITE_LAST) {
-                  stream_->WriteLast(*request, *options, //
-                                     &writes_done_callback_);
-                } else if (next_action == NextAction::WRITES_DONE) {
-                  stream_->WritesDone(&writes_done_callback_);
-                }
-              } else {
-                absl::MutexLock l(&mutex_);
-                write_datas_.clear();
-                write_callback_ = Callback<bool>();
-                writes_done_ = true;
-                MaybeFinish();
-              }
-            };
-
-            writes_done_callback_ = [this](bool ok) mutable {
-              absl::MutexLock l(&mutex_);
-              writes_done_ = true;
-              MaybeFinish();
-            };
-
-            finish_callback_ = [this](bool ok) mutable {
-              // Relinquish the completion queue so as to signify that
-              // another call may use it.
-              cq_.relinquish();
-
-              if (ok) {
-                k_.Finished(std::move(finish_status_));
-              } else {
-                auto status = ::grpc::Status(
-                    ::grpc::INTERNAL,
-                    "failed to finish");
-                k_.Finished(std::move(status));
-              }
-            };
-
-            stream_->StartCall(&start_callback_);
-
-            // NOTE: we install the interrupt handler *after* we've
-            // started the calls so as to avoid a race with calling
-            // TryCancel() before the call has started.
-            if (handler_) {
-              if (!handler_->Install()) {
-                handler_->Invoke();
-              }
-            }
-          }
-        }
-      }
-    }
-
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      // TODO(benh): cancel the call if we've already started?
-      k_.Fail(std::forward<Args>(args)...);
-    }
-
-    void Stop() {
-      // TODO(benh): cancel the call if we've already started?
-      k_.Stop();
-    }
-
-    void Register(Interrupt& interrupt) {
-      k_.Register(interrupt);
-
-      handler_.emplace(&interrupt, [this]() {
-        context_.TryCancel();
-      });
-    }
-
-    void Write(
-        const RequestType_& request,
-        const ::grpc::WriteOptions& options = ::grpc::WriteOptions()) {
-      WriteMaybeLast(request, options, false);
-    }
-
-    // Equivalent to calling `Write()` and `WritesDone()` one after the other,
-    // although possibly more efficient.
-    //
-    // You must call exactly one of `WritesDone()` or `WriteLast()` at the end
-    // of a message stream.
-    void WriteLast(
-        const RequestType_& request,
-        const ::grpc::WriteOptions& options = ::grpc::WriteOptions()) {
-      WriteMaybeLast(request, options, true);
-    }
-
-    // Signals that the stream of messages coming from the client is complete.
-    //
-    // You must call exactly one of `WritesDone()` or `WriteLast()` at the end
-    // of a message stream.
-    void WritesDone() LOCKS_EXCLUDED(&mutex_) {
-      bool write = false;
-
-      {
-        absl::MutexLock l(&mutex_);
-        assert(!finish_); // Only call one of WriteLast() or WritesDone() once.
-        finish_ = true;
-        if (write_callback_ && write_datas_.empty()) {
-          // There is no current async write in flight, so there won't be a
-          // call to `write_callback_` to do a `WriteLast()` or `WritesDone()`
-          // for us. We'll do a `WritesDone()` ourselves.
-          write = true;
-        }
-      }
-
-      if (write) {
-        stream_->WritesDone(&writes_done_callback_);
-      }
-    }
-
-    ::grpc::ClientContext& context() & {
-      return context_;
-    }
-
-   private:
-    void WriteMaybeLast(
-        const RequestType_& request,
-        const ::grpc::WriteOptions& options,
-        bool last) LOCKS_EXCLUDED(mutex_) {
-      bool write = false;
-
-      absl::ReleasableMutexLock l(&mutex_);
-
-      if (last) {
-        assert(!finish_); // Only call one of WriteLast() or WritesDone() once.
-        finish_ = true;
-      }
-
-      if (write_callback_) {
-        write_datas_.emplace_back();
-
-        auto& data = write_datas_.back();
-
-        data.request.CopyFrom(request); // N.B. copy not move incase used below!
-        data.options = options;
-
-        if (write_datas_.size() == 1) {
-          // There is no current async write in flight, so there won't be a call
-          // to `write_callback_` to do a `Write()` or `WritesLast()` for us.
-          // We'll do one ourselves.
-          write = true;
-        }
-
-        l.Release();
-
-        if (write) {
-          if (!last) {
-            stream_->Write(request, options, &write_callback_);
-          } else {
-            stream_->WriteLast(request, options, &writes_done_callback_);
-          }
-        }
-      }
-    }
-
-    void MaybeFinish() EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
-      // We can only call `stream_->Finish()` when BOTH reads AND writes are
-      // known to be done (see #12).
-      if (!reads_done_ || !writes_done_) {
-        return;
-      }
-      stream_->Finish(&finish_status_, &finish_callback_);
-    }
-
-    K_ k_;
-    std::string name_;
-    std::optional<std::string> host_;
-
-    // NOTE: we need to keep this around until after the call terminates
-    // as it represents a "lease" on this completion queue that once
-    // relinquished will allow another call to use this queue.
-    stout::borrowed_ptr<::grpc::CompletionQueue> cq_;
-
-    ::grpc::TemplatedGenericStub<RequestType_, ResponseType_> stub_;
-
-    std::optional<Interrupt::Handler> handler_;
-
-    ::grpc::ClientContext context_;
-
-    std::unique_ptr<
-        ::grpc::ClientAsyncReaderWriter<RequestType_, ResponseType_>>
-        stream_;
-
-    Callback<bool> start_callback_;
-    Callback<bool> read_callback_;
-    Callback<bool> write_callback_;
-    Callback<bool> writes_done_callback_;
-    Callback<bool> finish_callback_;
-
-    stout::Borrowable<ResponseType_> response_;
-
-    struct WriteData {
-      RequestType_ request;
-      ::grpc::WriteOptions options;
+  auto Read() {
+    struct Data {
+      ResponseType_ response;
+      void* k = nullptr;
     };
+    return eventuals::Stream<ResponseType_>()
+        .next([this,
+               data = Data{},
+               callback = Callback<bool>()](auto& k) mutable {
+          using K = std::decay_t<decltype(k)>;
+          if (!callback) {
+            data.k = &k;
+            callback = [&data](bool ok) mutable {
+              auto& k = *reinterpret_cast<K*>(data.k);
+              if (ok) {
+                k.Emit(std::move(data.response));
+              } else {
+                // Signify end of stream (or error).
+                k.Ended();
+              }
+            };
+          }
 
-    // TODO(benh): render this lock-free.
-    absl::Mutex mutex_;
-    std::list<WriteData> write_datas_ GUARDED_BY(mutex_);
-    // Tracking whether reads/writes are done starts when reads/writes start.
-    bool reads_done_ GUARDED_BY(mutex_) = true;
-    bool writes_done_ GUARDED_BY(mutex_) = true;
-    bool finish_ GUARDED_BY(mutex_) = false;
+          // Initiate the read!
+          stream_->Read(&data.response, &callback);
+        });
+  }
 
-    ::grpc::Status finish_status_;
-  };
-
-  template <typename Request_, typename Response_>
-  struct Composable {
-    using Traits_ = RequestResponseTraits;
-
-    using RequestType_ = typename Traits_::Details<Request_>::Type;
-    using ResponseType_ = typename Traits_::Details<Response_>::Type;
-
-    template <typename Arg>
-    using ValueFrom = stout::borrowed_ptr<ResponseType_>;
-
-    template <typename Arg, typename K>
-    auto k(K k) && {
-      return Continuation<K, Request_, Response_>(
-          std::move(k),
-          std::move(name_),
-          std::move(host_),
-          std::move(cq_),
-          std::move(stub_));
-    }
-
-    std::string name_;
-    std::optional<std::string> host_;
-
-    // NOTE: we need to keep this around until after the call terminates
-    // as it represents a "lease" on this completion queue that once
-    // relinquished will allow another call to use this queue.
-    stout::borrowed_ptr<::grpc::CompletionQueue> cq_;
-
-    ::grpc::TemplatedGenericStub<RequestType_, ResponseType_> stub_;
-  };
+ private:
+  // TODO(benh): don't depend on 'internal' types ... doing so now so
+  // users don't have to include 'RequestType_' as part of
+  // 'ClientReader' when they write out the full type.
+  ::grpc::internal::AsyncReaderInterface<ResponseType_>* stream_;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
+// 'ClientWriter' abstraction acts like the synchronous
+// '::grpc::ClientWriter' but instead of the blocking 'Write*()'
+// family of functions our functions all return an eventual!
+template <typename RequestType_>
+class ClientWriter {
+ public:
+  // TODO(benh): borrow 'stream' or the enclosing 'ClientCall' so that
+  // we ensure that it doesn't get destructed while our eventuals are
+  // still outstanding.
+  ClientWriter(::grpc::internal::AsyncWriterInterface<RequestType_>* stream)
+    : stream_(stream) {}
+
+  auto Write(
+      RequestType_ request,
+      ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
+    return Eventual<void>(
+        [this,
+         callback = Callback<bool>(),
+         request = std::move(request),
+         options = std::move(options)](auto& k) mutable {
+          callback = [&k](bool ok) mutable {
+            if (ok) {
+              k.Start();
+            } else {
+              k.Fail("failed to write");
+            }
+          };
+          stream_->Write(request, options, &callback);
+        });
+  }
+
+  auto WriteLast(
+      RequestType_ request,
+      ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
+    return Write(request, options.set_last_message());
+  }
+
+ private:
+  // TODO(benh): don't depend on 'internal' types ... doing so now so
+  // users don't have to include 'ResponseType_' as part of
+  // 'ClientWriter' when they write out the full type.
+  ::grpc::internal::AsyncWriterInterface<RequestType_>* stream_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Request_, typename Response_>
+class ClientCall {
+ public:
+  // We use 'RequestResponseTraits' in order to get the actual
+  // request/response types vs the 'Stream<Request>' or
+  // 'Stream<Response>' that you're currently required to specify so
+  // that we can check at runtime that you've correctly specified the
+  // method signature.
+  using Traits_ = RequestResponseTraits;
+
+  using RequestType_ = typename Traits_::Details<Request_>::Type;
+  using ResponseType_ = typename Traits_::Details<Response_>::Type;
+
+  ClientCall(
+      std::string&& name,
+      std::optional<std::string>&& host,
+      stout::borrowed_ptr<::grpc::CompletionQueue>&& cq,
+      ::grpc::TemplatedGenericStub<RequestType_, ResponseType_>&& stub,
+      std::unique_ptr<
+          ::grpc::ClientAsyncReaderWriter<
+              RequestType_,
+              ResponseType_>>&& stream)
+    : name_(std::move(name)),
+      host_(std::move(host)),
+      cq_(std::move(cq)),
+      stub_(std::move(stub)),
+      stream_(std::move(stream)),
+      reader_(stream_.get()),
+      writer_(stream_.get()) {}
+
+  auto& Reader() {
+    return reader_;
+  }
+
+  auto& Writer() {
+    return writer_;
+  }
+
+  // TODO(benh): move this into 'ClientWriter' once we figure out how
+  // to get a '::grpc::ClientAsyncWriterInterface' from our
+  // '::grpc::ClientAsyncReaderWriter'.
+  auto WritesDone() {
+    return Eventual<void>(
+        [this, callback = Callback<bool>()](auto& k) mutable {
+          callback = [&k](bool ok) mutable {
+            if (ok) {
+              k.Start();
+            } else {
+              k.Fail("failed to do 'WritesDone()'");
+            }
+          };
+          stream_->WritesDone(&callback);
+        });
+  }
+
+  auto Finish() {
+    struct Data {
+      ::grpc::Status status;
+      void* k = nullptr;
+    };
+    return Eventual<::grpc::Status>(
+        [this,
+         data = Data{},
+         callback = Callback<bool>()](auto& k, auto&&...) mutable {
+          using K = std::decay_t<decltype(k)>;
+          data.k = &k;
+          callback = [&data](bool ok) {
+            auto& k = *reinterpret_cast<K*>(data.k);
+            if (ok) {
+              k.Start(std::move(data.status));
+            } else {
+              k.Fail("failed to finish");
+            }
+          };
+          stream_->Finish(&data.status, &callback);
+        });
+  }
+
+ private:
+  std::string name_;
+  std::optional<std::string> host_;
+
+  // NOTE: we need to keep this around until after the call terminates
+  // as it represents a "lease" on this completion queue that once
+  // relinquished will allow another call to use this queue.
+  stout::borrowed_ptr<::grpc::CompletionQueue> cq_;
+
+  ::grpc::TemplatedGenericStub<RequestType_, ResponseType_> stub_;
+
+  std::unique_ptr<
+      ::grpc::ClientAsyncReaderWriter<
+          RequestType_,
+          ResponseType_>>
+      stream_;
+
+  ClientReader<ResponseType_> reader_;
+  ClientWriter<RequestType_> writer_;
+};
 
 ////////////////////////////////////////////////////////////////////////
 
 class Client {
  public:
-  template <typename Value, typename... Errors>
-  static auto Handler();
-
-  static auto Handler();
-
   Client(
       const std::string& target,
       const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
@@ -453,6 +227,7 @@ class Client {
   template <typename Service, typename Request, typename Response>
   auto Call(
       const std::string& name,
+      ::grpc::ClientContext* context,
       std::optional<std::string> host = std::nullopt) {
     static_assert(
         IsService<Service>::value,
@@ -460,12 +235,14 @@ class Client {
 
     return Call<Request, Response>(
         std::string(Service::service_full_name()) + "." + name,
+        context,
         std::move(host));
   }
 
   template <typename Request, typename Response>
   auto Call(
       std::string name,
+      ::grpc::ClientContext* context,
       std::optional<std::string> host = std::nullopt) {
     static_assert(
         IsMessage<Request>::value,
@@ -479,47 +256,89 @@ class Client {
     using RequestType = typename Traits::Details<Request>::Type;
     using ResponseType = typename Traits::Details<Response>::Type;
 
-    return detail::_Call::Composable<Request, Response>{
-        std::move(name),
-        std::move(host),
-        pool_->Schedule(),
-        ::grpc::TemplatedGenericStub<RequestType, ResponseType>(channel_)};
+    struct Data {
+      ::grpc::ClientContext* context;
+      std::string name;
+      std::optional<std::string> host;
+      stout::borrowed_ptr<::grpc::CompletionQueue> cq;
+      ::grpc::TemplatedGenericStub<RequestType, ResponseType> stub;
+      std::unique_ptr<
+          ::grpc::ClientAsyncReaderWriter<
+              RequestType,
+              ResponseType>>
+          stream;
+      void* k = nullptr;
+    };
+
+    return Eventual<ClientCall<Request, Response>>(
+        [data = Data{
+             context,
+             std::move(name),
+             std::move(host),
+             pool_->Schedule(),
+             ::grpc::TemplatedGenericStub<
+                 RequestType,
+                 ResponseType>(channel_)},
+         callback = Callback<bool>()](auto& k) mutable {
+          const auto* method =
+              google::protobuf::DescriptorPool::generated_pool()
+                  ->FindMethodByName(data.name);
+
+          if (method == nullptr) {
+            k.Fail("method " + data.name + " not found");
+          } else {
+            auto error = Traits::Validate<Request, Response>(method);
+            if (error) {
+              k.Fail(error->message);
+            } else {
+              if (data.host) {
+                data.context->set_authority(data.host.value());
+              }
+
+              std::string path = "/" + data.name;
+              size_t index = path.find_last_of(".");
+              path.replace(index, 1, "/");
+
+              data.stream = data.stub.PrepareCall(
+                  data.context,
+                  path,
+                  data.cq.get());
+
+              if (!data.stream) {
+                // TODO(benh): Check status of channel, is this a
+                // redundant check because 'PrepareCall' also does
+                // this?  At the very least we'll probably give a
+                // better error message by checking.
+                k.Fail("GenericStub::PrepareCall returned nullptr");
+              } else {
+                using K = std::decay_t<decltype(k)>;
+                data.k = &k;
+                callback = [&data](bool ok) {
+                  auto& k = *reinterpret_cast<K*>(data.k);
+                  if (ok) {
+                    k.Start(
+                        ClientCall<Request, Response>{
+                            std::move(data.name),
+                            std::move(data.host),
+                            std::move(data.cq),
+                            std::move(data.stub),
+                            std::move(data.stream)});
+                  } else {
+                    k.Fail("server unavailable");
+                  }
+                };
+
+                data.stream->StartCall(&callback);
+              }
+            }
+          }
+        });
   }
 
  private:
   std::shared_ptr<::grpc::Channel> channel_;
   stout::borrowed_ptr<CompletionPool> pool_;
 };
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename Value, typename... Errors>
-auto Client::Handler() {
-  return _ClientHandler::Composable<
-      Undefined,
-      Undefined,
-      Undefined,
-      Undefined,
-      Undefined,
-      Undefined,
-      Undefined,
-      Value,
-      Errors...>{};
-}
-
-////////////////////////////////////////////////////////////////////////
-
-inline auto Client::Handler() {
-  return _ClientHandler::Composable<
-      Undefined,
-      Undefined,
-      Undefined,
-      Undefined,
-      Undefined,
-      Undefined,
-      Undefined,
-      ::grpc::Status>{};
-}
 
 ////////////////////////////////////////////////////////////////////////
 
