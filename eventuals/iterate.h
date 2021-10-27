@@ -1,10 +1,9 @@
 #pragma once
 
 #include <array>
-#include <initializer_list>
+#include <deque>
 #include <iterator>
 #include <optional>
-#include <vector>
 
 #include "eventuals/stream.h"
 
@@ -114,31 +113,27 @@ auto Iterate(T container[], size_t n) {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-auto Iterate(std::initializer_list<T>&& values) {
-  using Iterator = typename std::vector<T>::const_iterator;
+// NOTE: we take an array instead of a 'std::initializer_list' because
+// the latter seems to always want to force it's contents to be copied
+// rather than moved but the whole point is to move the temporary
+// values through the stream!
+template <typename T, size_t n>
+auto Iterate(T(&&values)[n]) {
+  // NOTE: using a 'std::deque' in case 'T' is only moveable so that
+  // when we do 'emplace_back()' it won't require that 'T' is also
+  // copyable which 'std::vector' does.
+  //
+  // TODO(benh): emperically it appears with clang as though we can
+  // use a 'std::vector' perhaps because it unrolls the for loop below
+  // but rather than rely on this behavior we're just going to stick
+  // to 'std::deque' for now.
+  std::deque<T> container;
 
-  struct Data {
-    std::vector<T> container;
-    std::optional<Iterator> begin;
-  };
+  for (size_t i = 0; i < n; i++) {
+    container.emplace_back(std::move(values[i]));
+  }
 
-  return Stream<decltype(*std::declval<Data>().begin.value())>()
-      .context(Data{std::vector<T>(std::move(values)), std::nullopt})
-      .start([](auto& data, auto& k) {
-        data.begin = data.container.cbegin();
-        k.Start();
-      })
-      .next([](auto& data, auto& k) {
-        if (data.begin.value() != data.container.cend()) {
-          k.Emit(*(data.begin.value()++));
-        } else {
-          k.Ended();
-        }
-      })
-      .done([](auto&, auto& k) {
-        k.Ended();
-      });
+  return Iterate(std::move(container));
 }
 
 ////////////////////////////////////////////////////////////////////////

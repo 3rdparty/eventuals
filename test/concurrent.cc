@@ -5,6 +5,7 @@
 #include "eventuals/callback.h"
 #include "eventuals/collect.h"
 #include "eventuals/eventual.h"
+#include "eventuals/let.h"
 #include "eventuals/range.h"
 #include "eventuals/reduce.h"
 #include "eventuals/stream-for-each.h"
@@ -19,6 +20,7 @@ using eventuals::Concurrent;
 using eventuals::Eventual;
 using eventuals::Interrupt;
 using eventuals::Iterate;
+using eventuals::Let;
 using eventuals::Loop;
 using eventuals::Map;
 using eventuals::Range;
@@ -754,4 +756,24 @@ TEST(ConcurrentTest, StreamForEach) {
   };
 
   EXPECT_THAT(*e(), UnorderedElementsAre(0, 0, 1));
+}
+
+// Tests that only moveable values will be moved into 'Concurrent()'.
+TEST(ConcurrentTest, Moveable) {
+  struct Moveable {
+    Moveable() = default;
+    Moveable(Moveable&&) = default;
+  };
+
+  auto e = []() {
+    return Iterate({Moveable()})
+        | Concurrent([]() {
+             return Map(Then(Let([](auto& moveable) {
+               return 42;
+             })));
+           })
+        | Collect<std::vector<int>>();
+  };
+
+  EXPECT_THAT(*e(), UnorderedElementsAre(42));
 }
