@@ -55,7 +55,7 @@ auto Server::RequestCall(
 auto Server::Lookup(ServerContext* context) {
   // NOTE: 'context' is stored in a 'Closure()' so safe to capture as
   // a reference here.
-  return Synchronized(Lambda([this, context]() {
+  return Synchronized(Then([this, context]() {
     Endpoint* endpoint = nullptr;
 
     auto iterator = endpoints_.find(
@@ -79,7 +79,7 @@ auto Server::Lookup(ServerContext* context) {
 ////////////////////////////////////////////////////////////////////////
 
 auto Server::Unimplemented(ServerContext* context) {
-  return Lambda([context]() {
+  return Then([context]() {
     EVENTUALS_GRPC_LOG(1)
         << "Dropping " << context->method()
         << " for host " << context->host();

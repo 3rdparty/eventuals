@@ -383,7 +383,7 @@ class Endpoint : public Synchronizable {
       host_(std::move(host)) {}
 
   auto Enqueue(std::unique_ptr<ServerContext>&& context) {
-    return Synchronized(Lambda([this, context = std::move(context)]() mutable {
+    return Synchronized(Then([this, context = std::move(context)]() mutable {
       contexts_.emplace_back(std::move(context));
       notify_();
     }));
