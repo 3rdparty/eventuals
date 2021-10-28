@@ -44,6 +44,9 @@ auto Let(F f) {
     return Closure([&, value = std::move(value)]() mutable {
       if constexpr (detail::HasValueFrom<decltype(f(value)), void>::value) {
         return f(value);
+      } else if constexpr (std::is_void_v<decltype(f(value))>) {
+        f(value);
+        return Just();
       } else {
         return Just(f(value));
       }
