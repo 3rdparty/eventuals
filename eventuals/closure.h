@@ -14,6 +14,11 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
+// Forward declaration (to break circular dependency).
+struct TypeErasedStream;
+
+////////////////////////////////////////////////////////////////////////
+
 struct _Closure {
   template <typename K_, typename F_, typename Arg_>
   struct Continuation {
@@ -29,6 +34,10 @@ struct _Closure {
 
     void Stop() {
       continuation().Stop();
+    }
+
+    void Begin(TypeErasedStream& stream) {
+      continuation().Begin(stream);
     }
 
     template <typename... Args>

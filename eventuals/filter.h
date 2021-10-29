@@ -16,9 +16,9 @@ namespace detail {
 struct _Filter {
   template <typename K_, typename F_, typename Arg_>
   struct Continuation {
-    void Start(TypeErasedStream& stream) {
+    void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
-      k_.Start(stream);
+      k_.Begin(stream);
     }
 
     template <typename... Args>

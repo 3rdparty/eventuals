@@ -39,8 +39,8 @@ struct _Map {
 
   template <typename K_, typename E_, typename Arg_>
   struct Continuation {
-    void Start(TypeErasedStream& stream) {
-      k_.Start(stream);
+    void Begin(TypeErasedStream& stream) {
+      k_.Begin(stream);
     }
 
     template <typename... Args>

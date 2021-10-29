@@ -25,7 +25,7 @@ struct _Repeat {
     void Start(Args&&...) {
       previous_ = Scheduler::Context::Get();
 
-      k_.Start(*this);
+      k_.Begin(*this);
     }
 
     template <typename... Args>

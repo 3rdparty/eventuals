@@ -589,7 +589,7 @@ struct _Concurrent {
       : k_(std::move(that.k_)),
         adaptor_(std::move(that.adaptor_.f_)) {}
 
-    void Start(TypeErasedStream& stream) {
+    void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
 
       ingress_.emplace(Build<Arg_>(adaptor_.Ingress()));
@@ -616,7 +616,7 @@ struct _Concurrent {
       // NOTE: we don't register an interrupt for 'egress_' since we
       // explicitly handle interrupts with 'Adaptor::Interrupt()'.
 
-      egress_->Start(*this);
+      egress_->Begin(*this);
     }
 
     template <typename... Args>
@@ -658,7 +658,7 @@ struct _Concurrent {
       // Using std::atomic_flag so we only start ingress once!
       if (!next_.test_and_set()) {
         CHECK(ingress_);
-        ingress_->Start(*CHECK_NOTNULL(stream_));
+        ingress_->Begin(*CHECK_NOTNULL(stream_));
       }
     }
 

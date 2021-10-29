@@ -48,9 +48,9 @@ struct _Stream {
                 Arg_>>>
         arg_;
 
-    void Start() {
+    void Begin() {
       stream_->previous_->Continue([this]() {
-        k_->Start(*stream_);
+        k_->Begin(*stream_);
       });
     }
 
@@ -122,7 +122,7 @@ struct _Stream {
   template <
       typename K_,
       typename Context_,
-      typename Start_,
+      typename Begin_,
       typename Next_,
       typename Done_,
       typename Fail_,
@@ -135,14 +135,14 @@ struct _Stream {
     Continuation(
         K_ k,
         Context_ context,
-        Start_ start,
+        Begin_ begin,
         Next_ next,
         Done_ done,
         Fail_ fail,
         Stop_ stop)
       : k_(std::move(k)),
         context_(std::move(context)),
-        start_(std::move(start)),
+        begin_(std::move(begin)),
         next_(std::move(next)),
         done_(std::move(done)),
         fail_(std::move(fail)),
@@ -168,19 +168,19 @@ struct _Stream {
       streamk_.stream_ = this;
       streamk_.k_ = &k_;
 
-      if constexpr (IsUndefined<Start_>::value) {
-        streamk_.Start(std::forward<Args>(args)...);
+      if constexpr (IsUndefined<Begin_>::value) {
+        streamk_.Begin(std::forward<Args>(args)...);
       } else {
         if constexpr (!IsUndefined<Context_>::value && Interruptible_) {
           CHECK(handler_);
-          start_(context_, streamk_, *handler_, std::forward<Args>(args)...);
+          begin_(context_, streamk_, *handler_, std::forward<Args>(args)...);
         } else if constexpr (!IsUndefined<Context_>::value && !Interruptible_) {
-          start_(context_, streamk_, std::forward<Args>(args)...);
+          begin_(context_, streamk_, std::forward<Args>(args)...);
         } else if constexpr (IsUndefined<Context_>::value && Interruptible_) {
           CHECK(handler_);
-          start_(streamk_, *handler_, std::forward<Args>(args)...);
+          begin_(streamk_, *handler_, std::forward<Args>(args)...);
         } else {
-          start_(streamk_, std::forward<Args>(args)...);
+          begin_(streamk_, std::forward<Args>(args)...);
         }
       }
     }
@@ -242,7 +242,7 @@ struct _Stream {
 
     K_ k_;
     Context_ context_;
-    Start_ start_;
+    Begin_ begin_;
     Next_ next_;
     Done_ done_;
     Fail_ fail_;
@@ -257,7 +257,7 @@ struct _Stream {
 
   template <
       typename Context_,
-      typename Start_,
+      typename Begin_,
       typename Next_,
       typename Done_,
       typename Fail_,
@@ -274,21 +274,21 @@ struct _Stream {
         typename Value,
         typename... Errors,
         typename Context,
-        typename Start,
+        typename Begin,
         typename Next,
         typename Done,
         typename Fail,
         typename Stop>
     static auto create(
         Context context,
-        Start start,
+        Begin begin,
         Next next,
         Done done,
         Fail fail,
         Stop stop) {
       return Builder<
           Context,
-          Start,
+          Begin,
           Next,
           Done,
           Fail,
@@ -297,7 +297,7 @@ struct _Stream {
           Value,
           Errors...>{
           std::move(context),
-          std::move(start),
+          std::move(begin),
           std::move(next),
           std::move(done),
           std::move(fail),
@@ -309,7 +309,7 @@ struct _Stream {
       return Continuation<
           K,
           Context_,
-          Start_,
+          Begin_,
           Next_,
           Done_,
           Fail_,
@@ -319,7 +319,7 @@ struct _Stream {
           Errors_...>(
           std::move(k),
           std::move(context_),
-          std::move(start_),
+          std::move(begin_),
           std::move(next_),
           std::move(done_),
           std::move(fail_),
@@ -331,19 +331,19 @@ struct _Stream {
       static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
       return create<Interruptible_, Value_, Errors_...>(
           std::move(context),
-          std::move(start_),
+          std::move(begin_),
           std::move(next_),
           std::move(done_),
           std::move(fail_),
           std::move(stop_));
     }
 
-    template <typename Start>
-    auto start(Start start) && {
-      static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
+    template <typename Begin>
+    auto begin(Begin begin) && {
+      static_assert(IsUndefined<Begin_>::value, "Duplicate 'begin'");
       return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
-          std::move(start),
+          std::move(begin),
           std::move(next_),
           std::move(done_),
           std::move(fail_),
@@ -355,7 +355,7 @@ struct _Stream {
       static_assert(IsUndefined<Next_>::value, "Duplicate 'next'");
       return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
-          std::move(start_),
+          std::move(begin_),
           std::move(next),
           std::move(done_),
           std::move(fail_),
@@ -367,7 +367,7 @@ struct _Stream {
       static_assert(IsUndefined<Done_>::value, "Duplicate 'done'");
       return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
-          std::move(start_),
+          std::move(begin_),
           std::move(next_),
           std::move(done),
           std::move(fail_),
@@ -379,7 +379,7 @@ struct _Stream {
       static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
       return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
-          std::move(start_),
+          std::move(begin_),
           std::move(next_),
           std::move(done_),
           std::move(fail),
@@ -391,7 +391,7 @@ struct _Stream {
       static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
       return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
-          std::move(start_),
+          std::move(begin_),
           std::move(next_),
           std::move(done_),
           std::move(fail_),
@@ -402,7 +402,7 @@ struct _Stream {
       static_assert(!Interruptible_, "Already 'interruptible'");
       return create<true, Value_, Errors_...>(
           std::move(context_),
-          std::move(start_),
+          std::move(begin_),
           std::move(next_),
           std::move(done_),
           std::move(fail_),
@@ -410,7 +410,7 @@ struct _Stream {
     }
 
     Context_ context_;
-    Start_ start_;
+    Begin_ begin_;
     Next_ next_;
     Done_ done_;
     Fail_ fail_;

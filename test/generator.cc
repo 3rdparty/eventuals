@@ -119,11 +119,11 @@ TEST(Generator, InterruptStream) {
       return Stream<int>()
           .context(Context<std::atomic<bool>>(false))
           .interruptible()
-          .start([](auto&, auto& k, Interrupt::Handler& handler) {
+          .begin([](auto&, auto& k, Interrupt::Handler& handler) {
             handler.Install([&k]() {
               k.Stop();
             });
-            k.Start();
+            k.Begin();
           })
           .next([&](auto& interrupted, auto& k) {
             functions.next.Call();

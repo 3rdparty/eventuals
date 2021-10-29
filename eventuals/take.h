@@ -22,11 +22,11 @@ struct _TakeLastN {
       : k_(std::move(k)),
         n_(n) {}
 
-    void Start(TypeErasedStream& stream) {
+    void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
       previous_ = Scheduler::Context::Get();
 
-      k_.Start(*this);
+      k_.Begin(*this);
     }
 
     template <typename... Args>
@@ -124,9 +124,9 @@ struct _TakeLastN {
 struct _TakeRange {
   template <typename K_, typename Arg_>
   struct Continuation {
-    void Start(TypeErasedStream& stream) {
+    void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
-      k_.Start(stream);
+      k_.Begin(stream);
     }
 
     template <typename... Args>

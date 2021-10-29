@@ -100,10 +100,10 @@ struct _Until {
 
 template <typename K_, typename F_, typename Arg_>
 struct _Until::Continuation<K_, F_, Arg_, false> {
-  void Start(TypeErasedStream& stream) {
+  void Begin(TypeErasedStream& stream) {
     stream_ = &stream;
 
-    k_.Start(stream);
+    k_.Begin(stream);
   }
 
   template <typename... Args>
@@ -148,10 +148,10 @@ struct _Until::Continuation<K_, F_, Arg_, true> {
       std::invoke_result<F_>,
       std::invoke_result<F_, std::add_lvalue_reference_t<Arg_>>>::type;
 
-  void Start(TypeErasedStream& stream) {
+  void Begin(TypeErasedStream& stream) {
     stream_ = &stream;
 
-    k_.Start(stream);
+    k_.Begin(stream);
   }
 
   template <typename... Args>
@@ -185,8 +185,7 @@ struct _Until::Continuation<K_, F_, Arg_, true> {
               .template k<void>(Adaptor<K_, Arg_>{k_, *arg_, *stream_}));
     } else {
       adapted_.emplace(
-          f_()
-              .template k<void>(Adaptor<K_, Arg_>{k_, *stream_}));
+          f_().template k<void>(Adaptor<K_, Arg_>{k_, *stream_}));
     }
 
     if (interrupt_ != nullptr) {

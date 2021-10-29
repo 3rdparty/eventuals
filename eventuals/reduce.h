@@ -43,7 +43,7 @@ struct _Reduce {
 
   template <typename K_, typename T_, typename F_, typename Arg_>
   struct Continuation {
-    void Start(detail::TypeErasedStream& stream) {
+    void Begin(detail::TypeErasedStream& stream) {
       stream_ = &stream;
 
       stream_->Next();

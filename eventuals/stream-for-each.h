@@ -15,7 +15,7 @@ namespace detail {
 struct _StreamForEach {
   template <typename StreamForEach_>
   struct Adaptor {
-    void Start(detail::TypeErasedStream& stream) {
+    void Begin(detail::TypeErasedStream& stream) {
       CHECK(streamforeach_->adapted_.has_value());
       CHECK(streamforeach_->inner_ == nullptr);
       streamforeach_->inner_ = &stream;
@@ -58,11 +58,11 @@ struct _StreamForEach {
       : k_(std::move(k)),
         f_(std::move(f)) {}
 
-    void Start(detail::TypeErasedStream& stream) {
+    void Begin(detail::TypeErasedStream& stream) {
       outer_ = &stream;
       previous_ = Scheduler::Context::Get();
 
-      k_.Start(*this);
+      k_.Begin(*this);
     }
 
     template <typename... Args>

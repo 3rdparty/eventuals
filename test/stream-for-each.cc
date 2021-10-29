@@ -235,7 +235,7 @@ TEST(StreamForEach, InterruptReturn) {
         | StreamForEach([&](int x) {
              return Stream<int>()
                  .interruptible()
-                 .start([&](auto& k, Interrupt::Handler& handler) {
+                 .begin([&](auto& k, Interrupt::Handler& handler) {
                    handler.Install([&k]() {
                      k.Stop();
                    });

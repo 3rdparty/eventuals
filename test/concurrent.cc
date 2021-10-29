@@ -456,11 +456,11 @@ TEST(ConcurrentTest, EmitInterruptStop) {
   auto e = []() {
     return Stream<int>()
                .interruptible()
-               .start([](auto& k, Interrupt::Handler& handler) {
+               .begin([](auto& k, Interrupt::Handler& handler) {
                  handler.Install([&k]() {
                    k.Stop();
                  });
-                 k.Start();
+                 k.Begin();
                })
                .next([i = 0](auto& k) mutable {
                  i++;
@@ -499,11 +499,11 @@ TEST(ConcurrentTest, EmitInterruptFail) {
   auto e = []() {
     return Stream<int>()
                .interruptible()
-               .start([](auto& k, Interrupt::Handler& handler) {
+               .begin([](auto& k, Interrupt::Handler& handler) {
                  handler.Install([&k]() {
                    k.Fail("error");
                  });
-                 k.Start();
+                 k.Begin();
                })
                .next([i = 0](auto& k) mutable {
                  i++;
@@ -549,11 +549,11 @@ TEST(ConcurrentTest, EmitFailInterrupt) {
   auto e = [&]() {
     return Stream<int>()
                .interruptible()
-               .start([](auto& k, Interrupt::Handler& handler) {
+               .begin([](auto& k, Interrupt::Handler& handler) {
                  handler.Install([&k]() {
                    k.Stop();
                  });
-                 k.Start();
+                 k.Begin();
                })
                .next([i = 0](auto& k) mutable {
                  i++;
@@ -586,11 +586,11 @@ TEST(ConcurrentTest, EmitStopInterrupt) {
   auto e = [&]() {
     return Stream<int>()
                .interruptible()
-               .start([](auto& k, Interrupt::Handler& handler) {
+               .begin([](auto& k, Interrupt::Handler& handler) {
                  handler.Install([&k]() {
                    k.Stop();
                  });
-                 k.Start();
+                 k.Begin();
                })
                .next([i = 0](auto& k) mutable {
                  i++;

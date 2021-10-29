@@ -19,7 +19,7 @@ struct _Loop {
   template <
       typename K_,
       typename Context_,
-      typename Start_,
+      typename Begin_,
       typename Body_,
       typename Ended_,
       typename Fail_,
@@ -41,22 +41,22 @@ struct _Loop {
       return *this;
     }
 
-    void Start(TypeErasedStream& stream) {
+    void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
 
-      if constexpr (IsUndefined<Start_>::value) {
+      if constexpr (IsUndefined<Begin_>::value) {
         stream_->Next();
       } else {
         if constexpr (!IsUndefined<Context_>::value && Interruptible_) {
           CHECK(handler_);
-          start_(context_, *stream_, *handler_);
+          begin_(context_, *stream_, *handler_);
         } else if constexpr (!IsUndefined<Context_>::value && !Interruptible_) {
-          start_(context_, *stream_);
+          begin_(context_, *stream_);
         } else if constexpr (IsUndefined<Context_>::value && Interruptible_) {
           CHECK(handler_);
-          start_(*stream_, *handler_);
+          begin_(*stream_, *handler_);
         } else {
-          start_(*stream_);
+          begin_(*stream_);
         }
       }
     }
@@ -117,7 +117,7 @@ struct _Loop {
 
     Reschedulable<K_, Value_> k_;
     Context_ context_;
-    Start_ start_;
+    Begin_ begin_;
     Body_ body_;
     Ended_ ended_;
     Fail_ fail_;
@@ -130,7 +130,7 @@ struct _Loop {
 
   template <
       typename Context_,
-      typename Start_,
+      typename Begin_,
       typename Body_,
       typename Ended_,
       typename Fail_,
@@ -147,21 +147,21 @@ struct _Loop {
         typename Value,
         typename... Errors,
         typename Context,
-        typename Start,
+        typename Begin,
         typename Body,
         typename Ended,
         typename Fail,
         typename Stop>
     static auto create(
         Context context,
-        Start start,
+        Begin begin,
         Body body,
         Ended ended,
         Fail fail,
         Stop stop) {
       return Builder<
           Context,
-          Start,
+          Begin,
           Body,
           Ended,
           Fail,
@@ -170,7 +170,7 @@ struct _Loop {
           Value,
           Errors...>{
           std::move(context),
-          std::move(start),
+          std::move(begin),
           std::move(body),
           std::move(ended),
           std::move(fail),
@@ -182,7 +182,7 @@ struct _Loop {
       return Continuation<
           K,
           Context_,
-          Start_,
+          Begin_,
           Body_,
           Ended_,
           Fail_,
@@ -192,7 +192,7 @@ struct _Loop {
           Errors_...>{
           Reschedulable<K, Value_>{std::move(k)},
           std::move(context_),
-          std::move(start_),
+          std::move(begin_),
           std::move(body_),
           std::move(ended_),
           std::move(fail_),
@@ -204,19 +204,19 @@ struct _Loop {
       static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
       return create<Interruptible_, Value_, Errors_...>(
           std::move(context),
-          std::move(start_),
+          std::move(begin_),
           std::move(body_),
           std::move(ended_),
           std::move(fail_),
           std::move(stop_));
     }
 
-    template <typename Start>
-    auto start(Start start) && {
-      static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
+    template <typename Begin>
+    auto begin(Begin begin) && {
+      static_assert(IsUndefined<Begin_>::value, "Duplicate 'begin'");
       return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
-          std::move(start),
+          std::move(begin),
           std::move(body_),
           std::move(ended_),
           std::move(fail_),
@@ -228,7 +228,7 @@ struct _Loop {
       static_assert(IsUndefined<Body_>::value, "Duplicate 'body'");
       return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
-          std::move(start_),
+          std::move(begin_),
           std::move(body),
           std::move(ended_),
           std::move(fail_),
@@ -240,7 +240,7 @@ struct _Loop {
       static_assert(IsUndefined<Ended_>::value, "Duplicate 'ended'");
       return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
-          std::move(start_),
+          std::move(begin_),
           std::move(body_),
           std::move(ended),
           std::move(fail_),
@@ -252,7 +252,7 @@ struct _Loop {
       static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
       return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
-          std::move(start_),
+          std::move(begin_),
           std::move(body_),
           std::move(ended_),
           std::move(fail),
@@ -264,7 +264,7 @@ struct _Loop {
       static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
       return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
-          std::move(start_),
+          std::move(begin_),
           std::move(body_),
           std::move(ended_),
           std::move(fail_),
@@ -275,7 +275,7 @@ struct _Loop {
       static_assert(!Interruptible_, "Already 'interruptible'");
       return create<true, Value_, Errors_...>(
           std::move(context_),
-          std::move(start_),
+          std::move(begin_),
           std::move(body_),
           std::move(ended_),
           std::move(fail_),
@@ -283,7 +283,7 @@ struct _Loop {
     }
 
     Context_ context_;
-    Start_ start_;
+    Begin_ begin_;
     Body_ body_;
     Ended_ ended_;
     Fail_ fail_;

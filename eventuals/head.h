@@ -15,7 +15,7 @@ namespace detail {
 struct _Head {
   template <typename K_, typename Arg_>
   struct Continuation {
-    void Start(TypeErasedStream& stream) {
+    void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
       stream.Next();
     }

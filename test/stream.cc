@@ -179,13 +179,13 @@ TEST(StreamTest, InterruptStream) {
     return Stream<int>()
                .context(Context<std::atomic<bool>>(false))
                .interruptible()
-               .start([](auto& interrupted,
+               .begin([](auto& interrupted,
                          auto& k,
                          Interrupt::Handler& handler) {
                  handler.Install([&interrupted]() {
                    interrupted->store(true);
                  });
-                 k.Start();
+                 k.Begin();
                })
                .next([](auto& interrupted, auto& k) {
                  if (!interrupted->load()) {
@@ -258,7 +258,7 @@ TEST(StreamTest, InterruptLoop) {
         | Loop<int>()
               .context(Context<std::atomic<bool>>(false))
               .interruptible()
-              .start([](auto& interrupted,
+              .begin([](auto& interrupted,
                         auto& k,
                         Interrupt::Handler& handler) {
                 handler.Install([&interrupted]() {

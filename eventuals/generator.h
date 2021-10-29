@@ -24,7 +24,7 @@ struct HeapGenerator {
   template <typename Arg_>
   struct Adaptor {
     Adaptor(
-        Callback<TypeErasedStream&>* start,
+        Callback<TypeErasedStream&>* begin,
         Callback<std::exception_ptr>* fail,
         Callback<>* stop,
         std::conditional_t<
@@ -32,16 +32,15 @@ struct HeapGenerator {
             Callback<>,
             Callback<Value_>>* body,
         Callback<>* ended)
-      : start_(start),
+      : begin_(begin),
         fail_(fail),
         stop_(stop),
         body_(body),
         ended_(ended) {}
 
     // All functions are called as Continuation after produced Stream.
-    template <typename... Args>
-    void Start(Args&&... args) {
-      (*start_)(std::forward<Args>(args)...);
+    void Begin(TypeErasedStream& stream) {
+      (*begin_)(stream);
     }
 
     template <typename... Args>
@@ -55,7 +54,6 @@ struct HeapGenerator {
     void Fail(std::exception_ptr exception) {
       (*fail_)(std::move(exception));
     }
-
 
     void Stop() {
       (*stop_)();
@@ -73,7 +71,7 @@ struct HeapGenerator {
     // Already registered in 'adapted_'
     void Register(Interrupt&) {}
 
-    Callback<TypeErasedStream&>* start_;
+    Callback<TypeErasedStream&>* begin_;
     Callback<std::exception_ptr>* fail_;
     Callback<>* stop_;
     std::conditional_t<
@@ -86,11 +84,11 @@ struct HeapGenerator {
   HeapGenerator(E_ e)
     : adapted_(
         std::move(e).template k<void>(
-            Adaptor<Value_>{&start_, &fail_, &stop_, &body_, &ended_})) {}
+            Adaptor<Value_>{&begin_, &fail_, &stop_, &body_, &ended_})) {}
 
   void Start(
       Interrupt& interrupt,
-      Callback<TypeErasedStream&>&& start,
+      Callback<TypeErasedStream&>&& begin,
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop,
       std::conditional_t<
@@ -98,7 +96,7 @@ struct HeapGenerator {
           Callback<>,
           Callback<Value_>>&& body,
       Callback<> ended) {
-    start_ = std::move(start);
+    begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
     body_ = std::move(body);
@@ -114,7 +112,7 @@ struct HeapGenerator {
   void Fail(
       Interrupt& interrupt,
       std::exception_ptr&& fail_exception,
-      Callback<TypeErasedStream&>&& start,
+      Callback<TypeErasedStream&>&& begin,
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop,
       std::conditional_t<
@@ -122,7 +120,7 @@ struct HeapGenerator {
           Callback<>,
           Callback<Value_>>&& body,
       Callback<> ended) {
-    start_ = std::move(start);
+    begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
     body_ = std::move(body);
@@ -146,7 +144,7 @@ struct HeapGenerator {
 
   void Stop(
       Interrupt& interrupt,
-      Callback<TypeErasedStream&>&& start,
+      Callback<TypeErasedStream&>&& begin,
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop,
       std::conditional_t<
@@ -154,7 +152,7 @@ struct HeapGenerator {
           Callback<>,
           Callback<Value_>>&& body,
       Callback<> ended) {
-    start_ = std::move(start);
+    begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
     body_ = std::move(body);
@@ -167,7 +165,7 @@ struct HeapGenerator {
     adapted_.Stop();
   }
 
-  Callback<TypeErasedStream&> start_;
+  Callback<TypeErasedStream&> begin_;
   Callback<std::exception_ptr> fail_;
   Callback<> stop_;
   std::conditional_t<
@@ -237,7 +235,7 @@ struct _GeneratorWith {
                 e_,
                 *interrupt_,
                 [this](auto&&... args) {
-                  k_.Start(*this);
+                  k_.Begin(*this);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
@@ -276,7 +274,7 @@ struct _GeneratorWith {
                 e_,
                 *interrupt_,
                 [this](auto&&... args) {
-                  k_.Start(*this);
+                  k_.Begin(*this);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
@@ -304,7 +302,7 @@ struct _GeneratorWith {
                 e_,
                 *interrupt_,
                 [this](auto&&... args) {
-                  k_.Start(*this);
+                  k_.Begin(*this);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
@@ -332,7 +330,7 @@ struct _GeneratorWith {
                 e_,
                 *interrupt_,
                 [this](auto&&... args) {
-                  k_.Start(*this);
+                  k_.Begin(*this);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
@@ -360,7 +358,7 @@ struct _GeneratorWith {
                 e_,
                 *interrupt_,
                 [this](auto&&... args) {
-                  k_.Start(*this);
+                  k_.Begin(*this);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
@@ -444,7 +442,7 @@ struct _GeneratorWith {
                       Args_&&... args,
                       std::unique_ptr<void, Callback<void*>>& e_,
                       Interrupt& interrupt,
-                      Callback<TypeErasedStream&>&& start,
+                      Callback<TypeErasedStream&>&& begin,
                       Callback<std::exception_ptr>&& fail,
                       Callback<>&& stop,
                       std::conditional_t<
@@ -466,7 +464,7 @@ struct _GeneratorWith {
           case Action::Start:
             e->Start(
                 interrupt,
-                std::move(start),
+                std::move(begin),
                 std::move(fail),
                 std::move(stop),
                 std::move(body),
@@ -476,7 +474,7 @@ struct _GeneratorWith {
             e->Fail(
                 interrupt,
                 std::move(fail_exception.value()),
-                std::move(start),
+                std::move(begin),
                 std::move(fail),
                 std::move(stop),
                 std::move(body),
@@ -485,7 +483,7 @@ struct _GeneratorWith {
           case Action::Stop:
             e->Stop(
                 interrupt,
-                std::move(start),
+                std::move(begin),
                 std::move(fail),
                 std::move(stop),
                 std::move(body),

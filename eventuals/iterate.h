@@ -54,9 +54,9 @@ auto Iterate(Container&& container) {
 
   return Stream<T>()
       .context(Data{std::move(container), std::nullopt})
-      .start([](auto& data, auto& k) {
+      .begin([](auto& data, auto& k) {
         data.begin = data.container.begin();
-        k.Start();
+        k.Begin();
       })
       .next([](auto& data, auto& k) {
         if (data.begin.value() != data.container.end()) {
