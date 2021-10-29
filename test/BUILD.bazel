@@ -12,7 +12,6 @@ eventuals_base_sources = [
     "static-thread-pool.cc",
     "task.cc",
     "closure.cc",
-    # "parallel.cc",
     "iterate.cc",
     "collect.cc",
     "filter.cc",

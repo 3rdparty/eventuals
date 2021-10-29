@@ -30,7 +30,6 @@ cc_library(
         "eventuals/loop.h",
         "eventuals/map.h",
         "eventuals/os.h",
-        "eventuals/parallel.h",
         "eventuals/raise.h",
         "eventuals/range.h",
         "eventuals/reduce.h",
