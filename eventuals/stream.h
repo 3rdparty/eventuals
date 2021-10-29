@@ -127,7 +127,7 @@ struct _Stream {
       typename Done_,
       typename Fail_,
       typename Stop_,
-      typename Interrupt_,
+      bool Interruptible_,
       typename Value_,
       typename... Errors_>
   struct Continuation : public TypeErasedStream {
@@ -139,16 +139,14 @@ struct _Stream {
         Next_ next,
         Done_ done,
         Fail_ fail,
-        Stop_ stop,
-        Interrupt_ interrupt)
+        Stop_ stop)
       : k_(std::move(k)),
         context_(std::move(context)),
         start_(std::move(start)),
         next_(std::move(next)),
         done_(std::move(done)),
         fail_(std::move(fail)),
-        stop_(std::move(stop)),
-        interrupt_(std::move(interrupt)) {}
+        stop_(std::move(stop)) {}
 
     Continuation(Continuation&& that) = default;
 
@@ -170,33 +168,19 @@ struct _Stream {
       streamk_.stream_ = this;
       streamk_.k_ = &k_;
 
-      // NOTE: we check if an interrupt has been triggered _before_ we
-      // call start but don't install the interrupt handler until
-      // _after_ calling start to simplify start handlers that might
-      // want to do some set up without worrying about interrupt races
-      // before they return (they will still have the race after they
-      // return with an interrupt and what ever they were waiting for,
-      // but at least they won't have any race while setting up what
-      // ever they want to wait for).
-      //
-      // TODO(benh): consider calling 'start_' with the interrupt to
-      // let them decide what they want to do rather than always
-      // skipping 'start_' if an interrupt has been triggered.
-      if (handler_ && handler_->interrupt().Triggered()) {
-        handler_->Invoke();
+      if constexpr (IsUndefined<Start_>::value) {
+        streamk_.Start(std::forward<Args>(args)...);
       } else {
-        if constexpr (IsUndefined<Start_>::value) {
-          streamk_.Start(std::forward<Args>(args)...);
-        } else if constexpr (IsUndefined<Context_>::value) {
-          start_(streamk_, std::forward<Args>(args)...);
-        } else {
+        if constexpr (!IsUndefined<Context_>::value && Interruptible_) {
+          CHECK(handler_);
+          start_(context_, streamk_, *handler_, std::forward<Args>(args)...);
+        } else if constexpr (!IsUndefined<Context_>::value && !Interruptible_) {
           start_(context_, streamk_, std::forward<Args>(args)...);
-        }
-
-        if (handler_) {
-          if (!handler_->Install()) {
-            handler_->Invoke();
-          }
+        } else if constexpr (IsUndefined<Context_>::value && Interruptible_) {
+          CHECK(handler_);
+          start_(streamk_, *handler_, std::forward<Args>(args)...);
+        } else {
+          start_(streamk_, std::forward<Args>(args)...);
         }
       }
     }
@@ -225,14 +209,8 @@ struct _Stream {
     void Register(Interrupt& interrupt) {
       k_.Register(interrupt);
 
-      if constexpr (!IsUndefined<Interrupt_>::value) {
-        handler_.emplace(&interrupt, [this]() {
-          if constexpr (IsUndefined<Context_>::value) {
-            interrupt_(k_);
-          } else {
-            interrupt_(context_, k_);
-          }
-        });
+      if constexpr (Interruptible_) {
+        handler_.emplace(&interrupt);
       }
     }
 
@@ -269,7 +247,6 @@ struct _Stream {
     Done_ done_;
     Fail_ fail_;
     Stop_ stop_;
-    Interrupt_ interrupt_;
 
     Scheduler::Context* previous_ = nullptr;
 
@@ -285,7 +262,7 @@ struct _Stream {
       typename Done_,
       typename Fail_,
       typename Stop_,
-      typename Interrupt_,
+      bool Interruptible_,
       typename Value_,
       typename... Errors_>
   struct Builder {
@@ -293,6 +270,7 @@ struct _Stream {
     using ValueFrom = Value_;
 
     template <
+        bool Interruptible,
         typename Value,
         typename... Errors,
         typename Context,
@@ -300,16 +278,14 @@ struct _Stream {
         typename Next,
         typename Done,
         typename Fail,
-        typename Stop,
-        typename Interrupt>
+        typename Stop>
     static auto create(
         Context context,
         Start start,
         Next next,
         Done done,
         Fail fail,
-        Stop stop,
-        Interrupt interrupt) {
+        Stop stop) {
       return Builder<
           Context,
           Start,
@@ -317,7 +293,7 @@ struct _Stream {
           Done,
           Fail,
           Stop,
-          Interrupt,
+          Interruptible,
           Value,
           Errors...>{
           std::move(context),
@@ -325,8 +301,7 @@ struct _Stream {
           std::move(next),
           std::move(done),
           std::move(fail),
-          std::move(stop),
-          std::move(interrupt)};
+          std::move(stop)};
     }
 
     template <typename Arg, typename K>
@@ -339,7 +314,7 @@ struct _Stream {
           Done_,
           Fail_,
           Stop_,
-          Interrupt_,
+          Interruptible_,
           Value_,
           Errors_...>(
           std::move(k),
@@ -348,99 +323,90 @@ struct _Stream {
           std::move(next_),
           std::move(done_),
           std::move(fail_),
-          std::move(stop_),
-          std::move(interrupt_));
+          std::move(stop_));
     }
 
     template <typename Context>
     auto context(Context context) && {
       static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
-      return create<Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_...>(
           std::move(context),
           std::move(start_),
           std::move(next_),
           std::move(done_),
           std::move(fail_),
-          std::move(stop_),
-          std::move(interrupt_));
+          std::move(stop_));
     }
 
     template <typename Start>
     auto start(Start start) && {
       static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
-      return create<Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
           std::move(start),
           std::move(next_),
           std::move(done_),
           std::move(fail_),
-          std::move(stop_),
-          std::move(interrupt_));
+          std::move(stop_));
     }
 
     template <typename Next>
     auto next(Next next) && {
       static_assert(IsUndefined<Next_>::value, "Duplicate 'next'");
-      return create<Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
           std::move(start_),
           std::move(next),
           std::move(done_),
           std::move(fail_),
-          std::move(stop_),
-          std::move(interrupt_));
+          std::move(stop_));
     }
 
     template <typename Done>
     auto done(Done done) && {
       static_assert(IsUndefined<Done_>::value, "Duplicate 'done'");
-      return create<Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
           std::move(start_),
           std::move(next_),
           std::move(done),
           std::move(fail_),
-          std::move(stop_),
-          std::move(interrupt_));
+          std::move(stop_));
     }
 
     template <typename Fail>
     auto fail(Fail fail) && {
       static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
-      return create<Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
           std::move(start_),
           std::move(next_),
           std::move(done_),
           std::move(fail),
-          std::move(stop_),
-          std::move(interrupt_));
+          std::move(stop_));
     }
 
     template <typename Stop>
     auto stop(Stop stop) && {
       static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
-      return create<Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_...>(
           std::move(context_),
           std::move(start_),
           std::move(next_),
           std::move(done_),
           std::move(fail_),
-          std::move(stop),
-          std::move(interrupt_));
+          std::move(stop));
     }
 
-    template <typename Interrupt>
-    auto interrupt(Interrupt interrupt) && {
-      static_assert(IsUndefined<Interrupt_>::value, "Duplicate 'interrupt'");
-      return create<Value_, Errors_...>(
+    auto interruptible() && {
+      static_assert(!Interruptible_, "Already 'interruptible'");
+      return create<true, Value_, Errors_...>(
           std::move(context_),
           std::move(start_),
           std::move(next_),
           std::move(done_),
           std::move(fail_),
-          std::move(stop_),
-          std::move(interrupt));
+          std::move(stop_));
     }
 
     Context_ context_;
@@ -449,7 +415,6 @@ struct _Stream {
     Done_ done_;
     Fail_ fail_;
     Stop_ stop_;
-    Interrupt_ interrupt_;
   };
 };
 
@@ -468,7 +433,7 @@ auto Stream() {
       Undefined,
       Undefined,
       Undefined,
-      Undefined,
+      false,
       Value,
       Errors...>{};
 }

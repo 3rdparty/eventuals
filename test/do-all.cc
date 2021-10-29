@@ -90,14 +90,15 @@ TEST(DoAllTest, Interrupt) {
 
   auto e = [&start, &fail]() {
     return DoAll(Eventual<void>()
-                     .start([&start](auto& k) {
+                     .interruptible()
+                     .start([&start](auto& k, Interrupt::Handler& handler) {
+                       handler.Install([&k]() {
+                         k.Stop();
+                       });
                        start.Call();
                      })
                      .fail([&fail](auto& k) {
                        fail.Call();
-                     })
-                     .interrupt([](auto& k) {
-                       k.Stop();
                      }));
   };
 

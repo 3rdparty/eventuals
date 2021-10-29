@@ -133,11 +133,12 @@ TEST(ClosureTest, Interrupt) {
     return Just(1)
         | Closure([&]() {
              return Eventual<std::string>()
-                 .start([&](auto&, auto&&) {
+                 .interruptible()
+                 .start([&](auto& k, Interrupt::Handler& handler, auto&&) {
+                   handler.Install([&k]() {
+                     k.Stop();
+                   });
                    start.Call();
-                 })
-                 .interrupt([](auto& k) {
-                   k.Stop();
                  });
            });
   };

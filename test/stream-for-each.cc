@@ -229,21 +229,20 @@ TEST_F(StreamForEachTest, Interrupt) {
 
 TEST(StreamForEach, InterruptReturn) {
   std::atomic<bool> waiting = false;
-  std::atomic<bool> interrupted = false;
 
   auto e = [&]() {
     return Iterate(std::vector<int>(1000))
         | StreamForEach([&](int x) {
              return Stream<int>()
-                 .start([&](auto& k) {
+                 .interruptible()
+                 .start([&](auto& k, Interrupt::Handler& handler) {
+                   handler.Install([&k]() {
+                     k.Stop();
+                   });
                    waiting.store(true);
                  })
                  .next([](auto& k) {
                    k.Ended();
-                 })
-                 .interrupt([&](auto& k) {
-                   interrupted.store(true);
-                   k.Stop();
                  });
            })
         | Collect<std::vector<int>>();
@@ -256,16 +255,20 @@ TEST(StreamForEach, InterruptReturn) {
   k.Register(interrupt);
 
   ASSERT_FALSE(waiting.load());
-  ASSERT_FALSE(interrupted.load());
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future.wait_for(std::chrono::seconds(0)));
 
   k.Start();
 
   ASSERT_TRUE(waiting.load());
-  ASSERT_FALSE(interrupted.load());
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future.wait_for(std::chrono::seconds(0)));
 
   interrupt.Trigger();
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
-
-  ASSERT_TRUE(interrupted.load());
 }

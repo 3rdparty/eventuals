@@ -14,17 +14,18 @@ namespace eventuals {
 class Interrupt {
  public:
   struct Handler {
-    template <typename F>
-    Handler(Interrupt* interrupt, F f)
+    Handler(Interrupt* interrupt, Callback<>&& callback)
       : interrupt_(CHECK_NOTNULL(interrupt)),
-        f_(std::move(f)) {
-    }
+        callback_(std::move(callback)) {}
+
+    Handler(Interrupt* interrupt)
+      : interrupt_(CHECK_NOTNULL(interrupt)) {}
 
     Handler(const Handler& that) = delete;
 
     Handler(Handler&& that)
       : interrupt_(CHECK_NOTNULL(that.interrupt_)),
-        f_(std::move(that.f_)) {
+        callback_(std::move(that.callback_)) {
       CHECK(that.next_ == nullptr);
     }
 
@@ -32,17 +33,23 @@ class Interrupt {
       return *CHECK_NOTNULL(interrupt_);
     }
 
+    bool Install(Callback<>&& callback) {
+      callback_ = std::move(callback);
+      return CHECK_NOTNULL(interrupt_)->Install(this);
+    }
+
     bool Install() {
+      CHECK(callback_);
       return CHECK_NOTNULL(interrupt_)->Install(this);
     }
 
     void Invoke() {
-      CHECK(f_);
-      f_();
+      CHECK(callback_);
+      callback_();
     }
 
     Interrupt* interrupt_ = nullptr;
-    Callback<> f_;
+    Callback<> callback_;
     Handler* next_ = nullptr;
   };
 

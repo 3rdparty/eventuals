@@ -277,13 +277,17 @@ TEST(ConcurrentTest, InterruptStop) {
   auto e = [&]() {
     return Iterate({1, 2})
         | Concurrent([&]() {
-             return Map(Eventual<std::string>()
-                            .start([&](auto& k, int i) mutable {
-                              callbacks.emplace_back([]() {});
-                            })
-                            .interrupt([](auto& k) {
-                              k.Stop();
-                            }));
+             return Map(
+                 Eventual<std::string>()
+                     .interruptible()
+                     .start([&](auto& k,
+                                Interrupt::Handler& handler,
+                                int i) mutable {
+                       handler.Install([&k]() {
+                         k.Stop();
+                       });
+                       callbacks.emplace_back([]() {});
+                     }));
            })
         | Collect<std::vector<std::string>>();
   };
@@ -316,19 +320,24 @@ TEST(ConcurrentTest, InterruptFailOrStop) {
   auto e = [&]() {
     return Iterate({1, 2})
         | Concurrent([&]() {
-             return Map(Eventual<std::string>()
-                            .context(0)
-                            .start([&](auto& context, auto& k, int i) mutable {
-                              context = i;
-                              callbacks.emplace_back([]() {});
-                            })
-                            .interrupt([](auto& context, auto& k) {
-                              if (context == 1) {
-                                k.Stop();
-                              } else {
-                                k.Fail("error");
-                              }
-                            }));
+             return Map(
+                 Eventual<std::string>()
+                     .interruptible()
+                     .start([&](auto& k,
+                                Interrupt::Handler& handler,
+                                int i) mutable {
+                       if (i == 1) {
+                         handler.Install([&k]() {
+                           k.Stop();
+                         });
+                       } else {
+                         handler.Install([&k]() {
+                           k.Fail("error");
+                         });
+                       }
+
+                       callbacks.emplace_back([]() {});
+                     }));
            })
         | Collect<std::vector<std::string>>();
   };
@@ -363,13 +372,17 @@ TEST(ConcurrentTest, InterruptFail) {
   auto e = [&]() {
     return Iterate({1, 2})
         | Concurrent([&]() {
-             return Map(Eventual<std::string>()
-                            .start([&](auto& k, int i) mutable {
-                              callbacks.emplace_back([]() {});
-                            })
-                            .interrupt([](auto& k) {
-                              k.Fail("error");
-                            }));
+             return Map(
+                 Eventual<std::string>()
+                     .interruptible()
+                     .start([&](auto& k,
+                                Interrupt::Handler& handler,
+                                int i) mutable {
+                       handler.Install([&k]() {
+                         k.Fail("error");
+                       });
+                       callbacks.emplace_back([]() {});
+                     }));
            })
         | Collect<std::vector<std::string>>();
   };
@@ -442,14 +455,18 @@ TEST(ConcurrentTest, StreamFail) {
 TEST(ConcurrentTest, EmitInterruptStop) {
   auto e = []() {
     return Stream<int>()
+               .interruptible()
+               .start([](auto& k, Interrupt::Handler& handler) {
+                 handler.Install([&k]() {
+                   k.Stop();
+                 });
+                 k.Start();
+               })
                .next([i = 0](auto& k) mutable {
                  i++;
                  if (i == 1) {
                    k.Emit(i);
                  }
-               })
-               .interrupt([](auto& k) {
-                 k.Stop();
                })
         | Concurrent([]() {
              return Map(Then([](int i) {
@@ -481,14 +498,18 @@ TEST(ConcurrentTest, EmitInterruptStop) {
 TEST(ConcurrentTest, EmitInterruptFail) {
   auto e = []() {
     return Stream<int>()
+               .interruptible()
+               .start([](auto& k, Interrupt::Handler& handler) {
+                 handler.Install([&k]() {
+                   k.Fail("error");
+                 });
+                 k.Start();
+               })
                .next([i = 0](auto& k) mutable {
                  i++;
                  if (i == 1) {
                    k.Emit(i);
                  }
-               })
-               .interrupt([](auto& k) {
-                 k.Fail("error");
                })
         | Concurrent([]() {
              return Map(Then([](int i) {
@@ -527,14 +548,18 @@ TEST(ConcurrentTest, EmitFailInterrupt) {
 
   auto e = [&]() {
     return Stream<int>()
+               .interruptible()
+               .start([](auto& k, Interrupt::Handler& handler) {
+                 handler.Install([&k]() {
+                   k.Stop();
+                 });
+                 k.Start();
+               })
                .next([i = 0](auto& k) mutable {
                  i++;
                  if (i == 1) {
                    k.Emit(i);
                  }
-               })
-               .interrupt([](auto& k) {
-                 k.Stop();
                })
         | Concurrent([&]() {
              return Map(Eventual<std::string>([&](auto& k, int i) {
@@ -560,14 +585,18 @@ TEST(ConcurrentTest, EmitStopInterrupt) {
 
   auto e = [&]() {
     return Stream<int>()
+               .interruptible()
+               .start([](auto& k, Interrupt::Handler& handler) {
+                 handler.Install([&k]() {
+                   k.Stop();
+                 });
+                 k.Start();
+               })
                .next([i = 0](auto& k) mutable {
                  i++;
                  if (i == 1) {
                    k.Emit(i);
                  }
-               })
-               .interrupt([](auto& k) {
-                 k.Stop();
                })
         | Concurrent([&]() {
              return Map(Eventual<std::string>([&](auto& k, int i) {
@@ -645,23 +674,24 @@ TEST(ConcurrentTest, DownstreamDoneOneEventualStop) {
   auto e = [&]() {
     return Iterate({1, 2})
         | Concurrent([&]() {
-             return Map(Eventual<std::string>()
-                            .context(0)
-                            .start([&](auto& context, auto& k, int i) mutable {
-                              context = i;
-                              if (i == 1) {
-                                callbacks.emplace_back([&k]() {
-                                  k.Start("1");
-                                });
-                              } else {
-                                callbacks.emplace_back([]() {});
-                              }
-                            })
-                            .interrupt([](auto& context, auto& k) {
-                              if (context == 2) {
-                                k.Stop();
-                              }
-                            }));
+             return Map(
+                 Eventual<std::string>()
+                     .interruptible()
+                     .start([&](auto& k,
+                                Interrupt::Handler& handler,
+                                int i) mutable {
+                       if (i == 1) {
+                         callbacks.emplace_back([&k]() {
+                           k.Start("1");
+                         });
+                       } else {
+                         handler.Install([&k]() {
+                           k.Stop();
+                         });
+
+                         callbacks.emplace_back([]() {});
+                       }
+                     }));
            })
         | Reduce(
                std::string(),
@@ -698,23 +728,23 @@ TEST(ConcurrentTest, DownstreamDoneOneEventualFail) {
   auto e = [&]() {
     return Iterate({1, 2})
         | Concurrent([&]() {
-             return Map(Eventual<std::string>()
-                            .context(0)
-                            .start([&](auto& context, auto& k, int i) mutable {
-                              context = i;
-                              if (i == 1) {
-                                callbacks.emplace_back([&k]() {
-                                  k.Start("1");
-                                });
-                              } else {
-                                callbacks.emplace_back([]() {});
-                              }
-                            })
-                            .interrupt([](auto& context, auto& k) {
-                              if (context == 2) {
-                                k.Fail("error");
-                              }
-                            }));
+             return Map(
+                 Eventual<std::string>()
+                     .interruptible()
+                     .start([&](auto& k,
+                                Interrupt::Handler& handler,
+                                int i) mutable {
+                       if (i == 1) {
+                         callbacks.emplace_back([&k]() {
+                           k.Start("1");
+                         });
+                       } else {
+                         handler.Install([&k]() {
+                           k.Fail("error");
+                         });
+                         callbacks.emplace_back([]() {});
+                       }
+                     }));
            })
         | Reduce(
                std::string(),

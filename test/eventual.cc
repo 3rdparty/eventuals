@@ -109,11 +109,12 @@ TEST(EventualTest, Interrupt) {
   auto e = [&]() {
     return Eventual<int>()
                .context(5)
-               .start([&](auto&, auto& k) {
+               .interruptible()
+               .start([&](auto&, auto& k, Interrupt::Handler& handler) {
+                 handler.Install([&k]() {
+                   k.Stop();
+                 });
                  start.Call();
-               })
-               .interrupt([](auto&, auto& k) {
-                 k.Stop();
                })
         | Then([](int i) { return i + 2; })
         | Eventual<int>()

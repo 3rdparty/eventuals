@@ -76,11 +76,12 @@ TEST(ThenTest, Interrupt) {
 
   auto e = [&](auto) {
     return Eventual<std::string>()
-        .start([&](auto&) {
+        .interruptible()
+        .start([&](auto& k, Interrupt::Handler& handler) {
+          handler.Install([&k]() {
+            k.Stop();
+          });
           start.Call();
-        })
-        .interrupt([](auto& k) {
-          k.Stop();
         });
   };
 

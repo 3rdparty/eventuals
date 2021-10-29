@@ -118,15 +118,19 @@ TEST(Generator, InterruptStream) {
     return [&]() {
       return Stream<int>()
           .context(Context<std::atomic<bool>>(false))
+          .interruptible()
+          .start([](auto&, auto& k, Interrupt::Handler& handler) {
+            handler.Install([&k]() {
+              k.Stop();
+            });
+            k.Start();
+          })
           .next([&](auto& interrupted, auto& k) {
             functions.next.Call();
             k.Emit(1);
           })
           .done([&](auto&, auto& k) {
             functions.done.Call();
-          })
-          .interrupt([&](auto& interrupted, auto& k) {
-            k.Stop();
           });
     };
   };

@@ -178,6 +178,15 @@ TEST(StreamTest, InterruptStream) {
   auto s = [&]() {
     return Stream<int>()
                .context(Context<std::atomic<bool>>(false))
+               .interruptible()
+               .start([](auto& interrupted,
+                         auto& k,
+                         Interrupt::Handler& handler) {
+                 handler.Install([&interrupted]() {
+                   interrupted->store(true);
+                 });
+                 k.Start();
+               })
                .next([](auto& interrupted, auto& k) {
                  if (!interrupted->load()) {
                    k.Emit(0);
@@ -187,9 +196,6 @@ TEST(StreamTest, InterruptStream) {
                })
                .done([&](auto&, auto&) {
                  done.Call();
-               })
-               .interrupt([](auto& interrupted, auto&) {
-                 interrupted->store(true);
                })
         | Loop<int>()
               .body([&](auto& k, auto&&) {
@@ -251,6 +257,15 @@ TEST(StreamTest, InterruptLoop) {
                })
         | Loop<int>()
               .context(Context<std::atomic<bool>>(false))
+              .interruptible()
+              .start([](auto& interrupted,
+                        auto& k,
+                        Interrupt::Handler& handler) {
+                handler.Install([&interrupted]() {
+                  interrupted->store(true);
+                });
+                k.Next();
+              })
               .body([&](auto&, auto& k, auto&&) {
                 auto thread = std::thread(
                     [&]() mutable {
@@ -260,9 +275,6 @@ TEST(StreamTest, InterruptLoop) {
                       k.Done();
                     });
                 thread.detach();
-              })
-              .interrupt([](auto& interrupted, auto& k) {
-                interrupted->store(true);
               })
               .ended([](auto& interrupted, auto& k) {
                 if (interrupted->load()) {
