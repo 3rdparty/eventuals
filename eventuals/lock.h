@@ -6,6 +6,7 @@
 #include "eventuals/callback.h"
 #include "eventuals/eventual.h"
 #include "eventuals/scheduler.h"
+#include "eventuals/stream.h"
 #include "eventuals/then.h"
 #include "eventuals/undefined.h"
 
@@ -251,6 +252,109 @@ struct _Acquire {
       }
     }
 
+    void Begin(TypeErasedStream& stream) {
+      waiter_.context = Scheduler::Context::Get();
+
+      CHECK(stream_ == nullptr);
+      stream_ = &stream;
+
+      EVENTUALS_LOG(2)
+          << "'" << waiter_.context->name() << "' acquiring";
+
+      if (lock_->AcquireFast(&waiter_)) {
+        EVENTUALS_LOG(2)
+            << "'" << waiter_.context->name() << "' (fast) acquired";
+        k_.Begin(*CHECK_NOTNULL(stream_));
+      } else {
+        waiter_.f = [this]() mutable {
+          EVENTUALS_LOG(2)
+              << "'" << waiter_.context->name() << "' (very slow) acquired";
+
+          waiter_.context->Unblock([this]() mutable {
+            k_.Begin(*CHECK_NOTNULL(stream_));
+          });
+        };
+
+        if (lock_->AcquireSlow(&waiter_)) {
+          EVENTUALS_LOG(2)
+              << "'" << waiter_.context->name() << "' (slow) acquired";
+
+          k_.Begin(*CHECK_NOTNULL(stream_));
+        }
+      }
+    }
+
+    template <typename... Args>
+    void Body(Args&&... args) {
+      waiter_.context = Scheduler::Context::Get();
+
+      EVENTUALS_LOG(2)
+          << "'" << waiter_.context->name() << "' acquiring";
+
+      if (lock_->AcquireFast(&waiter_)) {
+        EVENTUALS_LOG(2)
+            << "'" << waiter_.context->name() << "' (fast) acquired";
+        k_.Body(std::forward<Args>(args)...);
+      } else {
+        static_assert(
+            sizeof...(args) == 0 || sizeof...(args) == 1,
+            "Acquire only supports 0 or 1 argument, but found > 1");
+
+        static_assert(std::is_void_v<Arg_> || sizeof...(args) == 1);
+
+        if constexpr (!std::is_void_v<Arg_>) {
+          arg_.emplace(std::forward<Args>(args)...);
+        }
+
+        waiter_.f = [this]() mutable {
+          EVENTUALS_LOG(2)
+              << "'" << waiter_.context->name() << "' (very slow) acquired";
+
+          waiter_.context->Unblock([this]() mutable {
+            if constexpr (sizeof...(args) == 1) {
+              k_.Body(std::move(*arg_));
+            } else {
+              k_.Body();
+            }
+          });
+        };
+
+        if (lock_->AcquireSlow(&waiter_)) {
+          EVENTUALS_LOG(2)
+              << "'" << waiter_.context->name() << "' (slow) acquired";
+
+          if constexpr (sizeof...(args) == 1) {
+            k_.Body(std::move(*arg_));
+          } else {
+            k_.Body();
+          }
+        }
+      }
+    }
+
+    void Ended() {
+      waiter_.context = Scheduler::Context::Get();
+
+      if (lock_->AcquireFast(&waiter_)) {
+        k_.Ended();
+      } else {
+        waiter_.f = [this]() mutable {
+          waiter_.context->Unblock([this]() mutable {
+            k_.Ended();
+          });
+        };
+
+        if (lock_->AcquireSlow(&waiter_)) {
+          // TODO(benh): while this isn't the "fast path" we'll do a
+          // Context::Unblock() here which will make it an even slower
+          // path because we'll defer continued execution rather than
+          // execute immediately unless we enhance 'Unblock()' to be
+          // able to tell it to "execute immediately if possible".
+          waiter_.f();
+        }
+      }
+    }
+
     void Register(Interrupt& interrupt) {
       k_.Register(interrupt);
     }
@@ -261,6 +365,7 @@ struct _Acquire {
     std::optional<
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
+    TypeErasedStream* stream_ = nullptr;
   };
 
   struct Composable {
@@ -290,13 +395,34 @@ struct _Release {
 
     template <typename... Args>
     void Fail(Args&&... args) {
+      CHECK(!lock_->Available());
       lock_->Release();
       k_.Fail(std::forward<Args>(args)...);
     }
 
     void Stop() {
+      CHECK(!lock_->Available());
       lock_->Release();
       k_.Stop();
+    }
+
+    void Begin(TypeErasedStream& stream) {
+      CHECK(!lock_->Available());
+      lock_->Release();
+      k_.Begin(stream);
+    }
+
+    template <typename... Args>
+    void Body(Args&&... args) {
+      CHECK(!lock_->Available());
+      lock_->Release();
+      k_.Body(std::forward<decltype(args)>(args)...);
+    }
+
+    void Ended() {
+      CHECK(!lock_->Available());
+      lock_->Release();
+      k_.Ended();
     }
 
     void Register(Interrupt& interrupt) {

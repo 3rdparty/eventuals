@@ -2,7 +2,10 @@
 
 #include <thread>
 
+#include "eventuals/iterate.h"
 #include "eventuals/just.h"
+#include "eventuals/map.h"
+#include "eventuals/reduce.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
@@ -12,8 +15,11 @@ using eventuals::Acquire;
 using eventuals::Callback;
 using eventuals::Eventual;
 using eventuals::Interrupt;
+using eventuals::Iterate;
 using eventuals::Just;
 using eventuals::Lock;
+using eventuals::Map;
+using eventuals::Reduce;
 using eventuals::Release;
 using eventuals::Scheduler;
 using eventuals::Synchronizable;
@@ -262,4 +268,28 @@ TEST(LockTest, OwnedByCurrentSchedulerContext) {
   Foo foo;
 
   EXPECT_EQ(42, *foo.Operation());
+}
+
+
+TEST(LockTest, SynchronizedMap) {
+  struct Foo : public Synchronizable {
+    auto Operation() {
+      return Iterate({1, 2})
+          | Synchronized(Map(Then([](int i) {
+               return ++i;
+             })))
+          | Reduce(
+                 /* sum = */ 0,
+                 [](auto& sum) {
+                   return Then([&](auto i) {
+                     sum += i;
+                     return true;
+                   });
+                 });
+    }
+  };
+
+  Foo foo;
+
+  EXPECT_EQ(5, *foo.Operation());
 }
