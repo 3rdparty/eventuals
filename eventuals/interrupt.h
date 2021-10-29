@@ -23,7 +23,7 @@ class Interrupt {
     Handler(const Handler& that) = delete;
 
     Handler(Handler&& that)
-      : interrupt_(that.interrupt_),
+      : interrupt_(CHECK_NOTNULL(that.interrupt_)),
         f_(std::move(that.f_)) {
       CHECK(that.next_ == nullptr);
     }
@@ -33,8 +33,7 @@ class Interrupt {
     }
 
     bool Install() {
-      CHECK_NOTNULL(interrupt_);
-      return interrupt_->Install(this);
+      return CHECK_NOTNULL(interrupt_)->Install(this);
     }
 
     void Invoke() {
@@ -42,7 +41,7 @@ class Interrupt {
       f_();
     }
 
-    Interrupt* interrupt_;
+    Interrupt* interrupt_ = nullptr;
     Callback<> f_;
     Handler* next_ = nullptr;
   };
@@ -51,7 +50,7 @@ class Interrupt {
     : handler_(this, []() {}) {}
 
   bool Install(Handler* handler) {
-    CHECK(handler->next_ == nullptr);
+    CHECK(handler->next_ == nullptr) << "handler is already installed";
 
     handler->next_ = head_.load(std::memory_order_relaxed);
 
