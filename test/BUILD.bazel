@@ -5,12 +5,10 @@ cc_test(
     timeout = "short",
     srcs = [
         "accept.cc",
-        #"broadcast-cancel.cc",
         "build-and-start.cc",
         "cancelled-by-client.cc",
         "cancelled-by-server.cc",
         "client-death-test.cc",
-        #"cluster.cc",
         "deadline.cc",
         "multiple-hosts.cc",
         "server-death-test.cc",

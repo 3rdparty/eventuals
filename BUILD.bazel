@@ -8,7 +8,6 @@ cc_library(
     hdrs = [
         "eventuals/grpc/call-type.h",
         "eventuals/grpc/client.h",
-        "eventuals/grpc/cluster.h",
         "eventuals/grpc/completion-pool.h",
         "eventuals/grpc/logging.h",
         "eventuals/grpc/server.h",
