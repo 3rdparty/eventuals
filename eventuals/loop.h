@@ -44,16 +44,19 @@ struct _Loop {
     void Start(TypeErasedStream& stream) {
       stream_ = &stream;
 
-      auto interrupted = [this]() mutable {
-        if (handler_) {
-          return !handler_->Install();
-        } else {
-          return false;
-        }
-      }();
-
-      if (interrupted) {
-        assert(handler_);
+      // NOTE: we check if an interrupt has been triggered _before_ we
+      // call start but don't install the interrupt handler until
+      // _after_ calling start to simplify start handlers that might
+      // want to do some set up without worrying about interrupt races
+      // before they return (they will still have the race after they
+      // return with an interrupt and what ever they were waiting for,
+      // but at least they won't have any race while setting up what
+      // ever they want to wait for).
+      //
+      // TODO(benh): consider calling 'start_' with the interrupt to
+      // let them decide what they want to do rather than always
+      // skipping 'start_' if an interrupt has been triggered.
+      if (handler_ && handler_->interrupt().Triggered()) {
         handler_->Invoke();
       } else {
         if constexpr (IsUndefined<Start_>::value) {
@@ -62,6 +65,12 @@ struct _Loop {
           start_(*stream_);
         } else {
           start_(context_, *stream_);
+        }
+
+        if (handler_) {
+          if (!handler_->Install()) {
+            handler_->Invoke();
+          }
         }
       }
     }

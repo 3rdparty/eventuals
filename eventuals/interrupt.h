@@ -28,6 +28,10 @@ class Interrupt {
       CHECK(that.next_ == nullptr);
     }
 
+    Interrupt& interrupt() {
+      return *CHECK_NOTNULL(interrupt_);
+    }
+
     bool Install() {
       CHECK_NOTNULL(interrupt_);
       return interrupt_->Install(this);
@@ -76,6 +80,11 @@ class Interrupt {
         handler = next;
       }
     }
+  }
+
+  bool Triggered() {
+    // NOTE: nullptr signifies that the interrupt has been triggered.
+    return head_.load() == nullptr;
   }
 
   // To simplify the implementation we signify a triggered interrupt

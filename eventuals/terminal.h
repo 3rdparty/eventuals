@@ -22,8 +22,7 @@ struct _Terminal {
       typename Context_,
       typename Start_,
       typename Fail_,
-      typename Stop_,
-      typename Interrupt_>
+      typename Stop_>
   struct Continuation {
     template <typename... Args>
     void Start(Args&&... args) {
@@ -33,23 +32,10 @@ struct _Terminal {
             << Scheduler::Context::Get()->name()
             << " but undefined";
       } else {
-        auto interrupted = [this]() mutable {
-          if (handler_) {
-            return !handler_->Install();
-          } else {
-            return false;
-          }
-        }();
-
-        if (interrupted) {
-          assert(handler_);
-          handler_->Invoke();
+        if constexpr (IsUndefined<Context_>::value) {
+          start_(std::forward<Args>(args)...);
         } else {
-          if constexpr (IsUndefined<Context_>::value) {
-            start_(std::forward<Args>(args)...);
-          } else {
-            start_(context_, std::forward<Args>(args)...);
-          }
+          start_(context_, std::forward<Args>(args)...);
         }
       }
     }
@@ -95,33 +81,19 @@ struct _Terminal {
       }
     }
 
-    void Register(Interrupt& interrupt) {
-      if constexpr (!IsUndefined<Interrupt_>::value) {
-        handler_.emplace(&interrupt, [this]() {
-          if constexpr (IsUndefined<Context_>::value) {
-            interrupt_();
-          } else {
-            interrupt_(context_);
-          }
-        });
-      }
-    }
+    void Register(Interrupt&) {}
 
     Context_ context_;
     Start_ start_;
     Fail_ fail_;
     Stop_ stop_;
-    Interrupt_ interrupt_;
-
-    std::optional<Interrupt::Handler> handler_;
   };
 
   template <
       typename Context_,
       typename Start_,
       typename Fail_,
-      typename Stop_,
-      typename Interrupt_>
+      typename Stop_>
   struct Builder {
     template <typename...>
     using ValueFrom = void;
@@ -130,25 +102,21 @@ struct _Terminal {
         typename Context,
         typename Start,
         typename Fail,
-        typename Stop,
-        typename Interrupt>
+        typename Stop>
     static auto create(
         Context context,
         Start start,
         Fail fail,
-        Stop stop,
-        Interrupt interrupt) {
+        Stop stop) {
       return Builder<
           Context,
           Start,
           Fail,
-          Stop,
-          Interrupt>{
+          Stop>{
           std::move(context),
           std::move(start),
           std::move(fail),
-          std::move(stop),
-          std::move(interrupt)};
+          std::move(stop)};
     }
 
     template <typename Arg, typename... K>
@@ -161,13 +129,11 @@ struct _Terminal {
           Context_,
           Start_,
           Fail_,
-          Stop_,
-          Interrupt_>{
+          Stop_>{
           std::move(context_),
           std::move(start_),
           std::move(fail_),
-          std::move(stop_),
-          std::move(interrupt_)};
+          std::move(stop_)};
     }
 
     template <typename Context>
@@ -177,8 +143,7 @@ struct _Terminal {
           std::move(context),
           std::move(start_),
           std::move(fail_),
-          std::move(stop_),
-          std::move(interrupt_));
+          std::move(stop_));
     }
 
     template <typename Start>
@@ -188,8 +153,7 @@ struct _Terminal {
           std::move(context_),
           std::move(start),
           std::move(fail_),
-          std::move(stop_),
-          std::move(interrupt_));
+          std::move(stop_));
     }
 
     template <typename Fail>
@@ -199,8 +163,7 @@ struct _Terminal {
           std::move(context_),
           std::move(start_),
           std::move(fail),
-          std::move(stop_),
-          std::move(interrupt_));
+          std::move(stop_));
     }
 
     template <typename Stop>
@@ -210,26 +173,14 @@ struct _Terminal {
           std::move(context_),
           std::move(start_),
           std::move(fail_),
-          std::move(stop),
-          std::move(interrupt_));
+          std::move(stop));
     }
 
-    template <typename Interrupt>
-    auto interrupt(Interrupt interrupt) && {
-      static_assert(IsUndefined<Interrupt_>::value, "Duplicate 'interrupt'");
-      return create(
-          std::move(context_),
-          std::move(start_),
-          std::move(fail_),
-          std::move(stop_),
-          std::move(interrupt));
-    }
 
     Context_ context_;
     Start_ start_;
     Fail_ fail_;
     Stop_ stop_;
-    Interrupt_ interrupt_;
   };
 };
 
@@ -241,7 +192,6 @@ struct _Terminal {
 
 inline auto Terminal() {
   return detail::_Terminal::Builder<
-      Undefined,
       Undefined,
       Undefined,
       Undefined,
