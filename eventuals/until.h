@@ -78,8 +78,9 @@ struct _Until {
           typename std::conditional_t<
               std::is_void_v<Arg_>,
               std::invoke_result<F_>,
-              std::invoke_result<F_, std::add_lvalue_reference_t<Arg_>>>::type,
-          void>::value>
+              std::invoke_result<
+                  F_,
+                  std::add_lvalue_reference_t<Arg_>>>::type>::value>
   struct Continuation;
 
   template <typename F_>

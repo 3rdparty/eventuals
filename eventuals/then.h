@@ -2,6 +2,7 @@
 
 #include "eventuals/eventual.h"
 #include "eventuals/just.h"
+#include "eventuals/type-traits.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -13,18 +14,18 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename, typename, typename = void>
+template <typename, typename = void>
 struct HasValueFrom : std::false_type {};
 
-template <typename T, typename Arg>
-struct HasValueFrom<T, Arg, std::void_t<typename T::template ValueFrom<Arg>>>
+template <typename T>
+struct HasValueFrom<T, std::void_t<void_template<T::template ValueFrom>>>
   : std::true_type {};
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T, typename Arg>
 using ValueFromMaybeComposable = typename std::conditional_t<
-    !HasValueFrom<T, Arg>::value,
+    !HasValueFrom<T>::value,
     decltype(Eventual<T>()),
     T>::template ValueFrom<Arg>;
 
@@ -62,8 +63,7 @@ struct _Then {
           typename std::conditional_t<
               std::is_void_v<Arg_>,
               std::invoke_result<F_>,
-              std::invoke_result<F_, Arg_>>::type,
-          void>::value>
+              std::invoke_result<F_, Arg_>>::type>::value>
   struct Continuation;
 
   template <typename F_>
