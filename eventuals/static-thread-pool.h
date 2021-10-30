@@ -7,7 +7,6 @@
 
 #include "eventuals/scheduler.h"
 #include "eventuals/semaphore.h"
-#include "eventuals/then.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -173,6 +172,10 @@ struct _StaticThreadPoolSchedule {
       assert(pinned.core);
 
       if (!(*pinned.core < pool()->concurrency)) {
+        CHECK(!adapted_);
+        if (interrupt_ != nullptr) {
+          k_.Register(*interrupt_);
+        }
         k_.Fail("'" + name() + "' required core is > total cores");
       } else {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
@@ -223,6 +226,10 @@ struct _StaticThreadPoolSchedule {
       assert(pinned.core);
 
       if (!(*pinned.core < pool()->concurrency)) {
+        CHECK(!adapted_);
+        if (interrupt_ != nullptr) {
+          k_.Register(*interrupt_);
+        }
         k_.Fail("'" + name() + "' required core is > total cores");
       } else {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
@@ -274,6 +281,10 @@ struct _StaticThreadPoolSchedule {
       assert(pinned.core);
 
       if (!(*pinned.core < pool()->concurrency)) {
+        CHECK(!adapted_);
+        if (interrupt_ != nullptr) {
+          k_.Register(*interrupt_);
+        }
         k_.Fail("'" + name() + "' required core is > total cores");
       } else {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
@@ -295,9 +306,154 @@ struct _StaticThreadPoolSchedule {
       }
     }
 
+    void Begin(TypeErasedStream& stream) {
+      CHECK(stream_ == nullptr);
+      stream_ = &stream;
+
+      EVENTUALS_LOG(1) << "Scheduling '" << name() << "'";
+
+      auto& pinned = requirements()->pinned;
+
+      if (!pinned.core) {
+        // TODO(benh): pick the least loaded core. This will require
+        // iterating through and checking the sizes of all the "queues"
+        // and then atomically incrementing which ever queue we pick
+        // since we don't want to hold a lock here.
+        pinned.core = 0;
+      }
+
+      assert(pinned.core);
+
+      if (!(*pinned.core < pool()->concurrency)) {
+        CHECK(!adapted_);
+        if (interrupt_ != nullptr) {
+          k_.Register(*interrupt_);
+        }
+        k_.Fail("'" + name() + "' required core is > total cores");
+      } else {
+        if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
+          Adapt();
+          auto* previous = Scheduler::Context::Switch(this);
+          adapted_->Begin(*CHECK_NOTNULL(stream_));
+          previous = Scheduler::Context::Switch(previous);
+          CHECK_EQ(previous, this);
+        } else {
+          EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
+
+          pool()->Submit(
+              [this]() {
+                Adapt();
+                adapted_->Begin(*CHECK_NOTNULL(stream_));
+              },
+              this);
+        }
+      }
+    }
+
+    template <typename... Args>
+    void Body(Args&&... args) {
+      static_assert(
+          !std::is_void_v<Arg_> || sizeof...(args) == 0,
+          "'Schedule' only supports 0 or 1 argument");
+
+      EVENTUALS_LOG(1) << "Scheduling '" << name() << "'";
+
+      auto& pinned = requirements()->pinned;
+
+      if (!pinned.core) {
+        // TODO(benh): pick the least loaded core. This will require
+        // iterating through and checking the sizes of all the "queues"
+        // and then atomically incrementing which ever queue we pick
+        // since we don't want to hold a lock here.
+        pinned.core = 0;
+      }
+
+      assert(pinned.core);
+
+      if (!(*pinned.core < pool()->concurrency)) {
+        CHECK(!adapted_);
+        if (interrupt_ != nullptr) {
+          k_.Register(*interrupt_);
+        }
+        k_.Fail("'" + name() + "' required core is > total cores");
+      } else {
+        if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
+          Adapt();
+          auto* previous = Scheduler::Context::Switch(this);
+          adapted_->Body(std::forward<Args>(args)...);
+          previous = Scheduler::Context::Switch(previous);
+          CHECK_EQ(previous, this);
+        } else {
+          if constexpr (!std::is_void_v<Arg_>) {
+            arg_.emplace(std::forward<Args>(args)...);
+          }
+
+          EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
+
+          pool()->Submit(
+              [this]() {
+                Adapt();
+                if constexpr (sizeof...(args) > 0) {
+                  adapted_->Body(std::move(*arg_));
+                } else {
+                  adapted_->Body();
+                }
+              },
+              this);
+        }
+      }
+    }
+
+    void Ended() {
+      // NOTE: rather than skip the scheduling all together we make
+      // sure to support the use case where code wants to handle the
+      // stream ended inside of a 'Schedule()' in order to do
+      // something different.
+      EVENTUALS_LOG(1) << "Scheduling '" << name() << "'";
+
+      auto& pinned = requirements()->pinned;
+
+      if (!pinned.core) {
+        // TODO(benh): pick the least loaded core. This will require
+        // iterating through and checking the sizes of all the "queues"
+        // and then atomically incrementing which ever queue we pick
+        // since we don't want to hold a lock here.
+        pinned.core = 0;
+      }
+
+      assert(pinned.core);
+
+      if (!(*pinned.core < pool()->concurrency)) {
+        CHECK(!adapted_);
+        if (interrupt_ != nullptr) {
+          k_.Register(*interrupt_);
+        }
+        k_.Fail("'" + name() + "' required core is > total cores");
+      } else {
+        if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
+          Adapt();
+          auto* previous = Scheduler::Context::Switch(this);
+          adapted_->Ended();
+          previous = Scheduler::Context::Switch(previous);
+          CHECK_EQ(previous, this);
+        } else {
+          EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
+
+          pool()->Submit(
+              [this]() {
+                Adapt();
+                adapted_->Ended();
+              },
+              this);
+        }
+      }
+    }
+
     void Register(Interrupt& interrupt) {
       interrupt_ = &interrupt;
-      k_.Register(interrupt);
+
+      // NOTE: we propagate interrupt registration when we adapt or
+      // when we call 'Fail()' in the cases when we aren't adapting.
     }
 
     void Adapt() {
@@ -317,7 +473,7 @@ struct _StaticThreadPoolSchedule {
             new Adapted_(
                 std::move(e_).template k<Arg_>(
                     Reschedule(previous).template k<Value_>(
-                        _Then::Adaptor<K_>{k_}))));
+                        std::move(k_)))));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
@@ -332,13 +488,15 @@ struct _StaticThreadPoolSchedule {
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
 
+    TypeErasedStream* stream_ = nullptr;
+
     Interrupt* interrupt_ = nullptr;
 
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
     using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
         std::declval<detail::_Reschedule::Composable>()
-            .template k<Value_>(std::declval<_Then::Adaptor<K_>>())));
+            .template k<Value_>(std::declval<K_>())));
 
     std::unique_ptr<Adapted_> adapted_;
   };
