@@ -532,6 +532,86 @@ struct _Wait {
       k_.Stop();
     }
 
+    void Begin(TypeErasedStream& stream) {
+      k_.Begin(stream);
+    }
+
+    template <typename... Args>
+    void Body(Args&&... args) {
+      CHECK(!lock_->Available()) << "expecting lock to be acquired";
+
+      notifiable_ = false;
+
+      if (!condition_) {
+        condition_.emplace(
+            f_(Callback<>([this]() {
+              // NOTE: we ignore notifications unless we're notifiable
+              // and we make sure we're not notifiable after the first
+              // notification so we don't try and add ourselves to the
+              // list of waiters again.
+              //
+              // TODO(benh): make sure *we've* acquired the lock
+              // (where 'we' is the current "eventual").
+              if (notifiable_) {
+                CHECK(!lock_->Available());
+
+                EVENTUALS_LOG(2)
+                    << "'" << CHECK_NOTNULL(waiter_.context)->name()
+                    << "' notified";
+
+                notifiable_ = false;
+
+                bool acquired = lock_->AcquireSlow(&waiter_);
+
+                CHECK(!acquired) << "lock should be held when notifying";
+              }
+            })));
+      }
+
+      if ((*condition_)(std::forward<Args>(args)...)) {
+        CHECK(!notifiable_) << "recursive wait detected (without notify)";
+
+        notifiable_ = true;
+
+        static_assert(
+            sizeof...(args) == 0 || sizeof...(args) == 1,
+            "Wait only supports 0 or 1 argument, but found > 1");
+
+        static_assert(std::is_void_v<Arg_> || sizeof...(args) == 1);
+
+        if constexpr (!std::is_void_v<Arg_>) {
+          arg_.emplace(std::forward<Args>(args)...);
+        }
+
+        waiter_.context = Scheduler::Context::Get();
+
+        waiter_.f = [this]() mutable {
+          EVENTUALS_LOG(2)
+              << "'" << waiter_.context->name() << "' (notify) acquired";
+
+          waiter_.context->Unblock([this]() mutable {
+            if constexpr (sizeof...(args) == 1) {
+              Body(std::move(*arg_));
+            } else {
+              Body();
+            }
+          });
+
+          EVENTUALS_LOG(2)
+              << "'" << CHECK_NOTNULL(waiter_.context)->name()
+              << "' (notify) submitted";
+        };
+
+        lock_->Release();
+      } else {
+        k_.Body(std::forward<Args>(args)...);
+      }
+    }
+
+    void Ended() {
+      k_.Ended();
+    }
+
     void Register(Interrupt& interrupt) {
       k_.Register(interrupt);
     }
