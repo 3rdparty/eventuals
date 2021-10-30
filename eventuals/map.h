@@ -2,6 +2,7 @@
 
 #include "eventuals/eventual.h"
 #include "eventuals/stream.h"
+#include "eventuals/then.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -133,8 +134,16 @@ struct _Map {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E>
-auto Map(E e) {
+template <typename F>
+auto Map(F f) {
+  static_assert(
+      !detail::HasValueFrom<F>::value,
+      "'Map' expects a callable not an eventual");
+
+  auto e = Then(std::move(f));
+
+  using E = decltype(e);
+
   return detail::_Map::Composable<E>{std::move(e)};
 }
 

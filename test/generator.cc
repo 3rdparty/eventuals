@@ -14,7 +14,6 @@
 #include "eventuals/stream.h"
 #include "eventuals/task.h"
 #include "eventuals/terminal.h"
-#include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -29,7 +28,6 @@ using eventuals::Map;
 using eventuals::Stream;
 using eventuals::Task;
 using eventuals::Terminate;
-using eventuals::Then;
 
 using testing::ElementsAre;
 using testing::MockFunction;
@@ -68,9 +66,9 @@ TEST(Generator, Succeed) {
 
   auto e3 = [&stream]() {
     return stream()
-        | Map(Then([](auto x) {
+        | Map([](auto x) {
              return x + 1;
-           }))
+           })
         | Collect<std::vector<int>>();
   };
 

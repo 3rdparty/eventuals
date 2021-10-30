@@ -64,7 +64,7 @@ TEST(ClosureTest, Functor) {
 
 TEST(ClosureTest, OuterRepeat) {
   auto e = []() {
-    return Repeat(Then([]() { return 1; }))
+    return Repeat([]() { return 1; })
         | Closure([i = 41]() {
              return Reduce(
                  i,
@@ -88,11 +88,11 @@ TEST(ClosureTest, InnerRepeat) {
           | Until([&]() {
                return strings.empty();
              })
-          | Map(Then([&]() mutable {
+          | Map([&]() mutable {
                auto s = std::move(strings.front());
                strings.pop_front();
                return s;
-             }))
+             })
           | Reduce(
                  deque<string>(),
                  [](auto& results) {

@@ -9,7 +9,6 @@
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
 #include "eventuals/terminal.h"
-#include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -18,7 +17,6 @@ using eventuals::Filter;
 using eventuals::Iterate;
 using eventuals::Loop;
 using eventuals::Map;
-using eventuals::Then;
 
 using testing::ElementsAre;
 using testing::UnorderedElementsAre;
@@ -67,7 +65,7 @@ TEST(Filter, OddMapLoopFlow) {
   auto s = [&]() {
     return Iterate(v)
         | Filter([](int x) { return x % 2 == 1; })
-        | Map(Then([](int x) { return x + 1; }))
+        | Map([](int x) { return x + 1; })
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -88,7 +86,7 @@ TEST(Filter, OddMapCollectFlow) {
   auto s = [&]() {
     return Iterate(v)
         | Filter([](int x) { return x % 2 == 1; })
-        | Map(Then([](int x) { return x + 1; }))
+        | Map([](int x) { return x + 1; })
         | Collect<std::unordered_set<int>>();
   };
 

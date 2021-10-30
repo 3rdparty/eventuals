@@ -75,13 +75,13 @@ struct _Repeat {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E>
-auto Repeat(E e) {
-  // static_assert(
-  //     IsContinuation<E>::value,
-  //     "expecting an eventual continuation for Repeat");
+template <typename F>
+auto Repeat(F f) {
+  static_assert(
+      !detail::HasValueFrom<F>::value,
+      "'Repeat' expects a callable not an eventual");
 
-  return detail::_Repeat::Composable{} | Map(std::move(e));
+  return detail::_Repeat::Composable{} | Map(std::move(f));
 }
 
 inline auto Repeat() {

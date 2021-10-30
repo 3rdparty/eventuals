@@ -318,7 +318,7 @@ TEST(StreamTest, InfiniteLoop) {
                    k.Ended();
                  }
                })
-        | Map(Then([](int i) { return i + 1; }))
+        | Map([](int i) { return i + 1; })
         | Loop();
   };
 
@@ -337,7 +337,7 @@ TEST(StreamTest, MapThenLoop) {
                    k.Ended();
                  }
                })
-        | Map(Then([](int i) { return i + 1; }))
+        | Map([](int i) { return i + 1; })
         | Loop<int>()
               .context(0)
               .body([](auto& sum, auto& stream, auto&& value) {
@@ -367,41 +367,9 @@ TEST(StreamTest, MapThenReduce) {
                .done([](auto&, auto& k) {
                  k.Ended();
                })
-        | Map(Then([](int i) {
+        | Map([](int i) {
              return i + 1;
-           }))
-        | Reduce(
-               /* sum = */ 0,
-               [](auto& sum) {
-                 return Then([&](auto&& value) {
-                   sum += value;
-                   return true;
-                 });
-               });
-  };
-
-  EXPECT_EQ(20, *s());
-}
-
-
-TEST(StreamTest, MapEventualReduce) {
-  auto s = []() {
-    return Stream<int>()
-               .context(5)
-               .next([](auto& count, auto& k) {
-                 if (count > 0) {
-                   k.Emit(count--);
-                 } else {
-                   k.Ended();
-                 }
-               })
-               .done([](auto&, auto& k) {
-                 k.Ended();
-               })
-        | Map(Eventual<int>()
-                  .start([](auto& k, auto&& i) {
-                    k.Start(i + 1);
-                  }))
+           })
         | Reduce(
                /* sum = */ 0,
                [](auto& sum) {

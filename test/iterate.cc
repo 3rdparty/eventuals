@@ -787,10 +787,10 @@ TEST(Iterate, UniquePtr) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Map(Then([](auto& i) -> decltype(i) {
+        | Map([](auto& i) -> decltype(i) {
              (*i)++;
              return i;
-           }))
+           })
         | Reduce(
                /* sum = */ 0,
                [](auto& sum) {

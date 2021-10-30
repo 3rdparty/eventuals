@@ -89,9 +89,9 @@ TEST(StaticThreadPoolTest, PingPong) {
                  return count > 5;
                }));
              })
-          | Map(Schedule(Then([this]() mutable {
+          | Schedule(Map([this]() mutable {
                return count++;
-             })));
+             }));
     }
 
     int count = 0;
@@ -104,10 +104,10 @@ TEST(StaticThreadPoolTest, PingPong) {
     auto Listen() {
       using namespace eventuals;
 
-      return Map(Schedule(Then([this](int i) {
+      return Schedule(Map([this](int i) {
                count++;
                return i;
-             })))
+             }))
           | Loop()
           | Then([this](auto&&...) {
                return count;

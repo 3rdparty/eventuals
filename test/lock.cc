@@ -275,9 +275,9 @@ TEST(LockTest, SynchronizedMap) {
   struct Foo : public Synchronizable {
     auto Operation() {
       return Iterate({1, 2})
-          | Synchronized(Map(Then([](int i) {
+          | Synchronized(Map([](int i) {
                return ++i;
-             })))
+             }))
           | Reduce(
                  /* sum = */ 0,
                  [](auto& sum) {

@@ -11,12 +11,12 @@
 #include "eventuals/collect.h"
 #include "eventuals/event-loop.h"
 #include "eventuals/iterate.h"
+#include "eventuals/just.h"
 #include "eventuals/let.h"
 #include "eventuals/map.h"
 #include "eventuals/range.h"
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
-#include "eventuals/then.h"
 #include "eventuals/timer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -25,12 +25,12 @@ using eventuals::Collect;
 using eventuals::EventLoop;
 using eventuals::Interrupt;
 using eventuals::Iterate;
+using eventuals::Just;
 using eventuals::Let;
 using eventuals::Map;
 using eventuals::Range;
 using eventuals::Stream;
 using eventuals::StreamForEach;
-using eventuals::Then;
 using eventuals::Timer;
 
 using testing::ElementsAre;
@@ -49,7 +49,7 @@ TEST(StreamForEach, StreamForEachMapped) {
   auto s = []() {
     return Range(2)
         | StreamForEach([](int x) { return Range(2); })
-        | Map(Then([](int x) { return x + 1; }))
+        | Map([](int x) { return x + 1; })
         | Collect<std::vector<int>>();
   };
 
@@ -63,7 +63,7 @@ TEST(StreamForEach, StreamForEachIterate) {
              std::vector<int> v = {1, 2, 3};
              return Iterate(std::move(v));
            })
-        | Map(Then([](int x) { return x + 1; }))
+        | Map([](int x) { return x + 1; })
         | Collect<std::vector<int>>();
   };
 
@@ -99,7 +99,7 @@ TEST(StreamForEach, TwoIndexesSumMap) {
     return Range(3)
         | StreamForEach([](int x) {
              return Range(1, 3)
-                 | Map(Then([x](int y) { return x + y; }));
+                 | Map([x](int y) { return x + y; });
            })
         | Collect<std::vector<int>>();
   };
@@ -129,7 +129,7 @@ TEST(StreamForEach, StreamForEachIterateString) {
              std::vector<int> v = {1, 2, 3};
              return Iterate(std::move(v));
            })
-        | Map(Then([](int x) { return x + 1; }))
+        | Map([](int x) { return x + 1; })
         | Collect<std::vector<int>>();
   };
 
@@ -167,11 +167,11 @@ TEST(StreamForEach, ThreeIndexesSumMap) {
     return Range(3)
         | StreamForEach([](int x) {
              return Range(1, 3)
-                 | Map(Then([x](int y) { return x + y; }));
+                 | Map([x](int y) { return x + y; });
            })
         | StreamForEach([](int sum) {
              return Range(1, 3)
-                 | Map(Then([sum](int z) { return sum + z; }));
+                 | Map([sum](int z) { return sum + z; });
            })
         | Collect<std::vector<int>>();
   };
@@ -201,8 +201,10 @@ class StreamForEachTest : public EventLoopTest {};
 TEST_F(StreamForEachTest, Interrupt) {
   auto e = []() {
     return Iterate(std::vector<int>(1000))
-        | Map(Then([](int x) { return Timer(std::chrono::milliseconds(100))
-                                   | Then([x]() { return x; }); }))
+        | Map([](int x) {
+             return Timer(std::chrono::milliseconds(100))
+                 | Just(x);
+           })
         | StreamForEach([](int x) { return Iterate({1, 2}); })
         | Collect<std::vector<int>>()
               .stop([](auto& data, auto& k) {

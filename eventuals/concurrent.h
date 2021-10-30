@@ -459,10 +459,10 @@ struct _Concurrent {
       // 'arg' to iterate from the top.
       return Iterate({std::move(arg)})
           | f_()
-          | Map(Synchronized(Then([this](auto&& value) {
+          | Synchronized(Map([this](auto&& value) {
                values_.push_back(std::forward<decltype(value)>(value));
                notify_egress_();
-             })))
+             }))
           | Loop()
           | FiberEpilogue(fiber)
           | Terminal();
@@ -494,7 +494,7 @@ struct _Concurrent {
     // Returns an eventual which implements the logic of handling each
     // upstream value.
     auto Ingress() {
-      return Map(Then(Let([this](Arg_& arg) {
+      return Map(Let([this](Arg_& arg) {
                return CreateOrReuseFiber()
                    | Then([&](TypeErasedFiber* fiber) {
                         // A nullptr indicates that we should tell
@@ -508,7 +508,7 @@ struct _Concurrent {
 
                         return done;
                       });
-             })))
+             }))
           | Until([](bool done) { return done; })
           | Loop() // Eagerly try to get next value to run concurrently!
           | IngressEpilogue()
@@ -518,7 +518,7 @@ struct _Concurrent {
     // Returns an eventual which implements the logic for handling
     // each value emitted from our fibers and moving them downstream.
     auto Egress() {
-      return Map(Synchronized(
+      return Synchronized(
                  Wait([this](auto notify) {
                    notify_egress_ = std::move(notify);
                    return [this]() {
@@ -533,35 +533,37 @@ struct _Concurrent {
                  // Need to check for an exception _before_
                  // 'Until()' because we have no way of hooking
                  // into "ended" after 'Until()'.
-                 | Eventual<std::optional<Value_>>()
-                       .start([this](auto& k) {
-                         if (exception_) {
-                           CHECK(upstream_done_ && fibers_done_);
-                           // TODO(benh): flush remaining values first?
-                           try {
-                             std::rethrow_exception(*exception_);
-                           } catch (const StoppedException&) {
-                             k.Stop();
-                           } catch (...) {
-                             k.Fail(std::current_exception());
+                 | Map([this]() {
+                     return Eventual<std::optional<Value_>>()
+                         .start([this](auto& k) {
+                           if (exception_) {
+                             CHECK(upstream_done_ && fibers_done_);
+                             // TODO(benh): flush remaining values first?
+                             try {
+                               std::rethrow_exception(*exception_);
+                             } catch (const StoppedException&) {
+                               k.Stop();
+                             } catch (...) {
+                               k.Fail(std::current_exception());
+                             }
+                           } else if (values_.empty()) {
+                             CHECK(upstream_done_ && fibers_done_);
+                             k.Start(std::optional<Value_>());
+                           } else {
+                             CHECK(!values_.empty());
+                             auto value = std::move(values_.front());
+                             values_.pop_front();
+                             k.Start(std::optional<Value_>(std::move(value)));
                            }
-                         } else if (values_.empty()) {
-                           CHECK(upstream_done_ && fibers_done_);
-                           k.Start(std::optional<Value_>());
-                         } else {
-                           CHECK(!values_.empty());
-                           auto value = std::move(values_.front());
-                           values_.pop_front();
-                           k.Start(std::optional<Value_>(std::move(value)));
-                         }
-                       })))
+                         });
+                   }))
           | Until([](std::optional<Value_>& value) {
                return !value;
              })
-          | Map(Then([](std::optional<Value_>&& value) {
+          | Map([](std::optional<Value_>&& value) {
                CHECK(value);
                return std::move(*value);
-             }));
+             });
     }
 
     F_ f_;
