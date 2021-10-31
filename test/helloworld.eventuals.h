@@ -1,6 +1,5 @@
 #pragma once
 
-#include <optional>
 #include <tuple>
 
 #include "eventuals/grpc/server.h"
