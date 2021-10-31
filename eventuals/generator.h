@@ -466,10 +466,11 @@ class GeneratorWith {
     return future.get();
   }
 
-
  private:
   detail::_GeneratorWith::Composable<Value_, Args_...> e_;
 };
+
+////////////////////////////////////////////////////////////////////////
 
 template <typename Value_>
 class Generator : public GeneratorWith<Value_> {
@@ -481,6 +482,7 @@ class Generator : public GeneratorWith<Value_> {
   Generator(F f)
     : GeneratorWith<Value_>(std::move(f)) {}
 };
+
 ////////////////////////////////////////////////////////////////////////
 
 } // namespace eventuals
