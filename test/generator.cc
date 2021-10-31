@@ -11,6 +11,8 @@
 #include "eventuals/iterate.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
+#include "eventuals/range.h"
+#include "eventuals/stream-for-each.h"
 #include "eventuals/stream.h"
 #include "eventuals/task.h"
 #include "eventuals/terminal.h"
@@ -25,7 +27,9 @@ using eventuals::Interrupt;
 using eventuals::Iterate;
 using eventuals::Loop;
 using eventuals::Map;
+using eventuals::Range;
 using eventuals::Stream;
+using eventuals::StreamForEach;
 using eventuals::Task;
 using eventuals::Terminate;
 
@@ -373,4 +377,23 @@ TEST(Generator, Void) {
   };
 
   *e();
+}
+
+TEST(Generator, StreamForEach) {
+  auto stream = []() -> Generator<int> {
+    return []() {
+      std::vector<int> v = {1, 2, 3};
+      return Iterate(std::move(v))
+          | StreamForEach([](int i) {
+               return Range(0, i);
+             });
+    };
+  };
+
+  auto e = [&]() {
+    return stream()
+        | Collect<std::vector<int>>();
+  };
+
+  EXPECT_THAT(*e(), ElementsAre(0, 0, 1, 0, 1, 2));
 }

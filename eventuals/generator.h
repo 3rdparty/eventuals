@@ -234,8 +234,8 @@ struct _GeneratorWith {
                 std::forward<decltype(args)>(args)...,
                 e_,
                 *interrupt_,
-                [this](auto&&... args) {
-                  k_.Begin(*this);
+                [this](TypeErasedStream& stream) {
+                  k_.Begin(stream);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
@@ -273,8 +273,8 @@ struct _GeneratorWith {
                 std::forward<decltype(args)>(args)...,
                 e_,
                 *interrupt_,
-                [this](auto&&... args) {
-                  k_.Begin(*this);
+                [this](TypeErasedStream& stream) {
+                  k_.Begin(stream);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
@@ -301,8 +301,8 @@ struct _GeneratorWith {
                 std::forward<decltype(args)>(args)...,
                 e_,
                 *interrupt_,
-                [this](auto&&... args) {
-                  k_.Begin(*this);
+                [this](TypeErasedStream& stream) {
+                  k_.Begin(stream);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
@@ -329,8 +329,8 @@ struct _GeneratorWith {
                 std::forward<decltype(args)>(args)...,
                 e_,
                 *interrupt_,
-                [this](auto&&... args) {
-                  k_.Begin(*this);
+                [this](TypeErasedStream& stream) {
+                  k_.Begin(stream);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
@@ -357,8 +357,8 @@ struct _GeneratorWith {
                 std::forward<decltype(args)>(args)...,
                 e_,
                 *interrupt_,
-                [this](auto&&... args) {
-                  k_.Begin(*this);
+                [this](TypeErasedStream& stream) {
+                  k_.Begin(stream);
                 },
                 [this](std::exception_ptr e) {
                   k_.Fail(std::move(e));
