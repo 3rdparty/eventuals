@@ -158,25 +158,7 @@ struct _TaskWith {
   struct Continuation {
     template <typename... Args>
     void Start(Args&&...) {
-      std::apply(
-          [&](auto&&... args) {
-            dispatch_(
-                Action::Start,
-                std::nullopt,
-                std::forward<decltype(args)>(args)...,
-                e_,
-                *interrupt_,
-                [this](auto&&... args) {
-                  k_.Start(std::forward<decltype(args)>(args)...);
-                },
-                [this](std::exception_ptr e) {
-                  k_.Fail(std::move(e));
-                },
-                [this]() {
-                  k_.Stop();
-                });
-          },
-          std::move(args_));
+      Dispatch(Action::Start);
     }
 
     template <typename... Args>
@@ -191,10 +173,25 @@ struct _TaskWith {
             std::runtime_error("empty error"));
       }
 
+      Dispatch(Action::Fail, std::move(exception));
+    }
+
+    void Stop() {
+      Dispatch(Action::Stop);
+    }
+
+    void Register(Interrupt& interrupt) {
+      interrupt_ = &interrupt;
+      k_.Register(interrupt);
+    }
+
+    void Dispatch(
+        Action action,
+        std::optional<std::exception_ptr>&& exception = std::nullopt) {
       std::apply(
           [&](auto&&... args) {
             dispatch_(
-                Action::Fail,
+                action,
                 std::move(exception),
                 std::forward<decltype(args)>(args)...,
                 e_,
@@ -212,39 +209,12 @@ struct _TaskWith {
           std::move(args_));
     }
 
-    void Stop() {
-      std::apply(
-          [&](auto&&... args) {
-            dispatch_(
-                Action::Stop,
-                std::nullopt,
-                std::forward<decltype(args)>(args)...,
-                e_,
-                *interrupt_,
-                [this](auto&&... args) {
-                  k_.Start(std::forward<decltype(args)>(args)...);
-                },
-                [this](std::exception_ptr e) {
-                  k_.Fail(std::move(e));
-                },
-                [this]() {
-                  k_.Stop();
-                });
-          },
-          std::move(args_));
-    }
-
-    void Register(Interrupt& interrupt) {
-      interrupt_ = &interrupt;
-      k_.Register(interrupt);
-    }
-
     K_ k_;
     std::tuple<Args_...> args_;
 
     Callback<
         Action,
-        std::optional<std::exception_ptr>,
+        std::optional<std::exception_ptr>&&,
         Args_&&...,
         std::unique_ptr<void, Callback<void*>>&,
         Interrupt&,
@@ -294,7 +264,7 @@ struct _TaskWith {
 
       dispatch_ = [f = std::move(f)](
                       Action action,
-                      std::optional<std::exception_ptr> exception,
+                      std::optional<std::exception_ptr>&& exception,
                       Args_&&... args,
                       std::unique_ptr<void, Callback<void*>>& e_,
                       Interrupt& interrupt,
@@ -353,7 +323,7 @@ struct _TaskWith {
 
     Callback<
         Action,
-        std::optional<std::exception_ptr>,
+        std::optional<std::exception_ptr>&&,
         Args_&&...,
         std::unique_ptr<void, Callback<void*>>&,
         Interrupt&,

@@ -224,31 +224,7 @@ struct _GeneratorWith {
     // use Action enum state.
     template <typename... Args>
     void Start(Args&&...) {
-      std::apply(
-          [&](auto&&... args) {
-            dispatch_(
-                Action::Start,
-                std::nullopt,
-                std::forward<decltype(args)>(args)...,
-                e_,
-                *interrupt_,
-                [this](TypeErasedStream& stream) {
-                  k_.Begin(stream);
-                },
-                [this](std::exception_ptr e) {
-                  k_.Fail(std::move(e));
-                },
-                [this]() {
-                  k_.Stop();
-                },
-                [this](auto&&... args) {
-                  k_.Body(std::forward<decltype(args)>(args)...);
-                },
-                [this]() {
-                  k_.Ended();
-                });
-          },
-          std::move(args_));
+      Dispatch(Action::Start);
     }
 
     template <typename... Args>
@@ -263,10 +239,33 @@ struct _GeneratorWith {
             std::runtime_error("empty error"));
       }
 
+      Dispatch(Action::Fail, std::move(exception));
+    }
+
+    void Stop() {
+      Dispatch(Action::Stop);
+    }
+
+    void Next() override {
+      Dispatch(Action::Next);
+    }
+
+    void Done() override {
+      Dispatch(Action::Done);
+    }
+
+    void Register(Interrupt& interrupt) {
+      interrupt_ = &interrupt;
+      k_.Register(interrupt);
+    }
+
+    void Dispatch(
+        Action action,
+        std::optional<std::exception_ptr>&& exception = std::nullopt) {
       std::apply(
           [&](auto&&... args) {
             dispatch_(
-                Action::Fail,
+                action,
                 std::move(exception),
                 std::forward<decltype(args)>(args)...,
                 e_,
@@ -288,95 +287,6 @@ struct _GeneratorWith {
                 });
           },
           std::move(args_));
-    }
-
-    void Stop() {
-      std::apply(
-          [&](auto&&... args) {
-            dispatch_(
-                Action::Stop,
-                std::nullopt,
-                std::forward<decltype(args)>(args)...,
-                e_,
-                *interrupt_,
-                [this](TypeErasedStream& stream) {
-                  k_.Begin(stream);
-                },
-                [this](std::exception_ptr e) {
-                  k_.Fail(std::move(e));
-                },
-                [this]() {
-                  k_.Stop();
-                },
-                [this](auto&&... args) {
-                  k_.Body(std::forward<decltype(args)>(args)...);
-                },
-                [this]() {
-                  k_.Ended();
-                });
-          },
-          std::move(args_));
-    }
-
-    void Next() override {
-      std::apply(
-          [&](auto&&... args) {
-            dispatch_(
-                Action::Next,
-                std::nullopt,
-                std::forward<decltype(args)>(args)...,
-                e_,
-                *interrupt_,
-                [this](TypeErasedStream& stream) {
-                  k_.Begin(stream);
-                },
-                [this](std::exception_ptr e) {
-                  k_.Fail(std::move(e));
-                },
-                [this]() {
-                  k_.Stop();
-                },
-                [this](auto&&... args) {
-                  k_.Body(std::forward<decltype(args)>(args)...);
-                },
-                [this]() {
-                  k_.Ended();
-                });
-          },
-          std::move(args_));
-    }
-
-    void Done() override {
-      std::apply(
-          [&](auto&&... args) {
-            dispatch_(
-                Action::Done,
-                std::nullopt,
-                std::forward<decltype(args)>(args)...,
-                e_,
-                *interrupt_,
-                [this](TypeErasedStream& stream) {
-                  k_.Begin(stream);
-                },
-                [this](std::exception_ptr e) {
-                  k_.Fail(std::move(e));
-                },
-                [this]() {
-                  k_.Stop();
-                },
-                [this](auto&&... args) {
-                  k_.Body(std::forward<decltype(args)>(args)...);
-                },
-                [this]() {
-                  k_.Ended();
-                });
-          },
-          std::move(args_));
-    }
-
-    void Register(Interrupt& interrupt) {
-      interrupt_ = &interrupt;
-      k_.Register(interrupt);
     }
 
     K_ k_;
