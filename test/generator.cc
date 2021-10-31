@@ -390,3 +390,19 @@ TEST(Generator, StreamForEach) {
 
   EXPECT_THAT(*e(), ElementsAre(0, 0, 1, 0, 1, 2));
 }
+
+TEST(Generator, ConstRef) {
+  std::vector<int> v = {1, 2, 3};
+  auto stream = [&]() -> Generator<const int&> {
+    return [&]() {
+      return Iterate(v);
+    };
+  };
+
+  auto e = [&]() {
+    return stream()
+        | Collect<std::vector<int>>();
+  };
+
+  EXPECT_THAT(*e(), ElementsAre(1, 2, 3));
+}

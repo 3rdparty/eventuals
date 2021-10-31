@@ -17,9 +17,14 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E_>
+template <typename E_, typename Value_>
 struct HeapGenerator {
-  using Value_ = typename E_::template ValueFrom<void>;
+  // NOTE: we take 'Value_' as a template argument rather than
+  // computing it from 'E_' because that's the type that we should
+  // expect for our callbacks. We make sure when we construct a
+  // 'Generator' that 'E_::ValueFrom<void>' is convertible to 'Value_'
+  // so we know that what ever 'E_' actually produces we can pass it
+  // along to the callbacks.
 
   template <typename Arg_>
   struct Adaptor {
@@ -360,13 +365,13 @@ struct _GeneratorWith {
                       Callback<>&& ended) {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void*>>(
-              new HeapGenerator<E>(f(std::move(args)...)),
+              new HeapGenerator<E, Value_>(f(std::move(args)...)),
               [](void* e) {
-                delete static_cast<detail::HeapGenerator<E>*>(e);
+                delete static_cast<detail::HeapGenerator<E, Value_>*>(e);
               });
         }
 
-        auto* e = static_cast<HeapGenerator<E>*>(e_.get());
+        auto* e = static_cast<HeapGenerator<E, Value_>*>(e_.get());
 
         switch (action) {
           case Action::Start:

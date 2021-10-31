@@ -281,3 +281,13 @@ TEST(TaskTest, Stop) {
 
   EXPECT_TRUE(stopped);
 }
+
+TEST(TaskTest, ConstRef) {
+  auto e = []() -> Task<const int&> {
+    return []() {
+      return Just(42);
+    };
+  };
+
+  EXPECT_EQ(42, *e());
+}
