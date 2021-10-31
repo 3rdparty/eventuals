@@ -93,8 +93,8 @@ struct HeapGenerator {
       Callback<>&& stop,
       std::conditional_t<
           std::is_void_v<Value_>,
-          Callback<>,
-          Callback<Value_>>&& body,
+          Callback<>&&,
+          Callback<Value_>&&> body,
       Callback<> ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
@@ -117,8 +117,8 @@ struct HeapGenerator {
       Callback<>&& stop,
       std::conditional_t<
           std::is_void_v<Value_>,
-          Callback<>,
-          Callback<Value_>>&& body,
+          Callback<>&&,
+          Callback<Value_>&&> body,
       Callback<> ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
@@ -149,8 +149,8 @@ struct HeapGenerator {
       Callback<>&& stop,
       std::conditional_t<
           std::is_void_v<Value_>,
-          Callback<>,
-          Callback<Value_>>&& body,
+          Callback<>&&,
+          Callback<Value_>&&> body,
       Callback<> ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
@@ -211,8 +211,8 @@ struct _GeneratorWith {
             Callback<>&&,
             std::conditional_t<
                 std::is_void_v<Value_>,
-                Callback<>,
-                Callback<Value_>>&&,
+                Callback<>&&,
+                Callback<Value_>&&>,
             Callback<>&&>&& dispatch)
       : k_(std::move(k)),
         args_(std::move(args)),
@@ -303,8 +303,8 @@ struct _GeneratorWith {
         Callback<>&&,
         std::conditional_t<
             std::is_void_v<Value_>,
-            Callback<>,
-            Callback<Value_>>&&,
+            Callback<>&&,
+            Callback<Value_>&&>,
         Callback<>&&>
         dispatch_;
 
@@ -355,8 +355,8 @@ struct _GeneratorWith {
                       Callback<>&& stop,
                       std::conditional_t<
                           std::is_void_v<Value_>,
-                          Callback<>,
-                          Callback<Value_>>&& body,
+                          Callback<>&&,
+                          Callback<Value_>&&> body,
                       Callback<>&& ended) {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void*>>(
@@ -428,8 +428,8 @@ struct _GeneratorWith {
         Callback<>&&,
         std::conditional_t<
             std::is_void_v<Value_>,
-            Callback<>,
-            Callback<Value_>>&&,
+            Callback<>&&,
+            Callback<Value_>&&>,
         Callback<>&&>
         dispatch_;
 

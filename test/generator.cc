@@ -36,15 +36,10 @@ using eventuals::Terminate;
 using testing::ElementsAre;
 using testing::MockFunction;
 
-// NOTE: We can't use std::initializer_list at
-// Generator's lamda, because lambda captures this
-// list as class member, so we can't store it at Callback.
-
 TEST(Generator, Succeed) {
   auto stream = []() -> Generator<int> {
     return []() {
-      std::vector<int> v = {1, 2, 3};
-      return Iterate(std::move(v));
+      return Iterate({1, 2, 3});
     };
   };
 
@@ -315,8 +310,7 @@ TEST(Generator, StopStream) {
 TEST(Generator, TaskWithGenerator) {
   auto stream = []() -> Generator<int> {
     return []() {
-      std::vector<int> v = {1, 2, 3};
-      return Iterate(std::move(v));
+      return Iterate({1, 2, 3});
     };
   };
 
@@ -382,8 +376,7 @@ TEST(Generator, Void) {
 TEST(Generator, StreamForEach) {
   auto stream = []() -> Generator<int> {
     return []() {
-      std::vector<int> v = {1, 2, 3};
-      return Iterate(std::move(v))
+      return Iterate({1, 2, 3})
           | StreamForEach([](int i) {
                return Range(0, i);
              });
