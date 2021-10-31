@@ -689,6 +689,8 @@ auto UnaryPrologue(ServerCall<Request, Response>& call) {
       | Head(); // Only get the first request.
 }
 
+////////////////////////////////////////////////////////////////////////
+
 // Helper that does the writing and finishing for a unary call as well
 // as catching failures and handling appropriately.
 template <typename Request, typename Response>
@@ -709,6 +711,7 @@ auto UnaryEpilogue(ServerCall<Request, Response>& call) {
          });
 }
 
+////////////////////////////////////////////////////////////////////////
 
 // Helper that does the writing and finishing for a server streaming
 // call as well as catching failures and handling appropriately.
