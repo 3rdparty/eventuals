@@ -75,11 +75,11 @@ void test_client_behavior(Handler handler) {
         | Head()
         | Then(Let([](auto& call) {
              return call.Reader().Read()
-                 | Map(Then([&](auto&& request) {
+                 | Map([&](auto&& request) {
                       keyvaluestore::Response response;
                       response.set_value(request.key());
                       return call.Writer().Write(response);
-                    }))
+                    })
                  | Loop()
                  | Closure([]() {
                       std::vector<keyvaluestore::Response> responses;

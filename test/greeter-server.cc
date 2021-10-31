@@ -73,9 +73,9 @@ TEST_F(EventualsGrpcTest, Greeter) {
              request.set_name("emily");
              return call.Writer().WriteLast(request)
                  | call.Reader().Read()
-                 | Map(Then([](auto&& response) {
+                 | Map([](auto&& response) {
                       EXPECT_EQ("Hello emily", response.message());
-                    }))
+                    })
                  | Loop()
                  | call.Finish();
            }));

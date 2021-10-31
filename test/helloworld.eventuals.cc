@@ -36,7 +36,7 @@ Task<void> Greeter::TypeErasedService::Serve() {
                        helloworld::HelloRequest,
                        helloworld::HelloReply>("SayHello")
                | Concurrent([this]() {
-                   return Map(Then(Let([this](auto& call) {
+                   return Map(Let([this](auto& call) {
                      return UnaryPrologue(call)
                          | Then(Let([&](auto& request) {
                               return Then(
@@ -54,7 +54,7 @@ Task<void> Greeter::TypeErasedService::Serve() {
                                   });
                             }))
                          | UnaryEpilogue(call);
-                   })));
+                   }));
                  })
                | Loop())
         | Just(); // Return 'void'.

@@ -13,7 +13,6 @@
 #include "eventuals/head.h"
 #include "eventuals/iterate.h"
 #include "eventuals/just.h"
-#include "eventuals/lambda.h"
 #include "eventuals/lock.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
@@ -391,31 +390,31 @@ class Endpoint : public Synchronizable {
 
   // NOTE: returns a stream rather than a single eventual context.
   auto Dequeue() {
-    return Repeat(
-               Synchronized(
-                   Wait([this](auto notify) {
-                     notify_ = std::move(notify);
-                     return [this]() {
-                       return contexts_.empty() && !shutdown_;
-                     };
-                   })
-                   | Then([this]() {
-                       if (!shutdown_) {
-                         CHECK(!contexts_.empty());
-                         auto context = std::move(contexts_.front());
-                         contexts_.pop_front();
-                         return std::make_optional(std::move(context));
-                       } else {
-                         return std::optional<std::unique_ptr<ServerContext>>();
-                       }
-                     })))
+    return Repeat()
+        | Synchronized(
+               Wait([this](auto notify) {
+                 notify_ = std::move(notify);
+                 return [this]() {
+                   return contexts_.empty() && !shutdown_;
+                 };
+               })
+               | Map([this]() {
+                   if (!shutdown_) {
+                     CHECK(!contexts_.empty());
+                     auto context = std::move(contexts_.front());
+                     contexts_.pop_front();
+                     return std::make_optional(std::move(context));
+                   } else {
+                     return std::optional<std::unique_ptr<ServerContext>>();
+                   }
+                 }))
         | Until([](auto& context) {
              return !context.has_value();
            })
-        | Map(Then([](auto&& context) {
+        | Map([](auto&& context) {
              CHECK(context);
              return std::move(*context);
-           }));
+           });
   }
 
   auto Shutdown() {
@@ -622,10 +621,10 @@ inline auto Server::Insert(std::unique_ptr<Endpoint>&& endpoint) {
 inline auto Server::ShutdownEndpoints() {
   return Synchronized(Then([this]() {
     return Iterate(endpoints_)
-        | Map(Then([](auto& entry) {
+        | Map([](auto& entry) {
              auto& [_, endpoint] = entry;
              return endpoint->Shutdown();
-           }))
+           })
         | Loop();
   }));
 }
@@ -671,9 +670,9 @@ auto Server::Accept(std::string name, std::string host) {
   // 'Insert()' fails so we won't be using a dangling pointer.
   auto Dequeue = [endpoint = endpoint.get()]() {
     return endpoint->Dequeue()
-        | Map(Then([](auto&& context) {
+        | Map([](auto&& context) {
              return ServerCall<Request, Response>(std::move(context));
-           }));
+           });
   };
 
   return Validate<Request, Response>(name)
@@ -715,9 +714,9 @@ auto UnaryEpilogue(ServerCall<Request, Response>& call) {
 // call as well as catching failures and handling appropriately.
 template <typename Request, typename Response>
 auto StreamingEpilogue(ServerCall<Request, Response>& call) {
-  return Map(Then([&](auto&& response) {
+  return Map([&](auto&& response) {
            return call.Writer().Write(response);
-         }))
+         })
       | Loop()
       | Just(::grpc::Status::OK)
       | Catch([&](auto&&...) {

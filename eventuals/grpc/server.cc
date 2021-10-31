@@ -147,24 +147,22 @@ Server::Server(
         [this](auto* cq) {
           return Closure(
               [this, cq, context = std::unique_ptr<ServerContext>()]() mutable {
-                return Repeat(
-                           Then([&]() mutable {
-                             context = std::make_unique<ServerContext>();
-                             return RequestCall(context.get(), cq);
-                           })
-                           | Then([&]() {
-                               return Lookup(context.get());
-                             })
-                           | Conditional(
-                               [](auto* endpoint) {
-                                 return endpoint != nullptr;
-                               },
-                               [&](auto* endpoint) {
-                                 return endpoint->Enqueue(std::move(context));
-                               },
-                               [&](auto*) {
-                                 return Unimplemented(context.release());
-                               }))
+                return Repeat([&]() mutable {
+                         context = std::make_unique<ServerContext>();
+                         return RequestCall(context.get(), cq)
+                             | Lookup(context.get())
+                             | Conditional(
+                                    [](auto* endpoint) {
+                                      return endpoint != nullptr;
+                                    },
+                                    [&](auto* endpoint) {
+                                      return endpoint->Enqueue(
+                                          std::move(context));
+                                    },
+                                    [&](auto*) {
+                                      return Unimplemented(context.release());
+                                    });
+                       })
                     | Loop()
                     | Catch([this](auto&&...) {
                          // TODO(benh): refactor so we only call
