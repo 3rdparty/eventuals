@@ -24,7 +24,6 @@ cc_library(
         "eventuals/interrupt.h",
         "eventuals/iterate.h",
         "eventuals/just.h",
-        "eventuals/lambda.h",
         "eventuals/let.h",
         "eventuals/lock.h",
         "eventuals/loop.h",

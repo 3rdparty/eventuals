@@ -3,7 +3,6 @@
 #include "event-loop-test.h"
 #include "eventuals/eventual.h"
 #include "eventuals/interrupt.h"
-#include "eventuals/lambda.h"
 #include "eventuals/terminal.h"
 #include "gtest/gtest.h"
 
