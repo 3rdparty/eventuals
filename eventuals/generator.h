@@ -195,8 +195,6 @@ struct _GeneratorWith {
     Done = 4,
   };
 
-  using exception = std::optional<std::exception_ptr>;
-
   template <typename K_, typename Value_, typename... Args_>
   struct Continuation : public TypeErasedStream {
     Continuation(
@@ -204,7 +202,7 @@ struct _GeneratorWith {
         std::tuple<Args_...>&& args,
         Callback<
             Action,
-            exception,
+            std::optional<std::exception_ptr>&&,
             Args_&&...,
             std::unique_ptr<void, Callback<void*>>&,
             Interrupt&,
@@ -386,7 +384,7 @@ struct _GeneratorWith {
 
     Callback<
         Action,
-        exception,
+        std::optional<std::exception_ptr>&&,
         Args_&&...,
         std::unique_ptr<void, Callback<void*>>&,
         Interrupt&,
@@ -438,7 +436,7 @@ struct _GeneratorWith {
 
       dispatch_ = [f = std::move(f)](
                       Action action,
-                      exception fail_exception,
+                      std::optional<std::exception_ptr>&& exception,
                       Args_&&... args,
                       std::unique_ptr<void, Callback<void*>>& e_,
                       Interrupt& interrupt,
@@ -473,7 +471,7 @@ struct _GeneratorWith {
           case Action::Fail:
             e->Fail(
                 interrupt,
-                std::move(fail_exception.value()),
+                std::move(exception.value()),
                 std::move(begin),
                 std::move(fail),
                 std::move(stop),
@@ -511,7 +509,7 @@ struct _GeneratorWith {
 
     Callback<
         Action,
-        exception,
+        std::optional<std::exception_ptr>&&,
         Args_&&...,
         std::unique_ptr<void, Callback<void*>>&,
         Interrupt&,
