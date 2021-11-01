@@ -30,52 +30,29 @@ TEST(DoAllTest, Succeed) {
   EXPECT_EQ(
       std::tuple_size_v<T>,
       3);
-  EXPECT_EQ(
-      std::get<0>(result).valueless_by_exception(),
-      false);
-  EXPECT_EQ(
-      std::get<1>(result).valueless_by_exception(),
-      false);
-  EXPECT_EQ(
-      std::get<2>(result).valueless_by_exception(),
-      false);
 
-  using T1 = decltype(std::get<0>(std::get<0>(result)));
-  using T2 = decltype(std::get<0>(std::get<1>(result)));
-  using T3 = decltype(std::get<0>(std::get<2>(result)));
+  using T0 = decltype(std::get<0>(result));
+  using T1 = decltype(std::get<1>(result));
+  using T2 = decltype(std::get<2>(result));
 
-  EXPECT_EQ((std::is_same_v<T1, int&>), true);
-  EXPECT_EQ((std::is_same_v<T2, std::string&>), true);
-  EXPECT_EQ((std::is_same_v<T3, std::monostate&>), true);
-  EXPECT_EQ(
-      (std::make_tuple(
-          std::variant<int, std::exception_ptr>(42),
-          std::variant<std::string, std::exception_ptr>("hello"),
-          std::variant<std::monostate, std::exception_ptr>())),
-      result);
+  static_assert(std::is_same_v<T0, int&>);
+  static_assert(std::is_same_v<T1, std::string&>);
+  static_assert(std::is_same_v<T2, std::monostate&>);
+
+  EXPECT_EQ(std::make_tuple(42, "hello", std::monostate{}), result);
 }
 
 
 TEST(DoAllTest, Fail) {
   auto e = []() {
-    return DoAll(Eventual<void>([](auto& k) { k.Fail("error"); }));
+    return DoAll(
+        Eventual<void>([](auto& k) { k.Fail("error"); }),
+        Eventual<int>([](auto& k) { k.Start(42); }),
+        Eventual<std::string>([](auto& k) { k.Start(std::string("hello")); }),
+        Eventual<void>([](auto& k) { k.Start(); }));
   };
 
-  auto result = *e();
-
-  using T1 = decltype(result);
-  using T2 = std::tuple<std::variant<
-      std::monostate,
-      std::exception_ptr>>;
-
-  EXPECT_EQ(
-      (std::tuple_size_v<std::decay_t<decltype(result)>>),
-      1);
-  EXPECT_EQ((std::is_same_v<T1, T2>), true);
-  EXPECT_EQ(
-      (std::holds_alternative<std::exception_ptr>(
-          std::get<0>(result))),
-      true);
+  EXPECT_THROW(*e(), std::exception_ptr);
 }
 
 
@@ -89,13 +66,11 @@ TEST(DoAllTest, Interrupt) {
       .Times(0);
 
   auto e = [&start, &fail]() {
-    return DoAll(Eventual<void>()
+    return DoAll(Eventual<int>()
                      .interruptible()
                      .start([&start](auto& k, Interrupt::Handler& handler) {
-                       handler.Install([&k]() {
-                         k.Stop();
-                       });
                        start.Call();
+                       k.Stop();
                      })
                      .fail([&fail](auto& k) {
                        fail.Call();
@@ -110,25 +85,7 @@ TEST(DoAllTest, Interrupt) {
 
   k.Start();
 
-  EXPECT_EQ(
-      std::future_status::timeout,
-      future.wait_for(std::chrono::seconds(0)));
-
   interrupt.Trigger();
 
-  auto result = future.get();
-
-  using T1 = decltype(result);
-  using T2 = std::tuple<std::variant<
-      std::monostate,
-      std::exception_ptr>>;
-
-  EXPECT_EQ(
-      (std::tuple_size_v<std::decay_t<decltype(result)>>),
-      1);
-  EXPECT_EQ((std::is_same_v<T1, T2>), true);
-  EXPECT_EQ(
-      (std::holds_alternative<std::exception_ptr>(
-          std::get<0>(result))),
-      true);
+  EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
