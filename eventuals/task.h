@@ -3,6 +3,7 @@
 #include <memory> // For 'std::unique_ptr'.
 #include <optional>
 #include <tuple>
+#include <variant> // For 'std::monostate'.
 
 #include "eventuals/eventual.h"
 #include "eventuals/terminal.h"
@@ -17,22 +18,14 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E_, typename Value_>
+template <typename E_, typename From_, typename To_>
 struct HeapTask {
-  // NOTE: we take 'Value_' as a template argument rather than
-  // computing it from 'E_' because that's the type that we should
-  // expect for our callbacks. We make sure when we construct a 'Task'
-  // that 'E_::ValueFrom<void>' is convertible to 'Value_' so we know
-  // that what ever 'E_' actually produces we can pass it along to the
-  // callbacks.
-
-  template <typename Arg_>
   struct Adaptor {
     Adaptor(
         std::conditional_t<
-            std::is_void_v<Value_>,
+            std::is_void_v<To_>,
             Callback<>,
-            Callback<Value_>>* start,
+            Callback<To_>>* start,
         Callback<std::exception_ptr>* fail,
         Callback<>* stop)
       : start_(start),
@@ -63,24 +56,28 @@ struct HeapTask {
     void Register(Interrupt&) {}
 
     std::conditional_t<
-        std::is_void_v<Value_>,
+        std::is_void_v<To_>,
         Callback<>,
-        Callback<Value_>>* start_;
+        Callback<To_>>* start_;
     Callback<std::exception_ptr>* fail_;
     Callback<>* stop_;
   };
 
   HeapTask(E_ e)
     : adapted_(
-        std::move(e).template k<void>(
-            Adaptor<Value_>{&start_, &fail_, &stop_})) {}
+        std::move(e).template k<From_>(
+            Adaptor{&start_, &fail_, &stop_})) {}
 
   void Start(
+      std::conditional_t<
+          std::is_void_v<From_>,
+          std::monostate,
+          From_>&& arg,
       Interrupt& interrupt,
       std::conditional_t<
-          std::is_void_v<Value_>,
+          std::is_void_v<To_>,
           Callback<>,
-          Callback<Value_>>&& start,
+          Callback<To_>>&& start,
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop) {
     start_ = std::move(start);
@@ -91,16 +88,21 @@ struct HeapTask {
     // 'Register()' more than once is well-defined.
     adapted_.Register(interrupt);
 
-    adapted_.Start();
+    if constexpr (std::is_void_v<From_>) {
+      adapted_.Start();
+    } else {
+      CHECK(arg);
+      adapted_.Start(std::move(arg));
+    }
   }
 
   void Fail(
       Interrupt& interrupt,
       std::exception_ptr&& exception,
       std::conditional_t<
-          std::is_void_v<Value_>,
+          std::is_void_v<To_>,
           Callback<>,
-          Callback<Value_>>&& start,
+          Callback<To_>>&& start,
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop) {
     start_ = std::move(start);
@@ -117,9 +119,9 @@ struct HeapTask {
   void Stop(
       Interrupt& interrupt,
       std::conditional_t<
-          std::is_void_v<Value_>,
+          std::is_void_v<To_>,
           Callback<>,
-          Callback<Value_>>&& start,
+          Callback<To_>>&& start,
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop) {
     start_ = std::move(start);
@@ -134,15 +136,15 @@ struct HeapTask {
   }
 
   std::conditional_t<
-      std::is_void_v<Value_>,
+      std::is_void_v<To_>,
       Callback<>,
-      Callback<Value_>>
+      Callback<To_>>
       start_;
   Callback<std::exception_ptr> fail_;
   Callback<> stop_;
 
-  using Adapted_ = decltype(std::declval<E_>().template k<void>(
-      std::declval<Adaptor<Value_>>()));
+  using Adapted_ = decltype(std::declval<E_>().template k<From_>(
+      std::declval<Adaptor>()));
 
   Adapted_ adapted_;
 };
@@ -159,11 +161,18 @@ struct _TaskWith {
     Fail = 2,
   };
 
-  template <typename K_, typename Value_, typename... Args_>
+  template <typename K_, typename From_, typename To_, typename... Args_>
   struct Continuation {
-    template <typename... Args>
-    void Start(Args&&...) {
-      Dispatch(Action::Start);
+    template <typename... From>
+    void Start(From&&... from) {
+      if constexpr (std::is_void_v<From_>) {
+        Dispatch(Action::Start, std::monostate{});
+      } else {
+        static_assert(
+            sizeof...(from) > 0,
+            "Expecting \"from\" argument for 'Task<From, To>' but no argument passed");
+        Dispatch(Action::Start, std::forward<From>(from)...);
+      }
     }
 
     template <typename... Args>
@@ -178,7 +187,7 @@ struct _TaskWith {
             std::runtime_error("empty error"));
       }
 
-      Dispatch(Action::Fail, std::move(exception));
+      Dispatch(Action::Fail, std::nullopt, std::move(exception));
     }
 
     void Stop() {
@@ -192,6 +201,11 @@ struct _TaskWith {
 
     void Dispatch(
         Action action,
+        std::optional<
+            std::conditional_t<
+                std::is_void_v<From_>,
+                std::monostate,
+                From_>>&& from = std::nullopt,
         std::optional<std::exception_ptr>&& exception = std::nullopt) {
       std::apply(
           [&](auto&&... args) {
@@ -199,6 +213,7 @@ struct _TaskWith {
                 action,
                 std::move(exception),
                 std::forward<decltype(args)>(args)...,
+                std::forward<decltype(from)>(from),
                 e_,
                 *interrupt_,
                 [this](auto&&... args) {
@@ -221,12 +236,17 @@ struct _TaskWith {
         Action,
         std::optional<std::exception_ptr>&&,
         Args_&&...,
+        std::optional<
+            std::conditional_t<
+                std::is_void_v<From_>,
+                std::monostate,
+                From_>>&&,
         std::unique_ptr<void, Callback<void*>>&,
         Interrupt&,
         std::conditional_t<
-            std::is_void_v<Value_>,
+            std::is_void_v<To_>,
             Callback<>&&,
-            Callback<Value_>&&>,
+            Callback<To_>&&>,
         Callback<std::exception_ptr>&&,
         Callback<>&&>
         dispatch_;
@@ -235,10 +255,10 @@ struct _TaskWith {
     Interrupt* interrupt_ = nullptr;
   };
 
-  template <typename Value_, typename... Args_>
+  template <typename From_, typename To_, typename... Args_>
   struct Composable {
     template <typename>
-    using ValueFrom = Value_;
+    using ValueFrom = To_;
 
     template <typename F>
     Composable(Args_... args, F f)
@@ -261,37 +281,43 @@ struct _TaskWith {
 
       using E = decltype(std::apply(f, args_));
 
-      using Value = typename E::template ValueFrom<void>;
+      using Value = typename E::template ValueFrom<From_>;
 
       static_assert(
-          std::is_convertible_v<Value, Value_>,
+          std::is_convertible_v<Value, To_>,
           "eventual result type can not be converted into type of 'Task'");
 
       dispatch_ = [f = std::move(f)](
                       Action action,
                       std::optional<std::exception_ptr>&& exception,
                       Args_&&... args,
+                      std::optional<
+                          std::conditional_t<
+                              std::is_void_v<From_>,
+                              std::monostate,
+                              From_>>&& arg,
                       std::unique_ptr<void, Callback<void*>>& e_,
                       Interrupt& interrupt,
                       std::conditional_t<
-                          std::is_void_v<Value_>,
+                          std::is_void_v<To_>,
                           Callback<>&&,
-                          Callback<Value_>&&> start,
+                          Callback<To_>&&> start,
                       Callback<std::exception_ptr>&& fail,
                       Callback<>&& stop) {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void*>>(
-              new HeapTask<E, Value_>(f(std::move(args)...)),
+              new HeapTask<E, From_, To_>(f(std::move(args)...)),
               [](void* e) {
-                delete static_cast<detail::HeapTask<E, Value_>*>(e);
+                delete static_cast<detail::HeapTask<E, From_, To_>*>(e);
               });
         }
 
-        auto* e = static_cast<HeapTask<E, Value_>*>(e_.get());
+        auto* e = static_cast<HeapTask<E, From_, To_>*>(e_.get());
 
         switch (action) {
           case Action::Start:
             e->Start(
+                std::move(arg.value()),
                 interrupt,
                 std::move(start),
                 std::move(fail),
@@ -320,7 +346,7 @@ struct _TaskWith {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Value_, Args_...>{
+      return Continuation<K, From_, To_, Args_...>{
           std::move(k),
           std::move(args_),
           std::move(dispatch_)};
@@ -330,12 +356,18 @@ struct _TaskWith {
         Action,
         std::optional<std::exception_ptr>&&,
         Args_&&...,
+        // Can't have a 'void' argument type so we are using 'std::monostate'.
+        std::optional<
+            std::conditional_t<
+                std::is_void_v<From_>,
+                std::monostate,
+                From_>>&&,
         std::unique_ptr<void, Callback<void*>>&,
         Interrupt&,
         std::conditional_t<
-            std::is_void_v<Value_>,
+            std::is_void_v<To_>,
             Callback<>&&,
-            Callback<Value_>&&>,
+            Callback<To_>&&>,
         Callback<std::exception_ptr>&&,
         Callback<>&&>
         dispatch_;
@@ -352,11 +384,11 @@ struct _TaskWith {
 // A task can act BOTH as a composable or a continuation that can be
 // started via 'TaskWith::Start()'. If used as a continuation then it
 // can't be moved after starting, just like all other continuations.
-template <typename Value_, typename... Args_>
+template <typename From_, typename To_, typename... Args_>
 class TaskWith {
  public:
   template <typename Arg>
-  using ValueFrom = Value_;
+  using ValueFrom = To_;
 
   template <typename F>
   TaskWith(Args_... args, F f)
@@ -375,9 +407,9 @@ class TaskWith {
   void Start(
       Interrupt& interrupt,
       std::conditional_t<
-          std::is_void_v<Value_>,
+          std::is_void_v<To_>,
           Callback<>&&,
-          Callback<Value_>&&> start,
+          Callback<To_>&&> start,
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop) {
     k_.emplace(Build(
@@ -397,9 +429,9 @@ class TaskWith {
       Arg&& arg,
       Interrupt& interrupt,
       std::conditional_t<
-          std::is_void_v<Value_>,
+          std::is_void_v<To_>,
           Callback<>&&,
-          Callback<Value_>&&> start,
+          Callback<To_>&&> start,
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop) {
     k_.emplace(Build(
@@ -417,9 +449,9 @@ class TaskWith {
   void Stop(
       Interrupt& interrupt,
       std::conditional_t<
-          std::is_void_v<Value_>,
+          std::is_void_v<To_>,
           Callback<>&&,
-          Callback<Value_>&&> start,
+          Callback<To_>&&> start,
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop) {
     k_.emplace(Build(
@@ -444,7 +476,7 @@ class TaskWith {
   }
 
  private:
-  detail::_TaskWith::Composable<Value_, Args_...> e_;
+  detail::_TaskWith::Composable<From_, To_, Args_...> e_;
 
   // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
   // a composable but also a continuation which has a terminal made up
@@ -454,9 +486,9 @@ class TaskWith {
       | Terminal()
             .start(std::declval<
                    std::conditional_t<
-                       std::is_void_v<Value_>,
+                       std::is_void_v<To_>,
                        Callback<>&&,
-                       Callback<Value_>&&>>())
+                       Callback<To_>&&>>())
             .fail(std::declval<Callback<std::exception_ptr>&&>())
             .stop(std::declval<Callback<>&&>())));
 
@@ -465,15 +497,29 @@ class TaskWith {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Value_>
-class Task : public TaskWith<Value_> {
+template <typename...>
+class Task;
+
+template <typename To_>
+class Task<To_> : public TaskWith<void, To_> {
  public:
   template <typename... Args_>
-  using With = TaskWith<Value_, Args_...>;
+  using With = TaskWith<void, To_, Args_...>;
 
   template <typename F>
   Task(F f)
-    : TaskWith<Value_>(std::move(f)) {}
+    : TaskWith<void, To_>(std::move(f)) {}
+};
+
+template <typename From_, typename To_>
+class Task<From_, To_> : public TaskWith<From_, To_> {
+ public:
+  template <typename... Args_>
+  using With = TaskWith<From_, To_, Args_...>;
+
+  template <typename F>
+  Task(F f)
+    : TaskWith<From_, To_>(std::move(f)) {}
 };
 
 ////////////////////////////////////////////////////////////////////////

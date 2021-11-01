@@ -1,5 +1,7 @@
 #include "eventuals/task.h"
 
+#include <string>
+
 #include "eventuals/eventual.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/just.h"
@@ -18,7 +20,7 @@ using eventuals::Then;
 
 using testing::MockFunction;
 
-TEST(TaskTest, Succeed) {
+TEST(Task, Succeed) {
   auto e1 = []() -> Task<int> {
     return [x = 42]() {
       return Just(x);
@@ -118,7 +120,7 @@ TEST(Task, FailOnCallback) {
   EXPECT_THROW(*e(), std::exception_ptr);
 }
 
-TEST(Task, Fail) {
+TEST(Task, FailTerminated) {
   MockFunction<void()> fail;
 
   EXPECT_CALL(fail, Call())
@@ -166,7 +168,7 @@ TEST(Task, StopOnCallback) {
   EXPECT_THROW(*e(), eventuals::StoppedException);
 }
 
-TEST(Task, Stop) {
+TEST(Task, StopTerminated) {
   MockFunction<void()> stop;
 
   EXPECT_CALL(stop, Call())
@@ -191,7 +193,7 @@ TEST(Task, Stop) {
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
 
-TEST(TaskTest, Start) {
+TEST(Task, Start) {
   auto e = []() -> Task<int> {
     return [x = 42]() {
       return Just(x);
@@ -221,7 +223,7 @@ TEST(TaskTest, Start) {
   EXPECT_EQ(42, result);
 }
 
-TEST(TaskTest, Fail) {
+TEST(Task, FailContinuation) {
   auto e = []() -> Task<int> {
     return [x = 42]() {
       return Just(x);
@@ -252,7 +254,7 @@ TEST(TaskTest, Fail) {
   EXPECT_THROW(std::rethrow_exception(result), const char*);
 }
 
-TEST(TaskTest, Stop) {
+TEST(Task, StopContinuation) {
   auto e = []() -> Task<int> {
     return [x = 42]() {
       return Just(x);
@@ -290,4 +292,78 @@ TEST(TaskTest, ConstRef) {
   };
 
   EXPECT_EQ(42, *e());
+}
+
+TEST(Tast, FromTo) {
+  auto task = []() {
+    return Task<int, std::string>::With<int>(
+        10,
+        [](auto x) {
+          return Then([x](auto&& value) {
+            value += x;
+            return std::to_string(value);
+          });
+        });
+  };
+
+  auto e = [&]() {
+    return Just(10)
+        | task()
+        | Then([](std::string&& s) {
+             s += "1";
+             return std::move(s);
+           });
+  };
+
+  EXPECT_EQ(*e(), "201");
+}
+
+TEST(Tast, FromToFail) {
+  auto task = []() -> Task<int, std::string> {
+    return []() {
+      return Then([](int&& x) {
+        return std::to_string(x);
+      });
+    };
+  };
+
+  auto e = [&]() {
+    return Eventual<int>()
+               .start([](auto& k) {
+                 k.Fail("error");
+               })
+        | Just(10)
+        | task()
+        | Then([](std::string&& s) {
+             s += "1";
+             return std::move(s);
+           });
+  };
+
+  EXPECT_THROW(*e(), std::exception_ptr);
+}
+
+TEST(Tast, FromToStop) {
+  auto task = []() -> Task<int, std::string> {
+    return []() {
+      return Then([](int&& x) {
+        return std::to_string(x);
+      });
+    };
+  };
+
+  auto e = [&]() {
+    return Eventual<int>()
+               .start([](auto& k) {
+                 k.Stop();
+               })
+        | Just(10)
+        | task()
+        | Then([](std::string&& s) {
+             s += "1";
+             return std::move(s);
+           });
+  };
+
+  EXPECT_THROW(*e(), eventuals::StoppedException);
 }
