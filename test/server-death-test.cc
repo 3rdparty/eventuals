@@ -80,6 +80,15 @@ TEST_F(EventualsGrpcTest, ServerDeathTest) {
     ASSERT_DEATH(server(), "");
   });
 
+  // NOTE: we detach the thread so that there isn't a race with the
+  // thread completing and attempting to run it's destructor which
+  // will call 'std::terminate()' if we haven't yet called
+  // 'join()'. We know it's safe to detach because the thread (which
+  // acts as the parent process for the server) can destruct itself
+  // whenever it wants because it doesn't depend on anything from the
+  // test which might have been destructed before it destructs.
+  thread.detach();
+
   int port = wait_for_port();
 
   Borrowable<CompletionPool> pool;
@@ -104,8 +113,6 @@ TEST_F(EventualsGrpcTest, ServerDeathTest) {
   auto status = *call();
 
   EXPECT_EQ(grpc::UNAVAILABLE, status.error_code());
-
-  thread.join();
 
   close(pipefds[0]);
   close(pipefds[1]);

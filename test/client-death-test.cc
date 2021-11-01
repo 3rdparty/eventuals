@@ -92,6 +92,15 @@ TEST_F(EventualsGrpcTest, ClientDeathTest) {
     ASSERT_DEATH(client(), "");
   });
 
+  // NOTE: we detach the thread so that there isn't a race with the
+  // thread completing and attempting to run it's destructor which
+  // will call 'std::terminate()' if we haven't yet called
+  // 'join()'. We know it's safe to detach because the thread (which
+  // acts as the parent process for the client) can destruct itself
+  // whenever it wants because it doesn't depend on anything from the
+  // test which might have been destructed before it destructs.
+  thread.detach();
+
   wait_for_fork();
 
   ServerBuilder builder;
@@ -126,8 +135,6 @@ TEST_F(EventualsGrpcTest, ClientDeathTest) {
   send_port(port);
 
   EXPECT_TRUE(cancelled.get());
-
-  thread.join();
 
   close(pipes.fork[0]);
   close(pipes.fork[1]);
