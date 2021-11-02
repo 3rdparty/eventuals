@@ -220,11 +220,15 @@ class EventLoop : public Scheduler {
         }
 
         ~Continuation() {
-          CHECK(!InEventLoop())
-              << "attempting to destruct a timer on the event loop "
-              << "is unsupported as it may lead to a deadlock";
-
           if (started_) {
+            // NOTE: we only check if we're 'InEventLoop()' after we've
+            // checked 'started_' because it's possible that 'this' _is_
+            // getting destructed inside the event loop if it was moved
+            // before being started.
+            CHECK(!InEventLoop())
+                << "attempting to destruct a timer on the event loop "
+                << "is unsupported as it may lead to a deadlock";
+
             // Wait until we can destruct the timer/handle.
             while (!closed_.load()) {}
           }
@@ -492,11 +496,15 @@ class EventLoop : public Scheduler {
       }
 
       ~Continuation() {
-        CHECK(!InEventLoop())
-            << "attempting to destruct a signal on the event loop "
-            << "is unsupported as it may lead to a deadlock";
-
         if (started_) {
+          // NOTE: we only check if we're 'InEventLoop()' after we've
+          // checked 'started_' because it's possible that 'this' _is_
+          // getting destructed inside the event loop if it was moved
+          // before being started.
+          CHECK(!InEventLoop())
+              << "attempting to destruct a signal on the event loop "
+              << "is unsupported as it may lead to a deadlock";
+
           // Wait until we can destruct the signal/handle.
           while (!closed_.load()) {}
         }

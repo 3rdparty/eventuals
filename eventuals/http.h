@@ -86,11 +86,15 @@ struct _HTTP {
     }
 
     ~Continuation() {
-      CHECK(!loop_.InEventLoop())
-          << "attempting to destruct on the event loop "
-          << "is unsupported as it may lead to a deadlock";
-
       if (started_) {
+        // NOTE: we only check if we're 'InEventLoop()' after we've
+        // checked 'started_' because it's possible that 'this' _is_
+        // getting destructed inside the event loop if it was moved
+        // before being started.
+        CHECK(!loop_.InEventLoop())
+            << "attempting to destruct on the event loop "
+            << "is unsupported as it may lead to a deadlock";
+
         // Wait until we can destruct.
         while (!closed_.load()) {}
       }

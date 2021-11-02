@@ -141,3 +141,23 @@ TEST_F(EventLoopTest, PauseClockInterruptTimer) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
+
+
+TEST_F(EventLoopTest, TimerAfterTimer) {
+  auto e = []() {
+    return Timer(std::chrono::milliseconds(5))
+        | Timer(std::chrono::milliseconds(5));
+  };
+
+  auto [future, k] = Terminate(e());
+
+  k.Start();
+
+  auto start = Clock().Now();
+  EventLoop::Default().Run();
+  auto end = Clock().Now();
+
+  EXPECT_LE(std::chrono::milliseconds(10), end - start);
+
+  future.get();
+}
