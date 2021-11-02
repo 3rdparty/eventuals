@@ -5,10 +5,10 @@
 #include "eventuals/callback.h"
 #include "eventuals/collect.h"
 #include "eventuals/eventual.h"
+#include "eventuals/flat-map.h"
 #include "eventuals/let.h"
 #include "eventuals/range.h"
 #include "eventuals/reduce.h"
-#include "eventuals/stream-for-each.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
@@ -18,6 +18,7 @@ using eventuals::Callback;
 using eventuals::Collect;
 using eventuals::Concurrent;
 using eventuals::Eventual;
+using eventuals::FlatMap;
 using eventuals::Interrupt;
 using eventuals::Iterate;
 using eventuals::Let;
@@ -26,7 +27,6 @@ using eventuals::Map;
 using eventuals::Range;
 using eventuals::Reduce;
 using eventuals::Stream;
-using eventuals::StreamForEach;
 using eventuals::Terminate;
 using eventuals::Then;
 
@@ -782,12 +782,12 @@ TEST(ConcurrentTest, DownstreamDoneOneEventualFail) {
   EXPECT_EQ("1", future.get());
 }
 
-// Tests that one can nest 'StreamForEach()' within a 'Concurrent()'.
-TEST(ConcurrentTest, StreamForEach) {
+// Tests that one can nest 'FlatMap()' within a 'Concurrent()'.
+TEST(ConcurrentTest, FlatMap) {
   auto e = []() {
     return Iterate({1, 2})
         | Concurrent([]() {
-             return StreamForEach([](int i) {
+             return FlatMap([](int i) {
                return Range(i);
              });
            })

@@ -7,12 +7,12 @@
 #include "eventuals/collect.h"
 #include "eventuals/context.h"
 #include "eventuals/eventual.h"
+#include "eventuals/flat-map.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/iterate.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
 #include "eventuals/range.h"
-#include "eventuals/stream-for-each.h"
 #include "eventuals/stream.h"
 #include "eventuals/task.h"
 #include "eventuals/terminal.h"
@@ -22,6 +22,7 @@
 using eventuals::Collect;
 using eventuals::Context;
 using eventuals::Eventual;
+using eventuals::FlatMap;
 using eventuals::Generator;
 using eventuals::Interrupt;
 using eventuals::Iterate;
@@ -29,7 +30,6 @@ using eventuals::Loop;
 using eventuals::Map;
 using eventuals::Range;
 using eventuals::Stream;
-using eventuals::StreamForEach;
 using eventuals::Task;
 using eventuals::Terminate;
 
@@ -373,11 +373,11 @@ TEST(Generator, Void) {
   *e();
 }
 
-TEST(Generator, StreamForEach) {
+TEST(Generator, FlatMap) {
   auto stream = []() -> Generator<int> {
     return []() {
       return Iterate({1, 2, 3})
-          | StreamForEach([](int i) {
+          | FlatMap([](int i) {
                return Range(0, i);
              });
     };

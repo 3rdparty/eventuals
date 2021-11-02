@@ -32,7 +32,7 @@ namespace eventuals {
 //
 // The eventual returned from calling 'f' should be a generator, i.e.,
 // it can compose with an "upstream" stream and itself is a stream
-// (for example, it should be a 'Map()' or 'StreamForEach()').
+// (for example, it should be a 'Map()' or 'FlatMap()').
 //
 // If one of the eventuals raises a failure or stops, then we attempt
 // to call "done" on the upstream stream, wait for all of the
@@ -454,7 +454,7 @@ struct _Concurrent {
     auto FiberEventual(TypeErasedFiber* fiber, Arg_&& arg) {
       // NOTE: 'f_()' should expect to be composed with a
       // stream hence the use of 'Iterate()'. It also might
-      // return a 'StreamForEach()' so we need to use 'Loop()'
+      // return a 'FlatMap()' so we need to use 'Loop()'
       // down below even though we know we only have a single
       // 'arg' to iterate from the top.
       return Iterate({std::move(arg)})

@@ -12,8 +12,8 @@ namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _StreamForEach {
-  template <typename StreamForEach_>
+struct _FlatMap {
+  template <typename FlatMap_>
   struct Adaptor {
     void Begin(detail::TypeErasedStream& stream) {
       CHECK(streamforeach_->adapted_.has_value());
@@ -45,10 +45,10 @@ struct _StreamForEach {
     }
 
     void Register(Interrupt&) {
-      // Already registered K once in 'StreamForEach::Body()'.
+      // Already registered K once in 'FlatMap::Body()'.
     }
 
-    StreamForEach_* streamforeach_;
+    FlatMap_* streamforeach_;
   };
 
   template <typename K_, typename F_, typename Arg_>
@@ -166,8 +166,8 @@ struct _StreamForEach {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
-auto StreamForEach(F f) {
-  return detail::_StreamForEach::Composable<F>{std::move(f)};
+auto FlatMap(F f) {
+  return detail::_FlatMap::Composable<F>{std::move(f)};
 }
 
 ////////////////////////////////////////////////////////////////////////

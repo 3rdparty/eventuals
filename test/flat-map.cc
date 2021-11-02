@@ -1,4 +1,4 @@
-#include "eventuals/stream-for-each.h"
+#include "eventuals/flat-map.h"
 
 #include <atomic>
 #include <chrono>
@@ -23,6 +23,7 @@
 
 using eventuals::Collect;
 using eventuals::EventLoop;
+using eventuals::FlatMap;
 using eventuals::Interrupt;
 using eventuals::Iterate;
 using eventuals::Just;
@@ -30,25 +31,24 @@ using eventuals::Let;
 using eventuals::Map;
 using eventuals::Range;
 using eventuals::Stream;
-using eventuals::StreamForEach;
 using eventuals::Timer;
 
 using testing::ElementsAre;
 
-TEST(StreamForEach, TwoLevelLoop) {
+TEST(FlatMap, TwoLevelLoop) {
   auto s = []() {
     return Range(2)
-        | StreamForEach([](int x) { return Range(2); })
+        | FlatMap([](int x) { return Range(2); })
         | Collect<std::vector<int>>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(0, 1, 0, 1));
 }
 
-TEST(StreamForEach, StreamForEachMapped) {
+TEST(FlatMap, FlatMapMapped) {
   auto s = []() {
     return Range(2)
-        | StreamForEach([](int x) { return Range(2); })
+        | FlatMap([](int x) { return Range(2); })
         | Map([](int x) { return x + 1; })
         | Collect<std::vector<int>>();
   };
@@ -56,10 +56,10 @@ TEST(StreamForEach, StreamForEachMapped) {
   EXPECT_THAT(*s(), ElementsAre(1, 2, 1, 2));
 }
 
-TEST(StreamForEach, StreamForEachIterate) {
+TEST(FlatMap, FlatMapIterate) {
   auto s = []() {
     return Range(2)
-        | StreamForEach([](int x) {
+        | FlatMap([](int x) {
              std::vector<int> v = {1, 2, 3};
              return Iterate(std::move(v));
            })
@@ -70,10 +70,10 @@ TEST(StreamForEach, StreamForEachIterate) {
   EXPECT_THAT(*s(), ElementsAre(2, 3, 4, 2, 3, 4));
 }
 
-TEST(StreamForEach, TwoIndexesSum) {
+TEST(FlatMap, TwoIndexesSum) {
   auto s = []() {
     return Range(3)
-        | StreamForEach([](int x) {
+        | FlatMap([](int x) {
              return Stream<int>()
                  .next([container = std::vector<int>({1, 2}),
                         i = 0u,
@@ -94,10 +94,10 @@ TEST(StreamForEach, TwoIndexesSum) {
   EXPECT_THAT(*s(), ElementsAre(1, 2, 2, 3, 3, 4));
 }
 
-TEST(StreamForEach, TwoIndexesSumMap) {
+TEST(FlatMap, TwoIndexesSumMap) {
   auto s = []() {
     return Range(3)
-        | StreamForEach([](int x) {
+        | FlatMap([](int x) {
              return Range(1, 3)
                  | Map([x](int y) { return x + y; });
            })
@@ -107,12 +107,12 @@ TEST(StreamForEach, TwoIndexesSumMap) {
   EXPECT_THAT(*s(), ElementsAre(1, 2, 2, 3, 3, 4));
 }
 
-TEST(StreamForEach, Let) {
+TEST(FlatMap, Let) {
   auto s = []() {
     return Iterate({1, 2})
-        | StreamForEach(Let([](int& x) {
+        | FlatMap(Let([](int& x) {
              return Iterate({1, 2})
-                 | StreamForEach(Let([&x](int& y) {
+                 | FlatMap(Let([&x](int& y) {
                       return Iterate({x, y});
                     }));
            }))
@@ -122,10 +122,10 @@ TEST(StreamForEach, Let) {
   EXPECT_THAT(*s(), ElementsAre(1, 1, 1, 2, 2, 1, 2, 2));
 }
 
-TEST(StreamForEach, StreamForEachIterateString) {
+TEST(FlatMap, FlatMapIterateString) {
   auto s = []() {
     return Iterate(std::vector<std::string>({"abc", "abc"}))
-        | StreamForEach([](std::string x) {
+        | FlatMap([](std::string x) {
              std::vector<int> v = {1, 2, 3};
              return Iterate(std::move(v));
            })
@@ -136,23 +136,23 @@ TEST(StreamForEach, StreamForEachIterateString) {
   EXPECT_THAT(*s(), ElementsAre(2, 3, 4, 2, 3, 4));
 }
 
-TEST(StreamForEach, ThreeLevelLoop) {
+TEST(FlatMap, ThreeLevelLoop) {
   auto s = []() {
     return Range(2)
-        | StreamForEach([](int x) { return Range(2); })
-        | StreamForEach([](int x) { return Range(2); })
+        | FlatMap([](int x) { return Range(2); })
+        | FlatMap([](int x) { return Range(2); })
         | Collect<std::vector<int>>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1));
 }
 
-TEST(StreamForEach, ThreeLevelLoopInside) {
+TEST(FlatMap, ThreeLevelLoopInside) {
   auto s = []() {
     return Range(2)
-        | StreamForEach([](int x) {
+        | FlatMap([](int x) {
              return Range(2)
-                 | StreamForEach([](int y) {
+                 | FlatMap([](int y) {
                       return Range(2);
                     });
            })
@@ -162,14 +162,14 @@ TEST(StreamForEach, ThreeLevelLoopInside) {
   EXPECT_THAT(*s(), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1));
 }
 
-TEST(StreamForEach, ThreeIndexesSumMap) {
+TEST(FlatMap, ThreeIndexesSumMap) {
   auto s = []() {
     return Range(3)
-        | StreamForEach([](int x) {
+        | FlatMap([](int x) {
              return Range(1, 3)
                  | Map([x](int y) { return x + y; });
            })
-        | StreamForEach([](int sum) {
+        | FlatMap([](int sum) {
              return Range(1, 3)
                  | Map([sum](int z) { return sum + z; });
            })
@@ -180,32 +180,32 @@ TEST(StreamForEach, ThreeIndexesSumMap) {
 }
 
 // Shows that you can stream complex templated objects.
-TEST(StreamForEach, VectorVector) {
+TEST(FlatMap, VectorVector) {
   auto s = []() {
     return Iterate(std::vector<int>({2, 3, 14}))
-        | StreamForEach([](int x) {
+        | FlatMap([](int x) {
              std::vector<std::vector<int>> c;
              c.push_back(std::vector<int>());
              c.push_back(std::vector<int>());
              return Iterate(std::move(c));
            })
-        | StreamForEach([](std::vector<int> x) { return Range(2); })
+        | FlatMap([](std::vector<int> x) { return Range(2); })
         | Collect<std::vector<int>>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1));
 }
 
-class StreamForEachTest : public EventLoopTest {};
+class FlatMapTest : public EventLoopTest {};
 
-TEST_F(StreamForEachTest, Interrupt) {
+TEST_F(FlatMapTest, Interrupt) {
   auto e = []() {
     return Iterate(std::vector<int>(1000))
         | Map([](int x) {
              return Timer(std::chrono::milliseconds(100))
                  | Just(x);
            })
-        | StreamForEach([](int x) { return Iterate({1, 2}); })
+        | FlatMap([](int x) { return Iterate({1, 2}); })
         | Collect<std::vector<int>>()
               .stop([](auto& data, auto& k) {
                 k.Start(std::move(data));
@@ -229,12 +229,12 @@ TEST_F(StreamForEachTest, Interrupt) {
   CHECK_EQ(result.size(), 0u);
 }
 
-TEST(StreamForEach, InterruptReturn) {
+TEST(FlatMap, InterruptReturn) {
   std::atomic<bool> waiting = false;
 
   auto e = [&]() {
     return Iterate(std::vector<int>(1000))
-        | StreamForEach([&](int x) {
+        | FlatMap([&](int x) {
              return Stream<int>()
                  .interruptible()
                  .begin([&](auto& k, Interrupt::Handler& handler) {

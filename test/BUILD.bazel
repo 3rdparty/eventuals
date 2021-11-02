@@ -18,7 +18,7 @@ eventuals_base_sources = [
     "take.cc",
     "range.cc",
     "let.cc",
-    "stream-for-each.cc",
+    "flat-map.cc",
     "concurrent.cc",
     "do-all.cc",
     "generator.cc",
