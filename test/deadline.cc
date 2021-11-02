@@ -63,19 +63,22 @@ TEST_F(EventualsGrpcTest, Deadline) {
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
-  ::grpc::ClientContext context;
-
-  auto now = std::chrono::system_clock::now();
-  context.set_deadline(now + std::chrono::milliseconds(100));
-
   auto call = [&]() {
-    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", &context)
-        | Then(Let([](auto& call) {
-             HelloRequest request;
-             request.set_name("emily");
-             return call.Writer().WriteLast(request)
-                 | call.Finish();
-           }));
+    return client.Context()
+        | Then([&](auto* context) {
+             auto now = std::chrono::system_clock::now();
+             context->set_deadline(now + std::chrono::milliseconds(100));
+
+             return client.Call<Greeter, HelloRequest, HelloReply>(
+                        "SayHello",
+                        context)
+                 | Then(Let([](auto& call) {
+                      HelloRequest request;
+                      request.set_name("emily");
+                      return call.Writer().WriteLast(request)
+                          | call.Finish();
+                    }));
+           });
   };
 
   auto status = *call();

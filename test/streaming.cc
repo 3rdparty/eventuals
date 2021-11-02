@@ -105,14 +105,11 @@ void test_client_behavior(Handler handler) {
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
-  ::grpc::ClientContext context;
-
   auto call = [&]() {
     return client.Call<
                Stream<keyvaluestore::Request>,
                Stream<keyvaluestore::Response>>(
-               "keyvaluestore.KeyValueStore.GetValues",
-               &context)
+               "keyvaluestore.KeyValueStore.GetValues")
         | std::move(handler);
   };
 

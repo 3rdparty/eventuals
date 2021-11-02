@@ -6,6 +6,7 @@
 #include "eventuals/grpc/completion-pool.h"
 #include "eventuals/grpc/traits.h"
 #include "eventuals/stream.h"
+#include "eventuals/then.h"
 #include "grpcpp/client_context.h"
 #include "grpcpp/completion_queue.h"
 #include "grpcpp/create_channel.h"
@@ -130,6 +131,7 @@ class ClientCall {
   ClientCall(
       std::string&& name,
       std::optional<std::string>&& host,
+      ::grpc::ClientContext* context,
       stout::borrowed_ptr<::grpc::CompletionQueue>&& cq,
       ::grpc::TemplatedGenericStub<RequestType_, ResponseType_>&& stub,
       std::unique_ptr<
@@ -138,11 +140,16 @@ class ClientCall {
               ResponseType_>>&& stream)
     : name_(std::move(name)),
       host_(std::move(host)),
+      context_(context),
       cq_(std::move(cq)),
       stub_(std::move(stub)),
       stream_(std::move(stream)),
       reader_(stream_.get()),
       writer_(stream_.get()) {}
+
+  auto* context() {
+    return context_;
+  }
 
   auto& Reader() {
     return reader_;
@@ -196,6 +203,8 @@ class ClientCall {
   std::string name_;
   std::optional<std::string> host_;
 
+  ::grpc::ClientContext* context_;
+
   // NOTE: we need to keep this around until after the call terminates
   // as it represents a "lease" on this completion queue that once
   // relinquished will allow another call to use this queue.
@@ -223,6 +232,14 @@ class Client {
       stout::borrowed_ptr<CompletionPool> pool)
     : channel_(::grpc::CreateChannel(target, credentials)),
       pool_(std::move(pool)) {}
+
+  auto Context() {
+    return Eventual<::grpc::ClientContext*>()
+        .context(eventuals::Context<::grpc::ClientContext>())
+        .start([](auto& context, auto& k) {
+          k.Start(context.get());
+        });
+  }
 
   template <typename Service, typename Request, typename Response>
   auto Call(
@@ -317,12 +334,13 @@ class Client {
                   auto& k = *reinterpret_cast<K*>(data.k);
                   if (ok) {
                     k.Start(
-                        ClientCall<Request, Response>{
+                        ClientCall<Request, Response>(
                             std::move(data.name),
                             std::move(data.host),
+                            data.context,
                             std::move(data.cq),
                             std::move(data.stub),
-                            std::move(data.stream)});
+                            std::move(data.stream)));
                   } else {
                     k.Fail("server unavailable");
                   }
@@ -333,6 +351,35 @@ class Client {
             }
           }
         });
+  }
+
+  template <typename Service, typename Request, typename Response>
+  auto Call(
+      const std::string& name,
+      std::optional<std::string> host = std::nullopt) {
+    static_assert(
+        IsService<Service>::value,
+        "expecting \"service\" type to be a protobuf 'Service'");
+
+    return Call<Request, Response>(
+        std::string(Service::service_full_name()) + "." + name,
+        std::move(host));
+  }
+
+  template <typename Request, typename Response>
+  auto Call(
+      std::string name,
+      std::optional<std::string> host = std::nullopt) {
+    return Context()
+        | Then([this,
+                name = std::move(name),
+                host = std::move(host)](
+                   ::grpc::ClientContext* context) mutable {
+             return Call<Request, Response>(
+                 std::move(name),
+                 context,
+                 std::move(host));
+           });
   }
 
  private:
