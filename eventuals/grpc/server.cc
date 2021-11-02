@@ -213,25 +213,26 @@ void Server::Shutdown() {
 ////////////////////////////////////////////////////////////////////////
 
 void Server::Wait() {
-  // Wait for the workers to stop using their assigned completion
-  // queues before anything else.
+  // We first wait for the underlying server to shutdown, that means
+  // that all the workers and the serves should have gotten some kind
+  // of error and be shutting down themselves.
+  if (server_) {
+    server_->Wait();
+  }
+
+  // Now wait for the workers to complete.
   for (auto& worker : workers_) {
     while (!worker->done.load()) {
       // TODO(benh): cpu relax or some other spin loop strategy.
     }
   }
 
-  // Now wait for the serve tasks to be done (not that like workers
+  // Now wait for the serve tasks to be done (note that like workers
   // ordering is not important since these are each independent).
   for (auto& serve : serves_) {
     while (!serve->done.load()) {
       // TODO(benh): cpu relax or some other spin loop strategy.
     }
-  }
-
-  // At this point we should be able to wait for the server.
-  if (server_) {
-    server_->Wait();
   }
 
   // We shutdown the completion queues _after_ all 'workers_' and
