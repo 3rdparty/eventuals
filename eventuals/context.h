@@ -18,7 +18,9 @@ class Context {
     : args_(std::move(args)) {}
 
   Context(Context&& that)
-    : args_(std::move(that.args_)) {}
+    : args_(std::move(that.args_)) {
+    CHECK(!t_) << "'Context' can not be moved after using";
+  }
 
   T* get() {
     if (!t_) {
