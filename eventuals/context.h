@@ -3,6 +3,8 @@
 #include <optional>
 #include <tuple>
 
+#include "glog/logging.h"
+
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
