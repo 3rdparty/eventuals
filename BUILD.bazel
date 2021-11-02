@@ -20,6 +20,7 @@ cc_library(
         "eventuals/eventual.h",
         "eventuals/filter.h",
         "eventuals/finally.h",
+        "eventuals/foreach.h",
         "eventuals/generator.h",
         "eventuals/head.h",
         "eventuals/interrupt.h",

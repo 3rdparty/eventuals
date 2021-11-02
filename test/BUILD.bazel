@@ -23,6 +23,7 @@ eventuals_base_sources = [
     "do-all.cc",
     "generator.cc",
     "finally.cc",
+    "foreach.cc",
 ]
 
 eventuals_events_sources = [
