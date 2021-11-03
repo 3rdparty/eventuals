@@ -414,8 +414,7 @@ TEST(Generator, ConstRef) {
 }
 
 TEST(Generator, FromTo) {
-  std::vector<int> data;
-  auto stream = [&]() {
+  auto stream = [data = std::vector<int>()]() mutable {
     return Generator<std::string, int>(
         [&]() {
           return Closure([&]() {
@@ -441,8 +440,7 @@ TEST(Generator, FromTo) {
 }
 
 TEST(Generator, FromToLValue) {
-  std::vector<int> data;
-  auto stream = [&]() {
+  auto stream = [data = std::vector<int>()]() mutable {
     return Generator<std::string, int>(
         [&]() {
           return Closure([&]() mutable {

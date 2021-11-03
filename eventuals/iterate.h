@@ -33,8 +33,63 @@ auto Iterate(Iterator begin, Iterator end) {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Container>
+auto Iterate(const Container& container) {
+  using Iterator = typename Container::const_iterator;
+
+  struct Data {
+    const Container& container;
+    std::optional<Iterator> begin;
+  };
+
+  using T = decltype(*std::declval<Data>().begin.value());
+
+  return Stream<T>()
+      .context(Data{container, std::nullopt})
+      .begin([](auto& data, auto& k) {
+        data.begin = data.container.cbegin();
+        k.Begin();
+      })
+      .next([](auto& data, auto& k) {
+        if (data.begin.value() != data.container.cend()) {
+          k.Emit(*(data.begin.value()++));
+        } else {
+          k.Ended();
+        }
+      })
+      .done([](auto&, auto& k) {
+        k.Ended();
+      });
+}
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Container>
 auto Iterate(Container& container) {
-  return Iterate(container.cbegin(), container.cend());
+  using Iterator = typename Container::iterator;
+
+  struct Data {
+    Container& container;
+    std::optional<Iterator> begin;
+  };
+
+  using T = decltype(*std::declval<Data>().begin.value());
+
+  return Stream<T>()
+      .context(Data{container, std::nullopt})
+      .begin([](auto& data, auto& k) {
+        data.begin = data.container.begin();
+        k.Begin();
+      })
+      .next([](auto& data, auto& k) {
+        if (data.begin.value() != data.container.end()) {
+          k.Emit(*(data.begin.value()++));
+        } else {
+          k.Ended();
+        }
+      })
+      .done([](auto&, auto& k) {
+        k.Ended();
+      });
 }
 
 ////////////////////////////////////////////////////////////////////////
