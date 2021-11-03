@@ -220,18 +220,7 @@ class EventLoop : public Scheduler {
         }
 
         ~Continuation() {
-          if (started_) {
-            // NOTE: we only check if we're 'InEventLoop()' after we've
-            // checked 'started_' because it's possible that 'this' _is_
-            // getting destructed inside the event loop if it was moved
-            // before being started.
-            CHECK(!InEventLoop())
-                << "attempting to destruct a timer on the event loop "
-                << "is unsupported as it may lead to a deadlock";
-
-            // Wait until we can destruct the timer/handle.
-            while (!closed_.load()) {}
-          }
+          CHECK(!started_ || closed_);
         }
 
         void Start() {
@@ -260,37 +249,47 @@ class EventLoop : public Scheduler {
                         auto timeout = std::chrono::duration_cast<
                             std::chrono::milliseconds>(nanoseconds_);
 
-                        auto error = uv_timer_start(
+                        CHECK(!error_);
+                        error_ = uv_timer_start(
                             timer(),
                             [](uv_timer_t* timer) {
                               auto& continuation = *(Continuation*) timer->data;
                               CHECK_EQ(timer, continuation.timer());
+                              CHECK_EQ(
+                                  &continuation,
+                                  continuation.handle()->data);
                               if (!continuation.completed_) {
                                 continuation.completed_ = true;
-                                continuation.k_.Start();
-                                uv_timer_stop(continuation.timer());
-                                CHECK_EQ(
-                                    &continuation,
-                                    continuation.handle()->data);
+                                CHECK(!continuation.error_);
+                                continuation.error_ =
+                                    uv_timer_stop(continuation.timer());
                                 uv_close(
                                     continuation.handle(),
                                     [](uv_handle_t* handle) {
                                       auto& continuation =
                                           *(Continuation*) handle->data;
-                                      continuation.closed_.store(true);
+                                      continuation.closed_ = true;
+                                      if (!continuation.error_) {
+                                        continuation.k_.Start();
+                                      } else {
+                                        continuation.k_.Fail(
+                                            uv_strerror(continuation.error_));
+                                      }
                                     });
                               }
                             },
                             timeout.count(),
                             /* repeat = */ 0);
 
-                        if (error) {
+                        if (error_) {
                           completed_ = true;
-                          k_.Fail(uv_strerror(error));
                           CHECK_EQ(this, handle()->data);
                           uv_close(handle(), [](uv_handle_t* handle) {
                             auto& continuation = *(Continuation*) handle->data;
-                            continuation.closed_.store(true);
+                            continuation.closed_ = true;
+                            CHECK(continuation.error_);
+                            continuation.k_.Fail(
+                                uv_strerror(continuation.error_));
                           });
                         }
                       }
@@ -326,20 +325,20 @@ class EventLoop : public Scheduler {
                   } else if (!completed_) {
                     CHECK(started_);
                     completed_ = true;
+                    CHECK(!error_);
                     if (uv_is_active(handle())) {
-                      auto error = uv_timer_stop(timer());
-                      if (error) {
-                        k_.Fail(uv_strerror(error));
-                      } else {
-                        k_.Stop();
-                      }
-                    } else {
-                      k_.Stop();
+                      error_ = uv_timer_stop(timer());
                     }
                     CHECK_EQ(this, handle()->data);
                     uv_close(handle(), [](uv_handle_t* handle) {
                       auto& continuation = *(Continuation*) handle->data;
-                      continuation.closed_.store(true);
+                      continuation.closed_ = true;
+                      if (!continuation.error_) {
+                        continuation.k_.Stop();
+                      } else {
+                        continuation.k_.Fail(
+                            uv_strerror(continuation.error_));
+                      }
                     });
                   }
                 },
@@ -373,8 +372,9 @@ class EventLoop : public Scheduler {
 
         bool started_ = false;
         bool completed_ = false;
+        bool closed_ = false;
 
-        std::atomic<bool> closed_ = false;
+        int error_ = 0;
 
         EventLoop::Waiter start_;
         EventLoop::Waiter interrupt_;
@@ -496,18 +496,7 @@ class EventLoop : public Scheduler {
       }
 
       ~Continuation() {
-        if (started_) {
-          // NOTE: we only check if we're 'InEventLoop()' after we've
-          // checked 'started_' because it's possible that 'this' _is_
-          // getting destructed inside the event loop if it was moved
-          // before being started.
-          CHECK(!InEventLoop())
-              << "attempting to destruct a signal on the event loop "
-              << "is unsupported as it may lead to a deadlock";
-
-          // Wait until we can destruct the signal/handle.
-          while (!closed_.load()) {}
-        }
+        CHECK(!started_ || closed_);
       }
 
       void Start() {
@@ -522,36 +511,39 @@ class EventLoop : public Scheduler {
 
                 uv_handle_set_data(handle(), this);
 
-                auto error = uv_signal_start_oneshot(
+                CHECK(!error_);
+                error_ = uv_signal_start_oneshot(
                     signal(),
                     [](uv_signal_t* signal, int signum) {
                       auto& continuation = *(Continuation*) signal->data;
                       CHECK_EQ(signal, continuation.signal());
+                      CHECK_EQ(
+                          &continuation,
+                          continuation.handle()->data);
                       CHECK_EQ(signum, continuation.signum_);
                       if (!continuation.completed_) {
                         continuation.completed_ = true;
-                        continuation.k_.Start();
-                        CHECK_EQ(
-                            &continuation,
-                            continuation.handle()->data);
                         uv_close(
                             continuation.handle(),
                             [](uv_handle_t* handle) {
                               auto& continuation =
                                   *(Continuation*) handle->data;
-                              continuation.closed_.store(true);
+                              continuation.closed_ = true;
+                              continuation.k_.Start();
                             });
                       }
                     },
                     signum_);
 
-                if (error) {
+                if (error_) {
                   completed_ = true;
-                  k_.Fail(uv_strerror(error));
                   CHECK_EQ(this, handle()->data);
                   uv_close(handle(), [](uv_handle_t* handle) {
                     auto& continuation = *(Continuation*) handle->data;
-                    continuation.closed_.store(true);
+                    continuation.closed_ = true;
+                    CHECK(continuation.error_);
+                    continuation.k_.Fail(
+                        uv_strerror(continuation.error_));
                   });
                 }
               }
@@ -581,20 +573,20 @@ class EventLoop : public Scheduler {
                 } else if (!completed_) {
                   CHECK(started_);
                   completed_ = true;
+                  CHECK(!error_);
                   if (uv_is_active(handle())) {
-                    auto error = uv_signal_stop(signal());
-                    if (error) {
-                      k_.Fail(uv_strerror(error));
-                    } else {
-                      k_.Stop();
-                    }
-                  } else {
-                    k_.Stop();
+                    error_ = uv_signal_stop(signal());
                   }
                   CHECK_EQ(this, handle()->data);
                   uv_close(handle(), [](uv_handle_t* handle) {
                     auto& continuation = *(Continuation*) handle->data;
-                    continuation.closed_.store(true);
+                    continuation.closed_ = true;
+                    if (!continuation.error_) {
+                      continuation.k_.Stop();
+                    } else {
+                      continuation.k_.Fail(
+                          uv_strerror(continuation.error_));
+                    }
                   });
                 }
               },
@@ -624,8 +616,9 @@ class EventLoop : public Scheduler {
 
       bool started_ = false;
       bool completed_ = false;
+      bool closed_ = false;
 
-      std::atomic<bool> closed_ = false;
+      int error_ = 0;
 
       EventLoop::Waiter start_;
       EventLoop::Waiter interrupt_;

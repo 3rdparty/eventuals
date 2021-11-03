@@ -2,14 +2,18 @@
 
 #include "event-loop-test.h"
 #include "eventuals/event-loop.h"
+#include "eventuals/foreach.h"
 #include "eventuals/just.h"
+#include "eventuals/range.h"
 #include "eventuals/terminal.h"
 #include "gtest/gtest.h"
 
 using eventuals::Clock;
 using eventuals::EventLoop;
+using eventuals::Foreach;
 using eventuals::Interrupt;
 using eventuals::Just;
+using eventuals::Range;
 using eventuals::Terminate;
 using eventuals::Timer;
 
@@ -154,10 +158,29 @@ TEST_F(EventLoopTest, TimerAfterTimer) {
   k.Start();
 
   auto start = Clock().Now();
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
   auto end = Clock().Now();
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);
+}
 
-  future.get();
+
+TEST_F(EventLoopTest, MapTimer) {
+  auto e = []() {
+    return Foreach(
+        Range(10),
+        [](int) {
+          return Timer(std::chrono::milliseconds(1));
+        });
+  };
+
+  auto [future, k] = Terminate(e());
+
+  k.Start();
+
+  auto start = Clock().Now();
+  EventLoop::Default().RunUntil(future);
+  auto end = Clock().Now();
+
+  EXPECT_LE(std::chrono::milliseconds(10), end - start);
 }
