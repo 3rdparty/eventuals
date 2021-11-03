@@ -4,21 +4,25 @@
 #include <thread>
 #include <vector>
 
+#include "eventuals/closure.h"
 #include "eventuals/collect.h"
 #include "eventuals/context.h"
 #include "eventuals/eventual.h"
 #include "eventuals/flat-map.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/iterate.h"
+#include "eventuals/just.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
 #include "eventuals/range.h"
 #include "eventuals/stream.h"
 #include "eventuals/task.h"
 #include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+using eventuals::Closure;
 using eventuals::Collect;
 using eventuals::Context;
 using eventuals::Eventual;
@@ -26,12 +30,14 @@ using eventuals::FlatMap;
 using eventuals::Generator;
 using eventuals::Interrupt;
 using eventuals::Iterate;
+using eventuals::Just;
 using eventuals::Loop;
 using eventuals::Map;
 using eventuals::Range;
 using eventuals::Stream;
 using eventuals::Task;
 using eventuals::Terminate;
+using eventuals::Then;
 
 using testing::ElementsAre;
 using testing::MockFunction;
@@ -401,6 +407,58 @@ TEST(Generator, ConstRef) {
 
   auto e = [&]() {
     return stream()
+        | Collect<std::vector<int>>();
+  };
+
+  EXPECT_THAT(*e(), ElementsAre(1, 2, 3));
+}
+
+TEST(Generator, FromTo) {
+  std::vector<int> data;
+  auto stream = [&]() {
+    return Generator<std::string, int>(
+        [&]() {
+          return Closure([&]() {
+                   return Then([&](auto value) mutable {
+                     for (auto c : value) {
+                       data.push_back(c - '0');
+                     }
+                   });
+                 })
+              | Closure([&]() {
+                   return Iterate(std::move(data));
+                 });
+        });
+  };
+
+  auto e = [&]() {
+    return Just(std::string("123"))
+        | stream()
+        | Collect<std::vector<int>>();
+  };
+
+  EXPECT_THAT(*e(), ElementsAre(1, 2, 3));
+}
+
+TEST(Generator, FromToLValue) {
+  std::vector<int> data;
+  auto stream = [&]() {
+    return Generator<std::string, int>(
+        [&]() {
+          return Closure([&]() mutable {
+                   return Then([&](auto value) mutable {
+                     for (auto c : value) {
+                       data.push_back(c - '0');
+                     }
+                   });
+                 })
+              | Iterate(data);
+        });
+  };
+
+  auto e = [&]() {
+    return Just(std::string("123"))
+        | stream()
         | Collect<std::vector<int>>();
   };
 
