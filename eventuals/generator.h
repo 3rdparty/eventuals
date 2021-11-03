@@ -21,16 +21,15 @@ namespace detail {
 
 template <typename E_, typename From_, typename To_>
 struct HeapGenerator {
-  template <typename Arg_>
   struct Adaptor {
     Adaptor(
         Callback<TypeErasedStream&>* begin,
         Callback<std::exception_ptr>* fail,
         Callback<>* stop,
         std::conditional_t<
-            std::is_void_v<Arg_>,
+            std::is_void_v<To_>,
             Callback<>,
-            Callback<Arg_>>* body,
+            Callback<To_>>* body,
         Callback<>* ended)
       : begin_(begin),
         fail_(fail),
@@ -75,16 +74,16 @@ struct HeapGenerator {
     Callback<std::exception_ptr>* fail_;
     Callback<>* stop_;
     std::conditional_t<
-        std::is_void_v<Arg_>,
+        std::is_void_v<To_>,
         Callback<>,
-        Callback<Arg_>>* body_;
+        Callback<To_>>* body_;
     Callback<>* ended_;
   };
 
   HeapGenerator(E_ e)
     : adapted_(
         std::move(e).template k<From_>(
-            Adaptor<To_>{&begin_, &fail_, &stop_, &body_, &ended_})) {}
+            Adaptor{&begin_, &fail_, &stop_, &body_, &ended_})) {}
 
   void Start(
       Interrupt& interrupt,
@@ -97,8 +96,8 @@ struct HeapGenerator {
       Callback<>&& stop,
       std::conditional_t<
           std::is_void_v<To_>,
-          Callback<>&&,
-          Callback<To_>&&> body,
+          Callback<>,
+          Callback<To_>>&& body,
       Callback<>&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
@@ -113,7 +112,6 @@ struct HeapGenerator {
     if constexpr (std::is_void_v<From_>) {
       adapted_.Start();
     } else {
-      //CHECK(arg);
       adapted_.Start(std::move(arg));
     }
   }
@@ -126,8 +124,8 @@ struct HeapGenerator {
       Callback<>&& stop,
       std::conditional_t<
           std::is_void_v<To_>,
-          Callback<>&&,
-          Callback<To_>&&> body,
+          Callback<>,
+          Callback<To_>>&& body,
       Callback<>&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
@@ -149,8 +147,8 @@ struct HeapGenerator {
       Callback<>&& stop,
       std::conditional_t<
           std::is_void_v<To_>,
-          Callback<>&&,
-          Callback<To_>&&> body,
+          Callback<>,
+          Callback<To_>>&& body,
       Callback<>&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
@@ -176,7 +174,7 @@ struct HeapGenerator {
   Callback<> ended_;
 
   using Adapted_ = decltype(std::declval<E_>().template k<From_>(
-      std::declval<Adaptor<To_>>()));
+      std::declval<Adaptor>()));
 
   Adapted_ adapted_;
 };
@@ -214,8 +212,8 @@ struct _GeneratorWith {
             Callback<>&&,
             std::conditional_t<
                 std::is_void_v<To_>,
-                Callback<>&&,
-                Callback<To_>&&>,
+                Callback<>,
+                Callback<To_>>&&,
             Callback<>&&>&& dispatch)
       : k_(std::move(k)),
         args_(std::move(args)),
@@ -232,7 +230,8 @@ struct _GeneratorWith {
       } else {
         static_assert(
             sizeof...(from) > 0,
-            "Expecting \"from\" argument for 'Generator<From, To>' but no argument passed");
+            "Expecting \"from\" argument for 'Generator<From, To>' "
+            "but no argument passed");
         Dispatch(Action::Start, std::forward<From>(from)...);
       }
     }
@@ -316,8 +315,8 @@ struct _GeneratorWith {
         Callback<>&&,
         std::conditional_t<
             std::is_void_v<To_>,
-            Callback<>&&,
-            Callback<To_>&&>,
+            Callback<>,
+            Callback<To_>>&&,
         Callback<>&&>
         dispatch_;
 
@@ -373,8 +372,8 @@ struct _GeneratorWith {
                       Callback<>&& stop,
                       std::conditional_t<
                           std::is_void_v<To_>,
-                          Callback<>&&,
-                          Callback<To_>&&> body,
+                          Callback<>,
+                          Callback<To_>>&& body,
                       Callback<>&& ended) {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void*>>(
@@ -447,8 +446,8 @@ struct _GeneratorWith {
         Callback<>&&,
         std::conditional_t<
             std::is_void_v<To_>,
-            Callback<>&&,
-            Callback<To_>&&>,
+            Callback<>,
+            Callback<To_>>&&,
         Callback<>&&>
         dispatch_;
 
@@ -515,7 +514,6 @@ class Generator<From_, To_> : public GeneratorWith<From_, To_> {
   Generator(F f)
     : GeneratorWith<From_, To_>(std::move(f)) {}
 };
-
 
 ////////////////////////////////////////////////////////////////////////
 
