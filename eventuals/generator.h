@@ -326,7 +326,7 @@ struct _GeneratorWith {
 
   template <typename From_, typename To_, typename... Args_>
   struct Composable {
-    template <typename>
+    template <typename Arg>
     using ValueFrom = To_;
 
     template <typename F>
@@ -461,34 +461,9 @@ struct _GeneratorWith {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename From_, typename To_, typename... Args_>
-class GeneratorWith {
- public:
-  template <typename Arg>
-  using ValueFrom = To_;
-
-  template <typename F>
-  GeneratorWith(Args_... args, F f)
-    : e_(std::move(args)..., std::move(f)) {}
-
-  template <typename Arg, typename K>
-  auto k(K k) && {
-    return std::move(e_).template k<Arg>(std::move(k));
-  }
-
-  auto operator*() && {
-    auto [future, k] = Terminate(std::move(e_));
-
-    k.Start();
-
-    return future.get();
-  }
-
- private:
-  detail::_GeneratorWith::Composable<From_, To_, Args_...> e_;
-};
-
-////////////////////////////////////////////////////////////////////////
+// Creating a type alias to improve the readability.
+template <typename Value, typename... Args>
+using GeneratorWith = detail::_GeneratorWith::Composable<Value, Args...>;
 
 template <typename...>
 class Generator;
