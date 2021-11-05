@@ -1,7 +1,6 @@
 #pragma once
 
-#include <variant>
-
+#include "eventuals/expected.h"
 #include "eventuals/terminal.h" // For 'StoppedException'.
 #include "eventuals/then.h"
 
@@ -23,10 +22,7 @@ struct _Finally {
       if constexpr (std::is_void_v<Arg_>) {
         k_.Start(std::optional<std::exception_ptr>());
       } else {
-        k_.Start(
-            std::variant<Arg_, std::exception_ptr>(
-                std::in_place_index<0>,
-                std::forward<Args>(args)...));
+        k_.Start(Expected<Arg_>(std::forward<Args>(args)...));
       }
     }
 
@@ -39,8 +35,7 @@ struct _Finally {
                     std::forward<Args>(args)...)));
       } else {
         k_.Start(
-            std::variant<Arg_, std::exception_ptr>(
-                std::in_place_index<1>,
+            Expected<Arg_>(
                 std::make_exception_ptr(
                     std::forward<Args>(args)...)));
       }
@@ -54,8 +49,7 @@ struct _Finally {
                     StoppedException())));
       } else {
         k_.Start(
-            std::variant<Arg_, std::exception_ptr>(
-                std::in_place_index<1>,
+            Expected<Arg_>(
                 std::make_exception_ptr(
                     StoppedException())));
       }
@@ -74,7 +68,7 @@ struct _Finally {
         std::conditional_t<
             std::is_void_v<Arg>,
             std::optional<std::exception_ptr>,
-            std::variant<Arg, std::exception_ptr>>;
+            Expected<Arg>>;
 
     template <typename Arg, typename K>
     auto k(K k) && {

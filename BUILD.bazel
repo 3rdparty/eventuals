@@ -18,6 +18,7 @@ cc_library(
         "eventuals/context.h",
         "eventuals/do-all.h",
         "eventuals/eventual.h",
+        "eventuals/expected.h",
         "eventuals/filter.h",
         "eventuals/finally.h",
         "eventuals/flat-map.h",
