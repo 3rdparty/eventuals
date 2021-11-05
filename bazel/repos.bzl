@@ -40,7 +40,7 @@ def repos(external = True, repo_mapping = {}):
         git_repository(
             name = "com_github_3rdparty_eventuals_grpc",
             remote = "https://github.com/3rdparty/eventuals-grpc",
-            commit = "d8f00664682e9ff6e0e29038203ab770c8815505",
-            shallow_since = "1635736585 -0600",
+            commit = "0e005b41c3c43763bb875630292414d4cff69882",
+            shallow_since = "1636150522 -0600",
             repo_mapping = repo_mapping,
         )
