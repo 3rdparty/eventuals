@@ -48,6 +48,7 @@ cc_library(
         "eventuals/then.h",
         "eventuals/type-traits.h",
         "eventuals/undefined.h",
+        "eventuals/unpack.h",
         "eventuals/until.h",
     ],
     copts = copts(),
