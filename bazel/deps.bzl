@@ -6,6 +6,7 @@ load("@com_github_3rdparty_eventuals//bazel:deps.bzl", eventuals_deps = "deps")
 load("@com_github_3rdparty_stout_borrowed_ptr//bazel:deps.bzl", stout_borrowed_ptr_deps = "deps")
 load("@com_github_3rdparty_stout_notification//bazel:deps.bzl", stout_notification_deps = "deps")
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
+load("@com_github_reboot_dev_pyprotoc_plugin//bazel:deps.bzl", pyprotoc_plugin_deps = "deps")
 
 def deps(repo_mapping = {}):
     eventuals_deps(
@@ -17,6 +18,10 @@ def deps(repo_mapping = {}):
     )
 
     stout_notification_deps(
+        repo_mapping = repo_mapping,
+    )
+
+    pyprotoc_plugin_deps(
         repo_mapping = repo_mapping,
     )
 

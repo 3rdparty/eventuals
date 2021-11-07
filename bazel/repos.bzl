@@ -14,6 +14,7 @@ load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("//3rdparty/eventuals:repos.bzl", eventuals_repos = "repos")
 load("//3rdparty/stout-borrowed-ptr:repos.bzl", stout_borrowed_ptr_repos = "repos")
 load("//3rdparty/stout-notification:repos.bzl", stout_notification_repos = "repos")
+load("//3rdparty/pyprotoc-plugin:repos.bzl", pyprotoc_plugin_repos = "repos")
 
 def repos(external = True, repo_mapping = {}):
     eventuals_repos(
@@ -25,6 +26,10 @@ def repos(external = True, repo_mapping = {}):
     )
 
     stout_notification_repos(
+        repo_mapping = repo_mapping,
+    )
+
+    pyprotoc_plugin_repos(
         repo_mapping = repo_mapping,
     )
 
