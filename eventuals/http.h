@@ -86,18 +86,7 @@ struct _HTTP {
     }
 
     ~Continuation() {
-      if (started_) {
-        // NOTE: we only check if we're 'InEventLoop()' after we've
-        // checked 'started_' because it's possible that 'this' _is_
-        // getting destructed inside the event loop if it was moved
-        // before being started.
-        CHECK(!loop_.InEventLoop())
-            << "attempting to destruct on the event loop "
-            << "is unsupported as it may lead to a deadlock";
-
-        // Wait until we can destruct.
-        while (!closed_.load()) {}
-      }
+      CHECK(!started_ || closed_);
     }
 
     void Start() {
@@ -112,6 +101,8 @@ struct _HTTP {
 
               uv_handle_set_data((uv_handle_t*) &timer_, this);
 
+              CHECK(!error_);
+
               CHECK_NOTNULL(easy_ = curl_easy_init());
               CHECK_NOTNULL(multi_ = curl_multi_init());
 
@@ -120,9 +111,6 @@ struct _HTTP {
               static auto check_multi_info = [](Continuation& continuation) {
                 continuation.completed_ = true;
 
-                // Initialized here because of not being able to
-                // initialize it inside switch statement.
-                long code = 0;
                 // Stores the amount of remaining messages in multi handle.
                 // Unused.
                 int msgq = 0;
@@ -137,20 +125,13 @@ struct _HTTP {
                       curl_easy_getinfo(
                           continuation.easy_,
                           CURLINFO_RESPONSE_CODE,
-                          &code);
-                      continuation.k_.Start(Response{
-                          code,
-                          continuation.buffer_.Extract()});
+                          &continuation.code_);
                     } else {
-                      continuation.k_.Fail(
-                          curl_easy_strerror(
-                              message->data.result));
+                      continuation.error_ = message->data.result;
                     }
                     break;
                   default:
-                    continuation.k_.Fail(
-                        curl_easy_strerror(
-                            CURLE_ABORTED_BY_CALLBACK));
+                    continuation.error_ = CURLE_ABORTED_BY_CALLBACK;
                     break;
                 }
 
@@ -175,16 +156,30 @@ struct _HTTP {
 
                 continuation.polls_.clear();
 
+                // We don't have to check uv_is_active for timer since
+                // libuv checks it by itself.
+                // Return value is always 0.
                 uv_timer_stop(&continuation.timer_);
                 uv_close(
                     (uv_handle_t*) &continuation.timer_,
                     [](uv_handle_t* handle) {
                       auto& continuation = *(Continuation*) handle->data;
-                      continuation.closed_.store(true);
+                      continuation.closed_ = true;
+
+                      if (!continuation.error_) {
+                        continuation.k_.Start(Response{
+                            continuation.code_,
+                            continuation.buffer_.Extract()});
+                      } else {
+                        continuation.k_.Fail(
+                            curl_easy_strerror(
+                                (CURLcode) continuation.error_));
+                      }
                     });
 
-                if (continuation.method_ == Method::POST) {
+                if (continuation.fields_string_ != nullptr) {
                   curl_free(continuation.fields_string_);
+                  continuation.fields_string_ = nullptr;
                 }
                 curl_easy_cleanup(continuation.easy_);
                 curl_multi_cleanup(continuation.multi_);
@@ -537,11 +532,11 @@ struct _HTTP {
         loop_.Submit(
             [this]() {
               if (!started_) {
-                CHECK(!completed_);
+                CHECK(!completed_ && !error_);
                 completed_ = true;
                 k_.Stop();
               } else if (!completed_) {
-                CHECK(started_);
+                CHECK(started_ && !error_);
                 completed_ = true;
 
                 for (auto& poll : polls_) {
@@ -556,14 +551,17 @@ struct _HTTP {
                 }
                 polls_.clear();
 
-                if (uv_is_active((uv_handle_t*) &timer_)) {
-                  uv_timer_stop(&timer_);
-                }
+                // We don't have to check uv_is_active for timer since
+                // libuv checks it by itself.
+                // Return value is always 0.
+                uv_timer_stop(&timer_);
                 uv_close(
                     (uv_handle_t*) &timer_,
                     [](uv_handle_t* handle) {
                       auto& continuation = *(Continuation*) handle->data;
-                      continuation.closed_.store(true);
+                      continuation.closed_ = true;
+
+                      continuation.k_.Stop();
                     });
 
                 CHECK_EQ(
@@ -572,13 +570,12 @@ struct _HTTP {
                         easy_),
                     CURLM_OK);
 
-                if (method_ == Method::POST) {
+                if (fields_string_ != nullptr) {
                   curl_free(fields_string_);
+                  fields_string_ = nullptr;
                 }
                 curl_easy_cleanup(easy_);
                 curl_multi_cleanup(multi_);
-
-                k_.Stop();
               }
             },
             &interrupt_);
@@ -607,12 +604,15 @@ struct _HTTP {
     uv_timer_t timer_;
     std::vector<uv_poll_t*> polls_;
 
+    // Response variables.
+    long code_ = 0;
     EventLoop::Buffer buffer_;
 
     bool started_ = false;
     bool completed_ = false;
+    bool closed_ = false;
 
-    std::atomic<bool> closed_ = false;
+    int error_ = 0;
 
     EventLoop::Waiter start_;
     EventLoop::Waiter interrupt_;
