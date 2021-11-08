@@ -31,6 +31,12 @@ struct Pinned {
 class StaticThreadPool : public Scheduler {
  public:
   struct Requirements {
+    Requirements(const char* name)
+      : Requirements(std::string(name)) {}
+
+    Requirements(const char* name, Pinned pinned)
+      : Requirements(std::string(name), std::move(pinned)) {}
+
     Requirements(std::string name)
       : name(std::move(name)) {}
 
@@ -119,6 +125,9 @@ class StaticThreadPool : public Scheduler {
 
   template <typename E>
   auto Schedule(Requirements* requirements, E e);
+
+  template <typename E>
+  static auto Spawn(Requirements&& requirements, E e);
 
  private:
   // NOTE: we use a semaphore instead of something like eventfd for
@@ -542,6 +551,18 @@ auto StaticThreadPool::Schedulable::Schedule(E e) {
   return StaticThreadPool::Scheduler().Schedule(
       &requirements_,
       std::move(e));
+}
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename E>
+auto StaticThreadPool::Spawn(Requirements&& requirements, E e) {
+  return Closure([requirements = std::move(requirements),
+                  e = std::move(e)]() mutable {
+    return StaticThreadPool::Scheduler().Schedule(
+        &requirements,
+        std::move(e));
+  });
 }
 
 ////////////////////////////////////////////////////////////////////////

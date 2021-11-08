@@ -122,3 +122,32 @@ TEST(StaticThreadPoolTest, PingPong) {
 
   EXPECT_EQ(6, *(streamer.Stream() | listener.Listen()));
 }
+
+
+TEST(StaticThreadPoolTest, Spawn) {
+  auto e = [&]() {
+    return StaticThreadPool::Spawn(
+        "spawn",
+        Closure([id = std::this_thread::get_id()]() mutable {
+          EXPECT_NE(id, std::this_thread::get_id());
+          id = std::this_thread::get_id();
+          return Eventual<void>()
+                     .start([&id](auto& k) {
+                       EXPECT_EQ(id, std::this_thread::get_id());
+                       auto thread = std::thread(
+                           [&id, &k]() {
+                             EXPECT_NE(id, std::this_thread::get_id());
+                             k.Start();
+                           });
+                       thread.detach();
+                     })
+              | Eventual<void>()
+                    .start([&id](auto& k) {
+                      EXPECT_EQ(id, std::this_thread::get_id());
+                      k.Start();
+                    });
+        }));
+  };
+
+  *e();
+}
