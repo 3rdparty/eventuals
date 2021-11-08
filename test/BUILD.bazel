@@ -26,6 +26,7 @@ eventuals_base_sources = [
     "foreach.cc",
     "expected.cc",
     "unpack.cc",
+    "transformer.cc",
 ]
 
 eventuals_events_sources = [

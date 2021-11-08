@@ -46,6 +46,7 @@ cc_library(
         "eventuals/task.h",
         "eventuals/terminal.h",
         "eventuals/then.h",
+        "eventuals/transformer.h",
         "eventuals/type-traits.h",
         "eventuals/undefined.h",
         "eventuals/unpack.h",
