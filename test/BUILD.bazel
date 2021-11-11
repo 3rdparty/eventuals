@@ -27,6 +27,7 @@ eventuals_base_sources = [
     "expected.cc",
     "unpack.cc",
     "transformer.cc",
+    "pipe.cc",
 ]
 
 eventuals_events_sources = [
