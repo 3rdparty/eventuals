@@ -27,8 +27,24 @@ check_version() {
   [[ "${oldest}" == "${required}" ]]
 }
 
-# Check version of clang-format.
-clang_format_version_found="$(clang-format --version | head -n1 | cut -d" " -f3)"
+# IMPORTANT NOTE.
+# The command `clang-format --version` behaves differently on different OS.
+# For example, on Ubuntu this command will message us out with the following
+# content:
+#   Ubuntu clang-format version 12.0.0-3ubuntu1~20.04.4
+# On macos: 
+#   clang-format version 13.0.0
+# That's why commands like `cut`, `head`, `tr` are not the way we wanna grab
+# the version's numbers. 
+
+# Store in `clang_format_version_output` clang-format --version output.
+clang_format_version_output="$(clang-format --version)"
+
+# Retain the part after the `version ` (including space too).
+clang_format_version_found=${clang_format_version_output##*version }
+
+# Retain the part before `-`.
+clang_format_version_found=${clang_format_version_found%-*}
 clang_format_version_required="12.0.0"
 
 check_version ${clang_format_version_found} ${clang_format_version_required}
