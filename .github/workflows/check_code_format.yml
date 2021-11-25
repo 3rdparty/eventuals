@@ -1,0 +1,13 @@
+name: Code Style Check
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - "main" 
+
+jobs:
+  check_code_format:
+    uses: 3rdparty/dev-tools/.github/workflows/check_code_format.yml@main
