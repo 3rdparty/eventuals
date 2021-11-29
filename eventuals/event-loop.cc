@@ -133,11 +133,34 @@ void EventLoop::DestructDefault() {
 void EventLoop::ConstructDefaultAndRunForeverDetached() {
   ConstructDefault();
 
-  auto thread = std::thread([]() {
-    EventLoop::Default().RunForever();
+  auto uv_thread = std::thread([]() {
+    Default().in_event_loop_++;
+    Default().running_++;
+
+    // NOTE: we'll truly run forever because handles like 'async_' will
+    // keep the loop alive forever.
+    uv_run(&Default().loop_, UV_RUN_DEFAULT);
+
+    Default().running_--;
+    Default().in_event_loop_--;
   });
 
-  thread.detach();
+  auto asio_thread = std::thread([]() {
+    Default().in_event_loop_++;
+    Default().running_++;
+
+    asio::executor_work_guard<decltype(context_.get_executor())> work_guard(
+        Default().context_.get_executor());
+
+    Default().context_.restart();
+    Default().context_.run();
+
+    Default().running_--;
+    Default().in_event_loop_--;
+  });
+
+  uv_thread.detach();
+  asio_thread.detach();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -171,6 +194,9 @@ EventLoop::EventLoop()
 
   // NOTE: see comments in 'Run()' as to why we don't unreference
   // 'async_' like we do with 'check_'.
+
+  // Stop the context so .stopped() will return true.
+  context_.stop();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -255,59 +281,6 @@ EventLoop::~EventLoop() {
   } while (alive);
 
   CHECK_EQ(uv_loop_close(&loop_), 0);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-void EventLoop::Run() {
-  bool alive = false;
-  do {
-    in_event_loop_ = true;
-    running_ = true;
-
-    // NOTE: the semantics of 'Run()' are to run until the loop is no
-    // longer alive but _NOT_ to block when polling for I/O (need to
-    // use 'RunForever()' for that).
-    //
-    // We can't use 'UV_RUN_DEFAULT' because we don't want to block on
-    // I/O.
-    //
-    // Moreover, even 'UV_RUN_NOWAIT' poses problems because our
-    // 'async_' handle means 'uv_run()' will always return that the
-    // loop is still alive and it's ambiguous whether or not that is
-    // due to our 'async_' handle or another handle/request. We can't
-    // unreferene the 'async_' handle because emperically that shown
-    // to make 'uv_async_send()' no longer work. Thus, we use
-    // 'UV_RUN_NOWAIT' but then unreference our 'async_' handle and
-    // check if the loop is _really_ alive to determine if we should
-    // continue running the loop or not.
-    alive = uv_run(&loop_, UV_RUN_NOWAIT);
-
-    CHECK(alive) << "should still have async handle";
-
-    running_ = false;
-    in_event_loop_ = false;
-
-    uv_unref((uv_handle_t*) &async_);
-
-    alive = Alive();
-
-    uv_ref((uv_handle_t*) &async_);
-  } while (alive);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-void EventLoop::RunForever() {
-  in_event_loop_ = true;
-  running_ = true;
-
-  // NOTE: we'll truly run forever because handles like 'async_' will
-  // keep the loop alive forever.
-  uv_run(&loop_, UV_RUN_DEFAULT);
-
-  running_ = false;
-  in_event_loop_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,9 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "asio",
+    hdrs = glob(["asio/include/**/*.h*"] + ["asio/include/**/*.i*"]),
+    defines = ["ASIO_STANDALONE"],
+    includes = ["asio/include"],
+    visibility = ["//visibility:public"],
+)

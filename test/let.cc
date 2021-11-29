@@ -38,7 +38,7 @@ TEST_F(LetTest, Let) {
 
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_EQ(42, future.get());
 }

@@ -15,6 +15,12 @@
 #include "eventuals/then.h"
 #include "uv.h"
 
+// NOTE: Including asio.hpp before everything else will lead to
+// a glog compile error.
+// clang-format off
+#include "asio.hpp"
+// clang-format on
+
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
@@ -424,14 +430,32 @@ class EventLoop : public Scheduler {
   EventLoop(const EventLoop&) = delete;
   virtual ~EventLoop();
 
-  void Run();
-  void RunForever();
-
   template <typename T>
   void RunUntil(std::future<T>& future) {
     auto status = std::future_status::ready;
     do {
-      Run();
+      running_ = 2;
+      in_event_loop_ = 2;
+
+      // asio must be ran before libuv to make sure uv_now gives back the
+      // correct result.
+
+      // asio.
+      context_.restart();
+      context_.poll();
+
+      // libuv.
+      // NOTE: the semantics of 'Run()' are to run until the loop is no
+      // longer alive but _NOT_ to block when polling for I/O (need to
+      // use 'RunForever()' for that).
+      //
+      // We can't use 'UV_RUN_DEFAULT' because we don't want to block on
+      // I/O.
+      uv_run(&loop_, UV_RUN_NOWAIT);
+
+      running_ = 0;
+      in_event_loop_ = 0;
+
       status = future.wait_for(std::chrono::nanoseconds::zero());
     } while (status != std::future_status::ready);
   }
@@ -453,7 +477,7 @@ class EventLoop : public Scheduler {
   auto Schedule(std::string&& name, E e);
 
   bool Alive() {
-    return uv_loop_alive(&loop_);
+    return uv_loop_alive(&loop_) || !context_.stopped();
   }
 
   bool Running() {
@@ -466,6 +490,10 @@ class EventLoop : public Scheduler {
 
   operator uv_loop_t*() {
     return &loop_;
+  }
+
+  asio::io_context& context() {
+    return context_;
   }
 
   Clock& clock() {
@@ -646,9 +674,11 @@ class EventLoop : public Scheduler {
   uv_check_t check_;
   uv_async_t async_;
 
-  std::atomic<bool> running_ = false;
+  asio::io_context context_;
 
-  static inline thread_local bool in_event_loop_ = false;
+  std::atomic<size_t> running_ = 0;
+
+  static inline thread_local size_t in_event_loop_ = 0;
 
   std::atomic<Waiter*> waiters_ = nullptr;
 

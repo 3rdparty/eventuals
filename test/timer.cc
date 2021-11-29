@@ -27,7 +27,7 @@ TEST_F(EventLoopTest, Timer) {
   k.Start();
 
   auto start = Clock().Now();
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
   auto end = Clock().Now();
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);
@@ -50,7 +50,7 @@ TEST_F(EventLoopTest, PauseAndAdvanceClock) {
 
   Clock().Advance(std::chrono::seconds(5));
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_EQ(42, future.get());
 
@@ -81,20 +81,19 @@ TEST_F(EventLoopTest, AddTimerAfterAdvancingClock) {
 
   Clock().Advance(std::chrono::seconds(4)); // Timer 1 fired, timer 2 in 1000ms.
 
-  EventLoop::Default().Run(); // Fire timer 1.
-
-  future1.get();
+  EventLoop::Default().RunUntil(future1); // Fire timer 1.
 
   Clock().Advance(std::chrono::milliseconds(990)); // Timer 2 in 10ms.
 
   Clock().Resume();
 
   auto start = Clock().Now();
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future2);
   auto end = Clock().Now();
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);
 
+  future1.get();
   future2.get();
 }
 
@@ -116,7 +115,7 @@ TEST_F(EventLoopTest, InterruptTimer) {
     interrupt.Trigger();
   });
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 
@@ -141,7 +140,7 @@ TEST_F(EventLoopTest, PauseClockInterruptTimer) {
 
   interrupt.Trigger();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
@@ -162,6 +161,8 @@ TEST_F(EventLoopTest, TimerAfterTimer) {
   auto end = Clock().Now();
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);
+
+  future.get();
 }
 
 
@@ -183,4 +184,6 @@ TEST_F(EventLoopTest, MapTimer) {
   auto end = Clock().Now();
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);
+
+  future.get();
 }

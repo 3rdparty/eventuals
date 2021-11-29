@@ -79,12 +79,14 @@ cc_library(
         "eventuals/event-loop.h",
         "eventuals/filesystem.h",
         "eventuals/signal.h",
+        "eventuals/tcp.h",
         "eventuals/timer.h",
     ],
     copts = copts(),
     visibility = ["//visibility:private"],
     deps = [
         ":eventuals-base",
+        "@com_github_chriskohlhoff_asio//:asio",
         "@com_github_libuv_libuv//:libuv",
     ],
 )
