@@ -28,7 +28,7 @@ TEST_F(DomainNameResolveTest, Succeed) {
 
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_TRUE(
       std::regex_match(
@@ -46,7 +46,7 @@ TEST_F(DomainNameResolveTest, Fail) {
 
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), std::string);
 }
@@ -74,7 +74,7 @@ TEST_F(DomainNameResolveTest, Stop) {
 
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }

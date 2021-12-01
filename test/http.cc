@@ -33,7 +33,7 @@ TEST_P(HTTPTest, GetFailTimeout) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), const char*);
 }
@@ -53,7 +53,7 @@ TEST_P(HTTPTest, PostFailTimeout) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), const char*);
 }
@@ -73,7 +73,7 @@ TEST_P(HTTPTest, GetInterrupt) {
 
   interrupt.Trigger();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
@@ -99,7 +99,7 @@ TEST_P(HTTPTest, PostInterrupt) {
 
   interrupt.Trigger();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
@@ -130,7 +130,7 @@ TEST_P(HTTPTest, GetInterruptAfterStart) {
       },
       &waiter);
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
@@ -167,7 +167,7 @@ TEST_P(HTTPTest, PostInterruptAfterStart) {
       },
       &waiter);
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }

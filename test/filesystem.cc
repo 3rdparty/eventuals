@@ -53,7 +53,7 @@ TEST_F(FilesystemTest, OpenAndCloseFileSucceed) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   future.get();
 }
@@ -68,7 +68,7 @@ TEST_F(FilesystemTest, OpenFileFail) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_FALSE(std::filesystem::exists(path));
 
@@ -109,7 +109,7 @@ TEST_F(FilesystemTest, ReadFileSucceed) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   future.get();
 }
@@ -141,7 +141,7 @@ TEST_F(FilesystemTest, ReadFileFail) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   std::filesystem::remove(path);
   EXPECT_FALSE(std::filesystem::exists(path));
@@ -185,7 +185,7 @@ TEST_F(FilesystemTest, WriteFileSucceed) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   future.get();
 }
@@ -213,7 +213,7 @@ TEST_F(FilesystemTest, WriteFileFail) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   std::filesystem::remove(path);
   EXPECT_FALSE(std::filesystem::exists(path));
@@ -237,7 +237,7 @@ TEST_F(FilesystemTest, UnlinkFileSucceed) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   future.get();
 }
@@ -252,7 +252,7 @@ TEST_F(FilesystemTest, UnlinkFileFail) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), const char*);
 }
@@ -270,7 +270,7 @@ TEST_F(FilesystemTest, MakeDirectorySucceed) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   future.get();
 }
@@ -286,7 +286,7 @@ TEST_F(FilesystemTest, MakeDirectoryFail) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   std::filesystem::remove(path);
   EXPECT_FALSE(std::filesystem::exists(path));
@@ -308,7 +308,7 @@ TEST_F(FilesystemTest, RemoveDirectorySucceed) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   future.get();
 }
@@ -323,7 +323,7 @@ TEST_F(FilesystemTest, RemoveDirectoryFail) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), const char*);
 }
@@ -351,7 +351,7 @@ TEST_F(FilesystemTest, CopyFileSucceed) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   future.get();
 }
@@ -368,7 +368,7 @@ TEST_F(FilesystemTest, CopyFileFail) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_FALSE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
@@ -399,7 +399,7 @@ TEST_F(FilesystemTest, RenameFileSucceed) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   future.get();
 }
@@ -416,7 +416,7 @@ TEST_F(FilesystemTest, RenameFileFail) {
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
-  EventLoop::Default().Run();
+  EventLoop::Default().RunUntil(future);
 
   EXPECT_FALSE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
