@@ -87,9 +87,24 @@ cc_library(
         "event-loop.h",
         "filesystem.h",
         "signal.h",
+        "tcp.h",
         "timer.h",
     ],
     copts = copts(),
+    defines = select({
+        # Building TCP tests without these macros results in
+        # runtime errors while using AddressSaniitizer.
+        # Basically, these macros are used by ASIO to figure out
+        # which memory allocation and deallocation functions to use.
+        # https://github.com/chriskohlhoff/asio/blob/master/asio/include/asio/detail/memory.hpp
+        "@bazel_tools//src/conditions:windows": [
+            # MSVC doesn't support the aligned_alloc function.
+            "ASIO_MSVC",
+        ],
+        "//conditions:default": [
+            "ASIO_HAS_STD_ALIGNED_ALLOC",
+        ],
+    }),
     deps = [
         ":base",
         "@com_github_chriskohlhoff_asio//:asio",

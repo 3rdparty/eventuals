@@ -34,6 +34,18 @@ cc_library(
 )
 
 cc_library(
+    name = "event-loop-test",
+    hdrs = [
+        "event-loop-test.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//eventuals",
+        "@com_github_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "http-mock-server",
     testonly = True,
     srcs = ["http-mock-server.cc"],
@@ -43,6 +55,15 @@ cc_library(
         "//eventuals",
         "@com_github_chriskohlhoff_asio//:asio",
         "@com_github_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "tcp",
+    deps = [
+        "//test/tcp:base",
+        "//test/tcp:ipv6",
+        "//test/tcp:ssl",
     ],
 )
 
@@ -57,7 +78,6 @@ cc_test(
         "conditional.cc",
         "dns-resolver.cc",
         "do-all.cc",
-        "event-loop-test.h",
         "eventual.cc",
         "executor.cc",
         "expected.cc",
@@ -91,10 +111,12 @@ cc_test(
     ],
     copts = copts(),
     deps = [
+        ":event-loop-test",
         ":expect-throw-what",
         ":generate-test-task-name",
         ":http-mock-server",
         ":promisify-for-test",
+        ":tcp",
         "//eventuals",
         "//test/concurrent",
         "@com_github_google_googletest//:gtest_main",

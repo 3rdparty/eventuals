@@ -1,0 +1,98 @@
+# We build "tcp" tests in a separate target to significantly speed up
+# linking on platforms which prefer shared libraries (e.g., macos).
+
+# We've split all of the tests into separate files so they can be
+# compiled in parallel which is significantly faster than having
+# all of the tests in a single file.
+
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("//bazel:copts.bzl", "copts")
+
+cc_library(
+    name = "base",
+    srcs = [
+        "tcp.h",
+        "tcp-acceptor-bind.cc",
+        "tcp-acceptor-listen.cc",
+        "tcp-acceptor-open-close.cc",
+        "tcp-socket-bind.cc",
+        "tcp-socket-connect.cc",
+        "tcp-socket-connect-winapi.cc",
+        "tcp-socket-open-close.cc",
+        "tcp-socket-send-receive.cc",
+        "tcp-socket-send-receive-winapi.cc",
+        "tcp-socket-shutdown.cc",
+    ],
+    copts = copts(),
+    visibility = ["//test:__pkg__"],
+    deps = [
+        "//eventuals",
+        "//test:event-loop-test",
+        "//test:expect-throw-what",
+        "//test:promisify-for-test",
+        "@com_github_google_googletest//:gtest",
+        "@com_github_google_googletest//:gtest_main",
+    ],
+    # Setting it to False or leaving it absent will prevent concurrent
+    # tests from running on Windows.
+    alwayslink = True,
+)
+
+cc_library(
+    name = "ipv6",
+    srcs = [
+        "ipv6/tcp.h",
+        "ipv6/tcp-acceptor-bind.cc",
+        "ipv6/tcp-acceptor-open-close.cc",
+        "ipv6/tcp-socket-bind.cc",
+        "ipv6/tcp-socket-connect.cc",
+        "ipv6/tcp-socket-connect-winapi.cc",
+        "ipv6/tcp-socket-open-close.cc",
+        "ipv6/tcp-socket-send-receive.cc",
+        "ipv6/tcp-socket-send-receive-winapi.cc",
+        "ipv6/tcp-socket-shutdown.cc",
+        "tcp.h",
+    ],
+    copts = copts(),
+    # Currently we are running the Linux CI using Dazel,
+    # which uses Docker, which doesn't support IPv6.
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    visibility = ["//test:__pkg__"],
+    deps = [
+        "//eventuals",
+        "//test:event-loop-test",
+        "//test:expect-throw-what",
+        "//test:promisify-for-test",
+        "@com_github_google_googletest//:gtest",
+        "@com_github_google_googletest//:gtest_main",
+    ],
+    # Setting it to False or leaving it absent will prevent concurrent
+    # tests from running on Windows.
+    alwayslink = True,
+)
+
+cc_library(
+    name = "ssl",
+    srcs = [
+        "ssl/tcp.cc",
+        "ssl/tcp.h",
+        "tcp.h",
+    ],
+    copts = copts(),
+    visibility = ["//test:__pkg__"],
+    deps = [
+        "//eventuals",
+        "//test:event-loop-test",
+        "//test:expect-throw-what",
+        "//test:promisify-for-test",
+        "@com_github_google_googletest//:gtest",
+        "@com_github_google_googletest//:gtest_main",
+    ],
+    # Setting it to False or leaving it absent will prevent concurrent
+    # tests from running on Windows.
+    alwayslink = True,
+)

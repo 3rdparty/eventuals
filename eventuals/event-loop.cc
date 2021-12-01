@@ -150,7 +150,7 @@ void EventLoop::ConstructDefaultAndRunForeverDetached() {
     uv_run(&Default().loop_, UV_RUN_DEFAULT);
 
     // We should never get out of run.
-    CHECK(false);
+    LOG(FATAL) << "unreachable";
   });
 
   auto asio_thread = std::thread([]() {
@@ -160,7 +160,7 @@ void EventLoop::ConstructDefaultAndRunForeverDetached() {
     Default().io_context_.run();
 
     // We should never get out of run.
-    CHECK(false);
+    LOG(FATAL) << "unreachable";
   });
 
   uv_thread.detach();
