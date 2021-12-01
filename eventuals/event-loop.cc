@@ -148,7 +148,26 @@ void EventLoop::ConstructDefaultAndRunForeverDetached() {
   ConstructDefault();
 
   auto thread = std::thread([]() {
-    EventLoop::Default().RunForever();
+    while (true) {
+      EventLoop::Default().running_ = true;
+
+      EventLoop::Default().io_context().restart();
+      EventLoop::Default().io_context().poll();
+
+      // NOTE: callbacks running in the asio::io_context
+      // are not considered to be running in the libuv loop.
+      EventLoop::Default().in_event_loop_ = true;
+
+      // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
+      // I/O.
+      uv_run(&EventLoop::Default().loop_, UV_RUN_NOWAIT);
+
+      EventLoop::Default().running_ = false;
+      EventLoop::Default().in_event_loop_ = false;
+    }
+
+    // We should never get out of run.
+    LOG(FATAL) << "unreachable";
   });
 
   thread.detach();
@@ -274,15 +293,25 @@ EventLoop::~EventLoop() {
 ////////////////////////////////////////////////////////////////////////
 
 void EventLoop::RunForever() {
-  in_event_loop_ = true;
-  running_ = true;
+  while (true) {
+    running_ = true;
 
-  // NOTE: we'll truly run forever because handles like 'async_' will
-  // keep the loop alive forever.
-  uv_run(&loop_, UV_RUN_DEFAULT);
+    io_context().restart();
+    io_context().poll();
 
-  running_ = false;
-  in_event_loop_ = false;
+    // NOTE: callbacks running in the asio::io_context
+    // are not considered to be running in the libuv loop.
+    in_event_loop_ = true;
+
+    // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
+    // I/O.
+    uv_run(&EventLoop::Default().loop_, UV_RUN_NOWAIT);
+
+    running_ = false;
+    in_event_loop_ = false;
+  }
+
+  LOG(FATAL) << "unreachable";
 }
 
 ////////////////////////////////////////////////////////////////////////

@@ -11,6 +11,7 @@
 #include <string>
 #include <tuple>
 
+#include "asio.hpp"
 #include "eventuals/callback.h"
 #include "eventuals/closure.h"
 #include "eventuals/lazy.h"
@@ -471,8 +472,14 @@ class EventLoop final : public Scheduler {
   void RunUntil(std::future<T>& future) {
     auto status = std::future_status::ready;
     do {
-      in_event_loop_ = true;
       running_ = true;
+
+      io_context().restart();
+      io_context().poll();
+
+      // NOTE: callbacks running in the asio::io_context
+      // are not considered to be running in the libuv loop.
+      in_event_loop_ = true;
 
       // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
       // I/O.
@@ -487,8 +494,14 @@ class EventLoop final : public Scheduler {
 
   void RunWhileWaiters() {
     do {
-      in_event_loop_ = true;
       running_ = true;
+
+      io_context().restart();
+      io_context().poll();
+
+      // NOTE: callbacks running in the asio::io_context
+      // are not considered to be running in the libuv loop.
+      in_event_loop_ = true;
 
       // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
       // I/O.
@@ -531,6 +544,10 @@ class EventLoop final : public Scheduler {
 
   operator uv_loop_t*() {
     return &loop_;
+  }
+
+  asio::io_context& io_context() {
+    return io_context_;
   }
 
   Clock& clock() {
@@ -1048,6 +1065,8 @@ class EventLoop final : public Scheduler {
   uv_loop_t loop_ = {};
   uv_check_t check_ = {};
   uv_async_t async_ = {};
+
+  asio::io_context io_context_;
 
   std::atomic<bool> running_ = false;
 
