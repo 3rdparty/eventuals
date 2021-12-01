@@ -424,14 +424,22 @@ class EventLoop : public Scheduler {
   EventLoop(const EventLoop&) = delete;
   virtual ~EventLoop();
 
-  void Run();
   void RunForever();
 
   template <typename T>
   void RunUntil(std::future<T>& future) {
     auto status = std::future_status::ready;
     do {
-      Run();
+      in_event_loop_ = true;
+      running_ = true;
+
+      // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
+      // I/O.
+      uv_run(&loop_, UV_RUN_NOWAIT);
+
+      running_ = false;
+      in_event_loop_ = false;
+
       status = future.wait_for(std::chrono::nanoseconds::zero());
     } while (status != std::future_status::ready);
   }
