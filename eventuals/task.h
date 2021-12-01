@@ -170,7 +170,8 @@ struct _TaskWith {
       } else {
         static_assert(
             sizeof...(from) > 0,
-            "Expecting \"from\" argument for 'Task<From, To>' but no argument passed");
+            "Expecting \"from\" argument for 'Task<From, To>' "
+            "but no argument passed");
         Dispatch(Action::Start, std::forward<From>(from)...);
       }
     }
