@@ -11,6 +11,7 @@
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
+load("//3rdparty/bazel-rules-asio:repos.bzl", asio_repos = "repos")
 load("//3rdparty/bazel-rules-curl:repos.bzl", curl_repos = "repos")
 load("//3rdparty/bazel-rules-jemalloc:repos.bzl", jemalloc_repos = "repos")
 load("//3rdparty/bazel-rules-libuv:repos.bzl", libuv_repos = "repos")
@@ -25,7 +26,7 @@ def repos(external = True, repo_mapping = {}):
             repo_mapping, e.g., 'git_repository'
     """
 
-    libuv_repos(
+    asio_repos(
         repo_mapping = repo_mapping,
     )
 
@@ -34,6 +35,10 @@ def repos(external = True, repo_mapping = {}):
     )
 
     jemalloc_repos(
+        repo_mapping = repo_mapping,
+    )
+
+    libuv_repos(
         repo_mapping = repo_mapping,
     )
 
