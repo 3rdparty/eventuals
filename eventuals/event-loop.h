@@ -167,6 +167,8 @@ class EventLoop : public Scheduler {
     Clock(EventLoop& loop)
       : loop_(loop) {}
 
+    // Updates and returns the current timestamp in milliseconds.
+    // Not safe to use if an EventLoop is running on a different thread!
     std::chrono::nanoseconds Now();
 
     auto Timer(const std::chrono::nanoseconds& nanoseconds);
@@ -424,14 +426,22 @@ class EventLoop : public Scheduler {
   EventLoop(const EventLoop&) = delete;
   virtual ~EventLoop();
 
-  void Run();
   void RunForever();
 
   template <typename T>
   void RunUntil(std::future<T>& future) {
     auto status = std::future_status::ready;
     do {
-      Run();
+      in_event_loop_ = true;
+      running_ = true;
+
+      // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
+      // I/O.
+      uv_run(&loop_, UV_RUN_NOWAIT);
+
+      running_ = false;
+      in_event_loop_ = false;
+
       status = future.wait_for(std::chrono::nanoseconds::zero());
     } while (status != std::future_status::ready);
   }
@@ -841,9 +851,13 @@ inline auto& Clock() {
 ////////////////////////////////////////////////////////////////////////
 
 inline std::chrono::nanoseconds EventLoop::Clock::Now() {
+  CHECK(!loop_.running_);
+
   if (Paused()) { // TODO(benh): add 'unlikely()'.
     return *paused_ + advanced_;
   } else {
+    // uv_now() doesn't update time by itself.
+    uv_update_time(loop_);
     return std::chrono::nanoseconds(std::chrono::milliseconds(uv_now(loop_)));
   }
 }
