@@ -133,11 +133,30 @@ void EventLoop::DestructDefault() {
 void EventLoop::ConstructDefaultAndRunForeverDetached() {
   ConstructDefault();
 
-  auto thread = std::thread([]() {
-    EventLoop::Default().RunForever();
+  Default().running_ = true;
+  Default().in_event_loop_ = true;
+
+  auto uv_thread = std::thread([]() {
+    // NOTE: we'll truly run forever because handles like 'async_' will
+    // keep the loop alive forever.
+    uv_run(&Default().loop_, UV_RUN_DEFAULT);
+
+    // We should never get out of run.
+    CHECK(false);
   });
 
-  thread.detach();
+  auto asio_thread = std::thread([]() {
+    auto work_guard = asio::make_work_guard(Default().io_context_);
+
+    Default().io_context_.restart();
+    Default().io_context_.run();
+
+    // We should never get out of run.
+    CHECK(false);
+  });
+
+  uv_thread.detach();
+  asio_thread.detach();
 }
 
 ////////////////////////////////////////////////////////////////////////

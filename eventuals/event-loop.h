@@ -15,6 +15,12 @@
 #include "eventuals/then.h"
 #include "uv.h"
 
+// NOTE: Including asio.hpp before everything else will lead to
+// a compile error.
+// clang-format: off
+#include "asio.hpp"
+// clang-format: on
+
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
@@ -435,6 +441,8 @@ class EventLoop : public Scheduler {
       in_event_loop_ = true;
       running_ = true;
 
+      io_context().poll();
+
       // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
       // I/O.
       uv_run(&loop_, UV_RUN_NOWAIT);
@@ -476,6 +484,10 @@ class EventLoop : public Scheduler {
 
   operator uv_loop_t*() {
     return &loop_;
+  }
+
+  asio::io_context& io_context() {
+    return io_context_;
   }
 
   Clock& clock() {
@@ -655,6 +667,8 @@ class EventLoop : public Scheduler {
   uv_loop_t loop_;
   uv_check_t check_;
   uv_async_t async_;
+
+  asio::io_context io_context_;
 
   std::atomic<bool> running_ = false;
 
