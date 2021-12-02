@@ -14,6 +14,7 @@ cc_library(
         "eventuals/collect.h",
         "eventuals/compose.h",
         "eventuals/concurrent.h",
+        "eventuals/concurrent-ordered.h",
         "eventuals/conditional.h",
         "eventuals/context.h",
         "eventuals/do-all.h",
