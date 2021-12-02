@@ -522,12 +522,11 @@ struct _Concurrent {
                  Wait([this](auto notify) {
                    notify_egress_ = std::move(notify);
                    return [this]() {
-                     return (!exception_
-                             && values_.empty()
-                             && (!upstream_done_ || !fibers_done_))
-                         || (exception_
-                             && !upstream_done_
-                             && !fibers_done_);
+                     if (values_.empty()) {
+                       return !(upstream_done_ && fibers_done_);
+                     } else {
+                       return false;
+                     }
                    };
                  })
                  // Need to check for an exception _before_
@@ -536,8 +535,7 @@ struct _Concurrent {
                  | Map([this]() {
                      return Eventual<std::optional<Value_>>()
                          .start([this](auto& k) {
-                           if (exception_) {
-                             CHECK(upstream_done_ && fibers_done_);
+                           if (exception_ && upstream_done_ && fibers_done_) {
                              // TODO(benh): flush remaining values first?
                              try {
                                std::rethrow_exception(*exception_);
@@ -546,14 +544,13 @@ struct _Concurrent {
                              } catch (...) {
                                k.Fail(std::current_exception());
                              }
-                           } else if (values_.empty()) {
-                             CHECK(upstream_done_ && fibers_done_);
-                             k.Start(std::optional<Value_>());
-                           } else {
-                             CHECK(!values_.empty());
+                           } else if (!values_.empty()) {
                              auto value = std::move(values_.front());
                              values_.pop_front();
                              k.Start(std::optional<Value_>(std::move(value)));
+                           } else {
+                             CHECK(upstream_done_ && fibers_done_);
+                             k.Start(std::optional<Value_>());
                            }
                          });
                    }))

@@ -223,6 +223,109 @@ TEST(ConcurrentTest, FailOrStop) {
   EXPECT_ANY_THROW(future.get());
 }
 
+// Tests when an eventuals stops before an eventual succeeds.
+TEST(ConcurrentTest, StopBeforeStart) {
+  Callback<> start;
+  Callback<> stop;
+
+  auto e = [&]() {
+    return Iterate({1, 2})
+        | Concurrent([&]() {
+             struct Data {
+               void* k;
+               int i;
+             };
+             return Map(Let([&](int& i) {
+               return Eventual<std::string>(
+                   [&, data = Data()](auto& k) mutable {
+                     using K = std::decay_t<decltype(k)>;
+                     data.k = &k;
+                     data.i = i;
+                     if (data.i == 1) {
+                       start = [&data]() {
+                         static_cast<K*>(data.k)->Start(std::to_string(data.i));
+                       };
+                     } else {
+                       stop = [&data]() {
+                         static_cast<K*>(data.k)->Stop();
+                       };
+                     }
+                   });
+             }));
+           })
+        | Collect<std::vector<std::string>>();
+  };
+
+  auto [future, k] = Terminate(e());
+
+  k.Start();
+
+  EXPECT_TRUE(start);
+  EXPECT_TRUE(stop);
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future.wait_for(std::chrono::seconds(0)));
+
+  // NOTE: executing 'stop' before 'start'.
+  stop();
+  start();
+
+  EXPECT_THROW(future.get(), eventuals::StoppedException);
+}
+
+
+// Tests when an eventuals fails before an eventual succeeds.
+TEST(ConcurrentTest, FailBeforeStart) {
+  Callback<> start;
+  Callback<> fail;
+
+  auto e = [&]() {
+    return Iterate({1, 2})
+        | Concurrent([&]() {
+             struct Data {
+               void* k;
+               int i;
+             };
+             return Map(Let([&](int& i) {
+               return Eventual<std::string>(
+                   [&, data = Data()](auto& k) mutable {
+                     using K = std::decay_t<decltype(k)>;
+                     data.k = &k;
+                     data.i = i;
+                     if (data.i == 1) {
+                       start = [&data]() {
+                         static_cast<K*>(data.k)->Start(std::to_string(data.i));
+                       };
+                     } else {
+                       fail = [&data]() {
+                         static_cast<K*>(data.k)->Fail("error");
+                       };
+                     }
+                   });
+             }));
+           })
+        | Collect<std::vector<std::string>>();
+  };
+
+  auto [future, k] = Terminate(e());
+
+  k.Start();
+
+  EXPECT_TRUE(start);
+  EXPECT_TRUE(fail);
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future.wait_for(std::chrono::seconds(0)));
+
+  // NOTE: executing 'fail' before 'start'.
+  fail();
+  start();
+
+  EXPECT_THROW(future.get(), std::exception_ptr);
+}
+
 // Tests that 'Concurrent()' defers to the eventuals on how to handle
 // interrupts and in this case each eventual ignores interrupts so
 // we'll successfully collect all the values.
