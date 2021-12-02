@@ -42,6 +42,11 @@ struct _FlatMap {
       streamforeach_->Stop();
     }
 
+    template <typename... Args>
+    void Fail(Args&&... args) {
+      streamforeach_->Fail(std::forward<Args>(args)...);
+    }
+
     void Register(Interrupt&) {
       // Already registered K once in 'FlatMap::Body()'.
     }
