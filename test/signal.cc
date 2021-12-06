@@ -12,9 +12,9 @@
 using eventuals::EventLoop;
 using eventuals::Eventual;
 using eventuals::Interrupt;
-using eventuals::Signal;
 using eventuals::Terminate;
 using eventuals::Then;
+using eventuals::WaitForOneOfSignals;
 using eventuals::WaitForSignal;
 
 using namespace std::chrono_literals;
@@ -33,7 +33,7 @@ class SignalTest : public EventLoopTest {};
 #if !defined(_WIN32)
 
 TEST_F(SignalTest, SignalComposition) {
-  auto e = Signal(SIGQUIT)
+  auto e = WaitForSignal(SIGQUIT)
       | Then([]() {
              return "quit";
            });
@@ -61,7 +61,7 @@ TEST_F(SignalTest, SignalComposition) {
 }
 
 TEST_F(SignalTest, WaitForSignal) {
-  auto e = WaitForSignal({SIGQUIT});
+  auto e = WaitForOneOfSignals({SIGQUIT});
 
   auto [future, k] = Terminate(std::move(e));
 
@@ -89,7 +89,7 @@ TEST_F(SignalTest, WaitForSignal) {
 
 
 TEST_F(SignalTest, SignalInterrupt) {
-  auto [future, k] = Terminate(Signal(SIGINT));
+  auto [future, k] = Terminate(WaitForSignal(SIGINT));
 
   Interrupt interrupt;
 

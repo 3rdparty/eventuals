@@ -472,25 +472,25 @@ class EventLoop : public Scheduler {
     return clock_;
   }
 
-  auto Signal(const int signum);
+  auto WaitForSignal(int signum);
 
  private:
-  struct _Signal {
+  struct _WaitForSignal {
     template <typename K_>
     struct Continuation {
       Continuation(K_ k, EventLoop& loop, const int signum)
         : k_(std::move(k)),
           loop_(loop),
           signum_(signum),
-          start_(&loop, "Signal (start)"),
-          interrupt_(&loop, "Signal (interrupt)") {}
+          start_(&loop, "WaitForSignal (start)"),
+          interrupt_(&loop, "WaitForSignal (interrupt)") {}
 
       Continuation(Continuation&& that)
         : k_(std::move(that.k_)),
           loop_(that.loop_),
           signum_(that.signum_),
-          start_(&that.loop_, "Signal (start)"),
-          interrupt_(&that.loop_, "Signal (interrupt)") {
+          start_(&that.loop_, "WaitForSignal (start)"),
+          interrupt_(&that.loop_, "WaitForSignal (interrupt)") {
         CHECK(!that.started_ || !that.completed_) << "moving after starting";
         CHECK(!handler_);
       }
@@ -862,14 +862,13 @@ inline auto EventLoop::Clock::Timer(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto EventLoop::Signal(
-    const int signum) {
+inline auto EventLoop::WaitForSignal(int signum) {
   // NOTE: we use a 'RescheduleAfter()' to ensure we use current
   // scheduling context to invoke the continuation after the signal has
   // fired (or was interrupted).
   return RescheduleAfter(
       // TODO(benh): borrow 'this' so signal can't outlive a loop.
-      _Signal::Composable{*this, signum});
+      _WaitForSignal::Composable{*this, signum});
 }
 
 ////////////////////////////////////////////////////////////////////////

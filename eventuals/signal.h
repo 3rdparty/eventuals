@@ -13,14 +13,14 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Signal(EventLoop& loop, const int& signum) {
-  return loop.Signal(signum);
+inline auto WaitForSignal(EventLoop& loop, int signum) {
+  return loop.WaitForSignal(signum);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Signal(const int& signum) {
-  return EventLoop::Default().Signal(signum);
+inline auto WaitForSignal(int signum) {
+  return EventLoop::Default().WaitForSignal(signum);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -35,12 +35,12 @@ inline auto Signal(const int& signum) {
 //
 // NOTE: we take an array instead of a 'std::initializer_list' because
 // then we can 'std::move()' into 'Iterate()' without a copy.
-template <typename T, size_t n>
-auto WaitForSignal(T(&&signums)[n]) {
+template <size_t N>
+auto WaitForOneOfSignals(int(&&signums)[N]) {
   return Iterate(std::move(signums))
       | Concurrent([]() {
            return Map([](int signum) {
-             return Signal(signum)
+             return WaitForSignal(signum)
                  | Just(signum);
            });
          })
