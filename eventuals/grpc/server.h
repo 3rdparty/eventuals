@@ -701,7 +701,6 @@ auto UnaryEpilogue(ServerCall<Request, Response>& call) {
          })
       | Just(::grpc::Status::OK)
       | Catch([&](auto&&...) {
-           call.context()->TryCancel();
            return Just(
                ::grpc::Status(::grpc::UNKNOWN, "error"));
          })
@@ -723,7 +722,6 @@ auto StreamingEpilogue(ServerCall<Request, Response>& call) {
       | Loop()
       | Just(::grpc::Status::OK)
       | Catch([&](auto&&...) {
-           call.context()->TryCancel();
            return Just(
                ::grpc::Status(::grpc::UNKNOWN, "error"));
          })
