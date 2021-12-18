@@ -114,7 +114,7 @@ Server::Server(
     serve->service->Register(this);
 
     serve->task.emplace(
-        Task<void>([service]() {
+        Task::Of<void>([service]() {
           // Use a separate preemptible scheduler context to serve
           // each service so that we correctly handle any waiting
           // (e.g., on 'Lock' or 'Wait').

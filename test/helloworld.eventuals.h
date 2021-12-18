@@ -18,7 +18,7 @@ class Greeter {
 
   class TypeErasedService : public ::eventuals::grpc::Service {
    public:
-    ::eventuals::Task<void> Serve() override;
+    ::eventuals::Task::Of<void> Serve() override;
 
     char const* name() override {
       return Greeter::service_full_name();
@@ -27,7 +27,7 @@ class Greeter {
    protected:
     virtual ~TypeErasedService() = default;
 
-    virtual ::eventuals::Task<HelloReply> TypeErasedSayHello(
+    virtual ::eventuals::Task::Of<HelloReply> TypeErasedSayHello(
         std::tuple<
             TypeErasedService*, // this
             ::grpc::GenericServerContext*,
@@ -36,7 +36,7 @@ class Greeter {
 
   template <typename Implementation>
   class Service : public TypeErasedService {
-    ::eventuals::Task<HelloReply> TypeErasedSayHello(
+    ::eventuals::Task::Of<HelloReply> TypeErasedSayHello(
         std::tuple<
             TypeErasedService*,
             ::grpc::GenericServerContext*,

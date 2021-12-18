@@ -26,7 +26,7 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-Task<void> Greeter::TypeErasedService::Serve() {
+Task::Of<void> Greeter::TypeErasedService::Serve() {
   return [this]() {
     return DoAll(
                // SayHello

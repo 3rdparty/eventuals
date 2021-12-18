@@ -20,7 +20,7 @@ struct {{ service.name }} {
 
   class TypeErasedService : public ::eventuals::grpc::Service {
    public:
-    ::eventuals::Task<void> Serve() override;
+    ::eventuals::Task::Of<void> Serve() override;
 
     char const* name() override {
       return {{ service.name }}::service_full_name();
@@ -34,7 +34,7 @@ struct {{ service.name }} {
     {%- if method.server_streaming -%}
         Generator
     {%- else -%}
-        Task
+        Task::Of
     {%- endif -%}
     {#...#}<const {{ method.output_type.split('.') | join('::') }}&>
 {%- endset %}
@@ -63,7 +63,7 @@ struct {{ service.name }} {
     {%- if method.server_streaming -%}
         Generator
     {%- else -%}
-        Task
+        Task::Of
     {%- endif -%}
     {#...#}<const {{ method.output_type.split('.') | join('::') }}&>
 {%- endset %}

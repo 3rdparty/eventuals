@@ -27,7 +27,7 @@ using eventuals::grpc::Stream;
 using namespace {{ namespaces | join('::') }}::eventuals;
 
 {% for service in services -%}
-Task<void> {{ service.name }}::TypeErasedService::Serve() {
+Task::Of<void> {{ service.name }}::TypeErasedService::Serve() {
   return [this]() {
     return DoAll(
 {%- for method in service.methods %}

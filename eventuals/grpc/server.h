@@ -37,7 +37,7 @@ namespace grpc {
 
 ////////////////////////////////////////////////////////////////////////
 
-using eventuals::detail::operator|;
+using eventuals::operator|;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +50,7 @@ class Service {
  public:
   virtual ~Service() = default;
 
-  virtual Task<void> Serve() = 0;
+  virtual Task::Of<void> Serve() = 0;
 
   virtual char const* name() = 0;
 
@@ -521,7 +521,7 @@ class Server : public Synchronizable {
   struct Serve {
     Service* service;
     Interrupt interrupt;
-    std::optional<Task<void>> task;
+    std::optional<Task::Of<void>> task;
     std::atomic<bool> done = false;
   };
 
@@ -529,7 +529,7 @@ class Server : public Synchronizable {
 
   struct Worker {
     Interrupt interrupt;
-    std::optional<Task<void>::With<::grpc::ServerCompletionQueue*>> task;
+    std::optional<Task::Of<void>::With<::grpc::ServerCompletionQueue*>> task;
     std::atomic<bool> done = false;
   };
 
