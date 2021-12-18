@@ -87,7 +87,6 @@ struct HeapTask {
     if constexpr (std::is_void_v<From_>) {
       adapted_.Start();
     } else {
-      CHECK(arg);
       adapted_.Start(std::move(arg));
     }
   }
