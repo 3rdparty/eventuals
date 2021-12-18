@@ -16,6 +16,7 @@
 #include "eventuals/lock.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
+#include "eventuals/pipe.h"
 #include "eventuals/repeat.h"
 #include "eventuals/task.h"
 #include "eventuals/then.h"
@@ -382,46 +383,16 @@ class Endpoint : public Synchronizable {
       host_(std::move(host)) {}
 
   auto Enqueue(std::unique_ptr<ServerContext>&& context) {
-    return Synchronized(Then([this, context = std::move(context)]() mutable {
-      contexts_.emplace_back(std::move(context));
-      notify_();
-    }));
+    return pipe_.Write(std::move(context));
   }
 
   // NOTE: returns a stream rather than a single eventual context.
   auto Dequeue() {
-    return Repeat()
-        | Synchronized(
-               Wait([this](auto notify) {
-                 notify_ = std::move(notify);
-                 return [this]() {
-                   return contexts_.empty() && !shutdown_;
-                 };
-               })
-               | Map([this]() {
-                   if (!shutdown_) {
-                     CHECK(!contexts_.empty());
-                     auto context = std::move(contexts_.front());
-                     contexts_.pop_front();
-                     return std::make_optional(std::move(context));
-                   } else {
-                     return std::optional<std::unique_ptr<ServerContext>>();
-                   }
-                 }))
-        | Until([](auto& context) {
-             return !context.has_value();
-           })
-        | Map([](auto&& context) {
-             CHECK(context);
-             return std::move(*context);
-           });
+    return pipe_.Read();
   }
 
   auto Shutdown() {
-    return Synchronized(Then([this]() {
-      shutdown_ = true;
-      notify_();
-    }));
+    return pipe_.Close();
   }
 
   const std::string& path() {
@@ -436,14 +407,7 @@ class Endpoint : public Synchronizable {
   const std::string path_;
   const std::string host_;
 
-  // NOTE: callback is initially a no-op so 'Enqueue()' can be called
-  // before the callback has been set up in 'Dequeue()'.
-  Callback<> notify_ = []() {};
-
-  std::deque<std::unique_ptr<ServerContext>> contexts_;
-
-  // Used to indicate the server is shutting down.
-  bool shutdown_ = false;
+  Pipe<std::unique_ptr<ServerContext>> pipe_;
 };
 
 ////////////////////////////////////////////////////////////////////////
