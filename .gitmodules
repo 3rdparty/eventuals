@@ -1,0 +1,3 @@
+[submodule "submodules/eventuals"]
+	path = submodules/eventuals
+	url = https://github.com/3rdparty/eventuals.git

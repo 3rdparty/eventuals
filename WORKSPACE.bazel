@@ -1,5 +1,21 @@
 workspace(name = "com_github_3rdparty_eventuals_grpc")
 
+########################################################################
+
+# NOTE: we pull in 'eventuals' as a local repository pointing to the git
+# submodule that we have so that we can do do more efficient
+# development between the two repositories. We'll remove this for
+# releases!
+local_repository(
+    name = "com_github_3rdparty_eventuals",
+    path = "submodules/eventuals"
+)
+
+load("@com_github_3rdparty_eventuals//bazel:repos.bzl", eventuals_repos = "repos")
+eventuals_repos(external = False)
+
+########################################################################
+
 load("//bazel:repos.bzl", "repos")
 repos(external = False)
 
