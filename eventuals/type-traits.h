@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
@@ -26,6 +28,20 @@ struct void_template {
 template <typename T>
 struct type_identity {
   using type = T;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename, typename = void>
+struct HasEmplaceBack : std::false_type {
+};
+
+template <typename T>
+struct HasEmplaceBack<
+    T,
+    std::void_t<decltype(std::declval<T>().emplace_back(
+        std::declval<typename T::value_type&&>()))>>
+  : std::true_type {
 };
 
 ////////////////////////////////////////////////////////////////////////

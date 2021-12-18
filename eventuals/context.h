@@ -8,18 +8,17 @@
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
-namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T, typename... Args>
-class Context {
+class _Context {
  public:
   template <typename Tuple>
-  Context(Tuple args)
+  _Context(Tuple args)
     : args_(std::move(args)) {}
 
-  Context(Context&& that)
+  _Context(_Context&& that)
     : args_(std::move(that.args_)) {
     CHECK(!t_) << "'Context' can not be moved after using";
   }
@@ -50,13 +49,9 @@ class Context {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename T, typename... Args>
 auto Context(Args&&... args) {
-  return detail::Context<T, Args...>(
+  return _Context<T, Args...>(
       std::forward_as_tuple(std::forward<Args>(args)...));
 }
 

@@ -12,10 +12,6 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename E_, typename From_, typename To_>
 struct HeapTransformer {
   struct Adaptor {
@@ -274,7 +270,7 @@ struct _Transformer {
           e_ = std::unique_ptr<void, Callback<void*>>(
               new HeapTransformer<E, From_, To_>(f()),
               [](void* e) {
-                delete static_cast<detail::HeapTransformer<E, From_, To_>*>(e);
+                delete static_cast<HeapTransformer<E, From_, To_>*>(e);
               });
         }
 
@@ -342,10 +338,6 @@ struct _Transformer {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename From_, typename To_>
 class Transformer {
  public:
@@ -369,7 +361,7 @@ class Transformer {
   }
 
  private:
-  detail::_Transformer::Composable<From_, To_> e_;
+  _Transformer::Composable<From_, To_> e_;
 };
 
 ////////////////////////////////////////////////////////////////////////

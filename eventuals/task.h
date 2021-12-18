@@ -14,10 +14,6 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename E_, typename From_, typename To_>
 struct HeapTask {
   struct Adaptor {
@@ -304,12 +300,12 @@ struct _TaskWith {
                           Callback<>&&,
                           Callback<To_>&&> start,
                       Callback<std::exception_ptr>&& fail,
-                      Callback<>&& stop) {
+                      Callback<>&& stop) mutable {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void*>>(
               new HeapTask<E, From_, To_>(f(std::move(args)...)),
               [](void* e) {
-                delete static_cast<detail::HeapTask<E, From_, To_>*>(e);
+                delete static_cast<HeapTask<E, From_, To_>*>(e);
               });
         }
 
@@ -375,10 +371,6 @@ struct _TaskWith {
     std::tuple<Args_...> args_;
   };
 };
-
-////////////////////////////////////////////////////////////////////////
-
-} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -477,7 +469,7 @@ class TaskWith {
   }
 
  private:
-  detail::_TaskWith::Composable<From_, To_, Args_...> e_;
+  _TaskWith::Composable<From_, To_, Args_...> e_;
 
   // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
   // a composable but also a continuation which has a terminal made up

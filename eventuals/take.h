@@ -10,7 +10,6 @@
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
-namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -191,20 +190,16 @@ struct _TakeRange {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 inline auto TakeLastN(size_t N) {
-  return detail::_TakeLastN::Composable{N};
+  return _TakeLastN::Composable{N};
 }
 
 inline auto TakeRange(size_t begin, size_t amount) {
-  return detail::_TakeRange::Composable{begin, amount};
+  return _TakeRange::Composable{begin, amount};
 }
 
 inline auto TakeFirstN(size_t amount) {
-  return detail::_TakeRange::Composable{0, amount};
+  return _TakeRange::Composable{0, amount};
 }
 
 ////////////////////////////////////////////////////////////////////////

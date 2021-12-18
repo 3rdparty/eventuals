@@ -10,7 +10,7 @@ namespace eventuals {
 
 struct _Range {
   template <typename K_, typename Arg_>
-  struct Continuation : public detail::TypeErasedStream {
+  struct Continuation : public TypeErasedStream {
     // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, int from, int to, int step)
       : k_(std::move(k)),

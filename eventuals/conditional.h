@@ -10,10 +10,6 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
 struct _Conditional {
   template <
       typename K_,
@@ -149,13 +145,9 @@ struct _Conditional {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename Condition, typename Then, typename Else>
 auto Conditional(Condition condition, Then then, Else els3) {
-  return detail::_Conditional::Composable<Condition, Then, Else>{
+  return _Conditional::Composable<Condition, Then, Else>{
       std::move(condition),
       std::move(then),
       std::move(els3)};

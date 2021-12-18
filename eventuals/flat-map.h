@@ -8,14 +8,12 @@
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
-namespace detail {
-
 ////////////////////////////////////////////////////////////////////////
 
 struct _FlatMap {
   template <typename FlatMap_>
   struct Adaptor {
-    void Begin(detail::TypeErasedStream& stream) {
+    void Begin(TypeErasedStream& stream) {
       CHECK(streamforeach_->adapted_.has_value());
       CHECK(streamforeach_->inner_ == nullptr);
       streamforeach_->inner_ = &stream;
@@ -52,13 +50,13 @@ struct _FlatMap {
   };
 
   template <typename K_, typename F_, typename Arg_>
-  struct Continuation : public detail::TypeErasedStream {
+  struct Continuation : public TypeErasedStream {
     // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, F_ f)
       : k_(std::move(k)),
         f_(std::move(f)) {}
 
-    void Begin(detail::TypeErasedStream& stream) {
+    void Begin(TypeErasedStream& stream) {
       outer_ = &stream;
       previous_ = Scheduler::Context::Get();
 
@@ -125,8 +123,8 @@ struct _FlatMap {
     K_ k_;
     F_ f_;
 
-    detail::TypeErasedStream* outer_ = nullptr;
-    detail::TypeErasedStream* inner_ = nullptr;
+    TypeErasedStream* outer_ = nullptr;
+    TypeErasedStream* inner_ = nullptr;
 
     using E_ = typename std::invoke_result<F_, Arg_>::type;
 
@@ -161,13 +159,9 @@ struct _FlatMap {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename F>
 auto FlatMap(F f) {
-  return detail::_FlatMap::Composable<F>{std::move(f)};
+  return _FlatMap::Composable<F>{std::move(f)};
 }
 
 ////////////////////////////////////////////////////////////////////////

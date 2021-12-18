@@ -1,5 +1,6 @@
 #pragma once
 
+#include "eventuals/type-traits.h"
 #include "glog/logging.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -18,7 +19,12 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace detail {
+template <typename, typename = void>
+struct HasValueFrom : std::false_type {};
+
+template <typename T>
+struct HasValueFrom<T, std::void_t<void_template<T::template ValueFrom>>>
+  : std::true_type {};
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -48,14 +54,17 @@ struct Composed {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Left, typename Right>
+template <
+    typename Left,
+    typename Right,
+    std::enable_if_t<
+        std::conjunction_v<
+            HasValueFrom<Left>,
+            HasValueFrom<Right>>,
+        int> = 0>
 auto operator|(Left left, Right right) {
   return Composed<Left, Right>{std::move(left), std::move(right)};
 }
-
-////////////////////////////////////////////////////////////////////////
-
-} // namespace detail
 
 ////////////////////////////////////////////////////////////////////////
 

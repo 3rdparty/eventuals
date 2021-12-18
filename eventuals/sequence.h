@@ -10,12 +10,8 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename F_, typename Next_>
-struct Sequence {
+struct _Sequence {
   template <typename... Ts>
   void operator()(Ts&&... ts) {
     if (!invoked_) {
@@ -33,13 +29,13 @@ struct Sequence {
   template <typename F>
   auto Once(F f) && {
     if constexpr (IsUndefined<F_>::value) {
-      return Sequence<F, Undefined>{std::move(f), Undefined()};
+      return _Sequence<F, Undefined>{std::move(f), Undefined()};
     } else if constexpr (IsUndefined<Next_>::value) {
-      auto next = Sequence<F, Undefined>{std::move(f), Undefined()};
-      return Sequence<F_, decltype(next)>{std::move(f_), std::move(next)};
+      auto next = _Sequence<F, Undefined>{std::move(f), Undefined()};
+      return _Sequence<F_, decltype(next)>{std::move(f_), std::move(next)};
     } else {
       auto next = std::move(next_).Once(std::move(f));
-      return Sequence<F_, decltype(next)>{std::move(f_), std::move(next)};
+      return _Sequence<F_, decltype(next)>{std::move(f_), std::move(next)};
     }
   }
 
@@ -50,11 +46,7 @@ struct Sequence {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
-struct Sequence : public detail::Sequence<Undefined, Undefined> {
+struct Sequence : public _Sequence<Undefined, Undefined> {
   Sequence() {}
 };
 

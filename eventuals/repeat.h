@@ -1,5 +1,6 @@
 #pragma once
 
+#include "eventuals/compose.h" // For 'HasValueFrom'.
 #include "eventuals/eventual.h"
 #include "eventuals/map.h"
 #include "eventuals/stream.h"
@@ -7,10 +8,6 @@
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
-
-////////////////////////////////////////////////////////////////////////
-
-namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -71,21 +68,17 @@ struct _Repeat {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename F>
 auto Repeat(F f) {
   static_assert(
-      !detail::HasValueFrom<F>::value,
+      !HasValueFrom<F>::value,
       "'Repeat' expects a callable not an eventual");
 
-  return detail::_Repeat::Composable{} | Map(std::move(f));
+  return _Repeat::Composable{} | Map(std::move(f));
 }
 
 inline auto Repeat() {
-  return detail::_Repeat::Composable{};
+  return _Repeat::Composable{};
 }
 
 ////////////////////////////////////////////////////////////////////////

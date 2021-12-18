@@ -9,10 +9,6 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
 struct _Reduce {
   template <typename K_>
   struct Adaptor {
@@ -43,7 +39,7 @@ struct _Reduce {
 
   template <typename K_, typename T_, typename F_, typename Arg_>
   struct Continuation {
-    void Begin(detail::TypeErasedStream& stream) {
+    void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
 
       stream_->Next();
@@ -124,20 +120,23 @@ struct _Reduce {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename T, typename F>
 auto Reduce(T t, F f) {
-  // static_assert(
-  //     !IsContinuation<F>::value
-  //     && std::is_invocable_v<F, std::add_lvalue_reference_t<T>>,
-  //     "'Reduce' expects a callable in order to provide "
-  //     "a reference to the initial accumulator and you can "
-  //     "return an eventual from the callable");
+  static_assert(
+      std::is_invocable_v<F, std::add_lvalue_reference_t<T>>,
+      "'Reduce' expects a *callable* (e.g., a lambda or functor) "
+      "take takes a reference to the accumulator and returns "
+      "an eventual");
 
-  return detail::_Reduce::Composable<T, F>{std::move(t), std::move(f)};
+  using E = std::invoke_result_t<F, std::add_lvalue_reference_t<T>>;
+
+  static_assert(
+      HasValueFrom<E>::value,
+      "'Reduce' expects a *callable* (e.g., a lambda or functor) "
+      "take takes a reference to the accumulator and returns "
+      "an eventual");
+
+  return _Reduce::Composable<T, F>{std::move(t), std::move(f)};
 }
 
 ////////////////////////////////////////////////////////////////////////

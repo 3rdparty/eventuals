@@ -2,15 +2,12 @@
 
 #include <optional>
 
+#include "eventuals/compose.h"
 #include "eventuals/interrupt.h"
 
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
-
-////////////////////////////////////////////////////////////////////////
-
-namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -93,10 +90,6 @@ struct _Closure {
 
 ////////////////////////////////////////////////////////////////////////
 
-} //  namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename F>
 auto Closure(F f) {
   static_assert(
@@ -104,12 +97,14 @@ auto Closure(F f) {
       "'Closure' expects a *callable* (e.g., a lambda or functor) "
       "that doesn't expect any arguments");
 
-  // static_assert(
-  //     IsContinuation<E>::value,
-  //     "Expecting an eventual continuation as the "
-  //     "result of the callable passed to 'Closure'");
+  using E = decltype(f());
 
-  return detail::_Closure::Composable<F>{std::move(f)};
+  static_assert(
+      HasValueFrom<E>::value,
+      "Expecting an eventual continuation as the "
+      "result of the callable passed to 'Closure'");
+
+  return _Closure::Composable<F>{std::move(f)};
 }
 
 ////////////////////////////////////////////////////////////////////////

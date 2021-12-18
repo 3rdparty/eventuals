@@ -15,10 +15,6 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename E_, typename From_, typename To_>
 struct HeapGenerator {
   struct Adaptor {
@@ -374,12 +370,12 @@ struct _GeneratorWith {
                           std::is_void_v<To_>,
                           Callback<>,
                           Callback<To_>>&& body,
-                      Callback<>&& ended) {
+                      Callback<>&& ended) mutable {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void*>>(
               new HeapGenerator<E, From_, To_>(f(std::move(args)...)),
               [](void* e) {
-                delete static_cast<detail::HeapGenerator<E, From_, To_>*>(e);
+                delete static_cast<HeapGenerator<E, From_, To_>*>(e);
               });
         }
 
@@ -457,13 +453,9 @@ struct _GeneratorWith {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 // Creating a type alias to improve the readability.
 template <typename Value, typename... Args>
-using GeneratorWith = detail::_GeneratorWith::Composable<Value, Args...>;
+using GeneratorWith = _GeneratorWith::Composable<Value, Args...>;
 
 template <typename...>
 class Generator;

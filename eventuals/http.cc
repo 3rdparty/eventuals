@@ -1,5 +1,7 @@
 #include "eventuals/http.h"
 
+////////////////////////////////////////////////////////////////////////
+
 class CURLGlobalInitializer {
  public:
   CURLGlobalInitializer() {
@@ -12,3 +14,5 @@ class CURLGlobalInitializer {
 };
 
 static CURLGlobalInitializer initializer_;
+
+////////////////////////////////////////////////////////////////////////

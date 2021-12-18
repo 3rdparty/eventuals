@@ -11,10 +11,6 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
 struct _DoAll {
   template <typename K_, typename... Eventuals_>
   struct Adaptor {
@@ -271,13 +267,9 @@ struct _DoAll {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename Eventual, typename... Eventuals>
 auto DoAll(Eventual eventual, Eventuals... eventuals) {
-  return detail::_DoAll::Composable<Eventual, Eventuals...>{
+  return _DoAll::Composable<Eventual, Eventuals...>{
       std::make_tuple(std::move(eventual), std::move(eventuals)...)};
 }
 

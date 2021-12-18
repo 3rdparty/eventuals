@@ -19,10 +19,6 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
 struct _Eventual {
   template <
       typename K_,
@@ -219,13 +215,9 @@ struct _Eventual {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename Value, typename... Errors>
 auto Eventual() {
-  return detail::_Eventual::Builder<
+  return _Eventual::Builder<
       Undefined,
       Undefined,
       Undefined,
@@ -239,7 +231,7 @@ auto Eventual() {
 
 template <typename Value, typename... Errors, typename Start>
 auto Eventual(Start start) {
-  return detail::_Eventual::Builder<
+  return _Eventual::Builder<
       Undefined,
       Start,
       Undefined,

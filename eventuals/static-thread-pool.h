@@ -143,10 +143,6 @@ class StaticThreadPool : public Scheduler {
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
 struct _StaticThreadPoolSchedule {
   template <typename K_, typename E_, typename Arg_>
   struct Continuation : public StaticThreadPool::Waiter {
@@ -504,7 +500,7 @@ struct _StaticThreadPoolSchedule {
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
     using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
-        std::declval<detail::_Reschedule::Composable>()
+        std::declval<_Reschedule::Composable>()
             .template k<Value_>(std::declval<K_>())));
 
     std::unique_ptr<Adapted_> adapted_;
@@ -532,13 +528,9 @@ struct _StaticThreadPoolSchedule {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename E>
 auto StaticThreadPool::Schedule(Requirements* requirements, E e) {
-  return detail::_StaticThreadPoolSchedule::Composable<E>{
+  return _StaticThreadPoolSchedule::Composable<E>{
       this,
       requirements,
       std::move(e)};

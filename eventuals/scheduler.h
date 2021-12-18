@@ -88,10 +88,6 @@ class Scheduler {
 
 ////////////////////////////////////////////////////////////////////////
 
-namespace detail {
-
-////////////////////////////////////////////////////////////////////////
-
 struct _Reschedule {
   template <typename K_, typename Arg_>
   struct Continuation {
@@ -235,14 +231,10 @@ struct _Reschedule {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 // Returns an eventual which will switch to the specified context
 // before continuing it's continuation.
 inline auto Reschedule(Scheduler::Context* context) {
-  return detail::_Reschedule::Composable{context};
+  return _Reschedule::Composable{context};
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -296,15 +288,11 @@ struct Reschedulable {
   Scheduler::Context* previous_ = nullptr;
 
   using Continuation_ =
-      decltype(std::declval<detail::_Reschedule::Composable>()
+      decltype(std::declval<_Reschedule::Composable>()
                    .template k<Arg_>(std::move(k_)));
 
   std::optional<Continuation_> continuation_;
 };
-
-////////////////////////////////////////////////////////////////////////
-
-namespace detail {
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -394,7 +382,7 @@ struct _Preempt {
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
     using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
-        std::declval<detail::_Reschedule::Composable>()
+        std::declval<_Reschedule::Composable>()
             .template k<Value_>(std::declval<K_>())));
 
     std::optional<Adapted_> adapted_;
@@ -420,13 +408,9 @@ struct _Preempt {
 
 ////////////////////////////////////////////////////////////////////////
 
-} // namespace detail
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename E>
 auto Preempt(std::string name, E e) {
-  return detail::_Preempt::Composable<E>{std::move(e), std::move(name)};
+  return _Preempt::Composable<E>{std::move(e), std::move(name)};
 }
 
 ////////////////////////////////////////////////////////////////////////
