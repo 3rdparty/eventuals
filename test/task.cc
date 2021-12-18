@@ -21,7 +21,7 @@ using eventuals::Then;
 using testing::MockFunction;
 
 TEST(Task, Succeed) {
-  auto e1 = []() -> Task<int> {
+  auto e1 = []() -> Task::Of<int> {
     return [x = 42]() {
       return Just(x);
     };
@@ -40,7 +40,7 @@ TEST(Task, Succeed) {
   EXPECT_EQ(42, *e2());
 
   auto e3 = []() {
-    return Task<int>::With<int, std::string>(
+    return Task::Of<int>::With<int, std::string>(
         42,
         "hello world",
         [](auto i, auto s) {
@@ -63,7 +63,7 @@ TEST(Task, Succeed) {
 
 TEST(Task, Void) {
   int x = 0;
-  auto e1 = [&x]() -> Task<void> {
+  auto e = [&x]() -> Task::Of<void> {
     return [&x]() {
       return Then([&x]() {
         x = 100;
@@ -71,7 +71,7 @@ TEST(Task, Void) {
     };
   };
 
-  *e1();
+  *e();
 
   EXPECT_EQ(100, x);
 }
@@ -92,7 +92,7 @@ TEST(Task, FailOnCallback) {
   EXPECT_CALL(functions.start, Call())
       .Times(0);
 
-  auto e = [&]() -> Task<int> {
+  auto e = [&]() -> Task::Of<int> {
     return [&]() {
       return Eventual<int>()
                  .start([](auto& k) {
@@ -126,7 +126,7 @@ TEST(Task, FailTerminated) {
   EXPECT_CALL(fail, Call())
       .Times(1);
 
-  auto e = [&]() -> Task<int> {
+  auto e = [&]() -> Task::Of<int> {
     return [&]() {
       return Eventual<int>()
                  .start([](auto& k) {
@@ -152,7 +152,7 @@ TEST(Task, StopOnCallback) {
   EXPECT_CALL(stop, Call())
       .Times(0);
 
-  auto e = [&]() -> Task<int> {
+  auto e = [&]() -> Task::Of<int> {
     return [&]() {
       return Eventual<int>()
           .start([](auto& k) {
@@ -174,7 +174,7 @@ TEST(Task, StopTerminated) {
   EXPECT_CALL(stop, Call())
       .Times(1);
 
-  auto e = [&]() -> Task<int> {
+  auto e = [&]() -> Task::Of<int> {
     return [&]() {
       return Eventual<int>()
           .start([](auto& k) {
@@ -194,13 +194,13 @@ TEST(Task, StopTerminated) {
 }
 
 TEST(Task, Start) {
-  auto e = []() -> Task<int> {
+  auto e = []() -> Task::Of<int> {
     return [x = 42]() {
       return Just(x);
     };
   };
 
-  std::optional<Task<int>> task;
+  std::optional<Task::Of<int>> task;
 
   task.emplace(e());
 
@@ -224,13 +224,13 @@ TEST(Task, Start) {
 }
 
 TEST(Task, FailContinuation) {
-  auto e = []() -> Task<int> {
+  auto e = []() -> Task::Of<int> {
     return [x = 42]() {
       return Just(x);
     };
   };
 
-  std::optional<Task<int>> task;
+  std::optional<Task::Of<int>> task;
 
   task.emplace(e());
 
@@ -255,13 +255,13 @@ TEST(Task, FailContinuation) {
 }
 
 TEST(Task, StopContinuation) {
-  auto e = []() -> Task<int> {
+  auto e = []() -> Task::Of<int> {
     return [x = 42]() {
       return Just(x);
     };
   };
 
-  std::optional<Task<int>> task;
+  std::optional<Task::Of<int>> task;
 
   task.emplace(e());
 
@@ -284,8 +284,8 @@ TEST(Task, StopContinuation) {
   EXPECT_TRUE(stopped);
 }
 
-TEST(TaskTest, ConstRef) {
-  auto e = []() -> Task<const int&> {
+TEST(Task, ConstRef) {
+  auto e = []() -> Task::Of<const int&> {
     return []() {
       return Just(42);
     };
@@ -294,9 +294,9 @@ TEST(TaskTest, ConstRef) {
   EXPECT_EQ(42, *e());
 }
 
-TEST(Tast, FromTo) {
+TEST(Task, FromTo) {
   auto task = []() {
-    return Task<int, std::string>::With<int>(
+    return Task::From<int>::To<std::string>::With<int>(
         10,
         [](auto x) {
           return Then([x](auto&& value) {
@@ -318,8 +318,8 @@ TEST(Tast, FromTo) {
   EXPECT_EQ(*e(), "201");
 }
 
-TEST(Tast, FromToFail) {
-  auto task = []() -> Task<int, std::string> {
+TEST(Task, FromToFail) {
+  auto task = []() -> Task::From<int>::To<std::string> {
     return []() {
       return Then([](int&& x) {
         return std::to_string(x);
@@ -343,8 +343,8 @@ TEST(Tast, FromToFail) {
   EXPECT_THROW(*e(), std::exception_ptr);
 }
 
-TEST(Tast, FromToStop) {
-  auto task = []() -> Task<int, std::string> {
+TEST(Task, FromToStop) {
+  auto task = []() -> Task::From<int>::To<std::string> {
     return []() {
       return Then([](int&& x) {
         return std::to_string(x);
@@ -366,4 +366,29 @@ TEST(Tast, FromToStop) {
   };
 
   EXPECT_THROW(*e(), eventuals::StoppedException);
+}
+
+TEST(Task, Success) {
+  auto f = []() -> Task::Of<void> {
+    return Task::Success();
+  };
+
+  auto g = []() -> Task::Of<std::string> {
+    return Task::Success("hello");
+  };
+
+  auto e = [&]() {
+    return f()
+        | g();
+  };
+
+  EXPECT_EQ("hello", *e());
+}
+
+TEST(Task, Failure) {
+  auto e = []() -> Task::Of<std::string> {
+    return Task::Failure("error");
+  };
+
+  EXPECT_THROW(*e(), std::exception_ptr);
 }

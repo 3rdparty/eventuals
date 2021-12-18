@@ -6,6 +6,8 @@
 #include <variant> // For 'std::monostate'.
 
 #include "eventuals/eventual.h"
+#include "eventuals/just.h"
+#include "eventuals/raise.h"
 #include "eventuals/terminal.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -146,7 +148,15 @@ struct HeapTask {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _TaskWith {
+// Type used to identify when using a 'Task::Failure()' in order to
+// properly type-check with 'static_assert()'.
+struct _TaskFailure {
+  _TaskFailure() = delete;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+struct _TaskFromToWith {
   // Since we move lambda function at 'Composable' constructor we need to
   // specify the callback that should be triggered on the produced eventual.
   // For this reason we use 'Action'.
@@ -280,7 +290,9 @@ struct _TaskWith {
       using Value = typename E::template ValueFrom<From_>;
 
       static_assert(
-          std::is_convertible_v<Value, To_>,
+          std::disjunction_v<
+              std::is_same<Value, _TaskFailure>,
+              std::is_convertible<Value, To_>>,
           "eventual result type can not be converted into type of 'Task'");
 
       dispatch_ = [f = std::move(f)](
@@ -374,19 +386,20 @@ struct _TaskWith {
 ////////////////////////////////////////////////////////////////////////
 
 // A task can act BOTH as a composable or a continuation that can be
-// started via 'TaskWith::Start()'. If used as a continuation then it
-// can't be moved after starting, just like all other continuations.
+// started via 'TaskFromToWith::Start()'. If used as a continuation
+// then it can't be moved after starting, just like all other
+// continuations.
 template <typename From_, typename To_, typename... Args_>
-class TaskWith {
+class TaskFromToWith {
  public:
   template <typename Arg>
   using ValueFrom = To_;
 
   template <typename F>
-  TaskWith(Args_... args, F f)
+  TaskFromToWith(Args_... args, F f)
     : e_(std::move(args)..., std::move(f)) {}
 
-  TaskWith(TaskWith&& that)
+  TaskFromToWith(TaskFromToWith&& that)
     : e_(std::move(that.e_)) {
     CHECK(!k_.has_value()) << "moving after starting";
   }
@@ -468,7 +481,7 @@ class TaskWith {
   }
 
  private:
-  _TaskWith::Composable<From_, To_, Args_...> e_;
+  _TaskFromToWith::Composable<From_, To_, Args_...> e_;
 
   // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
   // a composable but also a continuation which has a terminal made up
@@ -489,29 +502,58 @@ class TaskWith {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename...>
-class Task;
+struct Task {
+  template <typename From_>
+  struct From : public TaskFromToWith<From_, void> {
+    template <typename To_>
+    struct To : public TaskFromToWith<From_, To_> {
+      template <typename... Args_>
+      using With = TaskFromToWith<From_, To_, Args_...>;
 
-template <typename To_>
-class Task<To_> : public TaskWith<void, To_> {
- public:
+      template <typename F>
+      To(F f)
+        : TaskFromToWith<From_, To_>(std::move(f)) {}
+    };
+
+    template <typename... Args_>
+    using With = TaskFromToWith<From_, void, Args_...>;
+
+    template <typename F>
+    From(F f)
+      : TaskFromToWith<From_, void>(std::move(f)) {}
+  };
+
+  template <typename To_>
+  using Of = From<void>::To<To_>;
+
   template <typename... Args_>
-  using With = TaskWith<void, To_, Args_...>;
+  using With = From<void>::To<void>::With<Args_...>;
 
-  template <typename F>
-  Task(F f)
-    : TaskWith<void, To_>(std::move(f)) {}
-};
+  // Helpers for synchronous tasks.
+  template <typename Value>
+  static auto Success(Value value) {
+    // TODO(benh): optimize away heap allocation.
+    return [value = std::make_unique<Value>(std::move(value))]() mutable {
+      return Just(Value(std::move(*value)));
+    };
+  }
 
-template <typename From_, typename To_>
-class Task<From_, To_> : public TaskWith<From_, To_> {
- public:
-  template <typename... Args_>
-  using With = TaskWith<From_, To_, Args_...>;
+  static auto Success() {
+    return []() {
+      return Just();
+    };
+  }
 
-  template <typename F>
-  Task(F f)
-    : TaskWith<From_, To_>(std::move(f)) {}
+  template <typename Error>
+  static auto Failure(Error error) {
+    // TODO(benh): optimize away heap allocation.
+    return [error = std::make_unique<Error>(std::move(error))]() mutable {
+      return Eventual<_TaskFailure>()
+          .start([&](auto& k) mutable {
+            k.Fail(Error(std::move(*error)));
+          });
+    };
+  }
 };
 
 ////////////////////////////////////////////////////////////////////////

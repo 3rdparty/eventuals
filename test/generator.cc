@@ -320,7 +320,7 @@ TEST(Generator, TaskWithGenerator) {
     };
   };
 
-  auto task = [&]() -> Task<std::vector<int>> {
+  auto task = [&]() -> Task::Of<std::vector<int>> {
     return [&]() {
       return stream()
           | Collect<std::vector<int>>();

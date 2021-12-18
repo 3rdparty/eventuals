@@ -157,7 +157,7 @@ struct _Concurrent {
     // At somepoint we could use a 'Task' and move this implementation
     // into a .cc file and update the funciton signature to be:
     //
-    // Task<TypeErasedFiber*> CreateOrReuseFiber();
+    // Task::To<TypeErasedFiber*> CreateOrReuseFiber();
     //
     // However, there are some deficiencies in 'Task' that need to be
     // addressed before doing so and we should ensure that we see
