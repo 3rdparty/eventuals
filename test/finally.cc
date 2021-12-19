@@ -16,7 +16,7 @@ TEST(Finally, Succeed) {
   auto e = []() {
     return Just(42)
         | Finally([](auto&& expected) {
-             return std::move(expected);
+             return Just(std::move(expected));
            });
   };
 
@@ -34,7 +34,7 @@ TEST(Finally, Fail) {
     return Just(42)
         | Raise("error")
         | Finally([](auto&& expected) {
-             return std::move(expected);
+             return Just(std::move(expected));
            });
   };
 
@@ -51,7 +51,7 @@ TEST(Finally, Stop) {
              k.Stop();
            })
         | Finally([](auto&& expected) {
-             return std::move(expected);
+             return Just(std::move(expected));
            });
   };
 
@@ -66,7 +66,7 @@ TEST(Finally, VoidSucceed) {
   auto e = []() {
     return Just()
         | Finally([](auto&& exception) {
-             return std::move(exception);
+             return Just(std::move(exception));
            });
   };
 
@@ -85,7 +85,7 @@ TEST(Finally, VoidFail) {
     return Just()
         | Raise("error")
         | Finally([](auto&& exception) {
-             return std::move(exception);
+             return Just(std::move(exception));
            });
   };
 
@@ -109,7 +109,7 @@ TEST(Finally, VoidStop) {
              k.Stop();
            })
         | Finally([](auto&& exception) {
-             return std::move(exception);
+             return Just(std::move(exception));
            });
   };
 

@@ -2,6 +2,8 @@
 
 #include <variant>
 
+#include "eventuals/eventual.h"
+
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
@@ -33,6 +35,10 @@ struct _Unexpected {
 template <typename Value_>
 class _Expected {
  public:
+  // Providing 'ValueFrom' in order to compose with other eventuals.
+  template <typename Arg>
+  using ValueFrom = Value_;
+
   // NOTE: providing a default constructor so this type can be used as
   // a type parameter to 'std::promise' which fails on MSVC (see
   // https://stackoverflow.com/questions/28991694 which also ran into
@@ -66,6 +72,23 @@ class _Expected {
   template <typename U>
   _Expected(const _Expected<U>& that)
     : variant_(that.template convert<Value_>()) {}
+
+  // Providing 'k()' in order to compose with other eventuals.
+  template <typename Arg, typename K>
+  auto k(K k) && {
+    // NOTE: we only care about "start" here because on "stop" or
+    // "fail" we want to propagate that. We don't want to override a
+    // "stop" with our failure because then downstream eventuals might
+    // not stop but instead try and recover from the error.
+    return Eventual<Value_>([variant = std::move(variant_)](auto& k) mutable {
+             if (variant.index() == 0) {
+               return k.Start(std::move(std::get<0>(variant)));
+             } else {
+               return k.Fail(std::move(std::get<1>(variant)));
+             }
+           })
+        .template k<Value_>(std::move(k));
+  }
 
   operator bool() const {
     return variant_.index() == 0;

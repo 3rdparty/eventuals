@@ -2,9 +2,12 @@
 
 #include <string>
 
+#include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "gtest/gtest.h"
 
 using eventuals::Expected;
+using eventuals::Then;
 using eventuals::Unexpected;
 
 TEST(Expected, Construct) {
@@ -60,4 +63,19 @@ TEST(Expected, Unexpected) {
       [](auto) { return false; });
 
   EXPECT_TRUE(matched);
+}
+
+TEST(Expected, Compose) {
+  auto f = []() {
+    return Expected(41);
+  };
+
+  auto e = [&]() {
+    return f()
+        | Then([](int i) {
+             return Expected(i + 1);
+           });
+  };
+
+  EXPECT_EQ(42, *e());
 }
