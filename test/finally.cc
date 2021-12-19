@@ -22,7 +22,7 @@ TEST(Finally, Succeed) {
 
   auto expected = *e();
 
-  static_assert(std::is_same_v<Expected<int>, decltype(expected)>);
+  static_assert(std::is_same_v<Expected::Of<int>, decltype(expected)>);
 
   ASSERT_TRUE(expected);
 
@@ -40,7 +40,7 @@ TEST(Finally, Fail) {
 
   auto expected = *e();
 
-  static_assert(std::is_same_v<Expected<int>, decltype(expected)>);
+  static_assert(std::is_same_v<Expected::Of<int>, decltype(expected)>);
 
   EXPECT_THROW(*expected, const char*);
 }
@@ -57,7 +57,7 @@ TEST(Finally, Stop) {
 
   auto expected = *e();
 
-  static_assert(std::is_same_v<Expected<std::string>, decltype(expected)>);
+  static_assert(std::is_same_v<Expected::Of<std::string>, decltype(expected)>);
 
   EXPECT_THROW(*expected, eventuals::StoppedException);
 }
