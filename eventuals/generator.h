@@ -177,7 +177,7 @@ struct HeapGenerator {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _GeneratorWith {
+struct _GeneratorFromToWith {
   // Since we move lambda function at 'Composable' constructor we need to
   // specify the callback that should be triggered on the produced eventual.
   // For this reason we use 'Action'.
@@ -454,32 +454,32 @@ struct _GeneratorWith {
 ////////////////////////////////////////////////////////////////////////
 
 // Creating a type alias to improve the readability.
-template <typename Value, typename... Args>
-using GeneratorWith = _GeneratorWith::Composable<Value, Args...>;
 
-template <typename...>
-class Generator;
+template <typename Value, typename To, typename... Args>
+using GeneratorFromToWith = _GeneratorFromToWith::Composable<
+    Value,
+    To,
+    Args...>;
 
-template <typename To_>
-class Generator<To_> : public GeneratorWith<void, To_> {
- public:
-  template <typename... Args_>
-  using With = GeneratorWith<void, To_, Args_...>;
+struct Generator {
+  template <typename From_>
+  struct From {
+    template <typename To_>
+    struct To : public GeneratorFromToWith<From_, To_> {
+      template <typename... Args_>
+      using With = GeneratorFromToWith<From_, To_, Args_...>;
 
-  template <typename F>
-  Generator(F f)
-    : GeneratorWith<void, To_>(std::move(f)) {}
-};
+      template <typename F>
+      To(F f)
+        : GeneratorFromToWith<From_, To_>(std::move(f)){};
+    };
 
-template <typename From_, typename To_>
-class Generator<From_, To_> : public GeneratorWith<From_, To_> {
- public:
-  template <typename... Args_>
-  using With = GeneratorWith<From_, To_, Args_...>;
+    template <typename F>
+    From(F f) = delete;
+  };
 
-  template <typename F>
-  Generator(F f)
-    : GeneratorWith<From_, To_>(std::move(f)) {}
+  template <typename To_>
+  using Of = From<void>::To<To_>;
 };
 
 ////////////////////////////////////////////////////////////////////////

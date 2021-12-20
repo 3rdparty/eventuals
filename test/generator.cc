@@ -43,7 +43,7 @@ using testing::ElementsAre;
 using testing::MockFunction;
 
 TEST(Generator, Succeed) {
-  auto stream = []() -> Generator<int> {
+  auto stream = []() -> Generator::Of<int> {
     return []() {
       return Iterate({1, 2, 3});
     };
@@ -80,7 +80,7 @@ TEST(Generator, Succeed) {
   EXPECT_THAT(*e3(), ElementsAre(2, 3, 4));
 
   auto stream2 = []() {
-    return Generator<int>::With<std::vector<int>>(
+    return Generator::Of<int>::With<std::vector<int>>(
         {1, 2, 3},
         [](auto v) {
           return Iterate(std::move(v));
@@ -117,7 +117,7 @@ TEST(Generator, InterruptStream) {
   EXPECT_CALL(functions.stop, Call())
       .Times(1);
 
-  auto stream = [&functions]() -> Generator<int> {
+  auto stream = [&functions]() -> Generator::Of<int> {
     return [&]() {
       return Stream<int>()
           .context(Context<std::atomic<bool>>(false))
@@ -192,7 +192,7 @@ TEST(Generator, FailStream) {
   EXPECT_CALL(functions.body, Call())
       .Times(0);
 
-  auto stream = [&functions]() -> Generator<int> {
+  auto stream = [&functions]() -> Generator::Of<int> {
     return [&]() {
       return Stream<int>()
           .next([&](auto& k) {
@@ -265,7 +265,7 @@ TEST(Generator, StopStream) {
   EXPECT_CALL(functions.body, Call())
       .Times(0);
 
-  auto stream = [&functions]() -> Generator<int> {
+  auto stream = [&functions]() -> Generator::Of<int> {
     return [&]() {
       return Stream<int>()
           .next([&](auto& k) {
@@ -314,7 +314,7 @@ TEST(Generator, StopStream) {
 }
 
 TEST(Generator, TaskWithGenerator) {
-  auto stream = []() -> Generator<int> {
+  auto stream = []() -> Generator::Of<int> {
     return []() {
       return Iterate({1, 2, 3});
     };
@@ -349,7 +349,7 @@ TEST(Generator, Void) {
   EXPECT_CALL(functions.body, Call())
       .Times(1);
 
-  auto stream = [&]() -> Generator<void> {
+  auto stream = [&]() -> Generator::Of<void> {
     return [&]() {
       return Stream<void>()
           .next([&](auto& k) {
@@ -380,7 +380,7 @@ TEST(Generator, Void) {
 }
 
 TEST(Generator, FlatMap) {
-  auto stream = []() -> Generator<int> {
+  auto stream = []() -> Generator::Of<int> {
     return []() {
       return Iterate({1, 2, 3})
           | FlatMap([](int i) {
@@ -399,7 +399,7 @@ TEST(Generator, FlatMap) {
 
 TEST(Generator, ConstRef) {
   std::vector<int> v = {1, 2, 3};
-  auto stream = [&]() -> Generator<const int&> {
+  auto stream = [&]() -> Generator::Of<const int&> {
     return [&]() {
       return Iterate(v);
     };
@@ -415,7 +415,7 @@ TEST(Generator, ConstRef) {
 
 TEST(Generator, FromTo) {
   auto stream = [data = std::vector<int>()]() mutable {
-    return Generator<std::string, int>(
+    return Generator::From<std::string>::To<int>(
         [&]() {
           return Closure([&]() {
                    return Then([&](auto value) mutable {
@@ -441,7 +441,7 @@ TEST(Generator, FromTo) {
 
 TEST(Generator, FromToLValue) {
   auto stream = [data = std::vector<int>()]() mutable {
-    return Generator<std::string, int>(
+    return Generator::From<std::string>::To<int>(
         [&]() {
           return Closure([&]() mutable {
                    return Then([&](auto value) mutable {
