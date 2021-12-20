@@ -27,7 +27,7 @@ using testing::MockFunction;
 
 TEST(Transformer, Succeed) {
   auto transformer = []() {
-    return Transformer<int, std::string>(
+    return Transformer::From<int>::To<std::string>(
         []() {
           return Map([](int&& x) {
             return std::to_string(x);
@@ -54,7 +54,7 @@ TEST(Transformer, Stop) {
       .Times(0);
 
   auto transformer = [&]() {
-    return Transformer<int, std::string>(
+    return Transformer::From<int>::To<std::string>(
         [&]() {
           return Map([&](int&& x) {
             map_start.Call();
@@ -86,7 +86,7 @@ TEST(Transformer, Fail) {
       .Times(0);
 
   auto transformer = [&]() {
-    return Transformer<int, std::string>(
+    return Transformer::From<int>::To<std::string>(
         [&]() {
           return Map([&](int&& x) {
             map_start.Call();
@@ -124,7 +124,7 @@ TEST(Transformer, Interrupt) {
       .Times(0);
 
   auto transformer = [&]() {
-    return Transformer<int, std::string>(
+    return Transformer::From<int>::To<std::string>(
         [&]() {
           return Map([&](int&& x) {
             map_start.Call();
@@ -176,7 +176,7 @@ TEST(Transformer, PropagateStop) {
       .Times(0);
 
   auto transformer = []() {
-    return Transformer<int, std::string>([]() {
+    return Transformer::From<int>::To<std::string>([]() {
       return Map(Let([](auto& i) {
         return Eventual<std::string>([](auto& k) {
           k.Stop();
@@ -205,7 +205,7 @@ TEST(Transformer, PropagateFail) {
       .Times(0);
 
   auto transformer = []() {
-    return Transformer<int, std::string>([]() {
+    return Transformer::From<int>::To<std::string>([]() {
       return Map(Let([](auto& i) {
         return Eventual<std::string>([](auto& k) {
           k.Fail("error");

@@ -142,7 +142,7 @@ struct HeapTransformer {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Transformer {
+struct _TransformerFromTo {
   enum class Action {
     Body = 0,
     Fail = 1,
@@ -339,13 +339,13 @@ struct _Transformer {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename From_, typename To_>
-class Transformer {
+class TransformerFromTo {
  public:
   template <typename>
   using ValueFrom = To_;
 
   template <typename F>
-  Transformer(F f)
+  TransformerFromTo(F f)
     : e_(std::move(f)) {}
 
   template <typename Arg, typename K>
@@ -361,7 +361,21 @@ class Transformer {
   }
 
  private:
-  _Transformer::Composable<From_, To_> e_;
+  _TransformerFromTo::Composable<From_, To_> e_;
+};
+
+struct Transformer {
+  template <typename From_>
+  struct From {
+    template <typename To_>
+    struct To : public TransformerFromTo<From_, To_> {
+      template <typename F>
+      To(F f)
+        : TransformerFromTo<From_, To_>(std::move(f)) {}
+    };
+    template <typename F>
+    From(F f) = delete;
+  };
 };
 
 ////////////////////////////////////////////////////////////////////////
