@@ -1,7 +1,9 @@
 # Specific Bazel build/test options.
-
 build --enable_platform_specific_config
 
 build:windows --compiler="clang-cl" 
 
 build:clang --action_env=CC=clang
+
+# Allow users to add local preferences.
+try-import %workspace%/user.bazelrc
