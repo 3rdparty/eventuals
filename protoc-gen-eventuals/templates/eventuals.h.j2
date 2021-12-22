@@ -32,7 +32,7 @@ struct {{ service.name }} {
 {%- set output_type -%}
     ::eventuals::{#...#}
     {%- if method.server_streaming -%}
-        Generator
+        Generator::Of
     {%- else -%}
         Task::Of
     {%- endif -%}
@@ -61,7 +61,7 @@ struct {{ service.name }} {
 {%- set output_type -%}
     ::eventuals::{#...#}
     {%- if method.server_streaming -%}
-        Generator
+        Generator::Of
     {%- else -%}
         Task::Of
     {%- endif -%}
