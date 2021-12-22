@@ -24,11 +24,6 @@ jobs:
       - name: Check for bazel
         run: bazel --version
 
-      - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v1
-        with:
-          version: "12.0"  
-
       - name: Build
         run: bazel build --spawn_strategy=local --copt="-g" --strip="never" :grpc
 
