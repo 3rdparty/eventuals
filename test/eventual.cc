@@ -1,5 +1,6 @@
 #include "eventuals/eventual.h"
 
+#include <memory>
 #include <thread>
 
 #include "eventuals/catch.h"
@@ -190,7 +191,8 @@ TEST(EventualTest, Reuse) {
 
   auto future = promise1.get_future();
 
-  auto* o = new Operation(Build(operation(5, std::move(promise1))));
+  auto o =
+      std::make_unique<Operation>(Build(operation(5, std::move(promise1))));
 
   o->Start();
 
@@ -205,8 +207,6 @@ TEST(EventualTest, Reuse) {
   o->Start();
 
   EXPECT_EQ(3, future.get());
-
-  delete o;
 }
 
 
