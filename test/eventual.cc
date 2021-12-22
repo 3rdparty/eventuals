@@ -244,12 +244,12 @@ TEST(EventualTest, Catch) {
 
 TEST(EventualTest, Then) {
   auto e = []() {
-    return Just(42)
+    return Just(20)
         | Then([](auto i) {
              return i + 1;
            })
         | Then([](auto j) {
-             return j - 1;
+             return j * 2;
            });
   };
 
