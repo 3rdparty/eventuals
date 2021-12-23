@@ -563,4 +563,4 @@ string s = *e; // BLOCKING! Only use in tests.
 
 ## Contributing
 
-The eventuals library maintains a code style that's enforced by `git` pre-commit [hooks](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks). See the [dev-tools README](https://github.com/3rdparty/dev-tools/tree/main#readme) for instructions to configure pre-commit hooks for local development.
+The eventuals library maintains a code style that's enforced by a GitHub [workflow](https://github.com/3rdparty/eventuals/blob/main/.github/workflows/check_code_style.yml). You can also install a `git` [`pre-commit`](https://github.com/3rdparty/dev-tools/blob/main/pre-commit) [hook](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks) to check the code style locally before sending a pull request: see the [dev-tools README](https://github.com/3rdparty/dev-tools/tree/main#readme) for instructions.
