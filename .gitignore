@@ -5,3 +5,4 @@ bazel-bin
 bazel-eventuals
 bazel-out
 bazel-testlogs
+user.bazelrc
