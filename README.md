@@ -559,3 +559,11 @@ string s = *e; // BLOCKING! Only use in tests.
 #### Scheduling and Memory
 
 *... to be completed ...*
+
+
+## Contributing
+
+The eventuals library maintains a code style that's enforced by GitHub
+pre-commit hooks. See the
+[dev-tools README](https://github.com/3rdparty/dev-tools/tree/main#readme) for
+instructions to configure pre-commit hooks for local development.
