@@ -1,5 +1,6 @@
 #include "eventuals/http.h"
 
+#include "asio.hpp"
 #include "event-loop-test.h"
 #include "eventuals/eventual.h"
 #include "eventuals/interrupt.h"
@@ -28,6 +29,132 @@ const char* schemes[] = {"http://", "https://"};
 #endif
 
 INSTANTIATE_TEST_SUITE_P(Schemes, HTTPTest, testing::ValuesIn(schemes));
+
+
+TEST_P(HTTPTest, GetSuccessASIO) {
+  std::string scheme = GetParam();
+
+  // Currently we don't provide tests for https.
+  if (scheme == "https://") {
+    return;
+  }
+
+  std::string response =
+      "HTTP/1.1 200 OK\r\nContent-Length: 18\r\n\r\n<html>Hello</html>\r\n\r\n";
+
+  asio::io_context ctx;
+  asio::ip::tcp::acceptor acceptor(ctx);
+  asio::error_code ec;
+
+  acceptor.open(asio::ip::tcp::v4(), ec);
+  EXPECT_FALSE(ec);
+
+  acceptor.bind(
+      asio::ip::tcp::endpoint(
+          asio::ip::make_address_v4("127.0.0.1"),
+          0),
+      ec);
+  EXPECT_FALSE(ec);
+
+  acceptor.listen(asio::socket_base::max_listen_connections, ec);
+  EXPECT_FALSE(ec);
+
+  int port = acceptor.local_endpoint().port();
+  std::thread asio_thread([&]() {
+    asio::ip::tcp::socket sock(ctx);
+
+    acceptor.accept(sock, ec);
+    EXPECT_FALSE(ec);
+
+    asio::streambuf request_buffer;
+    asio::read_until(sock, request_buffer, "\r\n\r\n", ec);
+    EXPECT_FALSE(ec);
+
+    asio::write(sock, asio::buffer(response, response.size()), ec);
+    EXPECT_FALSE(ec);
+  });
+
+  auto e = Get(scheme + "127.0.0.1:" + std::to_string(port));
+  auto [future, k] = Terminate(std::move(e));
+  k.Start();
+
+  EventLoop::Default().Run();
+
+  auto result = future.get();
+  EXPECT_EQ(result.code, 200);
+  EXPECT_EQ(result.body, "<html>Hello</html>");
+
+  asio_thread.join();
+}
+
+
+TEST_P(HTTPTest, PostSuccessASIO) {
+  std::string scheme = GetParam();
+
+  // Currently we don't provide tests for https.
+  if (scheme == "https://") {
+    return;
+  }
+
+  std::string response =
+      "HTTP/1.1 200 OK\r\nContent-Length: 18\r\n\r\n<html>Hello</html>\r\n\r\n";
+
+  asio::io_context ctx;
+  asio::ip::tcp::acceptor acceptor(ctx);
+  asio::error_code ec;
+
+  acceptor.open(asio::ip::tcp::v4(), ec);
+  EXPECT_FALSE(ec);
+
+  acceptor.bind(
+      asio::ip::tcp::endpoint(
+          asio::ip::make_address_v4("127.0.0.1"),
+          0),
+      ec);
+  EXPECT_FALSE(ec);
+
+  acceptor.listen(asio::socket_base::max_listen_connections, ec);
+  EXPECT_FALSE(ec);
+
+  int port = acceptor.local_endpoint().port();
+  std::thread asio_thread([&]() {
+    asio::ip::tcp::socket sock(ctx);
+
+    acceptor.accept(sock, ec);
+    EXPECT_FALSE(ec);
+
+    asio::streambuf request_buffer;
+    // Headers
+    asio::read_until(sock, request_buffer, "\r\n\r\n", ec);
+    EXPECT_FALSE(ec);
+
+    // Content
+    asio::read_until(sock, request_buffer, "\r\n\r\n", ec);
+    EXPECT_FALSE(ec);
+
+    asio::write(sock, asio::buffer(response, response.size()), ec);
+    EXPECT_FALSE(ec);
+  });
+
+  PostFields fields = {
+      {"title", "test"},
+      {"body", "message"}};
+
+  auto e = Post(
+      scheme + "127.0.0.1:" + std::to_string(port),
+      fields);
+  auto [future, k] = Terminate(std::move(e));
+  k.Start();
+
+  EventLoop::Default().Run();
+
+  auto result = future.get();
+  EXPECT_EQ(result.code, 200);
+  EXPECT_EQ(result.body, "<html>Hello</html>");
+
+  asio_thread.join();
+}
+
 
 // Current tests implementation rely on the transfers not
 // being able to complete within a very short period.
