@@ -30,6 +30,7 @@ using eventuals::Terminate;
 using eventuals::Then;
 using eventuals::Until;
 
+using testing::ElementsAre;
 using testing::MockFunction;
 
 TEST(ClosureTest, Then) {
@@ -106,10 +107,7 @@ TEST(ClosureTest, InnerRepeat) {
 
   auto results = *e();
 
-  ASSERT_EQ(2, results.size());
-
-  EXPECT_EQ("hello", results[0]);
-  EXPECT_EQ("world", results[1]);
+  EXPECT_THAT(results, ElementsAre("hello", "world"));
 }
 
 
