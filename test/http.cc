@@ -18,14 +18,7 @@ class HTTPTest
   : public EventLoopTest,
     public ::testing::WithParamInterface<const char*> {};
 
-// NOTE: we don't compile https tests on Windows
-// because we currently can't reliably compile
-// either OpenSSL or boringssl on Windows (see #59).
-#ifdef _WIN32
-const char* schemes[] = {"http://"};
-#else
 const char* schemes[] = {"http://", "https://"};
-#endif
 
 INSTANTIATE_TEST_SUITE_P(Schemes, HTTPTest, testing::ValuesIn(schemes));
 
