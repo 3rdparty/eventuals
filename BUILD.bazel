@@ -112,10 +112,7 @@ cc_library(
     deps = [
         ":eventuals-base",
         ":eventuals-events",
-        # NOTE: Links against BoringSSL for HTTPS stuff.
-        # Compiles without any SSL support on Windows.
-        # See bazel-rules-curl for more details.
-        "@com_github_curl_curl//:libcurl",
+        "@com_github_curl_curl//:libcurl_boringssl",
     ],
 )
 
