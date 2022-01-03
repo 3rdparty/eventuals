@@ -20,6 +20,8 @@ jobs:
     steps:
       # Checkout the repository under $GITHUB_WORKSPACE.
       - uses: actions/checkout@v1
+        with:
+          submodules: true
 
       - name: Check for bazel
         run: bazel --version
