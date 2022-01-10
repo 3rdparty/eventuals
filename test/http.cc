@@ -7,36 +7,47 @@
 #include "gtest/gtest.h"
 
 using eventuals::EventLoop;
+using eventuals::Eventual;
 using eventuals::Interrupt;
 using eventuals::Terminate;
 
-using eventuals::http::Get;
-using eventuals::http::Post;
-using eventuals::http::PostFields;
+using eventuals::http::HTTP;
+using eventuals::http::Method;
 
-class HTTPTest
+struct HTTPTest
   : public EventLoopTest,
-    public ::testing::WithParamInterface<const char*> {};
+    public ::testing::WithParamInterface<const char*> {
+  struct SchemePrettyPrinter {
+    template <class ParamType>
+    std::string operator()(
+        const testing::TestParamInfo<ParamType>& info) const {
+      return std::string(info.param);
+    }
+  };
+};
 
 // NOTE: we don't compile https tests on Windows
 // because we currently can't reliably compile
 // either OpenSSL or boringssl on Windows (see #59).
-#ifdef _WIN32
-const char* schemes[] = {"http://"};
-#else
-const char* schemes[] = {"http://", "https://"};
-#endif
+const char* schemes[] = {"http", "https"};
 
-INSTANTIATE_TEST_SUITE_P(Schemes, HTTPTest, testing::ValuesIn(schemes));
+INSTANTIATE_TEST_SUITE_P(
+    Schemes,
+    HTTPTest,
+    testing::ValuesIn(schemes),
+    HTTPTest::SchemePrettyPrinter());
 
 // Current tests implementation rely on the transfers not
 // being able to complete within a very short period.
 // TODO(folming): Use HTTP mock server to not rely on external hosts.
 
 TEST_P(HTTPTest, GetFailTimeout) {
-  std::string scheme = GetParam();
+  std::string scheme = GetParam() + std::string("://");
 
-  auto e = Get(scheme + "example.com", std::chrono::milliseconds(1));
+  auto e = HTTP()
+               .URL(scheme + "example.com")
+               .Method(Method::GET)
+               .Timeout(std::chrono::milliseconds(1));
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
@@ -47,16 +58,18 @@ TEST_P(HTTPTest, GetFailTimeout) {
 
 
 TEST_P(HTTPTest, PostFailTimeout) {
-  std::string scheme = GetParam();
+  std::string scheme = GetParam() + std::string("://");
 
-  PostFields fields = {
-      {"title", "test"},
-      {"body", "message"}};
+  std::string fields =
+      "{"
+      "\"title\": \"test\", \"body\": \"message\""
+      "}";
 
-  auto e = Post(
-      scheme + "jsonplaceholder.typicode.com/posts",
-      fields,
-      std::chrono::milliseconds(1));
+  auto e = HTTP()
+               .URL(scheme + "jsonplaceholder.typicode.com/posts")
+               .Method(Method::POST)
+               .Body(fields)
+               .Timeout(std::chrono::milliseconds(1));
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
@@ -67,9 +80,11 @@ TEST_P(HTTPTest, PostFailTimeout) {
 
 
 TEST_P(HTTPTest, GetInterrupt) {
-  std::string scheme = GetParam();
+  std::string scheme = GetParam() + std::string("://");
 
-  auto e = Get(scheme + "example.com");
+  auto e = HTTP()
+               .URL(scheme + "example.com")
+               .Method(Method::GET);
   auto [future, k] = Terminate(std::move(e));
 
   Interrupt interrupt;
@@ -87,15 +102,17 @@ TEST_P(HTTPTest, GetInterrupt) {
 
 
 TEST_P(HTTPTest, PostInterrupt) {
-  std::string scheme = GetParam();
+  std::string scheme = GetParam() + std::string("://");
 
-  PostFields fields = {
-      {"title", "test"},
-      {"body", "message"}};
+  std::string fields =
+      "{"
+      "\"title\": \"test\", \"body\": \"message\""
+      "}";
 
-  auto e = Post(
-      scheme + "jsonplaceholder.typicode.com/posts",
-      fields);
+  auto e = HTTP()
+               .URL(scheme + "jsonplaceholder.typicode.com/posts")
+               .Method(Method::POST)
+               .Body(fields);
   auto [future, k] = Terminate(std::move(e));
 
   Interrupt interrupt;
@@ -113,9 +130,11 @@ TEST_P(HTTPTest, PostInterrupt) {
 
 
 TEST_P(HTTPTest, GetInterruptAfterStart) {
-  std::string scheme = GetParam();
+  std::string scheme = GetParam() + std::string("://");
 
-  auto e = Get(scheme + "example.com");
+  auto e = HTTP()
+               .URL(scheme + "example.com")
+               .Method(Method::GET);
   auto [future, k] = Terminate(std::move(e));
 
   Interrupt interrupt;
@@ -144,15 +163,17 @@ TEST_P(HTTPTest, GetInterruptAfterStart) {
 
 
 TEST_P(HTTPTest, PostInterruptAfterStart) {
-  std::string scheme = GetParam();
+  std::string scheme = GetParam() + std::string("://");
 
-  PostFields fields = {
-      {"title", "test"},
-      {"body", "message"}};
+  std::string fields =
+      "{"
+      "\"title\": \"test\", \"body\": \"message\""
+      "}";
 
-  auto e = Post(
-      scheme + "jsonplaceholder.typicode.com/posts",
-      fields);
+  auto e = HTTP()
+               .URL(scheme + "jsonplaceholder.typicode.com/posts")
+               .Method(Method::POST)
+               .Body(fields);
   auto [future, k] = Terminate(std::move(e));
 
   Interrupt interrupt;
@@ -177,4 +198,18 @@ TEST_P(HTTPTest, PostInterruptAfterStart) {
   EventLoop::Default().Run();
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
+}
+
+
+TEST_F(HTTPTest, RequireTLSFail) {
+  auto e = HTTP()
+               .URL("http://example.com")
+               .Method(Method::GET)
+               .RequireTLS();
+  auto [future, k] = Terminate(std::move(e));
+  k.Start();
+
+  EventLoop::Default().Run();
+
+  EXPECT_THROW(future.get(), const char*);
 }

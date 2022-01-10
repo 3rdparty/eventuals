@@ -96,9 +96,11 @@ cc_library(
     name = "eventuals-http",
     srcs = [
         "eventuals/http.cc",
+        "eventuals/http2.cc",
     ],
     hdrs = [
         "eventuals/http.h",
+        "eventuals/http2.h",
     ],
     copts = copts(),
     defines = [

@@ -1,29 +1,27 @@
 #pragma once
 
-#include <string>
-#include <vector>
+#include <filesystem>
 
 #include "curl/curl.h"
 #include "eventuals/event-loop.h"
-#include "eventuals/scheduler.h"
 
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
-namespace http {
 
 ////////////////////////////////////////////////////////////////////////
 
-// Used for application/x-www-form-urlencoded case.
-// First string is key, second is value.
-// TODO(folming): switch to RapidJSON.
-using PostFields = std::vector<std::pair<std::string, std::string>>;
+namespace http {
 
 ////////////////////////////////////////////////////////////////////////
 
 struct Response {
   long code;
   std::string body;
+  // TODO(folming): transform to Headers type:
+  // using Header = std::pair<std::string, std::string>;
+  // using Headers = std::vector<Header>;
+  std::string headers;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -32,6 +30,37 @@ enum class Method {
   GET,
   POST,
 };
+
+////////////////////////////////////////////////////////////////////////
+
+template <
+    typename URIType_,
+    typename MethodType_,
+    typename HeadersType_,
+    typename BodyType_,
+    typename TimeoutType_,
+    typename CAPathType_>
+struct Request {
+  struct Builder {
+  };
+
+  // std::string
+  URIType_ uri_;
+  // Method
+  MethodType_ method_;
+  // std::vector<std::pair<std::string, std::string>>
+  HeadersType_ headers_;
+  // std::pair<const void*, size_t>
+  BodyType_ body_;
+  // std::chrono::nanoseconds
+  TimeoutType_ timeout_;
+  // std::filesystem::path
+  CAPathType_ ca_path_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+class Client;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -53,32 +82,28 @@ enum class Method {
 // 3. Whenever curl_multi_socket_action is called we can get an amount of
 //    remaining running easy handles. If this value is 0 then we read info
 //    from multi handle using check_multi_info lambda and clean everything up.
-struct _HTTP {
-  template <typename K_>
+struct _HTTPEventual {
+  template <typename K_, typename RequestType_>
   struct Continuation {
     Continuation(
         K_&& k,
         EventLoop& loop,
-        std::string&& url,
-        Method& method,
-        std::chrono::nanoseconds& timeout,
-        PostFields&& fields_)
+        Client& client,
+        RequestType_&& request)
       : k_(std::move(k)),
         loop_(loop),
-        url_(std::move(url)),
-        method_(method),
-        timeout_(timeout),
-        fields_(std::move(fields_)),
-        start_(&loop, "HTTP (start)"),
+        request_(std::move(request)),
+        easy_(curl_easy_init(), &curl_easy_cleanup),
+        multi_(curl_multi_init(), &curl_multi_cleanup),
+        start_(&loop_, "HTTP (start)"),
         interrupt_(&loop_, "HTTP (interrupt)") {}
 
     Continuation(Continuation&& that)
       : k_(std::move(that.k_)),
         loop_(that.loop_),
-        url_(std::move(that.url_)),
-        method_(that.method_),
-        timeout_(that.timeout_),
-        fields_(std::move(that.fields_)),
+        request_(std::move(that.request_)),
+        easy_(std::move(that.easy_)),
+        multi_(std::move(that.multi_)),
         start_(&that.loop_, "HTTP (start)"),
         interrupt_(&that.loop_, "HTTP (interrupt)") {
       CHECK(!that.started_ || !that.completed_) << "moving after starting";
@@ -86,7 +111,7 @@ struct _HTTP {
     }
 
     ~Continuation() {
-      CHECK(!started_ || closed_);
+      CHECK(!started_ || timer_closed_);
     }
 
     void Start() {
@@ -97,17 +122,21 @@ struct _HTTP {
             if (!completed_) {
               started_ = true;
 
-              CHECK_EQ(0, uv_timer_init(loop_, &timer_));
+              // Initial curl ptr checks.
+              if (easy_ == nullptr) {
+                completed_ = true;
+                k_.Fail(error_bad_alloc_easy_handle_);
+                return;
+              }
 
-              uv_handle_set_data((uv_handle_t*) &timer_, this);
+              if (multi_ == nullptr) {
+                completed_ = true;
+                k_.Fail(error_bad_alloc_multi_handle_);
+                return;
+              }
 
-              CHECK(!error_);
-
-              CHECK_NOTNULL(easy_ = curl_easy_init());
-              CHECK_NOTNULL(multi_ = curl_multi_init());
-
-              // Called only one time to finish the transfer
-              // and clean everything up.
+              // Callbacks.
+              // Called only once - finishes the transfer.
               static auto check_multi_info = [](Continuation& continuation) {
                 continuation.completed_ = true;
 
@@ -115,30 +144,25 @@ struct _HTTP {
                 // Unused.
                 int msgq = 0;
                 CURLMsg* message = curl_multi_info_read(
-                    continuation.multi_,
+                    continuation.multi_.get(),
                     &msgq);
 
                 // Getting the response code and body.
-                switch (message->msg) {
-                  case CURLMSG_DONE:
-                    if (message->data.result == CURLE_OK) {
-                      curl_easy_getinfo(
-                          continuation.easy_,
-                          CURLINFO_RESPONSE_CODE,
-                          &continuation.code_);
-                    } else {
-                      continuation.error_ = message->data.result;
-                    }
-                    break;
-                  default:
-                    continuation.error_ = CURLE_ABORTED_BY_CALLBACK;
-                    break;
+                if (message->data.result == CURLE_OK) {
+                  // Success.
+                  curl_easy_getinfo(
+                      continuation.easy_.get(),
+                      CURLINFO_RESPONSE_CODE,
+                      &continuation.response_code_);
+                } else {
+                  // Failure.
+                  continuation.error_ = message->data.result;
                 }
 
                 // Stop transfer completely.
                 CHECK_EQ(
                     curl_multi_remove_handle(
-                        continuation.multi_,
+                        continuation.multi_.get(),
                         message->easy_handle),
                     CURLM_OK);
 
@@ -164,25 +188,19 @@ struct _HTTP {
                     (uv_handle_t*) &continuation.timer_,
                     [](uv_handle_t* handle) {
                       auto& continuation = *(Continuation*) handle->data;
-                      continuation.closed_ = true;
+                      continuation.timer_closed_ = true;
 
                       if (!continuation.error_) {
                         continuation.k_.Start(Response{
-                            continuation.code_,
-                            continuation.buffer_.Extract()});
+                            continuation.response_code_,
+                            continuation.response_buffer_.Extract(),
+                            continuation.response_headers_buffer_.Extract()});
                       } else {
                         continuation.k_.Fail(
                             curl_easy_strerror(
                                 (CURLcode) continuation.error_));
                       }
                     });
-
-                if (continuation.fields_string_ != nullptr) {
-                  curl_free(continuation.fields_string_);
-                  continuation.fields_string_ = nullptr;
-                }
-                curl_easy_cleanup(continuation.easy_);
-                curl_multi_cleanup(continuation.multi_);
               };
 
               static auto poll_callback = [](uv_poll_t* handle,
@@ -216,7 +234,7 @@ struct _HTTP {
                 // We don't want to perform an action on every socket inside
                 // libcurl - only that one.
                 curl_multi_socket_action(
-                    continuation.multi_,
+                    continuation.multi_.get(),
                     (curl_socket_t) socket_descriptor,
                     flags,
                     &running_handles);
@@ -238,7 +256,7 @@ struct _HTTP {
                 // perform an action with each and every socket
                 // currently in use by libcurl.
                 curl_multi_socket_action(
-                    continuation.multi_,
+                    continuation.multi_.get(),
                     CURL_SOCKET_TIMEOUT,
                     0,
                     &running_handles);
@@ -291,7 +309,7 @@ struct _HTTP {
                       // for the socket currently in use.
                       CHECK_EQ(
                           curl_multi_assign(
-                              continuation->multi_,
+                              continuation->multi_.get(),
                               sockfd,
                               socket_poller),
                           CURLM_OK);
@@ -335,7 +353,7 @@ struct _HTTP {
                     // Remove assignment of poll handle to this socket.
                     CHECK_EQ(
                         curl_multi_assign(
-                            continuation->multi_,
+                            continuation->multi_.get(),
                             sockfd,
                             nullptr),
                         CURLM_OK);
@@ -359,157 +377,241 @@ struct _HTTP {
                     0);
               };
 
-
               // https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
               static auto write_function = +[](char* data,
                                                size_t size,
                                                size_t nmemb,
                                                Continuation* continuation) {
-                continuation->buffer_ += std::string(data, size * nmemb);
+                continuation->response_buffer_ += std::string(
+                    data,
+                    size * nmemb);
 
                 return nmemb * size;
               };
 
-              using std::chrono::duration_cast;
-              using std::chrono::milliseconds;
+              // https://curl.se/libcurl/c/CURLOPT_HEADERFUNCTION.html
+              static auto header_function = +[](char* data,
+                                                size_t size,
+                                                size_t nmemb,
+                                                Continuation* continuation) {
+                continuation->response_headers_buffer_ += std::string(
+                    data,
+                    size * nmemb);
+
+                return nmemb * size;
+              };
 
               // CURL multi options.
-              CHECK_EQ(
-                  curl_multi_setopt(
-                      multi_,
+              if (CURLMcode error_code = curl_multi_setopt(
+                      multi_.get(),
                       CURLMOPT_SOCKETDATA,
-                      this),
-                  CURLM_OK);
-              CHECK_EQ(
-                  curl_multi_setopt(
-                      multi_,
-                      CURLMOPT_SOCKETFUNCTION,
-                      socket_function),
-                  CURLM_OK);
-              CHECK_EQ(
-                  curl_multi_setopt(
-                      multi_,
-                      CURLMOPT_TIMERDATA,
-                      this),
-                  CURLM_OK);
-              CHECK_EQ(
-                  curl_multi_setopt(
-                      multi_,
-                      CURLMOPT_TIMERFUNCTION,
-                      timer_function),
-                  CURLM_OK);
-
-              // CURL easy options.
-              switch (method_) {
-                case Method::GET:
-                  CHECK_EQ(
-                      curl_easy_setopt(
-                          easy_,
-                          CURLOPT_HTTPGET,
-                          1),
-                      CURLE_OK);
-                  break;
-                case Method::POST:
-                  // Converting PostFields.
-                  CURLU* curl_url_handle = curl_url();
-                  CHECK_EQ(
-                      curl_url_set(
-                          curl_url_handle,
-                          CURLUPART_URL,
-                          url_.c_str(),
-                          0),
-                      CURLUE_OK);
-                  for (const auto& field : fields_) {
-                    std::string combined =
-                        field.first
-                        + '='
-                        + field.second;
-                    CHECK_EQ(
-                        curl_url_set(
-                            curl_url_handle,
-                            CURLUPART_QUERY,
-                            combined.c_str(),
-                            CURLU_APPENDQUERY | CURLU_URLENCODE),
-                        CURLUE_OK);
-                  }
-                  CHECK_EQ(
-                      curl_url_get(
-                          curl_url_handle,
-                          CURLUPART_QUERY,
-                          &fields_string_,
-                          0),
-                      CURLUE_OK);
-                  curl_url_cleanup(curl_url_handle);
-                  // End of conversion.
-
-                  CHECK_EQ(
-                      curl_easy_setopt(
-                          easy_,
-                          CURLOPT_HTTPPOST,
-                          1),
-                      CURLE_OK);
-                  CHECK_EQ(
-                      curl_easy_setopt(
-                          easy_,
-                          CURLOPT_POSTFIELDS,
-                          fields_string_),
-                      CURLE_OK);
-
-                  break;
+                      this);
+                  error_code != CURLM_OK) {
+                completed_ = true;
+                k_.Fail(curl_multi_strerror(error_code));
+                return;
               }
 
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_,
-                      CURLOPT_URL,
-                      url_.c_str()),
-                  CURLE_OK);
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_,
+              if (CURLMcode error_code = curl_multi_setopt(
+                      multi_.get(),
+                      CURLMOPT_SOCKETFUNCTION,
+                      socket_function);
+                  error_code != CURLM_OK) {
+                completed_ = true;
+                k_.Fail(curl_multi_strerror(error_code));
+                return;
+              }
+
+              if (CURLMcode error_code = curl_multi_setopt(
+                      multi_.get(),
+                      CURLMOPT_TIMERDATA,
+                      this);
+                  error_code != CURLM_OK) {
+                completed_ = true;
+                k_.Fail(curl_multi_strerror(error_code));
+                return;
+              }
+
+              if (CURLMcode error_code = curl_multi_setopt(
+                      multi_.get(),
+                      CURLMOPT_TIMERFUNCTION,
+                      timer_function);
+                  error_code != CURLM_OK) {
+                completed_ = true;
+                k_.Fail(curl_multi_strerror(error_code));
+                return;
+              }
+
+              // CURL easy options.
+              // URI.
+              if constexpr (IsUndefined<decltype(request_.uri_)>::value) {
+                completed_ = true;
+                k_.Fail(error_no_uri_);
+                return;
+              } else {
+                if (CURLcode error_code = curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_URL,
+                        request_.uri_.c_str());
+                    error_code != CURLE_OK) {
+                  completed_ = true;
+                  k_.Fail(curl_easy_strerror(error_code));
+                  return;
+                }
+              }
+
+              // Method.
+              if constexpr (IsUndefined<decltype(request_.method_)>::value) {
+                completed_ = true;
+                k_.Fail(error_no_method_);
+                return;
+              } else {
+                switch (request_.method_) {
+                  case Method::GET:
+                    if (CURLcode error_code = curl_easy_setopt(
+                            easy_.get(),
+                            CURLOPT_HTTPGET,
+                            1);
+                        error_code != CURLE_OK) {
+                      completed_ = true;
+                      k_.Fail(curl_easy_strerror(error_code));
+                      return;
+                    }
+                    break;
+                  case Method::POST:
+                    if (CURLcode error_code = curl_easy_setopt(
+                            easy_.get(),
+                            CURLOPT_HTTPPOST,
+                            1);
+                        error_code != CURLE_OK) {
+                      completed_ = true;
+                      k_.Fail(curl_easy_strerror(error_code));
+                      return;
+                    }
+                    break;
+                  default:
+                    completed_ = true;
+                    k_.Fail(error_unknown_method_);
+                    return;
+                }
+              }
+
+              // Body.
+              if constexpr (!IsUndefined<decltype(request_.body_)>::value) {
+                if (CURLcode error_code = curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_POSTFIELDS,
+                        request_.body_.first);
+                    error_code != CURLE_OK) {
+                  completed_ = true;
+                  k_.Fail(curl_easy_strerror(error_code));
+                  return;
+                }
+
+                if (CURLcode error_code = curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_POSTFIELDSIZE_LARGE,
+                        request_.body_.second);
+                    error_code != CURLE_OK) {
+                  completed_ = true;
+                  k_.Fail(curl_easy_strerror(error_code));
+                  return;
+                }
+              }
+
+              // Pass 'this' to write_function lambda.
+              if (CURLcode error_code = curl_easy_setopt(
+                      easy_.get(),
                       CURLOPT_WRITEDATA,
-                      this),
-                  CURLE_OK);
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_,
+                      this);
+                  error_code != CURLE_OK) {
+                completed_ = true;
+                k_.Fail(curl_easy_strerror(error_code));
+                return;
+              }
+
+              // https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
+              if (CURLcode error_code = curl_easy_setopt(
+                      easy_.get(),
                       CURLOPT_WRITEFUNCTION,
-                      write_function),
-                  CURLE_OK);
-              // Option to follow redirects.
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_,
-                      CURLOPT_FOLLOWLOCATION,
-                      1),
-                  CURLE_OK);
+                      write_function);
+                  error_code != CURLE_OK) {
+                completed_ = true;
+                k_.Fail(curl_easy_strerror(error_code));
+                return;
+              }
+
+              // Pass 'this' to header_function lambda.
+              if (CURLcode error_code = curl_easy_setopt(
+                      easy_.get(),
+                      CURLOPT_HEADERDATA,
+                      this);
+                  error_code != CURLE_OK) {
+                completed_ = true;
+                k_.Fail(curl_easy_strerror(error_code));
+                return;
+              }
+
+              // https://curl.se/libcurl/c/CURLOPT_HEADERFUNCTION.html
+              if (CURLcode error_code = curl_easy_setopt(
+                      easy_.get(),
+                      CURLOPT_HEADERFUNCTION,
+                      header_function);
+                  error_code != CURLE_OK) {
+                completed_ = true;
+                k_.Fail(curl_easy_strerror(error_code));
+                return;
+              }
+
               // The internal mechanism of libcurl to provide timeout support.
               // Not accurate at very low values.
               // 0 means that transfer can run indefinitely.
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_,
-                      CURLOPT_TIMEOUT_MS,
-                      duration_cast<milliseconds>(timeout_)),
-                  CURLE_OK);
-              // If onoff is 1, libcurl will not use any functions that install
-              // signal handlers or any functions that cause signals to be sent
-              // to the process. This option is here to allow multi-threaded
-              // unix applications to still set/use all timeout options etc,
-              // without risking getting signals.
-              // More here: https://curl.se/libcurl/c/CURLOPT_NOSIGNAL.html
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_,
-                      CURLOPT_NOSIGNAL,
-                      1),
-                  CURLE_OK);
+              if constexpr (IsUndefined<decltype(request_.timeout_)>::value) {
+                if (CURLcode error_code = curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_TIMEOUT_MS,
+                        0);
+                    error_code != CURLE_OK) {
+                  completed_ = true;
+                  k_.Fail(curl_easy_strerror(error_code));
+                  return;
+                }
+              } else {
+                if (request_.timeout_.count() < 0) {
+                  completed_ = true;
+                  k_.Fail(error_negative_timeout_);
+                  return;
+                } else {
+                  if (CURLcode error_code = curl_easy_setopt(
+                          easy_.get(),
+                          CURLOPT_TIMEOUT_MS,
+                          std::chrono::duration_cast<
+                              std::chrono::milliseconds>(
+                              request_.timeout_));
+                      error_code != CURLE_OK) {
+                    completed_ = true;
+                    k_.Fail(curl_easy_strerror(error_code));
+                    return;
+                  }
+                }
+              }
+
+              // Initializing timer.
+              if (int error_code = uv_timer_init(loop_, &timer_);
+                  error_code != 0) {
+                completed_ = true;
+                k_.Fail(uv_strerror(error_code));
+                return;
+              }
+              uv_handle_set_data(
+                  reinterpret_cast<uv_handle_t*>(&timer_),
+                  this);
 
               // Start handling connection.
               CHECK_EQ(
                   curl_multi_add_handle(
-                      multi_,
-                      easy_),
+                      multi_.get(),
+                      easy_.get()),
                   CURLM_OK);
             }
           },
@@ -559,23 +661,16 @@ struct _HTTP {
                     (uv_handle_t*) &timer_,
                     [](uv_handle_t* handle) {
                       auto& continuation = *(Continuation*) handle->data;
-                      continuation.closed_ = true;
+                      continuation.timer_closed_ = true;
 
                       continuation.k_.Stop();
                     });
 
                 CHECK_EQ(
                     curl_multi_remove_handle(
-                        multi_,
-                        easy_),
+                        multi_.get(),
+                        easy_.get()),
                     CURLM_OK);
-
-                if (fields_string_ != nullptr) {
-                  curl_free(fields_string_);
-                  fields_string_ = nullptr;
-                }
-                curl_easy_cleanup(easy_);
-                curl_multi_cleanup(multi_);
               }
             },
             &interrupt_);
@@ -589,109 +684,164 @@ struct _HTTP {
    private:
     K_ k_;
     EventLoop& loop_;
+    RequestType_ request_;
 
-    std::string url_;
-    Method method_;
-    std::chrono::nanoseconds timeout_;
-    PostFields fields_;
-
-    // Stores converted PostFields as a C string.
-    char* fields_string_ = nullptr;
-
-    CURL* easy_ = nullptr;
-    CURLM* multi_ = nullptr;
-
+    // CURL internals.
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> easy_;
+    std::unique_ptr<CURLM, decltype(&curl_multi_cleanup)> multi_;
     uv_timer_t timer_;
     std::vector<uv_poll_t*> polls_;
 
     // Response variables.
-    long code_ = 0;
-    EventLoop::Buffer buffer_;
+    CURLcode error_ = CURLE_OK;
+    long response_code_ = 0;
+    EventLoop::Buffer response_buffer_;
+    EventLoop::Buffer response_headers_buffer_;
 
     bool started_ = false;
     bool completed_ = false;
-    bool closed_ = false;
-
-    int error_ = 0;
+    bool timer_closed_ = true;
 
     EventLoop::Waiter start_;
     EventLoop::Waiter interrupt_;
 
     std::optional<Interrupt::Handler> handler_;
+
+    // Error strings.
+    // NOTE: using const char* because constexpr std::string
+    // is only supported since C++20.
+    constexpr static const char* error_bad_alloc_easy_handle_ =
+        "Internal CURL error: wasn't able to allocate easy handle.";
+    constexpr static const char* error_bad_alloc_multi_handle_ =
+        "Internal CURL error: wasn't able to allocate multi handle.";
+    constexpr static const char* error_no_uri_ =
+        "No uri set.";
+    constexpr static const char* error_no_method_ =
+        "No method was set for this request.";
+    constexpr static const char* error_unknown_method_ =
+        "Unknown HTTP method.";
+    constexpr static const char* error_negative_timeout_ =
+        "Timeout can't have a negative value.";
   };
 
+  template <typename RequestType>
   struct Composable {
-    template <typename Arg>
+    template <typename>
     using ValueFrom = Response;
 
-    template <typename Arg, typename K>
+    template <typename Args, typename K>
     auto k(K k) && {
-      return Continuation<K>{
+      return Continuation<K, RequestType>{
           std::move(k),
           loop_,
-          std::move(url_),
-          method_,
-          timeout_,
-          std::move(fields_)};
+          client_,
+          std::move(request_)};
     }
 
     EventLoop& loop_;
-    std::string url_;
-    Method method_;
-    std::chrono::nanoseconds timeout_;
-    PostFields fields_;
+    Client& client_;
+    RequestType request_;
   };
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Get(
-    EventLoop& loop,
-    const std::string& url,
-    const std::chrono::nanoseconds& timeout = std::chrono::nanoseconds(0)) {
-  // NOTE: we use a 'RescheduleAfter()' to ensure we use current
-  // scheduling context to invoke the continuation after the transfer has
-  // completed (or was interrupted).
-  return RescheduleAfter(
-      // TODO(benh): borrow 'this' so http call can't outlive a loop.
-      _HTTP::Composable{loop, url, Method::GET, timeout});
+class Client {
+ public:
+  Client(EventLoop& loop)
+    : loop_(loop) {}
+
+  //Client(const Client& that) {}
+  //Client(Client&& that) {}
+  //
+  //Client& operator=(const Client& that) {
+  //  return *this;
+  //}
+  //
+  //Client& operator=(Client&& that) {
+  //  return *this;
+  //}
+
+  // NOTE (from folming to benh): Go library uses 'Do' instead of 'Send'.
+  template <typename RequestType>
+  auto Do(const RequestType& request) {
+    // TODO(benh): borrow 'this' so HTTPEventual can't outlive a Client.
+    return RescheduleAfter(_HTTPEventual::Composable<RequestType>{
+        loop_,
+        *this,
+        request});
+  }
+
+  static Client& Default();
+
+  // TODO: Insert various client options here...
+
+ private:
+  EventLoop& loop_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+inline auto Get(EventLoop& loop, const std::string& uri) {
+  Request<
+      std::string,
+      Method,
+      Undefined,
+      Undefined,
+      Undefined,
+      Undefined>
+      request{uri, Method::GET};
+  return Client::Default().Do(request);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Get(
-    const std::string& url,
-    const std::chrono::nanoseconds& timeout = std::chrono::nanoseconds(0)) {
-  return Get(EventLoop::Default(), url, timeout);
+inline auto Get(const std::string& uri) {
+  return Get(EventLoop::Default(), uri);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 inline auto Post(
     EventLoop& loop,
-    const std::string& url,
-    const PostFields& fields,
-    const std::chrono::nanoseconds& timeout = std::chrono::nanoseconds(0)) {
-  // NOTE: we use a 'RescheduleAfter()' to ensure we use current
-  // scheduling context to invoke the continuation after the transfer has
-  // completed (or was interrupted).
-  return RescheduleAfter(
-      // TODO(benh): borrow '&loop' so http call can't outlive a loop.
-      _HTTP::Composable{loop, url, Method::POST, timeout, fields});
+    const std::string& uri,
+    const std::string& content_type,
+    const void* body,
+    size_t body_size) {
+  std::vector<std::pair<std::string, std::string>> headers;
+  headers.push_back({"Content-Type", content_type});
+
+  Request<
+      std::string,
+      Method,
+      std::vector<std::pair<std::string, std::string>>,
+      std::pair<const void*, size_t>,
+      Undefined,
+      Undefined>
+      request{
+          uri,
+          Method::POST,
+          headers,
+          {body, body_size}};
+  return Client::Default().Do(request);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 inline auto Post(
-    const std::string& url,
-    const PostFields& fields,
-    const std::chrono::nanoseconds& timeout = std::chrono::nanoseconds(0)) {
-  return Post(EventLoop::Default(), url, fields, timeout);
+    const std::string& uri,
+    const std::string& content_type,
+    const void* body,
+    size_t body_size) {
+  return Post(EventLoop::Default(), uri, content_type, body, body_size);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 } // namespace http
+
+////////////////////////////////////////////////////////////////////////
+
 } // namespace eventuals
 
 ////////////////////////////////////////////////////////////////////////
