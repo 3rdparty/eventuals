@@ -10,9 +10,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with: 
+          submodules: 'true'
 
-      - name: Initialize and update submodule
-        run: git submodule update --init --recursive
+      # If we do not have clang-format preinstalled => 
+      # our workflow will fail.
+      - name: Check clang-format version
+        run: clang-format --version
+
+      # IMPORTANT NOTE
+      # https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
+      # If you check the link above you will see that on Ubuntu 20.04
+      # we have preinstalled clang-format-10/11/12. By default the symlink
+      # to /usr/bin/clang-format-11 is set. That's why we will not be able
+      # to run successfully the checks for code style cause the minimum
+      # version required is `12` (see `dev-tools/check-code-style/check_style.sh` 
+      # especially check_clang_format() function).
+      # That's why the main idea of this step is just setting the symlink to
+      # /usr/bin/clang-format-12, nothing more. Thus we will be able to run all
+      # checks with correct version of clang-format using GitHub Actions. 
+      - name: Create symlink to /usr/bin/clang-format-12
+        run: |
+          # Before we recreate the symlink we should delete
+          # the existing one.
+          sudo rm /etc/alternatives/clang-format
+
+          # Recreate symlink 'clang-format'
+          sudo ln -s /usr/bin/clang-format-12 /etc/alternatives/clang-format 
+        shell: bash          
 
       # Call the composite action to check files
       # for correct code style. This action (action.yml)
