@@ -33,12 +33,12 @@ TEST_F(EventualsGrpcTest, ServerDeathTest) {
 
   auto wait_for_port = [&]() {
     int port;
-    CHECK(read(pipefds[0], &port, sizeof(int)) > 0);
+    CHECK_GT(read(pipefds[0], &port, sizeof(int)), 0);
     return port;
   };
 
   auto send_port = [&](int port) {
-    CHECK(write(pipefds[1], &port, sizeof(port)) > 0);
+    CHECK_GT(write(pipefds[1], &port, sizeof(port)), 0);
   };
 
   auto server = [&]() {

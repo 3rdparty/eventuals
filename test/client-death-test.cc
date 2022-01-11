@@ -44,22 +44,22 @@ TEST_F(EventualsGrpcTest, ClientDeathTest) {
 
   auto wait_for_fork = [&]() {
     int _;
-    CHECK(read(pipes.fork[0], &_, sizeof(int)) > 0);
+    CHECK_GT(read(pipes.fork[0], &_, sizeof(int)), 0);
   };
 
   auto notify_forked = [&]() {
     int _ = 1;
-    CHECK(write(pipes.fork[1], &_, sizeof(int)) > 0);
+    CHECK_GT(write(pipes.fork[1], &_, sizeof(int)), 0);
   };
 
   auto wait_for_port = [&]() {
     int port;
-    CHECK(read(pipes.port[0], &port, sizeof(int)) > 0);
+    CHECK_GT(read(pipes.port[0], &port, sizeof(int)), 0);
     return port;
   };
 
   auto send_port = [&](int port) {
-    CHECK(write(pipes.port[1], &port, sizeof(port)) > 0);
+    CHECK_GT(write(pipes.port[1], &port, sizeof(port)), 0);
   };
 
   auto client = [&]() {
