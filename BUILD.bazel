@@ -55,7 +55,6 @@ cc_library(
         "eventuals/until.h",
     ],
     copts = copts(),
-    visibility = ["//visibility:private"],
     deps = [
         "@com_github_google_glog//:glog",
     ] + select({
@@ -85,7 +84,6 @@ cc_library(
         "eventuals/timer.h",
     ],
     copts = copts(),
-    visibility = ["//visibility:private"],
     deps = [
         ":eventuals-base",
         "@com_github_libuv_libuv//:libuv",
@@ -108,7 +106,6 @@ cc_library(
     # Gives the error "undefined symbol: curl_global_init" if False.
     # Default is False.
     linkstatic = True,
-    visibility = ["//visibility:private"],
     deps = [
         ":eventuals-base",
         ":eventuals-events",
