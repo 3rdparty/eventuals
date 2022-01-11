@@ -14,10 +14,121 @@ namespace http {
 
 ////////////////////////////////////////////////////////////////////////
 
+enum Method {
+  GET,
+  POST,
+};
+
+////////////////////////////////////////////////////////////////////////
+
 // Used for application/x-www-form-urlencoded case.
 // First string is key, second is value.
 // TODO(folming): switch to RapidJSON.
 using PostFields = std::vector<std::pair<std::string, std::string>>;
+
+////////////////////////////////////////////////////////////////////////
+
+// Forward declaration.
+template <bool, bool>
+class RequestBuilder;
+
+////////////////////////////////////////////////////////////////////////
+
+class Request {
+ public:
+  // Constructs a new http::Request "builder" with the default
+  // undefined values.
+  static RequestBuilder<false, false> Builder();
+
+  const auto& uri() {
+    return uri_;
+  }
+
+  const auto& method() {
+    return method_;
+  }
+
+  const auto& headers() {
+    return headers_;
+  }
+
+  const auto& body() {
+    return body_;
+  }
+
+  const auto& timeout() {
+    return timeout_;
+  }
+
+  const auto& fields() {
+    return fields_;
+  }
+
+ private:
+  template <bool, bool>
+  friend class RequestBuilder;
+
+  std::string uri_;
+  Method method_;
+  std::vector<std::pair<std::string, std::string>> headers_;
+  std::string body_;
+  std::chrono::nanoseconds timeout_;
+  PostFields fields_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <bool HasUri_, bool HasMethod_>
+class RequestBuilder {
+ public:
+  Request Build() && {
+    static_assert(HasUri_, "Missing 'uri(...)' for http::Request");
+    static_assert(HasMethod_, "Missing 'method(...)' for http::Request");
+    return std::move(request_);
+  }
+
+  RequestBuilder<true, HasMethod_> uri(std::string&& uri) && {
+    static_assert(!HasUri_, "Duplicate 'uri(...)' for http::Request");
+    request_.uri_ = std::move(uri);
+    return RequestBuilder<true, HasMethod_>{std::move(request_)};
+  }
+
+  RequestBuilder<HasUri_, true> method(Method method) && {
+    static_assert(!HasMethod_, "Duplicate 'method(...)' for http::Request");
+    request_.method_ = method;
+    return RequestBuilder<HasUri_, true>{std::move(request_)};
+  }
+
+  RequestBuilder<HasUri_, HasMethod_> timeout(
+      std::chrono::nanoseconds&& timeout) && {
+    request_.timeout_ = std::move(timeout);
+    return RequestBuilder<HasUri_, HasMethod_>{std::move(request_)};
+  }
+
+  RequestBuilder<HasUri_, HasMethod_> fields(PostFields&& fields) && {
+    request_.fields_ = std::move(fields);
+    return RequestBuilder<HasUri_, HasMethod_>{std::move(request_)};
+  }
+
+ private:
+  template <bool, bool>
+  friend class RequestBuilder;
+
+  friend class Request;
+
+  RequestBuilder() {}
+
+  RequestBuilder(Request&& request)
+    : request_(std::move(request)) {}
+
+  Request request_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+RequestBuilder<false, false> Request::Builder() {
+  return RequestBuilder<false, false>();
+}
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -28,9 +139,20 @@ struct Response {
 
 ////////////////////////////////////////////////////////////////////////
 
-enum class Method {
-  GET,
-  POST,
+class Client {
+ public:
+  Client() {}
+
+  auto Get(
+      std::string&& uri,
+      std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0));
+
+  auto Post(
+      std::string&& uri,
+      PostFields&& fields,
+      std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0));
+
+  auto Do(Request&& request);
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -56,29 +178,17 @@ enum class Method {
 struct _HTTP {
   template <typename K_>
   struct Continuation {
-    Continuation(
-        K_&& k,
-        EventLoop& loop,
-        std::string&& url,
-        Method& method,
-        std::chrono::nanoseconds& timeout,
-        PostFields&& fields_)
+    Continuation(K_&& k, EventLoop& loop, Request&& request)
       : k_(std::move(k)),
         loop_(loop),
-        url_(std::move(url)),
-        method_(method),
-        timeout_(timeout),
-        fields_(std::move(fields_)),
+        request_(std::move(request)),
         start_(&loop, "HTTP (start)"),
         interrupt_(&loop_, "HTTP (interrupt)") {}
 
     Continuation(Continuation&& that)
       : k_(std::move(that.k_)),
         loop_(that.loop_),
-        url_(std::move(that.url_)),
-        method_(that.method_),
-        timeout_(that.timeout_),
-        fields_(std::move(that.fields_)),
+        request_(std::move(that.request_)),
         start_(&that.loop_, "HTTP (start)"),
         interrupt_(&that.loop_, "HTTP (interrupt)") {
       CHECK(!that.started_ || !that.completed_) << "moving after starting";
@@ -400,7 +510,7 @@ struct _HTTP {
                   CURLM_OK);
 
               // CURL easy options.
-              switch (method_) {
+              switch (request_.method()) {
                 case Method::GET:
                   CHECK_EQ(
                       curl_easy_setopt(
@@ -416,10 +526,10 @@ struct _HTTP {
                       curl_url_set(
                           curl_url_handle,
                           CURLUPART_URL,
-                          url_.c_str(),
+                          request_.uri().c_str(),
                           0),
                       CURLUE_OK);
-                  for (const auto& field : fields_) {
+                  for (const auto& field : request_.fields()) {
                     std::string combined =
                         field.first
                         + '='
@@ -462,7 +572,7 @@ struct _HTTP {
                   curl_easy_setopt(
                       easy_,
                       CURLOPT_URL,
-                      url_.c_str()),
+                      request_.uri().c_str()),
                   CURLE_OK);
               CHECK_EQ(
                   curl_easy_setopt(
@@ -490,7 +600,7 @@ struct _HTTP {
                   curl_easy_setopt(
                       easy_,
                       CURLOPT_TIMEOUT_MS,
-                      duration_cast<milliseconds>(timeout_)),
+                      duration_cast<milliseconds>(request_.timeout())),
                   CURLE_OK);
               // If onoff is 1, libcurl will not use any functions that install
               // signal handlers or any functions that cause signals to be sent
@@ -590,10 +700,7 @@ struct _HTTP {
     K_ k_;
     EventLoop& loop_;
 
-    std::string url_;
-    Method method_;
-    std::chrono::nanoseconds timeout_;
-    PostFields fields_;
+    Request request_;
 
     // Stores converted PostFields as a C string.
     char* fields_string_ = nullptr;
@@ -626,67 +733,71 @@ struct _HTTP {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K>{
-          std::move(k),
-          loop_,
-          std::move(url_),
-          method_,
-          timeout_,
-          std::move(fields_)};
+      return Continuation<K>{std::move(k), loop_, std::move(request_)};
     }
 
     EventLoop& loop_;
-    std::string url_;
-    Method method_;
-    std::chrono::nanoseconds timeout_;
-    PostFields fields_;
+    Request request_;
   };
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Get(
-    EventLoop& loop,
-    const std::string& url,
-    const std::chrono::nanoseconds& timeout = std::chrono::nanoseconds(0)) {
-  // NOTE: we use a 'RescheduleAfter()' to ensure we use current
-  // scheduling context to invoke the continuation after the transfer has
-  // completed (or was interrupted).
-  return RescheduleAfter(
-      // TODO(benh): borrow 'this' so http call can't outlive a loop.
-      _HTTP::Composable{loop, url, Method::GET, timeout});
-}
+inline auto Client::Do(Request&& request) {
+  // TODO(benh): need 'Client::Default()'.
+  auto& loop = EventLoop::Default();
 
-////////////////////////////////////////////////////////////////////////
-
-inline auto Get(
-    const std::string& url,
-    const std::chrono::nanoseconds& timeout = std::chrono::nanoseconds(0)) {
-  return Get(EventLoop::Default(), url, timeout);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-inline auto Post(
-    EventLoop& loop,
-    const std::string& url,
-    const PostFields& fields,
-    const std::chrono::nanoseconds& timeout = std::chrono::nanoseconds(0)) {
   // NOTE: we use a 'RescheduleAfter()' to ensure we use current
   // scheduling context to invoke the continuation after the transfer has
   // completed (or was interrupted).
   return RescheduleAfter(
       // TODO(benh): borrow '&loop' so http call can't outlive a loop.
-      _HTTP::Composable{loop, url, Method::POST, timeout, fields});
+      _HTTP::Composable{loop, std::move(request)});
+}
+
+////////////////////////////////////////////////////////////////////////
+
+inline auto Client::Get(
+    std::string&& uri,
+    std::chrono::nanoseconds&& timeout) {
+  return Do(
+      Request::Builder()
+          .uri(std::move(uri))
+          .method(GET)
+          .timeout(std::move(timeout))
+          .Build());
+}
+
+////////////////////////////////////////////////////////////////////////
+
+inline auto Client::Post(
+    std::string&& uri,
+    PostFields&& fields,
+    std::chrono::nanoseconds&& timeout) {
+  return Do(
+      Request::Builder()
+          .uri(std::move(uri))
+          .method(POST)
+          .timeout(std::move(timeout))
+          .fields(std::move(fields))
+          .Build());
+}
+
+////////////////////////////////////////////////////////////////////////
+
+inline auto Get(
+    std::string&& url,
+    std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0)) {
+  return Client().Get(std::move(url), std::move(timeout));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 inline auto Post(
-    const std::string& url,
-    const PostFields& fields,
-    const std::chrono::nanoseconds& timeout = std::chrono::nanoseconds(0)) {
-  return Post(EventLoop::Default(), url, fields, timeout);
+    std::string&& url,
+    PostFields&& fields,
+    std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0)) {
+  return Client().Post(std::move(url), std::move(fields), std::move(timeout));
 }
 
 ////////////////////////////////////////////////////////////////////////
