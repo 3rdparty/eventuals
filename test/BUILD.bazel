@@ -1,53 +1,85 @@
-load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("//bazel:copts.bzl", "copts")
 
-eventuals_base_sources = [
-    "eventual.cc",
-    "stream.cc",
-    "lock.cc",
-    "repeat.cc",
-    "then.cc",
-    "conditional.cc",
-    "callback.cc",
-    "static-thread-pool.cc",
-    "task.cc",
-    "closure.cc",
-    "iterate.cc",
-    "collect.cc",
-    "filter.cc",
-    "take.cc",
-    "range.cc",
-    "let.cc",
-    "flat-map.cc",
-    "concurrent.cc",
-    "do-all.cc",
-    "generator.cc",
-    "finally.cc",
-    "foreach.cc",
-    "expected.cc",
-    "unpack.cc",
-    "transformer.cc",
-    "pipe.cc",
-]
-
-eventuals_events_sources = [
-    "timer.cc",
-    "filesystem.cc",
-    "event-loop-test.h",
-    "dns-resolver.cc",
-    "signal.cc",
-]
-
-eventuals_http_sources = [
-    "http.cc",
-]
-
-cc_test(
-    name = "eventuals",
-    srcs = eventuals_base_sources + eventuals_events_sources + eventuals_http_sources,
+# NOTE: we build "concurrent" tests in a separate library to
+# significantly speed up linking on platforms which prefer shared
+# libraries (e.g., macos).
+cc_library(
+    name = "concurrent-tests",
+    # We've split all of the tests into separate files so they can be
+    # compiled in parallel which is significantly faster than having
+    # all of the tests in a single file.
+    srcs = [
+        "concurrent-downstream-done-both-eventuals-success.cc",
+        "concurrent-downstream-done-one-eventual-fail.cc",
+        "concurrent-downstream-done-one-eventual-stop.cc",
+        "concurrent-emit-fail-interrupt.cc",
+        "concurrent-emit-interrupt-fail.cc",
+        "concurrent-emit-interrupt-stop.cc",
+        "concurrent-emit-stop-interrupt.cc",
+        "concurrent-fail.cc",
+        "concurrent-fail-before-start.cc",
+        "concurrent-fail-or-stop.cc",
+        "concurrent-flat-map.cc",
+        "concurrent-interrupt-fail.cc",
+        "concurrent-interrupt-fail-or-stop.cc",
+        "concurrent-interrupt-stop.cc",
+        "concurrent-interrupt-success.cc",
+        "concurrent-moveable.cc",
+        "concurrent-stop.cc",
+        "concurrent-stop-before-start.cc",
+        "concurrent-stream-fail.cc",
+        "concurrent-stream-stop.cc",
+        "concurrent-success.cc",
+    ],
+    hdrs = [
+        "concurrent.h",
+    ],
     copts = copts(),
     deps = [
         "//:eventuals",
+        "@com_github_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "eventuals",
+    srcs = [
+        "callback.cc",
+        "closure.cc",
+        "collect.cc",
+        "conditional.cc",
+        "dns-resolver.cc",
+        "do-all.cc",
+        "event-loop-test.h",
+        "eventual.cc",
+        "expected.cc",
+        "filesystem.cc",
+        "filter.cc",
+        "finally.cc",
+        "flat-map.cc",
+        "foreach.cc",
+        "generator.cc",
+        "http.cc",
+        "iterate.cc",
+        "let.cc",
+        "lock.cc",
+        "pipe.cc",
+        "range.cc",
+        "repeat.cc",
+        "signal.cc",
+        "static-thread-pool.cc",
+        "stream.cc",
+        "take.cc",
+        "task.cc",
+        "then.cc",
+        "timer.cc",
+        "transformer.cc",
+        "unpack.cc",
+    ],
+    copts = copts(),
+    deps = [
+        ":concurrent-tests",
         "@com_github_google_googletest//:gtest_main",
     ],
 )
