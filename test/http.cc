@@ -4,32 +4,63 @@
 #include "eventuals/eventual.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/terminal.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/http-mock-server.h"
+
+namespace http = eventuals::http;
 
 using eventuals::EventLoop;
 using eventuals::Interrupt;
 using eventuals::Terminate;
 
-using eventuals::http::Get;
-using eventuals::http::Post;
-using eventuals::http::PostFields;
-
-class HTTPTest
+class HttpTest
   : public EventLoopTest,
     public ::testing::WithParamInterface<const char*> {};
 
 const char* schemes[] = {"http://", "https://"};
 
-INSTANTIATE_TEST_SUITE_P(Schemes, HTTPTest, testing::ValuesIn(schemes));
+INSTANTIATE_TEST_SUITE_P(Schemes, HttpTest, testing::ValuesIn(schemes));
 
-// Current tests implementation rely on the transfers not
-// being able to complete within a very short period.
-// TODO(folming): Use HTTP mock server to not rely on external hosts.
-
-TEST_P(HTTPTest, GetFailTimeout) {
+TEST_P(HttpTest, Get) {
   std::string scheme = GetParam();
 
-  auto e = Get(scheme + "example.com", std::chrono::milliseconds(1));
+  HttpMockServer server(scheme);
+
+  // NOTE: using an 'http::Client' so we can disable peer verification
+  // because we have a self-signed certificate.
+  http::Client client = http::Client::Builder()
+                            .verify_peer(false)
+                            .Build();
+
+  EXPECT_CALL(server, ReceivedHeaders)
+      .WillOnce([](auto socket, const std::string& data) {
+        socket->Send(
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Length: 25\r\n"
+            "\r\n"
+            "<html>Hello World!</html>\r\n"
+            "\r\n");
+
+        socket->Close();
+      });
+
+  auto e = client.Get(server.uri());
+  auto [future, k] = Terminate(std::move(e));
+  k.Start();
+
+  EventLoop::Default().RunUntil(future);
+
+  auto response = future.get();
+
+  EXPECT_EQ(200, response.code);
+  EXPECT_EQ("<html>Hello World!</html>", response.body);
+}
+
+TEST_P(HttpTest, GetFailTimeout) {
+  std::string scheme = GetParam();
+
+  auto e = http::Get(scheme + "example.com", std::chrono::milliseconds(1));
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
@@ -39,16 +70,13 @@ TEST_P(HTTPTest, GetFailTimeout) {
 }
 
 
-TEST_P(HTTPTest, PostFailTimeout) {
+TEST_P(HttpTest, PostFailTimeout) {
   std::string scheme = GetParam();
 
-  PostFields fields = {
-      {"title", "test"},
-      {"body", "message"}};
-
-  auto e = Post(
+  auto e = http::Post(
       scheme + "jsonplaceholder.typicode.com/posts",
-      fields,
+      {{"title", "test"},
+       {"body", "message"}},
       std::chrono::milliseconds(1));
   auto [future, k] = Terminate(std::move(e));
   k.Start();
@@ -59,10 +87,10 @@ TEST_P(HTTPTest, PostFailTimeout) {
 }
 
 
-TEST_P(HTTPTest, GetInterrupt) {
+TEST_P(HttpTest, GetInterrupt) {
   std::string scheme = GetParam();
 
-  auto e = Get(scheme + "example.com");
+  auto e = http::Get(scheme + "example.com");
   auto [future, k] = Terminate(std::move(e));
 
   Interrupt interrupt;
@@ -79,16 +107,13 @@ TEST_P(HTTPTest, GetInterrupt) {
 }
 
 
-TEST_P(HTTPTest, PostInterrupt) {
+TEST_P(HttpTest, PostInterrupt) {
   std::string scheme = GetParam();
 
-  PostFields fields = {
-      {"title", "test"},
-      {"body", "message"}};
-
-  auto e = Post(
+  auto e = http::Post(
       scheme + "jsonplaceholder.typicode.com/posts",
-      fields);
+      {{"title", "test"},
+       {"body", "message"}});
   auto [future, k] = Terminate(std::move(e));
 
   Interrupt interrupt;
@@ -105,10 +130,10 @@ TEST_P(HTTPTest, PostInterrupt) {
 }
 
 
-TEST_P(HTTPTest, GetInterruptAfterStart) {
+TEST_P(HttpTest, GetInterruptAfterStart) {
   std::string scheme = GetParam();
 
-  auto e = Get(scheme + "example.com");
+  auto e = http::Get(scheme + "example.com");
   auto [future, k] = Terminate(std::move(e));
 
   Interrupt interrupt;
@@ -136,16 +161,13 @@ TEST_P(HTTPTest, GetInterruptAfterStart) {
 }
 
 
-TEST_P(HTTPTest, PostInterruptAfterStart) {
+TEST_P(HttpTest, PostInterruptAfterStart) {
   std::string scheme = GetParam();
 
-  PostFields fields = {
-      {"title", "test"},
-      {"body", "message"}};
-
-  auto e = Post(
+  auto e = http::Post(
       scheme + "jsonplaceholder.typicode.com/posts",
-      fields);
+      {{"title", "test"},
+       {"body", "message"}});
   auto [future, k] = Terminate(std::move(e));
 
   Interrupt interrupt;
