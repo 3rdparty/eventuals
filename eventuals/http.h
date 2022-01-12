@@ -64,6 +64,10 @@ class Request {
     return fields_;
   }
 
+  const auto& verify_peer() {
+    return verify_peer_;
+  }
+
  private:
   template <bool, bool>
   friend class RequestBuilder;
@@ -74,6 +78,7 @@ class Request {
   std::string body_;
   std::chrono::nanoseconds timeout_;
   PostFields fields_;
+  bool verify_peer_ = true;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -107,6 +112,12 @@ class RequestBuilder {
 
   RequestBuilder<HasUri_, HasMethod_> fields(PostFields&& fields) && {
     request_.fields_ = std::move(fields);
+    return RequestBuilder<HasUri_, HasMethod_>{std::move(request_)};
+  }
+
+  RequestBuilder<HasUri_, HasMethod_> verify_peer(bool value) && {
+    // TODO(benh): consider checking that the scheme is 'https'.
+    request_.verify_peer_ = value;
     return RequestBuilder<HasUri_, HasMethod_>{std::move(request_)};
   }
 
@@ -510,6 +521,15 @@ struct _HTTP {
                   CURLM_OK);
 
               // CURL easy options.
+              if (!request_.verify_peer()) {
+                CHECK_EQ(
+                    curl_easy_setopt(
+                        easy_,
+                        CURLOPT_SSL_VERIFYPEER,
+                        0),
+                    CURLE_OK);
+              }
+
               switch (request_.method()) {
                 case Method::GET:
                   CHECK_EQ(
