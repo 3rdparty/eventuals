@@ -386,6 +386,9 @@ struct _HTTP {
       : k_(std::move(k)),
         loop_(loop),
         request_(std::move(request)),
+        fields_string_(nullptr, &curl_free),
+        easy_(curl_easy_init(), &curl_easy_cleanup),
+        multi_(curl_multi_init(), &curl_multi_cleanup),
         curl_headers_(nullptr, &curl_slist_free_all),
         start_(&loop, "HTTP (start)"),
         interrupt_(&loop_, "HTTP (interrupt)") {}
@@ -394,6 +397,9 @@ struct _HTTP {
       : k_(std::move(that.k_)),
         loop_(that.loop_),
         request_(std::move(that.request_)),
+        fields_string_(std::move(that.fields_string_)),
+        easy_(std::move(that.easy_)),
+        multi_(std::move(that.multi_)),
         curl_headers_(std::move(that.curl_headers_)),
         start_(&that.loop_, "HTTP (start)"),
         interrupt_(&that.loop_, "HTTP (interrupt)") {
@@ -415,8 +421,8 @@ struct _HTTP {
 
               CHECK(!error_);
 
-              CHECK_NOTNULL(easy_ = curl_easy_init());
-              CHECK_NOTNULL(multi_ = curl_multi_init());
+              CHECK_NOTNULL(easy_);
+              CHECK_NOTNULL(multi_);
 
               // If applicable, PEM encode any certificate now before we start
               // anything and can easily propagate an error.
@@ -430,8 +436,8 @@ struct _HTTP {
 
                   k_.Fail("Failed to PEM encode certificate");
 
-                  curl_easy_cleanup(easy_);
-                  curl_multi_cleanup(multi_);
+                  curl_easy_cleanup(easy_.get());
+                  curl_multi_cleanup(multi_.get());
 
                   return; // Don't do anything else!
                 } else {
@@ -441,7 +447,7 @@ struct _HTTP {
                   blob.flags = CURL_BLOB_COPY;
                   CHECK_EQ(
                       curl_easy_setopt(
-                          easy_,
+                          easy_.get(),
                           CURLOPT_CAINFO_BLOB,
                           &blob),
                       CURLE_OK);
@@ -460,7 +466,7 @@ struct _HTTP {
                 // Unused.
                 int msgq = 0;
                 CURLMsg* message = curl_multi_info_read(
-                    continuation.multi_,
+                    continuation.multi_.get(),
                     &msgq);
 
                 // Getting the response code and body.
@@ -468,7 +474,7 @@ struct _HTTP {
                   case CURLMSG_DONE:
                     if (message->data.result == CURLE_OK) {
                       curl_easy_getinfo(
-                          continuation.easy_,
+                          continuation.easy_.get(),
                           CURLINFO_RESPONSE_CODE,
                           &continuation.code_);
                     } else {
@@ -483,7 +489,7 @@ struct _HTTP {
                 // Stop transfer completely.
                 CHECK_EQ(
                     curl_multi_remove_handle(
-                        continuation.multi_,
+                        continuation.multi_.get(),
                         message->easy_handle),
                     CURLM_OK);
 
@@ -521,13 +527,6 @@ struct _HTTP {
                                 (CURLcode) continuation.error_));
                       }
                     });
-
-                if (continuation.fields_string_ != nullptr) {
-                  curl_free(continuation.fields_string_);
-                  continuation.fields_string_ = nullptr;
-                }
-                curl_easy_cleanup(continuation.easy_);
-                curl_multi_cleanup(continuation.multi_);
               };
 
               static auto poll_callback = [](uv_poll_t* handle,
@@ -561,7 +560,7 @@ struct _HTTP {
                 // We don't want to perform an action on every socket inside
                 // libcurl - only that one.
                 curl_multi_socket_action(
-                    continuation.multi_,
+                    continuation.multi_.get(),
                     (curl_socket_t) socket_descriptor,
                     flags,
                     &running_handles);
@@ -583,7 +582,7 @@ struct _HTTP {
                 // perform an action with each and every socket
                 // currently in use by libcurl.
                 curl_multi_socket_action(
-                    continuation.multi_,
+                    continuation.multi_.get(),
                     CURL_SOCKET_TIMEOUT,
                     0,
                     &running_handles);
@@ -636,7 +635,7 @@ struct _HTTP {
                       // for the socket currently in use.
                       CHECK_EQ(
                           curl_multi_assign(
-                              continuation->multi_,
+                              continuation->multi_.get(),
                               sockfd,
                               socket_poller),
                           CURLM_OK);
@@ -680,7 +679,7 @@ struct _HTTP {
                     // Remove assignment of poll handle to this socket.
                     CHECK_EQ(
                         curl_multi_assign(
-                            continuation->multi_,
+                            continuation->multi_.get(),
                             sockfd,
                             nullptr),
                         CURLM_OK);
@@ -720,25 +719,25 @@ struct _HTTP {
               // CURL multi options.
               CHECK_EQ(
                   curl_multi_setopt(
-                      multi_,
+                      multi_.get(),
                       CURLMOPT_SOCKETDATA,
                       this),
                   CURLM_OK);
               CHECK_EQ(
                   curl_multi_setopt(
-                      multi_,
+                      multi_.get(),
                       CURLMOPT_SOCKETFUNCTION,
                       socket_function),
                   CURLM_OK);
               CHECK_EQ(
                   curl_multi_setopt(
-                      multi_,
+                      multi_.get(),
                       CURLMOPT_TIMERDATA,
                       this),
                   CURLM_OK);
               CHECK_EQ(
                   curl_multi_setopt(
-                      multi_,
+                      multi_.get(),
                       CURLMOPT_TIMERFUNCTION,
                       timer_function),
                   CURLM_OK);
@@ -747,7 +746,7 @@ struct _HTTP {
               if (request_.verify_peer()) {
                 CHECK_EQ(
                     curl_easy_setopt(
-                        easy_,
+                        easy_.get(),
                         CURLOPT_SSL_VERIFYPEER,
                         request_.verify_peer().value()),
                     CURLE_OK);
@@ -757,17 +756,22 @@ struct _HTTP {
                 case Method::GET:
                   CHECK_EQ(
                       curl_easy_setopt(
-                          easy_,
+                          easy_.get(),
                           CURLOPT_HTTPGET,
                           1),
                       CURLE_OK);
                   break;
                 case Method::POST:
                   // Converting PostFields.
-                  CURLU* curl_url_handle = curl_url();
+                  std::unique_ptr<
+                      CURLU,
+                      decltype(&curl_url_cleanup)>
+                      curl_url_handle(
+                          curl_url(),
+                          &curl_url_cleanup);
                   CHECK_EQ(
                       curl_url_set(
-                          curl_url_handle,
+                          curl_url_handle.get(),
                           CURLUPART_URL,
                           request_.uri().c_str(),
                           0),
@@ -779,33 +783,38 @@ struct _HTTP {
                         + field.second;
                     CHECK_EQ(
                         curl_url_set(
-                            curl_url_handle,
+                            curl_url_handle.get(),
                             CURLUPART_QUERY,
                             combined.c_str(),
                             CURLU_APPENDQUERY | CURLU_URLENCODE),
                         CURLUE_OK);
                   }
+                  char* url_string = nullptr;
                   CHECK_EQ(
                       curl_url_get(
-                          curl_url_handle,
+                          curl_url_handle.get(),
                           CURLUPART_QUERY,
-                          &fields_string_,
+                          &url_string,
                           0),
                       CURLUE_OK);
-                  curl_url_cleanup(curl_url_handle);
+                  fields_string_ = std::unique_ptr<
+                      char,
+                      decltype(&curl_free)>(
+                      url_string,
+                      &curl_free);
                   // End of conversion.
 
                   CHECK_EQ(
                       curl_easy_setopt(
-                          easy_,
+                          easy_.get(),
                           CURLOPT_HTTPPOST,
                           1),
                       CURLE_OK);
                   CHECK_EQ(
                       curl_easy_setopt(
-                          easy_,
+                          easy_.get(),
                           CURLOPT_POSTFIELDS,
-                          fields_string_),
+                          fields_string_.get()),
                       CURLE_OK);
 
                   break;
@@ -835,33 +844,32 @@ struct _HTTP {
 
               CHECK_EQ(
                   curl_easy_setopt(
-                      easy_,
+                      easy_.get(),
                       CURLOPT_HTTPHEADER,
                       curl_headers_.get()),
                   CURLE_OK);
-
               CHECK_EQ(
                   curl_easy_setopt(
-                      easy_,
+                      easy_.get(),
                       CURLOPT_URL,
                       request_.uri().c_str()),
                   CURLE_OK);
               CHECK_EQ(
                   curl_easy_setopt(
-                      easy_,
+                      easy_.get(),
                       CURLOPT_WRITEDATA,
                       this),
                   CURLE_OK);
               CHECK_EQ(
                   curl_easy_setopt(
-                      easy_,
+                      easy_.get(),
                       CURLOPT_WRITEFUNCTION,
                       write_function),
                   CURLE_OK);
               // Option to follow redirects.
               CHECK_EQ(
                   curl_easy_setopt(
-                      easy_,
+                      easy_.get(),
                       CURLOPT_FOLLOWLOCATION,
                       1),
                   CURLE_OK);
@@ -870,7 +878,7 @@ struct _HTTP {
               // 0 means that transfer can run indefinitely.
               CHECK_EQ(
                   curl_easy_setopt(
-                      easy_,
+                      easy_.get(),
                       CURLOPT_TIMEOUT_MS,
                       duration_cast<milliseconds>(request_.timeout())),
                   CURLE_OK);
@@ -882,7 +890,7 @@ struct _HTTP {
               // More here: https://curl.se/libcurl/c/CURLOPT_NOSIGNAL.html
               CHECK_EQ(
                   curl_easy_setopt(
-                      easy_,
+                      easy_.get(),
                       CURLOPT_NOSIGNAL,
                       1),
                   CURLE_OK);
@@ -890,8 +898,8 @@ struct _HTTP {
               // Start handling connection.
               CHECK_EQ(
                   curl_multi_add_handle(
-                      multi_,
-                      easy_),
+                      multi_.get(),
+                      easy_.get()),
                   CURLM_OK);
             }
           },
@@ -948,16 +956,9 @@ struct _HTTP {
 
                 CHECK_EQ(
                     curl_multi_remove_handle(
-                        multi_,
-                        easy_),
+                        multi_.get(),
+                        easy_.get()),
                     CURLM_OK);
-
-                if (fields_string_ != nullptr) {
-                  curl_free(fields_string_);
-                  fields_string_ = nullptr;
-                }
-                curl_easy_cleanup(easy_);
-                curl_multi_cleanup(multi_);
               }
             },
             &interrupt_);
@@ -975,10 +976,10 @@ struct _HTTP {
     Request request_;
 
     // Stores converted PostFields as a C string.
-    char* fields_string_ = nullptr;
+    std::unique_ptr<char, decltype(&curl_free)> fields_string_;
 
-    CURL* easy_ = nullptr;
-    CURLM* multi_ = nullptr;
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> easy_;
+    std::unique_ptr<CURLM, decltype(&curl_multi_cleanup)> multi_;
     std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> curl_headers_;
 
     uv_timer_t timer_;
