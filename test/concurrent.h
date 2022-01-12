@@ -1,3 +1,5 @@
+#pragma once
+
 #include "eventuals/concurrent-ordered.h"
 #include "eventuals/concurrent.h"
 #include "gmock/gmock.h"
