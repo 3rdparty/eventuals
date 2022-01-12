@@ -38,6 +38,6 @@ jobs:
       - name: Test
         run: bazel test --spawn_strategy=local --copt="-g" --strip="never" --test_output=errors test:eventuals --test_arg=--gtest_shuffle --test_arg=--gtest_repeat=100
 
-      - name: Debug Test using tmate (in failure)
+      - name: Debug Test using tmate (if failure)
         if: ${{ failure() }}
         uses: mxschmitt/action-tmate@v3
