@@ -1,3 +1,5 @@
+#pragma once
+
 #include "asio.hpp"
 #include "asio/ssl.hpp"
 #include "test/pem.h"

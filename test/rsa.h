@@ -1,3 +1,5 @@
+#pragma once
+
 #include "eventuals/expected.h"
 #include "openssl/rsa.h"
 
