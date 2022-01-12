@@ -28,7 +28,7 @@ using PostFields = std::vector<std::pair<std::string, std::string>>;
 
 ////////////////////////////////////////////////////////////////////////
 
-// Forward declaration.
+// Forward declarations.
 template <bool, bool>
 class RequestBuilder;
 
@@ -72,6 +72,8 @@ class Request {
   template <bool, bool>
   friend class RequestBuilder;
 
+  friend class Client;
+
   std::string uri_;
   Method method_;
   std::vector<std::pair<std::string, std::string>> headers_;
@@ -95,30 +97,30 @@ class RequestBuilder {
   RequestBuilder<true, HasMethod_> uri(std::string&& uri) && {
     static_assert(!HasUri_, "Duplicate 'uri(...)' for http::Request");
     request_.uri_ = std::move(uri);
-    return RequestBuilder<true, HasMethod_>{std::move(request_)};
+    return RequestBuilder<true, HasMethod_>(std::move(request_));
   }
 
   RequestBuilder<HasUri_, true> method(Method method) && {
     static_assert(!HasMethod_, "Duplicate 'method(...)' for http::Request");
     request_.method_ = method;
-    return RequestBuilder<HasUri_, true>{std::move(request_)};
+    return RequestBuilder<HasUri_, true>(std::move(request_));
   }
 
   RequestBuilder<HasUri_, HasMethod_> timeout(
       std::chrono::nanoseconds&& timeout) && {
     request_.timeout_ = std::move(timeout);
-    return RequestBuilder<HasUri_, HasMethod_>{std::move(request_)};
+    return RequestBuilder<HasUri_, HasMethod_>(std::move(request_));
   }
 
   RequestBuilder<HasUri_, HasMethod_> fields(PostFields&& fields) && {
     request_.fields_ = std::move(fields);
-    return RequestBuilder<HasUri_, HasMethod_>{std::move(request_)};
+    return RequestBuilder<HasUri_, HasMethod_>(std::move(request_));
   }
 
   RequestBuilder<HasUri_, HasMethod_> verify_peer(bool value) && {
     // TODO(benh): consider checking that the scheme is 'https'.
     request_.verify_peer_ = value;
-    return RequestBuilder<HasUri_, HasMethod_>{std::move(request_)};
+    return RequestBuilder<HasUri_, HasMethod_>(std::move(request_));
   }
 
  private:
@@ -150,8 +152,17 @@ struct Response {
 
 ////////////////////////////////////////////////////////////////////////
 
+// Forward declarations.
+class ClientBuilder;
+
+////////////////////////////////////////////////////////////////////////
+
 class Client {
  public:
+  // Constructs a new http::Client "builder" with the default
+  // undefined values.
+  static ClientBuilder Builder();
+
   Client() {}
 
   auto Get(
@@ -164,7 +175,42 @@ class Client {
       std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0));
 
   auto Do(Request&& request);
+
+ private:
+  friend class ClientBuilder;
+
+  std::optional<bool> verify_peer_;
 };
+
+////////////////////////////////////////////////////////////////////////
+
+class ClientBuilder {
+ public:
+  Client Build() && {
+    return std::move(client_);
+  }
+
+  ClientBuilder verify_peer(bool value) && {
+    client_.verify_peer_ = value;
+    return ClientBuilder(std::move(client_));
+  }
+
+ private:
+  friend class Client;
+
+  ClientBuilder() {}
+
+  ClientBuilder(Client&& client)
+    : client_(std::move(client)) {}
+
+  Client client_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+ClientBuilder Client::Builder() {
+  return ClientBuilder();
+}
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -766,6 +812,10 @@ struct _HTTP {
 inline auto Client::Do(Request&& request) {
   // TODO(benh): need 'Client::Default()'.
   auto& loop = EventLoop::Default();
+
+  if (verify_peer_.has_value()) {
+    request.verify_peer_ = verify_peer_.value();
+  }
 
   // NOTE: we use a 'RescheduleAfter()' to ensure we use current
   // scheduling context to invoke the continuation after the transfer has
