@@ -72,7 +72,7 @@ class Request {
  private:
   friend class Client;
 
-  template <bool, bool, bool, bool, bool, bool>
+  template <bool, bool, bool, bool, bool, bool, bool>
   class _Builder;
 
   std::string uri_;
@@ -93,7 +93,8 @@ template <
     bool has_timeout_,
     bool has_fields_,
     bool has_verify_peer_,
-    bool has_certificate_>
+    bool has_certificate_,
+    bool has_headers_>
 class Request::_Builder : public builder::Builder {
  public:
   auto uri(std::string&& uri) && {
@@ -104,7 +105,8 @@ class Request::_Builder : public builder::Builder {
         std::move(timeout_),
         std::move(fields_),
         std::move(verify_peer_),
-        std::move(certificate_));
+        std::move(certificate_),
+        std::move(headers_));
   }
 
   auto method(Method method) && {
@@ -115,7 +117,8 @@ class Request::_Builder : public builder::Builder {
         std::move(timeout_),
         std::move(fields_),
         std::move(verify_peer_),
-        std::move(certificate_));
+        std::move(certificate_),
+        std::move(headers_));
   }
 
   auto timeout(std::chrono::nanoseconds&& timeout) && {
@@ -126,7 +129,8 @@ class Request::_Builder : public builder::Builder {
         timeout_.Set(std::move(timeout)),
         std::move(fields_),
         std::move(verify_peer_),
-        std::move(certificate_));
+        std::move(certificate_),
+        std::move(headers_));
   }
 
   auto fields(PostFields&& fields) && {
@@ -137,7 +141,8 @@ class Request::_Builder : public builder::Builder {
         std::move(timeout_),
         fields_.Set(std::move(fields)),
         std::move(verify_peer_),
-        std::move(certificate_));
+        std::move(certificate_),
+        std::move(headers_));
   }
 
   auto verify_peer(bool verify_peer) && {
@@ -149,7 +154,8 @@ class Request::_Builder : public builder::Builder {
         std::move(timeout_),
         std::move(fields_),
         verify_peer_.Set(std::move(verify_peer)),
-        std::move(certificate_));
+        std::move(certificate_),
+        std::move(headers_));
   }
 
   // Specify the certificate to use when doing verification. Same
@@ -167,7 +173,20 @@ class Request::_Builder : public builder::Builder {
         std::move(timeout_),
         std::move(fields_),
         std::move(verify_peer_),
-        certificate_.Set(std::move(certificate)));
+        certificate_.Set(std::move(certificate)),
+        std::move(headers_));
+  }
+
+  auto header(std::string&& key, std::string&& value) && {
+    headers_.value().emplace_back(std::move(key), std::move(value));
+    return Construct<_Builder>(
+        std::move(uri_),
+        std::move(method_),
+        std::move(timeout_),
+        std::move(fields_),
+        std::move(verify_peer_),
+        std::move(certificate_),
+        headers_.Set(std::move(headers_).value()));
   }
 
   Request Build() && {
@@ -194,6 +213,8 @@ class Request::_Builder : public builder::Builder {
       request.certificate_ = std::move(certificate_).value();
     }
 
+    request.headers_ = std::move(headers_).value();
+
     return request;
   }
 
@@ -209,13 +230,17 @@ class Request::_Builder : public builder::Builder {
       builder::Field<std::chrono::nanoseconds, has_timeout_> timeout,
       builder::Field<PostFields, has_fields_> fields,
       builder::Field<bool, has_verify_peer_> verify_peer,
-      builder::Field<x509::Certificate, has_certificate_> certificate)
+      builder::Field<x509::Certificate, has_certificate_> certificate,
+      builder::FieldWithDefault<
+          std::vector<std::pair<std::string, std::string>>,
+          has_headers_> headers)
     : uri_(std::move(uri)),
       method_(std::move(method)),
       timeout_(std::move(timeout)),
       fields_(std::move(fields)),
       verify_peer_(std::move(verify_peer)),
-      certificate_(std::move(certificate)) {}
+      certificate_(std::move(certificate)),
+      headers_(std::move(headers)) {}
 
   builder::Field<std::string, has_uri_> uri_;
   builder::Field<Method, has_method_> method_;
@@ -223,12 +248,16 @@ class Request::_Builder : public builder::Builder {
   builder::Field<PostFields, has_fields_> fields_;
   builder::Field<bool, has_verify_peer_> verify_peer_;
   builder::Field<x509::Certificate, has_certificate_> certificate_;
+  builder::FieldWithDefault<
+      std::vector<std::pair<std::string, std::string>>,
+      has_headers_>
+      headers_ = std::vector<std::pair<std::string, std::string>>{};
 };
 
 ////////////////////////////////////////////////////////////////////////
 
 inline auto Request::Builder() {
-  return Request::_Builder<false, false, false, false, false, false>();
+  return Request::_Builder<false, false, false, false, false, false, false>();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -357,6 +386,7 @@ struct _HTTP {
       : k_(std::move(k)),
         loop_(loop),
         request_(std::move(request)),
+        curl_headers_(nullptr, &curl_slist_free_all),
         start_(&loop, "HTTP (start)"),
         interrupt_(&loop_, "HTTP (interrupt)") {}
 
@@ -364,6 +394,7 @@ struct _HTTP {
       : k_(std::move(that.k_)),
         loop_(that.loop_),
         request_(std::move(that.request_)),
+        curl_headers_(std::move(that.curl_headers_)),
         start_(&that.loop_, "HTTP (start)"),
         interrupt_(&that.loop_, "HTTP (interrupt)") {
       CHECK(!that.started_ || !that.completed_) << "moving after starting";
@@ -780,6 +811,35 @@ struct _HTTP {
                   break;
               }
 
+              // Transform 'Request' headers to curl's linked list.
+              for (const auto& [key, value] : request_.headers()) {
+                std::string header = key + ": " + value;
+
+                // We should only be adding the headers once, so they
+                // shouldn't yet exist!
+                CHECK(!curl_headers_)
+                    << "not expecting to have already allocated headers";
+
+                curl_slist* list = nullptr;
+
+                // 'curl_slist_append()' copies 'header' so we don't
+                //  have to worry about its lifetime.
+                list = curl_slist_append(list, header.c_str());
+
+                curl_headers_ = std::unique_ptr<
+                    curl_slist,
+                    decltype(&curl_slist_free_all)>(
+                    CHECK_NOTNULL(list),
+                    &curl_slist_free_all);
+              }
+
+              CHECK_EQ(
+                  curl_easy_setopt(
+                      easy_,
+                      CURLOPT_HTTPHEADER,
+                      curl_headers_.get()),
+                  CURLE_OK);
+
               CHECK_EQ(
                   curl_easy_setopt(
                       easy_,
@@ -919,6 +979,7 @@ struct _HTTP {
 
     CURL* easy_ = nullptr;
     CURLM* multi_ = nullptr;
+    std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> curl_headers_;
 
     uv_timer_t timer_;
     std::vector<uv_poll_t*> polls_;

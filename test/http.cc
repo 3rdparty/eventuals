@@ -190,3 +190,43 @@ TEST_P(HttpTest, PostInterruptAfterStart) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
+
+
+TEST_P(HttpTest, GetHeaders) {
+  std::string scheme = GetParam();
+
+  HttpMockServer server(scheme);
+
+  // NOTE: using an 'http::Client' configured to work for the server.
+  http::Client client = server.Client();
+
+  EXPECT_CALL(server, ReceivedHeaders)
+      .WillOnce([](auto socket, const std::string& data) {
+        EXPECT_THAT(data, testing::ContainsRegex("foo: bar"));
+
+        socket->Send(
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Length: 25\r\n"
+            "\r\n"
+            "<html>Hello World!</html>\r\n"
+            "\r\n");
+
+        socket->Close();
+      });
+
+  auto e = client.Do(
+      http::Request::Builder()
+          .uri(server.uri())
+          .method(http::GET)
+          .header("foo", "bar")
+          .Build());
+  auto [future, k] = Terminate(std::move(e));
+  k.Start();
+
+  EventLoop::Default().RunUntil(future);
+
+  auto response = future.get();
+
+  EXPECT_EQ(200, response.code);
+  EXPECT_EQ("<html>Hello World!</html>", response.body);
+}
