@@ -197,42 +197,64 @@ class HttpMockServer {
     // which also appropriately handles whether or not to expect
     // secure ('https://') or insecure ('http://') clients.
     thread_ = std::thread([this]() {
-      asio::error_code error;
       do {
-        asio::ip::tcp::socket socket = acceptor_.accept(error);
-        if (!error) {
-          if (scheme_ == "http://") {
-            Accepted(std::unique_ptr<Socket>(
-                new InsecureSocket(std::move(socket))));
-          } else {
-            CHECK_EQ(scheme_, "https://");
+        // NOTE: using 'async_accept()' instead of just 'accept()' so
+        // that we can reliably interrupt the acceptor in
+        // '~HttpMockServer()' across different operating systems.
+        acceptor_.async_accept(
+            [this](asio::error_code error, asio::ip::tcp::socket socket) {
+              if (!error) {
+                if (scheme_ == "http://") {
+                  Accepted(std::unique_ptr<Socket>(
+                      new InsecureSocket(std::move(socket))));
+                } else {
+                  CHECK_EQ(scheme_, "https://");
 
-            asio::ssl::stream<asio::ip::tcp::socket> stream(
-                std::move(socket),
-                ssl_context_);
+                  asio::ssl::stream<asio::ip::tcp::socket> stream(
+                      std::move(socket),
+                      ssl_context_);
 
-            stream.set_verify_mode(asio::ssl::verify_none);
-            stream.handshake(asio::ssl::stream_base::server, error);
+                  stream.set_verify_mode(asio::ssl::verify_none);
+                  stream.handshake(asio::ssl::stream_base::server, error);
 
-            if (error) {
-              ADD_FAILURE()
-                  << "Failed to perform TLS/SSL handshake: " << error.message();
-            } else {
-              Accepted(std::unique_ptr<Socket>(
-                  new SecureSocket(std::move(stream))));
-            }
-          }
+                  if (error) {
+                    ADD_FAILURE()
+                        << "Failed to perform TLS/SSL handshake: "
+                        << error.message();
+                  } else {
+                    Accepted(std::unique_ptr<Socket>(
+                        new SecureSocket(std::move(stream))));
+                  }
+                }
+              }
+            });
+
+        // Continuously accept unless the acceptor has been cancelled
+        // or the 'io_context' was stopped.
+        if (io_context_.run_one()) {
+          // Need to do 'restart()' in order to call 'run_one()' again.
+          io_context_.restart();
+          continue;
+        } else {
+          // Must be that 'io_context' has been stopped!
+          break;
         }
-      } while (!error);
+      } while (true);
     });
   }
 
   ~HttpMockServer() {
-    // Close the acceptor to force 'accept()' to error out and the
-    // thread to exit and be joinable.
+    // Need to do a 'cancel()' on the 'acceptor' in addition to
+    // 'stop()' on the 'io_context' to ensure 'accept()' returns and
+    // the thread will exit and be joinable.
+    acceptor_.cancel();
+
+    io_context_.stop();
+
     asio::error_code error;
     acceptor_.close(error);
     EXPECT_FALSE(error) << error.message();
+
     thread_.join();
   }
 
