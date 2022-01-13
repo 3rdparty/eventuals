@@ -129,7 +129,7 @@ class HttpMockServer {
     // Now configure our SSL context with a newly generated X509
     // certificate that we self-sign with a newly generated RSA
     // private key.
-    auto key = rsa::Builder().Build();
+    auto key = rsa::Key::Builder().Build();
 
     CHECK(key) << "Failed to generate RSA private key";
 
@@ -141,9 +141,9 @@ class HttpMockServer {
         asio::buffer(*pem_key),
         asio::ssl::context::pem);
 
-    auto certificate = x509::Builder()
-                           .subject_key(*key)
-                           .sign_key(*key)
+    auto certificate = x509::Certificate::Builder()
+                           .subject_key(rsa::Key(*key))
+                           .sign_key(rsa::Key(*key))
                            .ip(endpoint_.address())
                            .Build();
 
