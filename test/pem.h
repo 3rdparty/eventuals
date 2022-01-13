@@ -1,6 +1,7 @@
 #pragma once
 
 #include "eventuals/expected.h"
+#include "openssl/bio.h"
 #include "openssl/pem.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -12,32 +13,29 @@ namespace pem {
 // Returns an expected 'std::string' with the encoded private key in
 // PEM format or an unexpected.
 eventuals::Expected::Of<std::string> Encode(EVP_PKEY* key) {
-  char buffer[8192];
+  BIO* bio = BIO_new(BIO_s_mem());
 
-  FILE* file = CHECK_NOTNULL(fmemopen(buffer, 8192, "wb"));
-
-  int write = PEM_write_PrivateKey(
-      file,
+  int write = PEM_write_bio_PrivateKey(
+      bio,
       key,
       nullptr,
       nullptr,
       0,
-      nullptr,
+      0,
       nullptr);
 
   if (write != 1) {
     return eventuals::Unexpected("Failed to write private key to memory");
   }
 
-  // Flush the file pointer so we can correctly determine the size of
-  // the encoded string.
-  fflush(file);
+  BUF_MEM* memory = nullptr;
+  BIO_get_mem_ptr(bio, &memory);
 
-  long size = ftell(file);
+  std::string result(memory->data, memory->length);
 
-  fclose(file);
+  BIO_free(bio);
 
-  return std::string(buffer, size);
+  return std::move(result);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -45,25 +43,22 @@ eventuals::Expected::Of<std::string> Encode(EVP_PKEY* key) {
 // Returns an expected 'std::string' with the encoded X509 certificate in
 // PEM format or an unexpected.
 eventuals::Expected::Of<std::string> Encode(X509* certificate) {
-  char buffer[8192];
+  BIO* bio = BIO_new(BIO_s_mem());
 
-  FILE* file = CHECK_NOTNULL(fmemopen(buffer, 8192, "wb"));
-
-  int write = PEM_write_X509(file, certificate);
+  int write = PEM_write_bio_X509(bio, certificate);
 
   if (write != 1) {
     return eventuals::Unexpected("Failed to write certificate to memory");
   }
 
-  // Flush the file pointer so we can correctly determine the size of
-  // the encoded string.
-  fflush(file);
+  BUF_MEM* memory = nullptr;
+  BIO_get_mem_ptr(bio, &memory);
 
-  long size = ftell(file);
+  std::string result(memory->data, memory->length);
 
-  fclose(file);
+  BIO_free(bio);
 
-  return std::string(buffer, size);
+  return std::move(result);
 }
 
 ////////////////////////////////////////////////////////////////////////
