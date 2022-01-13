@@ -86,7 +86,7 @@ class Request {
   std::string body_;
   std::chrono::nanoseconds timeout_;
   PostFields fields_;
-  bool verify_peer_ = true;
+  std::optional<bool> verify_peer_;
   std::optional<x509::Certificate> certificate_;
 };
 
@@ -621,12 +621,12 @@ struct _HTTP {
                   CURLM_OK);
 
               // CURL easy options.
-              if (!request_.verify_peer()) {
+              if (request_.verify_peer()) {
                 CHECK_EQ(
                     curl_easy_setopt(
                         easy_,
                         CURLOPT_SSL_VERIFYPEER,
-                        0),
+                        request_.verify_peer().value()),
                     CURLE_OK);
               }
 
@@ -867,8 +867,8 @@ inline auto Client::Do(Request&& request) {
   // TODO(benh): need 'Client::Default()'.
   auto& loop = EventLoop::Default();
 
-  if (verify_peer_.has_value()) {
-    request.verify_peer_ = verify_peer_.value();
+  if (verify_peer_ && !request.verify_peer()) {
+    request.verify_peer_ = verify_peer_;
   }
 
   if (certificate_ && !request.certificate()) {
