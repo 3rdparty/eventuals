@@ -98,6 +98,9 @@ cc_library(
     ],
     hdrs = [
         "eventuals/http.h",
+        "eventuals/pem.h",
+        "eventuals/rsa.h",
+        "eventuals/x509.h",
     ],
     copts = copts(),
     defines = [

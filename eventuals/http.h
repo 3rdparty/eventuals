@@ -5,7 +5,9 @@
 
 #include "curl/curl.h"
 #include "eventuals/event-loop.h"
+#include "eventuals/pem.h"
 #include "eventuals/scheduler.h"
+#include "eventuals/x509.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -68,6 +70,10 @@ class Request {
     return verify_peer_;
   }
 
+  const auto& certificate() {
+    return certificate_;
+  }
+
  private:
   template <bool, bool>
   friend class RequestBuilder;
@@ -81,6 +87,7 @@ class Request {
   std::chrono::nanoseconds timeout_;
   PostFields fields_;
   bool verify_peer_ = true;
+  std::optional<x509::Certificate> certificate_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -120,6 +127,13 @@ class RequestBuilder {
   RequestBuilder<HasUri_, HasMethod_> verify_peer(bool value) && {
     // TODO(benh): consider checking that the scheme is 'https'.
     request_.verify_peer_ = value;
+    return RequestBuilder<HasUri_, HasMethod_>(std::move(request_));
+  }
+
+  RequestBuilder<HasUri_, HasMethod_> certificate(
+      x509::Certificate&& certificate) && {
+    // TODO(benh): consider checking that the scheme is 'https'.
+    request_.certificate_ = std::move(certificate);
     return RequestBuilder<HasUri_, HasMethod_>(std::move(request_));
   }
 
@@ -180,6 +194,7 @@ class Client {
   friend class ClientBuilder;
 
   std::optional<bool> verify_peer_;
+  std::optional<x509::Certificate> certificate_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -192,6 +207,17 @@ class ClientBuilder {
 
   ClientBuilder verify_peer(bool value) && {
     client_.verify_peer_ = value;
+    return ClientBuilder(std::move(client_));
+  }
+
+  // Specify the certificate to use when doing verification. Same
+  // semantics as the following:
+  //
+  // $ curl --cacert /path/to/certificate ...
+  //
+  // TODO(benh): provide support for a "bundle" of certificates.
+  ClientBuilder certificate(x509::Certificate&& certificate) && {
+    client_.certificate_ = std::move(certificate);
     return ClientBuilder(std::move(client_));
   }
 
@@ -264,14 +290,43 @@ struct _HTTP {
             if (!completed_) {
               started_ = true;
 
-              CHECK_EQ(0, uv_timer_init(loop_, &timer_));
-
-              uv_handle_set_data((uv_handle_t*) &timer_, this);
-
               CHECK(!error_);
 
               CHECK_NOTNULL(easy_ = curl_easy_init());
               CHECK_NOTNULL(multi_ = curl_multi_init());
+
+              // If applicable, PEM encode any certificate now before we start
+              // anything and can easily propagate an error.
+              auto certificate = request_.certificate();
+              if (certificate) {
+                auto pem_certificate = pem::Encode(
+                    x509::Certificate(*certificate));
+
+                if (!pem_certificate) {
+                  completed_ = true;
+
+                  k_.Fail("Failed to PEM encode certificate");
+
+                  curl_easy_cleanup(easy_);
+                  curl_multi_cleanup(multi_);
+
+                  return; // Don't do anything else!
+                } else {
+                  curl_blob blob;
+                  blob.data = pem_certificate->data();
+                  blob.len = pem_certificate->size();
+                  blob.flags = CURL_BLOB_COPY;
+                  CHECK_EQ(
+                      curl_easy_setopt(
+                          easy_,
+                          CURLOPT_CAINFO_BLOB,
+                          &blob),
+                      CURLE_OK);
+                }
+              }
+
+              CHECK_EQ(0, uv_timer_init(loop_, &timer_));
+              uv_handle_set_data((uv_handle_t*) &timer_, this);
 
               // Called only one time to finish the transfer
               // and clean everything up.
@@ -525,7 +580,6 @@ struct _HTTP {
                     timeout_ms,
                     0);
               };
-
 
               // https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
               static auto write_function = +[](char* data,
@@ -815,6 +869,10 @@ inline auto Client::Do(Request&& request) {
 
   if (verify_peer_.has_value()) {
     request.verify_peer_ = verify_peer_.value();
+  }
+
+  if (certificate_ && !request.certificate()) {
+    request.certificate_ = certificate_;
   }
 
   // NOTE: we use a 'RescheduleAfter()' to ensure we use current
