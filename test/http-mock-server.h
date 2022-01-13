@@ -231,8 +231,12 @@ class HttpMockServer {
 
         // Continuously accept unless the acceptor has been cancelled
         // or the 'io_context' was stopped.
-        if (io_context_.run_one()) {
-          // Need to do 'restart()' in order to call 'run_one()' again.
+        if (run_.load() && io_context_.run_one()) {
+          // Need to do 'restart()' in order to call 'run_one()'
+          // again. While this call "races" with doing 'stop()' in the
+          // destructor because 'run_.store(false)' happens-before the
+          // call to 'stop()' we will not call 'run_one()' even if
+          // this call to 'restart()' overrides the call to 'stop()'.
           io_context_.restart();
           continue;
         } else {
@@ -244,6 +248,10 @@ class HttpMockServer {
   }
 
   ~HttpMockServer() {
+    // Signal that we should not keep running. Must be done before we
+    // do 'stop()' on the 'io_context'.
+    run_.store(false);
+
     // Need to do a 'cancel()' on the 'acceptor' in addition to
     // 'stop()' on the 'io_context' to ensure 'accept()' returns and
     // the thread will exit and be joinable.
@@ -301,6 +309,7 @@ class HttpMockServer {
   asio::ip::tcp::acceptor acceptor_;
   asio::ssl::context ssl_context_;
   std::thread thread_;
+  std::atomic<bool> run_ = true;
 };
 
 ////////////////////////////////////////////////////////////////////////
