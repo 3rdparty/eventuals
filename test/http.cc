@@ -1,3 +1,5 @@
+// TODO(benh): build tests on Windows once we have boringssl.
+#ifndef _WIN32
 #include "eventuals/http.h"
 
 #include "event-loop-test.h"
@@ -6,12 +8,7 @@
 #include "eventuals/terminal.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-
-// TODO(benh): build tests using 'HttpMockServer' on Windows once we
-// have support for boringssl.
-#ifndef _WIN32
 #include "test/http-mock-server.h"
-#endif
 
 namespace http = eventuals::http;
 
@@ -27,19 +24,13 @@ const char* schemes[] = {"http://", "https://"};
 
 INSTANTIATE_TEST_SUITE_P(Schemes, HttpTest, testing::ValuesIn(schemes));
 
-// TODO(benh): build tests using 'HttpMockServer' on Windows once we
-// have support for boringssl.
-#ifndef _WIN32
 TEST_P(HttpTest, Get) {
   std::string scheme = GetParam();
 
   HttpMockServer server(scheme);
 
-  // NOTE: using an 'http::Client' so we can disable peer verification
-  // because we have a self-signed certificate.
-  http::Client client = http::Client::Builder()
-                            .verify_peer(false)
-                            .Build();
+  // NOTE: using an 'http::Client' configured to work for the server.
+  http::Client client = server.Client();
 
   EXPECT_CALL(server, ReceivedHeaders)
       .WillOnce([](auto socket, const std::string& data) {
@@ -64,7 +55,6 @@ TEST_P(HttpTest, Get) {
   EXPECT_EQ(200, response.code);
   EXPECT_EQ("<html>Hello World!</html>", response.body);
 }
-#endif
 
 TEST_P(HttpTest, GetFailTimeout) {
   std::string scheme = GetParam();
@@ -202,3 +192,4 @@ TEST_P(HttpTest, PostInterruptAfterStart) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
+#endif

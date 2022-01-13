@@ -1,6 +1,9 @@
 #pragma once
 
 #include "eventuals/expected.h"
+#include "openssl/bio.h"
+#include "openssl/evp.h"
+#include "openssl/pem.h"
 #include "openssl/rsa.h"
 
 ////////////////////////////////////////////////////////////////////////
