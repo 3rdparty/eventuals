@@ -1,7 +1,10 @@
 #pragma once
 
 #include "eventuals/expected.h"
+#include "openssl/bio.h"
+#include "openssl/pem.h"
 #include "openssl/x509.h"
+#include "test/rsa.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -9,52 +12,109 @@ namespace x509 {
 
 ////////////////////////////////////////////////////////////////////////
 
-// Builder for generating an X509 certificate.
-class Builder {
+// Forward declaration.
+class CertificateBuilder;
+
+////////////////////////////////////////////////////////////////////////
+
+class Certificate {
  public:
-  Builder() {}
+  static CertificateBuilder Builder();
 
-  eventuals::Expected::Of<X509*> Build() &&;
+  Certificate(const Certificate& that)
+    : Certificate(Copy(that.certificate_.get())) {}
 
-  Builder subject_key(EVP_PKEY* key) && {
-    subject_key_ = key;
+  Certificate(Certificate&& that) = default;
+
+  Certificate& operator=(const Certificate& that) {
+    certificate_.reset(Copy(that.certificate_.get()));
+    return *this;
+  }
+
+  Certificate& operator=(Certificate&& that) {
+    certificate_ = std::move(that.certificate_);
+    return *this;
+  }
+
+  operator X509*() {
+    return certificate_.get();
+  }
+
+ private:
+  // Helper that copies a certificate so we can have value semantics.
+  static X509* Copy(X509* from) {
+    // TODO(benh): find a better way to copy an X509* without encoding
+    // to memory as PEM and then decoding again!!!
+    BIO* bio = BIO_new(BIO_s_mem());
+    CHECK_EQ(PEM_write_bio_X509(bio, from), 1);
+    X509* copy = CHECK_NOTNULL(PEM_read_bio_X509(bio, nullptr, 0, nullptr));
+    BIO_free(bio);
+    return copy;
+  }
+
+  friend class CertificateBuilder;
+
+  Certificate(X509* certificate)
+    : certificate_(certificate, &X509_free) {}
+
+  std::unique_ptr<X509, decltype(&X509_free)> certificate_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+// Builder for generating an X509 certificate.
+//
+// TODO(benh): current implementation of the builder is based off of
+// code from Apache Mesos (specifically 3rdparty/libprocess) which
+// most likely should be revisited and some of the existing functions
+// should be removed and new ones (like a '.country_code()' and
+// '.organization_name()') should be added.
+class CertificateBuilder {
+ public:
+  CertificateBuilder() {}
+
+  eventuals::Expected::Of<Certificate> Build() &&;
+
+  CertificateBuilder subject_key(rsa::Key&& key) && {
+    subject_key_ = std::move(key);
     return std::move(*this);
   }
 
-  Builder sign_key(EVP_PKEY* key) && {
-    sign_key_ = key;
+  CertificateBuilder sign_key(rsa::Key&& key) && {
+    sign_key_ = std::move(key);
     return std::move(*this);
   }
 
-  Builder parent_certificate(X509* certificate) && {
-    parent_certificate_ = certificate;
+  CertificateBuilder parent_certificate(Certificate&& certificate) && {
+    parent_certificate_ = std::move(certificate);
     return std::move(*this);
   }
 
-  Builder serial(int serial) && {
+  CertificateBuilder serial(int serial) && {
     serial_ = serial;
     return std::move(*this);
   }
 
-  Builder days(int days) && {
+  CertificateBuilder days(int days) && {
     days_ = days;
     return std::move(*this);
   }
 
-  Builder hostname(std::string&& hostname) && {
+  CertificateBuilder hostname(std::string&& hostname) && {
     hostname_ = std::move(hostname);
     return std::move(*this);
   }
 
-  Builder ip(asio::ip::address&& ip) && {
+  CertificateBuilder ip(asio::ip::address&& ip) && {
     ip_ = std::move(ip);
     return std::move(*this);
   }
 
  private:
-  EVP_PKEY* subject_key_;
-  EVP_PKEY* sign_key_;
-  std::optional<X509*> parent_certificate_;
+  // TODO(benh): check for missing subject/sign key at compile time.
+  std::optional<rsa::Key> subject_key_;
+  std::optional<rsa::Key> sign_key_;
+  std::optional<Certificate> parent_certificate_;
   int serial_ = 1;
   int days_ = 365;
   std::optional<std::string> hostname_;
@@ -63,9 +123,23 @@ class Builder {
 
 ////////////////////////////////////////////////////////////////////////
 
-eventuals::Expected::Of<X509*> Builder::Build() && {
+CertificateBuilder Certificate::Builder() {
+  return CertificateBuilder();
+}
+
+////////////////////////////////////////////////////////////////////////
+
+eventuals::Expected::Of<Certificate> CertificateBuilder::Build() && {
   // Using a 'using' here to reduce verbosity.
   using eventuals::Unexpected;
+
+  if (!subject_key_.has_value()) {
+    return Unexpected("Missing 'subject' key");
+  }
+
+  if (!sign_key_.has_value()) {
+    return Unexpected("Missing 'sign' key");
+  }
 
   std::optional<X509_NAME*> issuer_name;
 
@@ -120,7 +194,7 @@ eventuals::Expected::Of<X509*> Builder::Build() && {
   }
 
   // Set the public key for our certificate based on the subject key.
-  if (X509_set_pubkey(x509, subject_key_) != 1) {
+  if (X509_set_pubkey(x509, subject_key_.value()) != 1) {
     X509_free(x509);
     return Unexpected("Failed to set public key: X509_set_pubkey");
   }
@@ -147,6 +221,7 @@ eventuals::Expected::Of<X509*> Builder::Build() && {
           name,
           "C",
           MBSTRING_ASC,
+          // TODO(benh): add 'country_code()' to builder.
           reinterpret_cast<const unsigned char*>("US"),
           -1,
           -1,
@@ -160,6 +235,7 @@ eventuals::Expected::Of<X509*> Builder::Build() && {
           name,
           "O",
           MBSTRING_ASC,
+          // TODO(benh): add 'organization_name()' to builder.
           reinterpret_cast<const unsigned char*>("Test"),
           -1,
           -1,
@@ -277,12 +353,12 @@ eventuals::Expected::Of<X509*> Builder::Build() && {
   }
 
   // Sign the certificate with the sign key.
-  if (X509_sign(x509, sign_key_, EVP_sha1()) == 0) {
+  if (X509_sign(x509, sign_key_.value(), EVP_sha1()) == 0) {
     X509_free(x509);
     return Unexpected("Failed to sign certificate: X509_sign");
   }
 
-  return x509;
+  return Certificate(x509);
 }
 
 ////////////////////////////////////////////////////////////////////////
