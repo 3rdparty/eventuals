@@ -2,9 +2,9 @@
 
 #include "asio.hpp"
 #include "asio/ssl.hpp"
-#include "test/pem.h"
-#include "test/rsa.h"
-#include "test/x509.h"
+#include "eventuals/pem.h"
+#include "eventuals/rsa.h"
+#include "eventuals/x509.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -149,6 +149,8 @@ class HttpMockServer {
 
     CHECK(certificate) << "Failed to generate X509 certificate";
 
+    certificate_ = *certificate;
+
     auto pem_certificate = pem::Encode(*certificate);
 
     CHECK(pem_certificate) << "Failed to PEM encode X509 certificate";
@@ -286,6 +288,20 @@ class HttpMockServer {
   // TODO(benh): consider a 'ReceivedBody()' mock function but it's a
   // bit trickier since the body might be "chunked".
 
+  // Returns an 'http::Client' that has been configured correctly for
+  // this server.
+  eventuals::http::Client Client() {
+    if (scheme_ == "https://") {
+      CHECK(certificate_);
+      return eventuals::http::Client::Builder()
+          .certificate(x509::Certificate(*certificate_))
+          .Build();
+    } else {
+      return eventuals::http::Client::Builder()
+          .Build();
+    }
+  }
+
   unsigned short port() const {
     return endpoint_.port();
   }
@@ -302,12 +318,17 @@ class HttpMockServer {
     return scheme_ + authority();
   }
 
+  const auto& certificate() const {
+    return certificate_;
+  }
+
  private:
   std::string scheme_;
   asio::io_context io_context_;
   asio::ip::tcp::endpoint endpoint_;
   asio::ip::tcp::acceptor acceptor_;
   asio::ssl::context ssl_context_;
+  std::optional<x509::Certificate> certificate_;
   std::thread thread_;
   std::atomic<bool> run_ = true;
 };
