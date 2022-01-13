@@ -68,8 +68,8 @@ class Certificate {
 // TODO(benh): current implementation of the builder is based off of
 // code from Apache Mesos (specifically 3rdparty/libprocess) which
 // most likely should be revisited and some of the existing functions
-// should be removed and new ones (like a '.country_code()' and
-// '.organization_name()') should be added.
+// should be removed and new ones (like a '.country_code()') should be
+// added.
 class CertificateBuilder {
  public:
   CertificateBuilder() {}
@@ -111,6 +111,11 @@ class CertificateBuilder {
     return std::move(*this);
   }
 
+  CertificateBuilder organization_name(std::string&& name) && {
+    organization_name_ = std::move(name);
+    return std::move(*this);
+  }
+
  private:
   // TODO(benh): check for missing subject/sign key at compile time.
   std::optional<rsa::Key> subject_key_;
@@ -120,6 +125,7 @@ class CertificateBuilder {
   int days_ = 365;
   std::optional<std::string> hostname_;
   std::optional<asio::ip::address> ip_;
+  std::string organization_name_ = "Unknown";
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -236,8 +242,7 @@ eventuals::Expected::Of<Certificate> CertificateBuilder::Build() && {
           name,
           "O",
           MBSTRING_ASC,
-          // TODO(benh): add 'organization_name()' to builder.
-          reinterpret_cast<const unsigned char*>("Test"),
+          reinterpret_cast<const unsigned char*>(organization_name_.c_str()),
           -1,
           -1,
           0)
