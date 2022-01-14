@@ -5,7 +5,6 @@
 
 #include "curl/curl.h"
 #include "eventuals/event-loop.h"
-#include "eventuals/pem.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/x509.h"
 

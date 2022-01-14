@@ -1,5 +1,7 @@
 #pragma once
 
+#include <filesystem>
+
 #include "eventuals/expected.h"
 #include "eventuals/rsa.h"
 #include "openssl/bio.h"
@@ -22,13 +24,16 @@ class Certificate {
  public:
   static CertificateBuilder Builder();
 
+  Certificate(std::unique_ptr<X509, decltype(&X509_free)> certificate)
+    : certificate_(std::move(certificate)) {}
+
   Certificate(const Certificate& that)
-    : Certificate(Copy(that.certificate_.get())) {}
+    : Certificate(Copy(that)) {}
 
   Certificate(Certificate&& that) = default;
 
   Certificate& operator=(const Certificate& that) {
-    certificate_.reset(Copy(that.certificate_.get()));
+    certificate_ = std::move(Copy(that).certificate_);
     return *this;
   }
 
@@ -43,20 +48,12 @@ class Certificate {
 
  private:
   // Helper that copies a certificate so we can have value semantics.
-  static X509* Copy(X509* from) {
-    // TODO(benh): find a better way to copy an X509* without encoding
-    // to memory as PEM and then decoding again!!!
-    BIO* bio = BIO_new(BIO_s_mem());
-    CHECK_EQ(PEM_write_bio_X509(bio, from), 1);
-    X509* copy = CHECK_NOTNULL(PEM_read_bio_X509(bio, nullptr, 0, nullptr));
-    BIO_free(bio);
-    return copy;
+  static Certificate Copy(const Certificate& from) {
+    return Certificate(
+        std::unique_ptr<X509, decltype(&X509_free)>(
+            X509_dup(from.certificate_.get()),
+            &X509_free));
   }
-
-  friend class CertificateBuilder;
-
-  Certificate(X509* certificate)
-    : certificate_(certificate, &X509_free) {}
 
   std::unique_ptr<X509, decltype(&X509_free)> certificate_;
 };
@@ -364,11 +361,43 @@ eventuals::Expected::Of<Certificate> CertificateBuilder::Build() && {
     return Unexpected("Failed to sign certificate: X509_sign");
   }
 
-  return Certificate(x509);
+  return Certificate(
+      std::unique_ptr<X509, decltype(&X509_free)>(x509, &X509_free));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 } // namespace x509
+
+////////////////////////////////////////////////////////////////////////
+
+namespace pem {
+
+////////////////////////////////////////////////////////////////////////
+
+// Returns an expected 'std::string' with the encoded X509 certificate in
+// PEM format or an unexpected.
+eventuals::Expected::Of<std::string> Encode(X509* certificate) {
+  BIO* bio = BIO_new(BIO_s_mem());
+
+  int write = PEM_write_bio_X509(bio, certificate);
+
+  if (write != 1) {
+    return eventuals::Unexpected("Failed to write certificate to memory");
+  }
+
+  BUF_MEM* memory = nullptr;
+  BIO_get_mem_ptr(bio, &memory);
+
+  std::string result(memory->data, memory->length);
+
+  BIO_free(bio);
+
+  return std::move(result);
+}
+
+////////////////////////////////////////////////////////////////////////
+
+} // namespace pem
 
 ////////////////////////////////////////////////////////////////////////

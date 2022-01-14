@@ -21,13 +21,18 @@ class Key {
  public:
   static KeyBuilder Builder();
 
+  Key(std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> key)
+    : key_(std::move(key)) {
+    CHECK_EQ(CHECK_NOTNULL(key_.get())->type, EVP_PKEY_RSA);
+  }
+
   Key(const Key& that)
-    : Key(Copy(that.key_.get())) {}
+    : Key(Copy(that)) {}
 
   Key(Key&& that) = default;
 
   Key& operator=(const Key& that) {
-    key_.reset(Copy(that.key_.get()));
+    key_ = std::move(Copy(that).key_);
     return *this;
   }
 
@@ -50,23 +55,25 @@ class Key {
 
  private:
   // Helper that copies a key so we can have value semantics.
-  static EVP_PKEY* Copy(EVP_PKEY* from) {
-    // TODO(benh): find a better way to copy an EVP_PKEY* without encoding
-    // to memory as PEM and then decoding again!!!
-    BIO* bio = BIO_new(BIO_s_mem());
-    CHECK_EQ(
-        PEM_write_bio_PrivateKey(bio, from, nullptr, nullptr, 0, 0, nullptr),
-        1);
-    EVP_PKEY* copy = CHECK_NOTNULL(
-        PEM_read_bio_PrivateKey(bio, nullptr, 0, nullptr));
-    BIO_free(bio);
-    return copy;
+  static Key Copy(const Key& from) {
+    // Get the underlying RSA key.
+    CHECK_EQ(CHECK_NOTNULL(from.key_.get())->type, EVP_PKEY_RSA);
+    RSA* rsa = EVP_PKEY_get1_RSA(from.key_.get());
+
+    EVP_PKEY* to = EVP_PKEY_new();
+
+    // Duplicate the RSA key.
+    EVP_PKEY_set1_RSA(to, RSAPrivateKey_dup(rsa));
+
+    // Decrement reference count incremented from calling
+    // 'EVP_PKEY_get1_RSA()'.
+    RSA_free(rsa);
+
+    return Key(
+        std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>(
+            to,
+            &EVP_PKEY_free));
   }
-
-  friend class KeyBuilder;
-
-  Key(EVP_PKEY* key)
-    : key_(key, &EVP_PKEY_free) {}
 
   std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> key_;
 };
@@ -155,11 +162,50 @@ eventuals::Expected::Of<Key> KeyBuilder::Build() && {
     return Unexpected("Failed to assign RSA key: EVP_PKEY_assign_RSA");
   }
 
-  return Key(key);
+  return Key(
+      std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)>(key, &EVP_PKEY_free));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 } // namespace rsa
+
+////////////////////////////////////////////////////////////////////////
+
+namespace pem {
+
+////////////////////////////////////////////////////////////////////////
+
+// Returns an expected 'std::string' with the encoded private key in
+// PEM format or an unexpected.
+eventuals::Expected::Of<std::string> Encode(EVP_PKEY* key) {
+  BIO* bio = BIO_new(BIO_s_mem());
+
+  int write = PEM_write_bio_PrivateKey(
+      bio,
+      key,
+      nullptr,
+      nullptr,
+      0,
+      0,
+      nullptr);
+
+  if (write != 1) {
+    return eventuals::Unexpected("Failed to write private key to memory");
+  }
+
+  BUF_MEM* memory = nullptr;
+  BIO_get_mem_ptr(bio, &memory);
+
+  std::string result(memory->data, memory->length);
+
+  BIO_free(bio);
+
+  return std::move(result);
+}
+
+////////////////////////////////////////////////////////////////////////
+
+} // namespace pem
 
 ////////////////////////////////////////////////////////////////////////
