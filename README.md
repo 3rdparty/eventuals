@@ -652,6 +652,154 @@ string s = *e; // BLOCKING! Only use in tests.
 
 *... to be completed ...*
 
+### `http`
+
+The `http` namespace provides HTTP client and (work in progress) server implementations.
+
+An HTTP `GET`:
+
+```cpp
+http::Get("http://example.com") // Use 'https://' for TLS/SSL.
+    | Then([](http::Response&& response) {
+        // ...
+      });
+```
+
+An HTTP `POST`:
+
+```cpp
+http::Post(
+    "https://jsonplaceholder.typicode.com/posts",
+    {{"first", "emily"}, {"last", "schneider"}})
+    | Then([](auto&& response) {
+        // ...
+      });
+```
+
+For more control over the HTTP request create an `http::Client`. For example, if you don't want to verify peers when using HTTPS you can do:
+
+```cpp
+http::Client client = http::Client::Builder()
+                          .verify_peer(false)
+                          .Build();
+
+client.Post(
+    "https://jsonplaceholder.typicode.com/posts",
+    {{"first", "emily"}, {"last", "schneider"}})
+    | Then([](auto&& response) {
+        // ...
+      });
+```
+
+Or to control individual requests use an `http::Request`. For example, to add headers:
+
+```cpp
+client.Do(
+    http::Request::Builder()
+        .uri("https://3rdparty.dev")
+        .method(http::GET)
+        .header("key", "value")
+        .header("another", "example")
+        .Build())
+    | Then([](auto&& response) {
+        // ...
+      });
+```
+
+Anything added to an `http::Request` overrides an `http::Client`:
+
+```cpp
+client.Do(
+    http::Request::Builder()
+        .uri("https://3rdparty.dev")
+        .method(http::GET)
+        .verify_peer(true) // Overrides client!
+        .Build())
+    | Then([](auto&& response) {
+        // ...
+      });
+```
+
+#### TLS/SSL Certificate Verification
+
+As you already saw above, you can skip verification by doing `verify_peer(false)` when building an `http::Client` or `http::Request`.
+
+You can also provide a CA certificate that can verify the peer:
+
+```cpp
+// Read a PEM encoded certificate from a file.
+std::filesystem::path path = "/path/to/certificate";
+
+Expected::Of<x509::Certificate> certificate = pem::ReadCertificate(path);
+
+CHECK(certificate); // Handle as appropriate.
+
+http::Client client = http::Client::Builder()
+                          .certificate(*certificate)
+                          .Build();
+
+client.Get("https://3rdparty.dev")
+    | Then([](auto&& response) {
+        // ...
+      });
+```
+
+Alternatively you can add the certificate per request:
+
+```cpp
+// Read a PEM encoded certificate from a file.
+std::filesystem::path path = "/path/to/certificate";
+
+Expected::Of<x509::Certificate> certificate = pem::ReadCertificate(path);
+
+http::Client client = http::Client::Builder().Build();
+
+client.Do(
+    http::Request::Builder()
+        .uri("https://3rdparty.dev")
+        .method(http::GET)
+        .certificate(*certificate)
+        .Build())
+    | Then([](auto&& response) {
+        // ...
+      });
+```
+
+#### RSA, X.509, and PEM
+
+To create an RSA keypair:
+
+```cpp
+Expected::Of<rsa::Key> key = rsa::Key::Builder().Build();
+```
+
+To create an X.509 certificate for some IP `address` use the RSA `key` created above as the certificate subject and for signing the certificate:
+
+```cpp
+Expected::Of<x509::Certificate> certificate =
+    x509::Certificate::Builder()
+        .subject_key(rsa::Key(*key))
+        .sign_key(rsa::Key(*key))
+        .ip(address)
+        .Build();
+```
+
+To encode `key` or `certificate` in PEM format (which can then be written to a file):
+
+```cpp
+Expected::Of<std::string> pem_key = pem::Encode(*key);
+
+Expected::Of<std::string> pem_certificate = pem::Encode(*certificate);
+```
+
+To get an `x509::Certificate` from a PEM encoded file:
+
+```cpp
+// Read a PEM encoded certificate from a file.
+std::filesystem::path path = "/path/to/certificate";
+
+Expected::Of<x509::Certificate> certificate = pem::ReadCertificate(path);
+```
 
 ## Contributing
 
