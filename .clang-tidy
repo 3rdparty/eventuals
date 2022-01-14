@@ -1,0 +1,11 @@
+UseColor: true
+
+# Discuss if we wanna add some extra checks.
+Checks: "bugprone-*,
+    cppcoreguidelines-*,
+    google-*,
+    performance-*,"
+
+HeaderFilterRegex: "^(eventuals\/.*|test\/.*)"
+
+WarningsAsErrors: ""

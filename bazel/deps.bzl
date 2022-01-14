@@ -1,5 +1,6 @@
 """Dependency specific initialization."""
 
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 load("@com_github_3rdparty_bazel_rules_curl//bazel:deps.bzl", curl_deps = "deps")
@@ -53,4 +54,13 @@ def deps(repo_mapping = {}):
         sha256 = "9dc9157a9a1551ec7a7e43daea9a694a0bb5fb8bec81235d8a1e6ef64c716dcb",
         strip_prefix = "googletest-release-1.10.0",
         repo_mapping = repo_mapping,
+    )
+
+    maybe(
+        git_repository,
+        name = "bazel_clang_tidy",
+        commit = "c2fe98cfec0430e78bff4169e9ca0a43123e4c99",
+        remote = "https://github.com/erenon/bazel_clang_tidy",
+        repo_mapping = repo_mapping,
+        shallow_since = "1641482001 +0100",
     )

@@ -1,6 +1,21 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("//bazel:copts.bzl", "copts")
 
+# If we would like to override the default clang tidy configuration
+# then we can reconfigure the default target from the command line.
+# To do this we must make a filegroup target that has the
+# .clang-tidy config file as a data dependency.
+filegroup(
+    name = "clang_tidy_config",
+    data = [".clang-tidy"],
+    visibility = ["//visibility:public"],
+)
+
+exports_files(
+    [".clang-tidy"],
+    visibility = ["//:__subpackages__"],
+)
+
 cc_library(
     name = "eventuals-base",
     srcs = [
