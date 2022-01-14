@@ -2,7 +2,6 @@
 
 #include "asio.hpp"
 #include "asio/ssl.hpp"
-#include "eventuals/pem.h"
 #include "eventuals/rsa.h"
 #include "eventuals/x509.h"
 
