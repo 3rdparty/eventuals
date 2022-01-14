@@ -398,6 +398,32 @@ eventuals::Expected::Of<std::string> Encode(X509* certificate) {
 
 ////////////////////////////////////////////////////////////////////////
 
+// Returns an X509 certificate read from a file in PEM format.
+eventuals::Expected::Of<x509::Certificate> ReadCertificate(
+    const std::filesystem::path& path) {
+  // Using a 'FILE*' here as necessary for 'PEM_read_X509()'.
+  FILE* file = fopen(path.c_str(), "r");
+  if (file == nullptr) {
+    return eventuals::Unexpected(
+        "Failed to open file '" + path.string() + "' for reading");
+  }
+
+  X509* x509 = PEM_read_X509(file, nullptr, nullptr, nullptr);
+
+  fclose(file);
+
+  if (x509 == nullptr) {
+    return eventuals::Unexpected(
+        "Failed to read PEM encoded X509 certificate from file '"
+        + path.string() + "'");
+  } else {
+    return x509::Certificate(
+        std::unique_ptr<X509, decltype(&X509_free)>(x509, &X509_free));
+  }
+}
+
+////////////////////////////////////////////////////////////////////////
+
 } // namespace pem
 
 ////////////////////////////////////////////////////////////////////////
