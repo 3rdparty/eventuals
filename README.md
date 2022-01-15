@@ -711,4 +711,224 @@ Expected::Of<x509::Certificate> certificate = pem::ReadCertificate(path);
 
 ## Contributing
 
+### Code Style
+
 The eventuals library maintains a code style that's enforced by a GitHub [workflow](https://github.com/3rdparty/eventuals/blob/main/.github/workflows/check_code_style.yml). You can also install a `git` [`pre-commit`](https://github.com/3rdparty/dev-tools/blob/main/pre-commit) [hook](https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks) to check the code style locally before sending a pull request: see the [dev-tools README](https://github.com/3rdparty/dev-tools/tree/main#readme) for instructions.
+
+### Contributor Guide
+
+#### Builder Pattern
+
+There are numerous places where we use the builder pattern. Unlike most builders you've probably worked with we also check for _required_ fields at compile-time by creating our builders in particular ways. There are helpers in `eventuals/builder.h` which simplify creating your own builders. Here we walk through an example of creating a builder for `http::Request`.
+
+Starting with the `http::Request` object:
+
+```cpp
+namespace http {
+
+class Request {};
+
+} // namespace http
+```
+
+Declare a "builder" method which we'll implement later:
+
+```cpp
+class Request {
+ public:
+  static auto Builder();
+};
+```
+
+And declare a "builder" type which we'll implement next:
+
+```cpp
+class Request {
+ public:
+  static auto Builder();
+
+ private:
+  template <bool, bool>
+  struct _Builder;
+};
+```
+
+What are those `bool` template parameters? Defining `_Builder` should help explain:
+
+```cpp
+template <bool has_method_, bool has_uri_>
+class Request::_Builder : public builder::Builder {
+ private:
+  builder::Field<Method, has_method_> method_;
+  builder::Field<std::string, has_uri_> uri_;
+};
+```
+
+Each `bool` template parameter represents whether or not this builder has that field set or not. Each field is a `builder::Field` which you can think of as a compile-time version of `std::optional`. A `builder::Field` requires that you specify as the first parameter the type of the field (e.g., `std::string`) and the second field represents whether or not it has been set. Don't worry, you can't by accident set the second parameter to `true` without also actually setting a value!
+
+Note that we inherit from `builder::Builder` which provides a `Construct()` method we'll use below.
+
+Now let's create a default constructor for creating the initial builder as well as a constructor that takes all our fields. Note that we'll also make our outer most class, `http::Request` in this case be a `friend` so it can call our default constructor.
+
+```cpp
+template <bool has_method_, bool has_uri_>
+class Request::_Builder : public builder::Builder {
+ private:
+  friend class Request;
+
+  _Builder() {}
+
+  _Builder(
+      builder::Field<Method, has_method_> method,
+      builder::Field<std::string, has_uri_> uri)
+    : method_(std::move(method)),
+      uri_(std::move(uri)) {}
+
+  builder::Field<Method, has_method_> method_;
+  builder::Field<std::string, has_uri_> uri_;
+};
+```
+
+And now we'll add our field "setters", starting with the setter for `method`:
+
+```cpp
+template <bool has_method_, bool has_uri_>
+class Request::_Builder : public builder::Builder {
+ public:
+  auto method(Method method) && {
+    static_assert(!has_method_, "Duplicate 'method'");
+    return Construct<_Builder>(
+        method_.Set(method),
+        std::move(uri));
+  }
+
+ private:
+  friend class Request;
+
+  _Builder() {}
+
+  _Builder(
+      builder::Field<Method, has_method_> method,
+      builder::Field<std::string, has_uri_> uri)
+    : method_(std::move(method)),
+      uri_(std::move(uri)) {}
+
+  builder::Field<Method, has_method_> method_;
+  builder::Field<std::string, has_uri_> uri_;
+};
+```
+
+Let's zoom in and break down what's happening here:
+
+```cpp
+  auto method(Method method) && {
+    static_assert(!has_method_, "Duplicate 'method'");
+    return Construct<_Builder>(
+        method_.Set(method),
+        std::move(uri));
+  }
+```
+
+First, if a field should only be set once, the setter can do a `static_assert()` to check if the field has already been set! Second, every setter creates a fresh builder with all of the fields from the previous builder except the field being set which gets set by doing `field_.Set(...)`. The `Construct()` method takes all the fields and the type of the builder and creates the fresh builder for us by calling that constructor that we specified earlier. Since we had made that constructor `private` we need to make our base class `builder::Builder` be a  `friend` so it can call our constructor:
+
+```cpp
+template <bool has_method_, bool has_uri_>
+class Request::_Builder : public builder::Builder {
+ public:
+  ...
+
+ private:
+  friend class builder::Builder;
+
+  ...
+};
+```
+
+Note that every "setter" method requires the receiver (i.e., `this`)
+to be an rvalue reference (the `&&` after the arguments in the function signature) so that we can efficiently move the builder values from one builder to the next. This isn't strictly required, but this pattern helps catch users from thinking that your builder is "mutable" when they don't make sure that they're calling a setter with an rvalue receiver. Note that most of the time this won't be a problem because users will just chain calls to setters.
+
+After adding all the setters for the fields we'll need `Build()`:
+
+```cpp
+template <bool has_method_, bool has_uri_>
+class Request::_Builder : public builder::Builder {
+ public:
+  ...
+
+  Request Build() && {
+    static_assert(has_method_, "Missing 'method'");
+    static_assert(has_uri_, "Missing 'uri'");
+
+    if (method_.value() == Method::GET) {
+       ...
+    }
+  }
+
+  ...
+};
+
+```
+
+Inside `Build()` we can check to make sure that all of the _required_ fields have been set. You can use each `builder::Field` fields similar to `std::optional` by calling the `value()` family of methods or using `operator->()`. Again, if code that calls `value()` compiles then there must be a value! That is to say, the `static_assert()` provide for better error messages for users but they aren't what's protecting you from trying to get a value that doesn't exist.
+
+To finish this off we'll need to implement `http::Request::Builder()`:
+
+```cpp
+inline auto http::Request::Builder() {
+  return _Builder<false, false>();
+}
+```
+
+And that's it!
+
+Let's add another field, a `timeout` so that we can demonstrate fields with default values (but to be clear `http::Request` does not have a default value for `timeout`). We start by adding a `bool` template parameter everywhere to represent `has_timeout`. Instead of `builder::Field` we'll use `builder::FieldWithDefault` and provide a default value as part of the declaration:
+
+```cpp
+template <bool has_method_, bool has_uri_, bool has_timeout_>
+class Request::_Builder : public builder::Builder {
+  ...
+
+ private:
+  ...
+
+  builder::FieldWithDefault<std::chrono::nanoseconds, has_timeout_>
+      timeout_ = std::chrono::seconds(10);
+};
+```
+
+We'll need to update our constructor to take the new field:
+
+```cpp
+template <bool has_method_, bool has_uri_, bool has_timeout_>
+class Request::_Builder : public builder::Builder {
+ public:
+  ...
+
+ private:
+  ...
+
+  _Builder(
+      builder::Field<Method, has_method_> method,
+      builder::Field<std::string, has_uri_> uri,
+      builder::FieldWithDefault<std::chrono::nanoseconds, has_timeout_> timeout)
+    : method_(std::move(method)),
+      uri_(std::move(uri)),
+      timeout_(std::move(timeout)) {}
+
+  ...
+};
+```
+
+And add a setter:
+
+```cpp
+  auto timeout(std::chrono::nanoseconds timeout) && {
+    static_assert(!has_timeout_, "Duplicate 'timeout'");
+    return Construct<_Builder>(
+        std::move(method_),
+        std::move(uri_),
+        timeout_.Set(timeout));
+  }
+```
+
+That's it! Unlike `builder::Field` where only `value()` exists after the field has been set, `builder::FieldWithDefault` always has a `value()` and depending on whether or not the field was set it either returns the set field or the default.

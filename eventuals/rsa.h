@@ -12,14 +12,9 @@ namespace rsa {
 
 ////////////////////////////////////////////////////////////////////////
 
-// Forward declaration.
-class KeyBuilder;
-
-////////////////////////////////////////////////////////////////////////
-
 class Key {
  public:
-  static KeyBuilder Builder();
+  static auto Builder();
 
   Key(std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> key)
     : key_(std::move(key)) {
@@ -54,6 +49,9 @@ class Key {
   }
 
  private:
+  template <bool, bool>
+  class _Builder;
+
   // Helper that copies a key so we can have value semantics.
   static Key Copy(const Key& from) {
     // Get the underlying RSA key.
@@ -81,36 +79,53 @@ class Key {
 ////////////////////////////////////////////////////////////////////////
 
 // Builder for generating an RSA private key.
-class KeyBuilder {
+template <bool has_bits_, bool has_exponent_>
+class Key::_Builder : public builder::Builder {
  public:
-  KeyBuilder() {}
+  auto bits(int bits) && {
+    static_assert(!has_bits_, "Duplicate 'bits'");
+    return Construct<_Builder>(
+        bits_.Set(std::move(bits)),
+        std::move(exponent_));
+  }
+
+  auto exponent(unsigned long exponent) && {
+    static_assert(!has_exponent_, "Duplicate 'exponent'");
+    return Construct<_Builder>(
+        std::move(bits_),
+        exponent_.Set(std::move(exponent)));
+  }
 
   eventuals::Expected::Of<Key> Build() &&;
 
-  KeyBuilder bits(int bits) && {
-    bits_ = bits;
-    return std::move(*this);
-  }
-
-  KeyBuilder exponent(unsigned long exponent) && {
-    exponent_ = exponent;
-    return std::move(*this);
-  }
-
  private:
-  int bits_ = 2048;
-  unsigned long exponent_ = RSA_F4;
+  friend class builder::Builder;
+  friend class Key;
+
+  _Builder() {}
+
+  _Builder(
+      builder::FieldWithDefault<int, has_bits_> bits,
+      builder::FieldWithDefault<unsigned long, has_exponent_> exponent)
+    : bits_(std::move(bits)),
+      exponent_(std::move(exponent)) {}
+
+  builder::FieldWithDefault<int, has_bits_> bits_ = 2048;
+  builder::FieldWithDefault<unsigned long, has_exponent_> exponent_ = RSA_F4;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-KeyBuilder Key::Builder() {
-  return KeyBuilder();
+inline auto Key::Builder() {
+  return Key::_Builder<false, false>();
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-eventuals::Expected::Of<Key> KeyBuilder::Build() && {
+template <bool has_bits_, bool has_exponent_>
+eventuals::Expected::Of<Key> Key::_Builder<
+    has_bits_,
+    has_exponent_>::Build() && {
   // Using a 'using' here to reduce verbosity.
   using eventuals::Unexpected;
 
@@ -128,7 +143,7 @@ eventuals::Expected::Of<Key> KeyBuilder::Build() && {
   }
 
   // Assign the exponent.
-  if (BN_set_word(exponent, exponent_) != 1) {
+  if (BN_set_word(exponent, exponent_.value()) != 1) {
     BN_free(exponent);
     EVP_PKEY_free(key);
     return Unexpected("Failed to set exponent: BN_set_word");
@@ -143,7 +158,7 @@ eventuals::Expected::Of<Key> KeyBuilder::Build() && {
   }
 
   // Generate the RSA key pair.
-  if (RSA_generate_key_ex(rsa, bits_, exponent, nullptr) != 1) {
+  if (RSA_generate_key_ex(rsa, bits_.value(), exponent, nullptr) != 1) {
     RSA_free(rsa);
     BN_free(exponent);
     EVP_PKEY_free(key);

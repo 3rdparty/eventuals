@@ -29,17 +29,11 @@ using PostFields = std::vector<std::pair<std::string, std::string>>;
 
 ////////////////////////////////////////////////////////////////////////
 
-// Forward declarations.
-template <bool, bool>
-class RequestBuilder;
-
-////////////////////////////////////////////////////////////////////////
-
 class Request {
  public:
   // Constructs a new http::Request "builder" with the default
   // undefined values.
-  static RequestBuilder<false, false> Builder();
+  static auto Builder();
 
   const auto& uri() {
     return uri_;
@@ -74,10 +68,10 @@ class Request {
   }
 
  private:
-  template <bool, bool>
-  friend class RequestBuilder;
-
   friend class Client;
+
+  template <bool, bool, bool, bool, bool, bool>
+  class _Builder;
 
   std::string uri_;
   Method method_;
@@ -91,69 +85,148 @@ class Request {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <bool HasUri_, bool HasMethod_>
-class RequestBuilder {
+template <
+    bool has_uri_,
+    bool has_method_,
+    bool has_timeout_,
+    bool has_fields_,
+    bool has_verify_peer_,
+    bool has_certificate_>
+class Request::_Builder : public builder::Builder {
  public:
+  auto uri(std::string&& uri) && {
+    static_assert(!has_uri_, "Duplicate 'uri'");
+    return Construct<_Builder>(
+        uri_.Set(std::move(uri)),
+        std::move(method_),
+        std::move(timeout_),
+        std::move(fields_),
+        std::move(verify_peer_),
+        std::move(certificate_));
+  }
+
+  auto method(Method method) && {
+    static_assert(!has_method_, "Duplicate 'method'");
+    return Construct<_Builder>(
+        std::move(uri_),
+        method_.Set(std::move(method)),
+        std::move(timeout_),
+        std::move(fields_),
+        std::move(verify_peer_),
+        std::move(certificate_));
+  }
+
+  auto timeout(std::chrono::nanoseconds&& timeout) && {
+    static_assert(!has_timeout_, "Duplicate 'timeout'");
+    return Construct<_Builder>(
+        std::move(uri_),
+        std::move(method_),
+        timeout_.Set(std::move(timeout)),
+        std::move(fields_),
+        std::move(verify_peer_),
+        std::move(certificate_));
+  }
+
+  auto fields(PostFields&& fields) && {
+    static_assert(!has_fields_, "Duplicate 'fields'");
+    return Construct<_Builder>(
+        std::move(uri_),
+        std::move(method_),
+        std::move(timeout_),
+        fields_.Set(std::move(fields)),
+        std::move(verify_peer_),
+        std::move(certificate_));
+  }
+
+  auto verify_peer(bool verify_peer) && {
+    static_assert(!has_verify_peer_, "Duplicate 'verify_peer'");
+    // TODO(benh): consider checking that the scheme is 'https'.
+    return Construct<_Builder>(
+        std::move(uri_),
+        std::move(method_),
+        std::move(timeout_),
+        std::move(fields_),
+        verify_peer_.Set(std::move(verify_peer)),
+        std::move(certificate_));
+  }
+
+  // Specify the certificate to use when doing verification. Same
+  // semantics as the following:
+  //
+  // $ curl --cacert /path/to/certificate ...
+  //
+  // TODO(benh): provide support for a "bundle" of certificates.
+  auto certificate(x509::Certificate&& certificate) && {
+    static_assert(!has_certificate_, "Duplicate 'certificate'");
+    // TODO(benh): consider checking that the scheme is 'https'.
+    return Construct<_Builder>(
+        std::move(uri_),
+        std::move(method_),
+        std::move(timeout_),
+        std::move(fields_),
+        std::move(verify_peer_),
+        certificate_.Set(std::move(certificate)));
+  }
+
   Request Build() && {
-    static_assert(HasUri_, "Missing 'uri(...)' for http::Request");
-    static_assert(HasMethod_, "Missing 'method(...)' for http::Request");
-    return std::move(request_);
-  }
+    static_assert(has_uri_, "Missing 'uri'");
+    static_assert(has_method_, "Missing 'method'");
 
-  RequestBuilder<true, HasMethod_> uri(std::string&& uri) && {
-    static_assert(!HasUri_, "Duplicate 'uri(...)' for http::Request");
-    request_.uri_ = std::move(uri);
-    return RequestBuilder<true, HasMethod_>(std::move(request_));
-  }
+    Request request;
+    request.uri_ = std::move(uri_).value();
+    request.method_ = std::move(method_).value();
 
-  RequestBuilder<HasUri_, true> method(Method method) && {
-    static_assert(!HasMethod_, "Duplicate 'method(...)' for http::Request");
-    request_.method_ = method;
-    return RequestBuilder<HasUri_, true>(std::move(request_));
-  }
+    if constexpr (has_timeout_) {
+      request.timeout_ = std::move(timeout_).value();
+    }
 
-  RequestBuilder<HasUri_, HasMethod_> timeout(
-      std::chrono::nanoseconds&& timeout) && {
-    request_.timeout_ = std::move(timeout);
-    return RequestBuilder<HasUri_, HasMethod_>(std::move(request_));
-  }
+    if constexpr (has_fields_) {
+      request.fields_ = std::move(fields_).value();
+    }
 
-  RequestBuilder<HasUri_, HasMethod_> fields(PostFields&& fields) && {
-    request_.fields_ = std::move(fields);
-    return RequestBuilder<HasUri_, HasMethod_>(std::move(request_));
-  }
+    if constexpr (has_verify_peer_) {
+      request.verify_peer_ = std::move(verify_peer_).value();
+    }
 
-  RequestBuilder<HasUri_, HasMethod_> verify_peer(bool value) && {
-    // TODO(benh): consider checking that the scheme is 'https'.
-    request_.verify_peer_ = value;
-    return RequestBuilder<HasUri_, HasMethod_>(std::move(request_));
-  }
+    if constexpr (has_certificate_) {
+      request.certificate_ = std::move(certificate_).value();
+    }
 
-  RequestBuilder<HasUri_, HasMethod_> certificate(
-      x509::Certificate&& certificate) && {
-    // TODO(benh): consider checking that the scheme is 'https'.
-    request_.certificate_ = std::move(certificate);
-    return RequestBuilder<HasUri_, HasMethod_>(std::move(request_));
+    return request;
   }
 
  private:
-  template <bool, bool>
-  friend class RequestBuilder;
-
+  friend class builder::Builder;
   friend class Request;
 
-  RequestBuilder() {}
+  _Builder() {}
 
-  RequestBuilder(Request&& request)
-    : request_(std::move(request)) {}
+  _Builder(
+      builder::Field<std::string, has_uri_> uri,
+      builder::Field<Method, has_method_> method,
+      builder::Field<std::chrono::nanoseconds, has_timeout_> timeout,
+      builder::Field<PostFields, has_fields_> fields,
+      builder::Field<bool, has_verify_peer_> verify_peer,
+      builder::Field<x509::Certificate, has_certificate_> certificate)
+    : uri_(std::move(uri)),
+      method_(std::move(method)),
+      timeout_(std::move(timeout)),
+      fields_(std::move(fields)),
+      verify_peer_(std::move(verify_peer)),
+      certificate_(std::move(certificate)) {}
 
-  Request request_;
+  builder::Field<std::string, has_uri_> uri_;
+  builder::Field<Method, has_method_> method_;
+  builder::Field<std::chrono::nanoseconds, has_timeout_> timeout_;
+  builder::Field<PostFields, has_fields_> fields_;
+  builder::Field<bool, has_verify_peer_> verify_peer_;
+  builder::Field<x509::Certificate, has_certificate_> certificate_;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-RequestBuilder<false, false> Request::Builder() {
-  return RequestBuilder<false, false>();
+inline auto Request::Builder() {
+  return Request::_Builder<false, false, false, false, false, false>();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -165,16 +238,11 @@ struct Response {
 
 ////////////////////////////////////////////////////////////////////////
 
-// Forward declarations.
-class ClientBuilder;
-
-////////////////////////////////////////////////////////////////////////
-
 class Client {
  public:
   // Constructs a new http::Client "builder" with the default
   // undefined values.
-  static ClientBuilder Builder();
+  static auto Builder();
 
   Client() {}
 
@@ -190,7 +258,8 @@ class Client {
   auto Do(Request&& request);
 
  private:
-  friend class ClientBuilder;
+  template <bool, bool>
+  class _Builder;
 
   std::optional<bool> verify_peer_;
   std::optional<x509::Certificate> certificate_;
@@ -198,15 +267,15 @@ class Client {
 
 ////////////////////////////////////////////////////////////////////////
 
-class ClientBuilder {
+template <bool has_verify_peer_, bool has_certificate_>
+class Client::_Builder : public builder::Builder {
  public:
-  Client Build() && {
-    return std::move(client_);
-  }
-
-  ClientBuilder verify_peer(bool value) && {
-    client_.verify_peer_ = value;
-    return ClientBuilder(std::move(client_));
+  auto verify_peer(bool verify_peer)&& {
+    static_assert(!has_verify_peer_, "Duplicate 'verify_peer'");
+    // TODO(benh): consider checking that the scheme is 'https'.
+    return Construct<_Builder>(
+        verify_peer_.Set(std::move(verify_peer)),
+        std::move(certificate_));
   }
 
   // Specify the certificate to use when doing verification. Same
@@ -215,26 +284,48 @@ class ClientBuilder {
   // $ curl --cacert /path/to/certificate ...
   //
   // TODO(benh): provide support for a "bundle" of certificates.
-  ClientBuilder certificate(x509::Certificate&& certificate) && {
-    client_.certificate_ = std::move(certificate);
-    return ClientBuilder(std::move(client_));
+  auto certificate(x509::Certificate&& certificate) && {
+    static_assert(!has_certificate_, "Duplicate 'certificate'");
+    // TODO(benh): consider checking that the scheme is 'https'.
+    return Construct<_Builder>(
+        std::move(verify_peer_),
+        certificate_.Set(std::move(certificate)));
+  }
+
+  Client Build() && {
+    Client client;
+
+    if constexpr (has_verify_peer_) {
+      client.verify_peer_ = std::move(verify_peer_).value();
+    }
+
+    if constexpr (has_certificate_) {
+      client.certificate_ = std::move(certificate_).value();
+    }
+
+    return client;
   }
 
  private:
+  friend class builder::Builder;
   friend class Client;
 
-  ClientBuilder() {}
+  _Builder() {}
 
-  ClientBuilder(Client&& client)
-    : client_(std::move(client)) {}
+  _Builder(
+      builder::Field<bool, has_verify_peer_> verify_peer,
+      builder::Field<x509::Certificate, has_certificate_> certificate)
+    : verify_peer_(std::move(verify_peer)),
+      certificate_(std::move(certificate)) {}
 
-  Client client_;
+  builder::Field<bool, has_verify_peer_> verify_peer_;
+  builder::Field<x509::Certificate, has_certificate_> certificate_;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-ClientBuilder Client::Builder() {
-  return ClientBuilder();
+inline auto Client::Builder() {
+  return Client::_Builder<false, false>();
 }
 
 ////////////////////////////////////////////////////////////////////////

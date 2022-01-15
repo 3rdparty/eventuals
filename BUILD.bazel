@@ -8,6 +8,7 @@ cc_library(
         "eventuals/static-thread-pool.cc",
     ],
     hdrs = [
+        "eventuals/builder.h",
         "eventuals/callback.h",
         "eventuals/catch.h",
         "eventuals/closure.h",

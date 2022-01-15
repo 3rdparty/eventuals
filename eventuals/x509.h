@@ -2,6 +2,7 @@
 
 #include <filesystem>
 
+#include "eventuals/builder.h"
 #include "eventuals/expected.h"
 #include "eventuals/rsa.h"
 #include "openssl/bio.h"
@@ -15,17 +16,14 @@ namespace x509 {
 
 ////////////////////////////////////////////////////////////////////////
 
-// Forward declaration.
-class CertificateBuilder;
-
-////////////////////////////////////////////////////////////////////////
-
 class Certificate {
  public:
-  static CertificateBuilder Builder();
+  static auto Builder();
 
   Certificate(std::unique_ptr<X509, decltype(&X509_free)> certificate)
-    : certificate_(std::move(certificate)) {}
+    : certificate_(std::move(certificate)) {
+    CHECK(certificate_);
+  }
 
   Certificate(const Certificate& that)
     : Certificate(Copy(that)) {}
@@ -43,10 +41,13 @@ class Certificate {
   }
 
   operator X509*() {
-    return certificate_.get();
+    return CHECK_NOTNULL(certificate_.get());
   }
 
  private:
+  template <bool, bool, bool, bool, bool, bool, bool, bool>
+  class _Builder;
+
   // Helper that copies a certificate so we can have value semantics.
   static Certificate Copy(const Certificate& from) {
     return Certificate(
@@ -67,90 +68,198 @@ class Certificate {
 // most likely should be revisited and some of the existing functions
 // should be removed and new ones (like a '.country_code()') should be
 // added.
-class CertificateBuilder {
+template <
+    bool has_subject_key_,
+    bool has_sign_key_,
+    bool has_parent_certificate_,
+    bool has_serial_,
+    bool has_days_,
+    bool has_hostname_,
+    bool has_ip_,
+    bool has_organization_name_>
+class Certificate::_Builder : public builder::Builder {
  public:
-  CertificateBuilder() {}
+  auto subject_key(rsa::Key&& subject_key) && {
+    static_assert(!has_subject_key_, "Duplicate 'subject_key'");
+    return Construct<_Builder>(
+        subject_key_.Set(std::move(subject_key)),
+        std::move(sign_key_),
+        std::move(parent_certificate_),
+        std::move(serial_),
+        std::move(days_),
+        std::move(hostname_),
+        std::move(ip_),
+        std::move(organization_name_));
+  }
+
+  auto sign_key(rsa::Key&& sign_key) && {
+    static_assert(!has_sign_key_, "Duplicate 'sign_key'");
+    return Construct<_Builder>(
+        std::move(subject_key_),
+        sign_key_.Set(std::move(sign_key)),
+        std::move(parent_certificate_),
+        std::move(serial_),
+        std::move(days_),
+        std::move(hostname_),
+        std::move(ip_),
+        std::move(organization_name_));
+  }
+
+  auto parent_certificate(Certificate&& parent_certificate) && {
+    static_assert(!has_parent_certificate_, "Duplicate 'parent_certificate'");
+    return Construct<_Builder>(
+        std::move(subject_key_),
+        std::move(sign_key_),
+        parent_certificate_.Set(std::move(parent_certificate)),
+        std::move(serial_),
+        std::move(days_),
+        std::move(hostname_),
+        std::move(ip_),
+        std::move(organization_name_));
+  }
+
+  auto serial(int serial) && {
+    static_assert(!has_serial_, "Duplicate 'serial'");
+    return Construct<_Builder>(
+        std::move(subject_key_),
+        std::move(sign_key_),
+        std::move(parent_certificate_),
+        serial_.Set(std::move(serial)),
+        std::move(days_),
+        std::move(hostname_),
+        std::move(ip_),
+        std::move(organization_name_));
+  }
+
+  auto days(int days) && {
+    static_assert(!has_days_, "Duplicate 'days'");
+    return Construct<_Builder>(
+        std::move(subject_key_),
+        std::move(sign_key_),
+        std::move(parent_certificate_),
+        std::move(serial_),
+        days_.Set(std::move(days)),
+        std::move(hostname_),
+        std::move(ip_),
+        std::move(organization_name_));
+  }
+
+  auto hostname(std::string&& hostname) && {
+    static_assert(!has_hostname_, "Duplicate 'hostname'");
+    return Construct<_Builder>(
+        std::move(subject_key_),
+        std::move(sign_key_),
+        std::move(parent_certificate_),
+        std::move(serial_),
+        std::move(days_),
+        hostname_.Set(std::move(hostname)),
+        std::move(ip_),
+        std::move(organization_name_));
+  }
+
+  auto ip(asio::ip::address&& ip) && {
+    static_assert(!has_ip_, "Duplicate 'ip'");
+    return Construct<_Builder>(
+        std::move(subject_key_),
+        std::move(sign_key_),
+        std::move(parent_certificate_),
+        std::move(serial_),
+        std::move(days_),
+        std::move(hostname_),
+        ip_.Set(std::move(ip)),
+        std::move(organization_name_));
+  }
+
+  auto organization_name(std::string&& organization_name) && {
+    static_assert(!has_organization_name_, "Duplicate 'organization_name'");
+    return Construct<_Builder>(
+        std::move(subject_key_),
+        std::move(sign_key_),
+        std::move(parent_certificate_),
+        std::move(serial_),
+        std::move(days_),
+        std::move(hostname_),
+        std::move(ip_),
+        organization_name_.Set(std::move(organization_name)));
+  }
 
   eventuals::Expected::Of<Certificate> Build() &&;
 
-  CertificateBuilder subject_key(rsa::Key&& key) && {
-    subject_key_ = std::move(key);
-    return std::move(*this);
-  }
-
-  CertificateBuilder sign_key(rsa::Key&& key) && {
-    sign_key_ = std::move(key);
-    return std::move(*this);
-  }
-
-  CertificateBuilder parent_certificate(Certificate&& certificate) && {
-    parent_certificate_ = std::move(certificate);
-    return std::move(*this);
-  }
-
-  CertificateBuilder serial(int serial) && {
-    serial_ = serial;
-    return std::move(*this);
-  }
-
-  CertificateBuilder days(int days) && {
-    days_ = days;
-    return std::move(*this);
-  }
-
-  CertificateBuilder hostname(std::string&& hostname) && {
-    hostname_ = std::move(hostname);
-    return std::move(*this);
-  }
-
-  CertificateBuilder ip(asio::ip::address&& ip) && {
-    ip_ = std::move(ip);
-    return std::move(*this);
-  }
-
-  CertificateBuilder organization_name(std::string&& name) && {
-    organization_name_ = std::move(name);
-    return std::move(*this);
-  }
-
  private:
-  // TODO(benh): check for missing subject/sign key at compile time.
-  std::optional<rsa::Key> subject_key_;
-  std::optional<rsa::Key> sign_key_;
-  std::optional<Certificate> parent_certificate_;
-  int serial_ = 1;
-  int days_ = 365;
-  std::optional<std::string> hostname_;
-  std::optional<asio::ip::address> ip_;
-  std::string organization_name_ = "Unknown";
+  friend class builder::Builder;
+  friend class Certificate;
+
+  _Builder() {}
+
+  _Builder(
+      builder::Field<rsa::Key, has_subject_key_> subject_key,
+      builder::Field<rsa::Key, has_sign_key_> sign_key,
+      builder::Field<Certificate, has_parent_certificate_> parent_certificate,
+      builder::FieldWithDefault<int, has_serial_> serial,
+      builder::FieldWithDefault<int, has_days_> days,
+      builder::Field<std::string, has_hostname_> hostname,
+      builder::Field<asio::ip::address, has_ip_> ip,
+      builder::FieldWithDefault<std::string, has_organization_name_>
+          organization_name)
+    : subject_key_(std::move(subject_key)),
+      sign_key_(std::move(sign_key)),
+      parent_certificate_(std::move(parent_certificate)),
+      serial_(std::move(serial)),
+      days_(std::move(days)),
+      hostname_(std::move(hostname)),
+      ip_(std::move(ip)),
+      organization_name_(std::move(organization_name)) {}
+
+  builder::Field<rsa::Key, has_subject_key_> subject_key_;
+  builder::Field<rsa::Key, has_sign_key_> sign_key_;
+  builder::Field<Certificate, has_parent_certificate_> parent_certificate_;
+  builder::FieldWithDefault<int, has_serial_> serial_ = 1;
+  builder::FieldWithDefault<int, has_days_> days_ = 365;
+  builder::Field<std::string, has_hostname_> hostname_;
+  builder::Field<asio::ip::address, has_ip_> ip_;
+  builder::FieldWithDefault<std::string, has_organization_name_>
+      organization_name_ = "Unknown";
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-CertificateBuilder Certificate::Builder() {
-  return CertificateBuilder();
+inline auto Certificate::Builder() {
+  return _Builder<false, false, false, false, false, false, false, false>();
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-eventuals::Expected::Of<Certificate> CertificateBuilder::Build() && {
+template <
+    bool has_subject_key_,
+    bool has_sign_key_,
+    bool has_parent_certificate_,
+    bool has_serial_,
+    bool has_days_,
+    bool has_hostname_,
+    bool has_ip_,
+    bool has_organization_name_>
+eventuals::Expected::Of<Certificate> Certificate::_Builder<
+    has_subject_key_,
+    has_sign_key_,
+    has_parent_certificate_,
+    has_serial_,
+    has_days_,
+    has_hostname_,
+    has_ip_,
+    has_organization_name_>::Build() && {
   // Using a 'using' here to reduce verbosity.
   using eventuals::Unexpected;
 
-  if (!subject_key_.has_value()) {
-    return Unexpected("Missing 'subject' key");
-  }
-
-  if (!sign_key_.has_value()) {
-    return Unexpected("Missing 'sign' key");
-  }
+  // Check for required fields.
+  static_assert(has_subject_key_, "Missing required 'subject_key'");
+  static_assert(has_sign_key_, "Missing required 'sign_key'");
 
   std::optional<X509_NAME*> issuer_name;
 
-  if (!parent_certificate_.has_value()) {
+  if constexpr (!has_parent_certificate_) {
     // If there is no parent certificate, then the subject and
     // signing key must be the same.
-    if (subject_key_ != sign_key_) {
+    if (subject_key_.value() != sign_key_.value()) {
       return Unexpected("Subject vs signing key mismatch");
     }
   } else {
@@ -178,7 +287,7 @@ eventuals::Expected::Of<Certificate> CertificateBuilder::Build() && {
   }
 
   // Set the serial number.
-  if (ASN1_INTEGER_set(X509_get_serialNumber(x509), serial_) != 1) {
+  if (ASN1_INTEGER_set(X509_get_serialNumber(x509), serial_.value()) != 1) {
     X509_free(x509);
     return Unexpected("Failed to set serial number: ASN1_INTEGER_set");
   }
@@ -190,7 +299,7 @@ eventuals::Expected::Of<Certificate> CertificateBuilder::Build() && {
           == nullptr
       || X509_gmtime_adj(
              X509_get_notAfter(x509),
-             60L * 60L * 24L * days_)
+             60L * 60L * 24L * days_.value())
           == nullptr) {
     X509_free(x509);
     return Unexpected(
@@ -204,9 +313,12 @@ eventuals::Expected::Of<Certificate> CertificateBuilder::Build() && {
   }
 
   // Figure out our hostname if one was not provided.
-  if (!hostname_.has_value()) {
+  std::string hostname;
+  if constexpr (has_hostname_) {
+    hostname = hostname_.value();
+  } else {
     asio::error_code error;
-    hostname_ = asio::ip::host_name(error);
+    hostname = asio::ip::host_name(error);
     if (error) {
       X509_free(x509);
       return Unexpected("Failed to determine hostname");
@@ -239,7 +351,7 @@ eventuals::Expected::Of<Certificate> CertificateBuilder::Build() && {
           name,
           "O",
           MBSTRING_ASC,
-          reinterpret_cast<const unsigned char*>(organization_name_.c_str()),
+          reinterpret_cast<const unsigned char*>(organization_name_->c_str()),
           -1,
           -1,
           0)
@@ -253,7 +365,7 @@ eventuals::Expected::Of<Certificate> CertificateBuilder::Build() && {
           name,
           "CN",
           MBSTRING_ASC,
-          reinterpret_cast<const unsigned char*>(hostname_->c_str()),
+          reinterpret_cast<const unsigned char*>(hostname.c_str()),
           -1,
           -1,
           0)
@@ -274,9 +386,8 @@ eventuals::Expected::Of<Certificate> CertificateBuilder::Build() && {
     return Unexpected("Failed to set issuer name: X509_set_issuer_name");
   }
 
-  if (ip_.has_value()) {
+  if constexpr (has_ip_) {
     // Add an X509 extension with an IP for subject alternative name.
-
     STACK_OF(GENERAL_NAME)* alt_name_stack = sk_GENERAL_NAME_new_null();
     if (alt_name_stack == nullptr) {
       X509_free(x509);
