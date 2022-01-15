@@ -1,5 +1,3 @@
-// TODO(benh): build tests on Windows once we have boringssl.
-#ifndef _WIN32
 #include "eventuals/http.h"
 
 #include "event-loop-test.h"
@@ -192,4 +190,3 @@ TEST_P(HttpTest, PostInterruptAfterStart) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
-#endif
