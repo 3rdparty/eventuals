@@ -50,7 +50,7 @@ class Key {
   }
 
   operator EVP_PKEY*() {
-    return key_.get();
+    return CHECK_NOTNULL(key_.get());
   }
 
  private:
