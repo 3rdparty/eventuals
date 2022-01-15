@@ -2,6 +2,7 @@
 
 #include <filesystem>
 
+#include "asio.hpp"
 #include "eventuals/builder.h"
 #include "eventuals/expected.h"
 #include "eventuals/rsa.h"
