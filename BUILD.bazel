@@ -26,6 +26,7 @@ cc_library(
         "eventuals/foreach.h",
         "eventuals/generator.h",
         "eventuals/head.h",
+        "eventuals/if.h",
         "eventuals/interrupt.h",
         "eventuals/iterate.h",
         "eventuals/just.h",

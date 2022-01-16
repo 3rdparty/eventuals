@@ -61,6 +61,7 @@ cc_test(
         "foreach.cc",
         "generator.cc",
         "http.cc",
+        "if.cc",
         "iterate.cc",
         "let.cc",
         "lock.cc",
