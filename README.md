@@ -304,6 +304,98 @@ interrupt.Trigger();
 
 Note that there may be other reasons why you want to "interrupt" an eventual, so rather than call this functionality explicitly "cancel", we chose the more broad "interrupt". When creating a general abstraction, however, error on the side of assuming that interrupt means cancel.
 
+### Errors and Error Handling
+
+Depending on whether your writing synchronous or asynchronous code there are a few different strategies for both creating and handling errors.
+
+#### Synchronous Errors
+
+When working with *synchronous* code you should return an `Expected::Of<T>` type:
+
+```cpp
+Expected::Of<std::string> GetFullName(const Person& person) {
+  if (person.has_first_name() && person.has_last_name()) {
+    return Expected(person.first_name() + " " + person.last_name());
+  } else {
+    return Unexpected(InvalidPerson("name incomplete"));
+  }
+}
+```
+
+Note that while `Unexpected()` is necessary to return an error, the use of `Expected()` is not strictly necessary but makes for more explicit code.
+
+If you have a lambda that returns both `Expected()` and `Unexpected()` you'll need to explicitly specify `Expected::Of<T>` so the compiler knows how to convert an `Unexpected()` into the proper type (because `Unexpected()` doesn't know what `T` is and rather than having you specify `T` for every call to `Unexpected()` which can be numerous in a function body you instead can specify `Expected::Of<T>` once in the return type):
+
+```cpp
+auto get_full_name = [](const Person& person) -> Expected::Of<std::string> {
+  if (person.has_first_name() && person.has_last_name()) {
+    return Expected(person.first_name() + " " + person.last_name());
+  } else if (person.has_first_name()) {
+    return Unexpected(InvalidPerson("missing first name"));
+  } else {
+    CHECK(!person.has_last_name());
+    return Unexpected(InvalidPerson("missing last name"));
+  }
+};
+```
+
+An `Expected:Of<T>` *composes* with other eventuals exactly as though it is an eventual itself. You can return an `Expected::Of<T>` where you might return an eventual:
+
+```cpp
+ReadPersonFromFile(file)
+    | Then([](Person&& person) {
+        return GetFullName(person);
+      })
+    | Then([](std::string&& full_name) {
+        ...
+      });
+```
+
+Or you can compose an eventual with `|` which can be useful in cases where want the error to propagate:
+
+```cpp
+ReadPersonFromFile(file)
+    | Then(Let([](auto& person) {
+        return GetFullName(person)
+            | Then([&](auto&& full_name) {
+                 if (person.has_suffix) {
+                   return full_name + " " + person.suffix();
+                 } else {
+                   return full_name;
+                 }
+               });
+      }));
+```
+
+#### Asynchronous Errors
+
+Working with *asynchronous* code is a little complicated because there might be multiple eventuals returned that propagate the same type of value (e.g., a `Just(T())` and an `Eventual<T>`), but they themselves are _different_ types. In synchronous code you'll only ever be returning `T()` or `Expected(T())` and the compiler doesn't take much to be happy. To solve this problem asynchronous code can use `If()` to _conditionally_ return differently typed continuations. And an error can be raised with `Raise()`:
+
+```cpp
+auto GetBody(const std::string& uri) {
+  return http::Get(uri)
+      | Then([](auto&& response) {
+           return If(response.code == 200)
+               .then(Just(response.body))
+               .otherwise(Raise("HTTP GET failed w/ code " + std::to_string(response.code)));
+         });
+}
+```
+
+But note that `If()` is not _only_ useful for errors; it can also be used anytime you have conditional continuations:
+
+```cpp
+auto GetOrRedirect(const std::string& uri, const std::string& redirect_uri) {
+  return http::Get(uri)
+      | Then([redirect_uri](auto&& response) {
+           // Redirect if 'Service Unavailable'.
+           return If(response.code == 503)
+               .then(http::get(redirect_uri))
+               .otherwise(Just(response));
+         });
+}
+```
+
 ### `Then`
 
 When your continuation is ***asynchronous*** (i.e., you need to create another eventual based on the result of an eventual) but you *don't* need the explicit control that you have with an `Eventual` you can use `Then`:
