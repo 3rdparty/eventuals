@@ -270,7 +270,7 @@ class Client {
 template <bool has_verify_peer_, bool has_certificate_>
 class Client::_Builder : public builder::Builder {
  public:
-  auto verify_peer(bool verify_peer)&& {
+  auto verify_peer(bool verify_peer) && {
     static_assert(!has_verify_peer_, "Duplicate 'verify_peer'");
     // TODO(benh): consider checking that the scheme is 'https'.
     return Construct<_Builder>(
@@ -957,11 +957,11 @@ inline auto Client::Do(Request&& request) {
   // TODO(benh): need 'Client::Default()'.
   auto& loop = EventLoop::Default();
 
-  if (verify_peer_ && !request.verify_peer()) {
+  if (verify_peer_.has_value() && !request.verify_peer().has_value()) {
     request.verify_peer_ = verify_peer_;
   }
 
-  if (certificate_ && !request.certificate()) {
+  if (certificate_.has_value() && !request.certificate().has_value()) {
     request.certificate_ = certificate_;
   }
 
