@@ -148,7 +148,7 @@ class HttpMockServer {
     auto certificate = x509::Certificate::Builder()
                            .subject_key(rsa::Key(*key))
                            .sign_key(rsa::Key(*key))
-                           .ip(endpoint_.address())
+                           .hostname("localhost")
                            .Build();
 
     CHECK(certificate) << "Failed to generate X509 certificate";
@@ -311,7 +311,7 @@ class HttpMockServer {
   }
 
   std::string host() const {
-    return endpoint_.address().to_string();
+    return "localhost";
   }
 
   std::string authority() const {
