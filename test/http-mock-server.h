@@ -112,7 +112,9 @@ class HttpMockServer {
     EXPECT_FALSE(error) << error.message();
 
     acceptor_.bind(
-        asio::ip::tcp::endpoint(asio::ip::tcp::v4(), 0),
+        asio::ip::tcp::endpoint(
+            asio::ip::address_v4::loopback(),
+            0),
         error);
 
     EXPECT_FALSE(error) << error.message();
