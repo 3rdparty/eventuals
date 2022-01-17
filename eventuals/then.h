@@ -65,6 +65,16 @@ struct _Then {
 
     template <typename Arg, typename K>
     auto k(K k) && {
+      static_assert(
+          !std::is_void_v<Arg> || std::is_invocable_v<F_>,
+          "callable passed to 'Then' should be "
+          "invocable with no arguments");
+
+      static_assert(
+          std::is_void_v<Arg> || std::is_invocable_v<F_, Arg>,
+          "callable passed to 'Then' is not invocable "
+          "with the type of argument it receives");
+
       return Continuation<K, F_, Arg>{std::move(k), std::move(f_)};
     }
 
