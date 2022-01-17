@@ -25,6 +25,9 @@ class HttpMockServer {
     virtual std::string Receive() = 0;
     virtual void Send(const std::string& data) = 0;
     virtual void Close() = 0;
+
+   protected:
+    constexpr static size_t kBufferSize = 4096;
   };
 
   // Implementation of an insecure socket, i.e, no TLS/SSL.
@@ -35,9 +38,9 @@ class HttpMockServer {
 
     std::string Receive() override {
       asio::error_code error;
-      char data[4096];
+      char data[kBufferSize];
       size_t bytes = socket_.receive(
-          asio::buffer(data, 4096),
+          asio::buffer(data, kBufferSize),
           /* flags = */ 0,
           error);
       if (error) {
@@ -73,8 +76,8 @@ class HttpMockServer {
 
     std::string Receive() override {
       asio::error_code error;
-      char data[1024];
-      size_t bytes = stream_.read_some(asio::buffer(data, 1024), error);
+      char data[kBufferSize];
+      size_t bytes = stream_.read_some(asio::buffer(data, kBufferSize), error);
       if (error) {
         ADD_FAILURE() << "Failed to receive: " << error.message();
         return std::string();
