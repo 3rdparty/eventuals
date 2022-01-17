@@ -2,14 +2,16 @@
 
 #include <filesystem>
 
-#include "asio.hpp"
-#include "eventuals/builder.h"
-#include "eventuals/expected.h"
 #include "eventuals/rsa.h"
 #include "openssl/bio.h"
 #include "openssl/pem.h"
 #include "openssl/x509.h"
 #include "openssl/x509v3.h"
+
+// Must be included after openssl includes.
+#include "asio.hpp"
+#include "eventuals/builder.h"
+#include "eventuals/expected.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -419,11 +421,11 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
     in_addr in;
     in.s_addr = ip_->to_v4().to_ulong();
 
-#ifdef __WINDOWS__
+#ifdef _WIN32
     // cURL defines `in_addr_t` as `unsigned long` for Windows,
     // so we do too for consistency.
     typedef unsigned long in_addr_t;
-#endif // __WINDOWS__
+#endif // _WIN32
 
     // For `iPAddress` we hand over a binary value as part of the
     // specification.
@@ -514,7 +516,7 @@ eventuals::Expected::Of<std::string> Encode(X509* certificate) {
 eventuals::Expected::Of<x509::Certificate> ReadCertificate(
     const std::filesystem::path& path) {
   // Using a 'FILE*' here as necessary for 'PEM_read_X509()'.
-  FILE* file = fopen(path.c_str(), "r");
+  FILE* file = fopen(path.string().c_str(), "r");
   if (file == nullptr) {
     return eventuals::Unexpected(
         "Failed to open file '" + path.string() + "' for reading");
