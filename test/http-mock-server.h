@@ -114,6 +114,8 @@ class HttpMockServer {
 
     EXPECT_FALSE(error) << error.message();
 
+    // NOTE: using 'loopback()' here to match with hostname
+    // "localhost" in 'host()' below.
     acceptor_.bind(
         asio::ip::tcp::endpoint(
             asio::ip::address_v4::loopback(),
@@ -148,7 +150,7 @@ class HttpMockServer {
     auto certificate = x509::Certificate::Builder()
                            .subject_key(rsa::Key(*key))
                            .sign_key(rsa::Key(*key))
-                           .ip(endpoint_.address())
+                           .hostname(host())
                            .Build();
 
     CHECK(certificate) << "Failed to generate X509 certificate";
@@ -311,7 +313,9 @@ class HttpMockServer {
   }
 
   std::string host() const {
-    return endpoint_.address().to_string();
+    // NOTE: using "localhost" here to match the use of
+    // 'asio::ip::address_v4::loopback()' as the endpoint IP address.
+    return "localhost";
   }
 
   std::string authority() const {
