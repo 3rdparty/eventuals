@@ -1,10 +1,13 @@
 #pragma once
 
-#include "eventuals/expected.h"
 #include "openssl/bio.h"
 #include "openssl/evp.h"
 #include "openssl/pem.h"
 #include "openssl/rsa.h"
+
+// Must be included after openssl includes.
+#include "eventuals/builder.h"
+#include "eventuals/expected.h"
 
 ////////////////////////////////////////////////////////////////////////
 

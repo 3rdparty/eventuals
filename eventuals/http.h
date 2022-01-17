@@ -3,10 +3,12 @@
 #include <string>
 #include <vector>
 
+#include "eventuals/x509.h"
+
+// Must be included after openssl includes.
 #include "curl/curl.h"
 #include "eventuals/event-loop.h"
 #include "eventuals/scheduler.h"
-#include "eventuals/x509.h"
 
 ////////////////////////////////////////////////////////////////////////
 
