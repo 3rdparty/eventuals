@@ -21,7 +21,7 @@ jobs:
       # for correct code style. This action (action.yml)
       # is in `3rdparty/dev-tools/check-code-style` submodule's
       # directory.
-      - uses: 3rdparty/dev-tools/check-code-style@main
+      - uses: ./dev-tools/check-code-style
 
       - name: Debug using tmate (if failure)
         if: ${{ failure() }}
