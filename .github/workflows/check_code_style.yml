@@ -22,3 +22,7 @@ jobs:
       # is in `3rdparty/dev-tools/check-code-style` submodule's
       # directory.
       - uses: 3rdparty/dev-tools/check-code-style@main
+
+      - name: Debug using tmate (if failure)
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
