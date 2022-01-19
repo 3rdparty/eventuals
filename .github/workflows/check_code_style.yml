@@ -10,10 +10,17 @@ on:
     branches:
       - "main"
     paths-ignore:
+<<<<<<< HEAD
       - "**.md" 
   pull_request:
     paths-ignore:
       - "**.md"       
+=======
+      - "**.md"  
+  pull_request:
+    paths-ignore:
+      - '**.md'
+>>>>>>> 9fd664c (Introduce clang-tidy review)
 
 jobs:
   check_code_style:
