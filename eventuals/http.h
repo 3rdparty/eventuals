@@ -264,6 +264,7 @@ inline auto Request::Builder() {
 
 struct Response {
   long code;
+  std::string headers;
   std::string body;
 };
 
@@ -520,7 +521,8 @@ struct _HTTP {
                       if (!continuation.error_) {
                         continuation.k_.Start(Response{
                             continuation.code_,
-                            continuation.buffer_.Extract()});
+                            continuation.headers_buffer_.Extract(),
+                            continuation.body_buffer_.Extract()});
                       } else {
                         continuation.k_.Fail(
                             curl_easy_strerror(
@@ -708,7 +710,19 @@ struct _HTTP {
                                                size_t size,
                                                size_t nmemb,
                                                Continuation* continuation) {
-                continuation->buffer_ += std::string(data, size * nmemb);
+                continuation->body_buffer_ += std::string(data, size * nmemb);
+
+                return nmemb * size;
+              };
+
+              // https://curl.se/libcurl/c/CURLOPT_HEADERFUNCTION.html
+              static auto header_function = +[](char* data,
+                                                size_t size,
+                                                size_t nmemb,
+                                                Continuation* continuation) {
+                continuation->headers_buffer_ += std::string(
+                    data,
+                    size * nmemb);
 
                 return nmemb * size;
               };
@@ -866,6 +880,18 @@ struct _HTTP {
                       CURLOPT_WRITEFUNCTION,
                       write_function),
                   CURLE_OK);
+              CHECK_EQ(
+                  curl_easy_setopt(
+                      easy_.get(),
+                      CURLOPT_HEADERDATA,
+                      this),
+                  CURLE_OK);
+              CHECK_EQ(
+                  curl_easy_setopt(
+                      easy_.get(),
+                      CURLOPT_HEADERFUNCTION,
+                      header_function),
+                  CURLE_OK);
               // Option to follow redirects.
               CHECK_EQ(
                   curl_easy_setopt(
@@ -987,7 +1013,8 @@ struct _HTTP {
 
     // Response variables.
     long code_ = 0;
-    EventLoop::Buffer buffer_;
+    EventLoop::Buffer headers_buffer_;
+    EventLoop::Buffer body_buffer_;
 
     bool started_ = false;
     bool completed_ = false;
