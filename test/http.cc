@@ -51,9 +51,9 @@ TEST_P(HttpTest, Get) {
 
   auto response = future.get();
 
-  EXPECT_EQ(200, response.code);
-  EXPECT_THAT(response.headers, testing::ContainsRegex("Foo: Bar"));
-  EXPECT_EQ("<html>Hello World!</html>", response.body);
+  EXPECT_EQ(200, response.code());
+  EXPECT_THAT(response.headers(), testing::ContainsRegex("Foo: Bar"));
+  EXPECT_EQ("<html>Hello World!</html>", response.body());
 }
 
 TEST_P(HttpTest, GetFailTimeout) {
@@ -230,7 +230,7 @@ TEST_P(HttpTest, GetHeaders) {
 
   auto response = future.get();
 
-  EXPECT_EQ(200, response.code);
-  EXPECT_THAT(response.headers, testing::ContainsRegex("Foo: Bar"));
-  EXPECT_EQ("<html>Hello World!</html>", response.body);
+  EXPECT_EQ(200, response.code());
+  EXPECT_THAT(response.headers(), testing::ContainsRegex("Foo: Bar"));
+  EXPECT_EQ("<html>Hello World!</html>", response.body());
 }
