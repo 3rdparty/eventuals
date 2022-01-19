@@ -34,6 +34,7 @@ TEST_P(HttpTest, Get) {
       .WillOnce([](auto socket, const std::string& data) {
         socket->Send(
             "HTTP/1.1 200 OK\r\n"
+            "Foo: Bar\r\n"
             "Content-Length: 25\r\n"
             "\r\n"
             "<html>Hello World!</html>\r\n"
@@ -51,6 +52,7 @@ TEST_P(HttpTest, Get) {
   auto response = future.get();
 
   EXPECT_EQ(200, response.code);
+  EXPECT_THAT(response.headers, testing::ContainsRegex("Foo: Bar"));
   EXPECT_EQ("<html>Hello World!</html>", response.body);
 }
 
@@ -206,6 +208,7 @@ TEST_P(HttpTest, GetHeaders) {
 
         socket->Send(
             "HTTP/1.1 200 OK\r\n"
+            "Foo: Bar\r\n"
             "Content-Length: 25\r\n"
             "\r\n"
             "<html>Hello World!</html>\r\n"
@@ -228,5 +231,6 @@ TEST_P(HttpTest, GetHeaders) {
   auto response = future.get();
 
   EXPECT_EQ(200, response.code);
+  EXPECT_THAT(response.headers, testing::ContainsRegex("Foo: Bar"));
   EXPECT_EQ("<html>Hello World!</html>", response.body);
 }
