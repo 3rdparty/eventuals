@@ -135,11 +135,13 @@ class HttpMockServer {
     // Now configure our SSL context with a newly generated X509
     // certificate that we self-sign with a newly generated RSA
     // private key.
-    auto key = rsa::Key::Builder().Build();
+    // NOTE: We are using static variables to prevent regeneration
+    // of keys and certificates on every constructor call.
+    static auto key = rsa::Key::Builder().Build();
 
     CHECK(key) << "Failed to generate RSA private key";
 
-    auto pem_key = pem::Encode(*key);
+    static auto pem_key = pem::Encode(*key);
 
     CHECK(pem_key) << "Failed to PEM encode RSA private key";
 
@@ -147,17 +149,17 @@ class HttpMockServer {
         asio::buffer(*pem_key),
         asio::ssl::context::pem);
 
-    auto certificate = x509::Certificate::Builder()
-                           .subject_key(rsa::Key(*key))
-                           .sign_key(rsa::Key(*key))
-                           .hostname(host())
-                           .Build();
+    static auto certificate = x509::Certificate::Builder()
+                                  .subject_key(rsa::Key(*key))
+                                  .sign_key(rsa::Key(*key))
+                                  .hostname(host())
+                                  .Build();
 
     CHECK(certificate) << "Failed to generate X509 certificate";
 
     certificate_ = *certificate;
 
-    auto pem_certificate = pem::Encode(*certificate);
+    static auto pem_certificate = pem::Encode(*certificate);
 
     CHECK(pem_certificate) << "Failed to PEM encode X509 certificate";
 
