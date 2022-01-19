@@ -263,9 +263,40 @@ inline auto Request::Builder() {
 ////////////////////////////////////////////////////////////////////////
 
 struct Response {
-  long code;
-  std::string headers;
-  std::string body;
+  Response() {}
+
+  Response(const Response&) = default;
+  Response(Response&&) = default;
+
+  Response& operator=(const Response&) = default;
+  Response& operator=(Response&&) = default;
+
+  const auto& code() const {
+    return code_;
+  }
+
+  const auto& headers() const {
+    return headers_;
+  }
+
+  const auto& body() const {
+    return body_;
+  }
+
+ private:
+  friend struct _HTTP;
+
+  Response(
+      long code,
+      std::string&& headers,
+      std::string&& body)
+    : code_(code),
+      headers_(std::move(headers)),
+      body_(std::move(body)) {}
+
+  long code_;
+  std::string headers_;
+  std::string body_;
 };
 
 ////////////////////////////////////////////////////////////////////////
