@@ -4,17 +4,19 @@
 
 # Eventuals
 
-A C++ library for composing asynchronous ***continuations*** without locking or requiring dynamic heap allocations.
+A C++ library for writing asynchronous computations out of ***continuations***.
 
-**Callbacks** are the most common approach to *continue* an asynchronous computation, but they are hard to compose, don't (often) support cancellation, and are generally tricky to reason about.
+Unlike many other approaches to asynchronous code, eventuals doesn't require locking or dynamic heap allocations by default.
 
-**Futures/Promises** are an approach that does support composition and cancellation, but many implementations have poor performance due to locking overhead and dynamic heap allocations, and because the evaluation model of most futures/promises libraries is **eager** an expression isn't referentially transparent.
+**Callbacks**, one of the most common approaches to asynchronous programming, are hard to compose, don't (often) support cancellation, and are generally tricky to reason about.
+
+**Futures/Promises** are an approach that does support composition and cancellation, but many implementations have poor performance due to locking overhead and dynamic heap allocations. Furthermore, because the evaluation model of most futures/promises libraries is **eager** referential transparency is lost.
 
 **Eventuals** are an approach that, much like futures/promises, support composition and cancellation, however, are **lazy**. That is, an eventual has to be explicitly *started*.
 
-Another key difference from futures/promises is that an eventual's continuation is **not** type-erased and can be directly used, saved, etc by the programmer. This allows the compiler to perform significant optimizations that are difficult to do with other lazy approaches that perform type-erasure. The tradeoff is that more code needs to be written in headers, which may lead to longer compile times. You can, however, mitgate long compile times by using a type-erasing `Task` type (more on this later).
+Another key difference from futures/promises is that an eventual's continuation is **not** type-erased and can be directly used, saved, etc by the programmer. This allows the compiler to perform significant optimizations that are difficult to do with other lazy approaches that perform type-erasure. The tradeoff is that more code needs to be written in headers, which may lead to longer compile times. You can, however, mitgate long compile times by using a type-erasing `Task` like type (more on this later).
 
-The library provides numerous abstractions that simplify asynchronous continuations, e.g., a `Stream` for performing asynchronous streaming. Each of these abstractions follow a "builder" pattern for constructing them, see [Usage](#usage) below for more details.
+The library provides numerous abstractions that simplify asynchronous computations, e.g., a `Stream` for performing asynchronous streaming. Each of these abstractions follow a "builder" pattern for constructing them, see [Usage](#usage) below for more details.
 
 This library was inspired from experience building and using the [libprocess](https://github.com/3rdparty/libprocess) library to power [Apache Mesos](https://github.com/apache/mesos), which itself has been used at massive scale (production clusters of > 80k hosts).
 
@@ -124,185 +126,123 @@ $ bazel test test:eventuals
 </p>
 </details>
 
-## Usage
+## User Guide
 
-### Bazel
+Most of the time you'll use higher-level ***combinators*** for composing eventuals together. This guide will start with more basic ones and work our way up to creating your own eventuals.
 
-Copy `bazel/repos.bzl` into the directory `3rdparty/eventuals` of your
-own project/workspace and add an empty `BUILD.bazel` into that
-directory as well.
+You ***compose*** eventuals together using an overloaded `operator|()`. You'll see some examples shortly. The syntax is similar to Bash "pipelines" and we reuse the term pipeline for eventuals as well.
 
-Now you can add the following to your `WORKSPACE` (or `WORKSPACE.bazel`):
+Because the result type of a composed pipeline is not type-erased you'll use `auto` generously, e.g., as function return types.
 
-```
-load("//3rdparty/eventuals:repos.bzl", eventuals_repos = "repos")
-eventuals_repos()
-
-load("@com_github_3rdparty_eventuals//bazel:deps.bzl", eventuals_deps="deps")
-eventuals_deps()
-```
-
-You can then depend on `@eventuals//:eventuals` in your Bazel targets.
-
-### Tutorial
-
-#### "Building" an Eventual
-
-An `Eventual` provides **explicit** control of performing a simple asynchronous computation. First you "build" an eventual by specifying the type of the value that it will eventually compute and override the `.start()` callback for performing the computation:
+You must explicitly ***start*** an eventual in order for it to run. You'll only start eventuals at the "edges" of your code, e.g., in `int main()`. Before you start an eventual you must first "terminate it" by composing with a `Terminal()`:
 
 ```cpp
-auto e = Eventual<Result>()
-  .start([](auto& k) {
-    auto thread = std::thread(
-        [&k]() mutable {
-          // Perform some asynchronous computation ...
-          auto result = ...;
-          succeed(k, result);
-        });
-    thread.detach();
-  })
+auto e = AsynchronousFunction()
+    | Terminal()
+          .start([](auto&& result) {
+            // Eventual pipeline succeeded!
+          })
+          .fail([](auto&& result) {
+            // Eventual pipeline failed!
+          })
+          .stop([](auto&& result) {
+            // Eventual pipeline stopped!
+          });
 ```
 
-In addition to `.start()` you can also override `.fail()` and `.stop()` callbacks:
+A terminated eventual can then be "built" into what we call an eventual's _continuation_ form:
 
 ```cpp
-auto e = Eventual<Result>()
-  .start([](auto& k) {
-    auto thread = std::thread(
-        [&k]() mutable {
-          // Perform some asynchronous computation ...
-          auto result = ...;
-          succeed(k, result);
-        });
-    thread.detach();
-  })
-  .fail([](auto& k, auto&&... errors) {
-    // Handle raised errors.
-  })
-  .stop([](auto& k) {
-    // Handle stopped computation.
-  })
+auto k = Build(std::move(e));
 ```
 
-Each callback takes the ***continuation*** `k` which you can use to either `succeed(k, result)` the computation, `fail(k, error)` the computation, or `stop(k)` the computation.
-
-You can also override the `.context()` callback which allows you to "capture" data that you can use in each other callback:
+You'll often see the variable `k` to refer to an eventual in it's continuation form. Finally you can start it with: 
 
 ```cpp
-auto e = Eventual<Result>()
-  .context(SomeData())
-  .start([](auto& data, auto& k) {
-    auto thread = std::thread(
-        [&k]() mutable {
-          // Perform some asynchronous computation ...
-          auto result = ...;
-          succeed(k, result);
-        });
-    thread.detach();
-  })
-  .fail([](auto& data, auto& k, auto&&... errors) {
-    // Handle raised errors.
-  })
-  .stop([](auto& data, auto& k) {
-    // Handle stopped computation.
-  })
+k.Start();
 ```
 
-In many cases you can simply capture what you need in an individual callback, but sometimes you may want to use some data across callbacks.
+Note that once you start an eventual ***it must not be deallocated/destructed and can not be moved until after it has completed***.
 
-#### Running and Composing an Eventual
-
-You can use the `*` operator to *run* the asynchronous computation:
+To integrate eventuals with `std::future` you can use the helper `Terminate()` that calls `Build()` on an eventual terminated with an implementation of `Terminal()` that integrates `std::promise` and `std::future`:
 
 ```cpp
-auto result = *e;
+auto e = AsynchronousFunction();
+
+auto [future, k] = Terminate(std::move(e));
+
+k.Start();
+
+auto result = future.get(); // Wait for the eventual to complete.
 ```
 
-But this ***blocks*** the current thread and except in tests is not (likely) what you want to do. Instead, to use the eventually computed value you want to create a "pipeline" of eventuals using the `|` operator:
+You'll often see this form in tests. You can reduce the above boilerplate further using an overloaded `operator*()`:
 
 ```cpp
-auto e2 = e
- | Eventual<std::string>()
-     .start([](auto& k, auto&& result) {
-       // Use result, either synchronously or asynchronously.
-       succeed(k, result.ToString());
-     });
+auto result = *AsynchronousFunction();
 ```
 
-And when you're all done add a `Terminal`:
+But this ***is blocking*** and shoud only be done in tests!
+
+Ok, let's dive into some eventuals!
+
+### `Just`
+
+The most basic of all eventuals, `Just()` allows you to inject a value into a pipeline:
 
 ```cpp
-auto e2 = e
- | Eventual<T>()
-     .start([](auto& k, auto&& result) {
-       // Use result, either synchronously or asynchronously.
-       succeed(k, use(result));
-     })
- | Terminal()
-     .start([](auto&& result) {
-       // Eventual pipeline succeeded!
-     })
-     .fail([](auto&& result) {
-       // Eventual pipeline failed!
-     })
-     .stop([](auto&& result) {
-       // Eventual pipeline stopped!
-     });
+Just("hello world");
 ```
 
-Then you can explicitly *start* the eventual:
+### `Then`
+
+Probably the most used of all the combinators, `Then()` continues a pipeline with the value that was asynchronously computed:
 
 ```cpp
-start(e);
+http::Get("https://3rdparty.dev")
+    | Then([](http::Response&& response) {
+        // Return an eventual that will automatically get started.
+        return SomeAsynchronousFunction(response);
+      });
 ```
 
-Note that once you start an eventual ***it must exist and can not be moved until after it has terminated***.
-
-#### Interrupting an Eventual
-
-Sometimes after you've started an eventual you'll want to cancel or stop it. You can do so by interrupting it. By default an eventual is not interruptible, but you can override the `.interrupt()` handler if you want to make your eventual interruptible:
+You don't have to return an eventual in the callable passed to `Then()`, you can also return a synchronous value:
 
 ```cpp
-auto e = Eventual<Result>()
-  .start([](auto& k) {
-    // Perform some asynchronous computation ...
-  })
-  .interrupt([](auto& k) {
-    // Try and interrupt the asynchronous computation.
-  });
+http::Get("https:://3rdparty.dev")
+    | Then([](auto&& response) {
+        // Return a value that will automatically get propagated.
+        return response.code == 200;
+      });
 ```
 
-Then you can register an interrupt and trigger the interrupt like so:
+### `If`
+
+When you need to _conditionally_ continue using two differently typed eventuals you use `If()`, i.e., an asynchronous "if" statement:
 
 ```cpp
-auto e = Eventual<Result>()
-  .start([](auto& k) {
-    // Perform some asynchronous computation ...
-  })
-  .interrupt([](auto& k) {
-    // Try and interrupt the asynchronous computation.
-  })
-  | Terminal()
-     .start([](auto&& result) {
-       // Eventual pipeline succeeded!
-     })
-     .fail([](auto&& result) {
-       // Eventual pipeline failed!
-     })
-     .stop([](auto&& result) {
-       // Eventual pipeline stopped!
-     });
-
-Interrupt interrupt;
-
-e.Register(interrupt);
-
-start(e);
-
-interrupt.Trigger();
+http::Get("https:://3rdparty.dev")
+    | Then([](auto&& response) {
+        // Try for the 'www' host if we don't get a 200.
+        return If(response.code != 200)
+            .then(http::Get("https:://www.3rdparty.dev"))
+            .otherwise(Just(response));
+      });
 ```
 
-Note that there may be other reasons why you want to "interrupt" an eventual, so rather than call this functionality explicitly "cancel", we chose the more broad "interrupt". When creating a general abstraction, however, error on the side of assuming that interrupt means cancel.
+`If()` uses the builder pattern for specifying the "then" and "else" branch, the latter of which we call "otherwise" since "else" is a reserved keyword. Both `.then()` and `.otherwise()` expect an eventual, but if you wanted to do any extra processing you can do so with a `Then()`:
+
+```cpp
+http::Get("https:://3rdparty.dev")
+    | Then([](auto&& response) {
+        // Try for the 'www' host if we don't get a 200.
+        return If(response.code != 200)
+            .then(http::Get("https:://www.3rdparty.dev"))
+            .otherwise(Then([body = response.body]() {
+              return "Received HTTP Status OK with body: " + body;
+            }));
+      });
+```
 
 ### Errors and Error Handling
 
@@ -382,7 +322,7 @@ auto GetBody(const std::string& uri) {
 }
 ```
 
-But note that `If()` is not _only_ useful for errors; it can also be used anytime you have conditional continuations:
+But as we already saw `If()` is not _only_ useful for errors; it can also be used anytime you have conditional continuations:
 
 ```cpp
 auto GetOrRedirect(const std::string& uri, const std::string& redirect_uri) {
@@ -396,145 +336,234 @@ auto GetOrRedirect(const std::string& uri, const std::string& redirect_uri) {
 }
 ```
 
-### `Then`
-
-When your continuation is ***asynchronous*** (i.e., you need to create another eventual based on the result of an eventual) but you *don't* need the explicit control that you have with an `Eventual` you can use `Then`:
-
-```cpp
-auto e = Eventual<T>()
-  .start([](auto& k) {
-    auto thread = std::thread(
-        [&k]() mutable {
-          // Perform some asynchronous computation ...
-          auto result = ...;
-          succeed(k, result);
-        });
-    thread.detach();
-  })
-  | Then([](auto&& result) {
-    // Return an eventual that will automatically get started.
-    return SomeAsynchronousComputation(result);
-  };
-```
-
-Sometimes your continuation is synchronous, i.e., it will block the current thread. While you can still use an `Eventual` you can also simplify by using a `Then`:
-
-```cpp
-auto e = Eventual<T>()
-  .start([](auto& k) {
-    auto thread = std::thread(
-        [&k]() mutable {
-          // Perform some asynchronous computation ...
-          auto result = ...;
-          succeed(k, result);
-        });
-    thread.detach();
-  })
-  | Then([](auto&& result) {
-    // Return some value ***synchronously**.
-    return stringify(result);
-  });
-```
-
-### `Just`
-
-You can inject a value into an eventual pipeline using `Just`. This can be useful when you don't care about the result of another eventual as well as with [`Conditional`](#conditional).
-
-```cpp
-auto e = Eventual<T>()
-  .start([](auto& k) {
-    auto thread = std::thread(
-        [&k]() mutable {
-          // Perform some asynchronous computation ...
-          auto result = ...;
-          succeed(k, result);
-        });
-    thread.detach();
-  })
-  | Just("value");
-```
-
-### `Raise`
-
-While `Just` is for continuing a pipeline "successfully", `Raise` can be used to trigger the failure path. Again, this becomes very useful with constructs like [`Conditional`](#conditional) amongst others.
-
-```cpp
-auto e = Raise(Error());
-```
-
-### `Conditional`
-
-Sometimes how you want to asynchronously continue depends on some value computed asynchrhonously. You can use 'Conditional' to capture this pattern, e.g., an asynchronous "if else" statement:
-
-```cpp
-auto e = Just(1)
-  | Conditional(
-        [](int n) {
-          return n < 0;
-        },
-        [](int n) {
-          return HandleLessThan(n);
-        },
-        [](int n) {
-          return HandleGreaterThanOrEqual(n);
-        });
-```
-
 ### Synchronization
 
-Synchronization is just as necessary with asynchronous code as with synchronous code, except you can't use existing abstractions like `std::mutex` because these are blocking! Instead, you need to use asynchronous aware versions:
+Synchronization is just as necessary with asynchronous code as with synchronous code, except you can't use existing abstractions like `std::mutex` because these are blocking! Instead, you need to use asynchronous aware replacements such as `Lock`:
 
 
 ```cpp
 Lock lock;
 
-auto e = Acquire(&lock)
-  | Eventual<T>()
-      .start([](auto& k) {
-        auto thread = std::thread(
-            [&k]() mutable {
-              // Perform some asynchronous computation ...
-              auto result = ...;
-              succeed(k, result);
-            });
-        thread.detach();
+AsynchronousFunction()
+    | Acquire(&lock)
+    | Then([](auto&& result) {
+        // Protected by 'lock' ...
       })
-  | Release(&lock);
+    | Release(&lock);
 ```
 
-This is often used when capturing `this` to use as part of some asynchronous computation. To simplify this common pattern you can actually extend your classes with `Synchronizable` and then do:
+This is often used when capturing `this` to use as part of some asynchronous computation. To simplify this common pattern you can extend your classes with `Synchronizable` and then use `Synchronized()`:
 
 ```cpp
-auto e = Synchronized(
-    Eventual<T>()
-      .start([this](auto& k) {
-        auto thread = std::thread(
-            [&k]() mutable {
-              // Perform some asynchronous computation using `this`.
-              auto result = ...;
-              succeed(k, result);
-            });
-        thread.detach();
-      }));
+class MyClass : public Synchronizable {
+ public:
+  auto MyMethod() {
+    return Synchronized(
+        | Then([](auto&& result) {
+            // Protected by 'Synchronizable::lock()' ...
+          }));
+  }
+};
 ```
 
 #### `Wait`
 
-Sometimes you need to "wait" for a specific condition to become true while holding on to the lock. You can do that using `Wait`:
+Sometimes you need to "wait" for a specific condition to become true while holding on to the lock, similar to what you'd use a condition variable for. With eventuals you can use `Wait()` which works similarly to how Java provides the ability to call `wait()` and `notify()` on any object:
 
 ```cpp
-auto e = Synchronized(
-    Wait<std::string>() // NOTE: need to specify `&lock` when not using `Synchronized()`.
-      .condition([this](auto& k) {
-        if (...) {
-          auto callback = [&k]() { notify(k); };
-          // Save 'callback' in order to recheck the condition.
-          wait(k);
-        } else {
-          succeed(k, ...);
-        }
-      }));
+class MyClass : public Synchronizable {
+ public:
+  auto MyMethod() {
+    return Synchronized(
+        // Need to wait until we've completed initialization.
+        Wait([this](auto notify) {
+          notify_ = std::move(notify);
+          return [this]() {
+            return !initialized_;
+          };
+        })
+        | Then([](auto&& result) {
+            // ...
+          }));
+  }
+
+ private:
+  bool initalized_ = false;
+};
 ```
+
+Let's break down what's happening here. First, `Wait()` takes a callable that gets _passed_ a callable that when invoked does a "notify" for this "wait". You'll want to save this. Convention is to name this variable with the prefix `notify`, e.g., `notify_x` when you have more than one of these that you need to save. `Wait()` expects you'll return a callable that it will invoke every time it needs to check the condition which will return a boolean whether or not it should keep waiting (if it returns `true` then it keeps waiting and `false` means it stops waiting). Just like a condition variable and Java's object wait/notify mechanism, the condition you're waiting for is checked initially and then only again when there is a "notify", i.e., you do a `notify()` (or a `notify_x()`). Also, just like a condition variable, when you wait the lock is released so other `Synchronized()` or `Acquire()` eventuals can proceed!
+
+For a good example of `Synchronized()` and `Wait()` see `eventuals/pipe.h`.
+
+### `Task`
+
+You can use a `Task` to type-erase your continuation or pipeline. Currently this performs dynamic heap allocation but in the future we'll likely provide a `SizedTask` version that lets you specify the size such that you can type-erase without requiring dynamic heap allocation. Note however, that `Task` requires a callable in order to delay the dynamic heap allocation until the task is started so that the current scheduler has a chance of optimizing the allocation based on the current execution resource being used (e.g., allocating from the local NUMA node for the current thread).
+
+```cpp
+Task::Of<int> task = []() { return Asynchronous(); };
+```
+
+You can compose a `Task::Of` just like any other eventual as well:
+
+```cpp
+auto e = Task::Of<int>([]() { return Asynchronous(); })
+    | Then([](int i) {
+           return stringify(i);
+         });
+```
+
+A `Task::Of` needs to be terminated just like any other eventual unless the callable passed to `Task` is terminted. In tests you can use `*` just like you can with any other eventual, but remember this ***blocks*** the current thread!
+
+### Abstract Classes and Virtual Methods
+
+You can create abstract classes that allow derived classes to either provide a synchronous or asynchronous implementation using `Task::Of`. Consider the following class:
+
+```cpp
+class Base {
+ public:
+  virtual Task::Of<std::string> Method() = 0;
+};
+```
+
+Now a derived class that has a _synchronous_ implementation:
+
+```cpp
+class DerivedSynchronous : public Base {
+ public:
+  Task::Of<std::string> Method() override {
+    if (SomeCondition()) {
+      return Task::Success("success");
+    } else {
+      return Task::Failure("failure");
+    }
+  }
+};
+```
+
+This is similar to `Expected()` and `Unexpected()`, but named explicitly to avoid confusion.
+
+And a derived class that has an _asynchronous_ implementation:
+
+```cpp
+class DerivedAsynchronous : public Base {
+ public:
+  Task::Of<std::string> Method() override {
+    return []() {
+      return AsynchronousFunction()
+          | Then([](bool condition) -> Expected::Of<std::string> {
+               if (condition) {
+                 return Expected("success");
+               } else {
+                 return Unexpected("failure");
+               }
+             });
+    };
+  }
+};
+```
+
+### `Eventual`
+
+When you need more control over the asynchronous computation you use `Eventual`. Here's a simple one:
+
+```cpp
+Eventual<std::string>([](auto& k) {
+  k.Start("hello world");
+});
+```
+
+This will _eventually_ start `k`, the next eventual in the pipeline (in continuation form), with the value `"hello world"`.
+
+You can more explicitly create an eventual by following the "builder pattern":
+
+```cpp
+Eventual()
+    .start([](auto& k) {
+      k.Start("hello world");
+    });
+```
+
+This is useful when you also want to specify what to do when either a failure or stop is being propgated from the previous eventual in the pipeline:
+
+```cpp
+Eventual<std::string>()
+    .start([](auto& k) {
+      k.Start("hello world");
+    })
+    .fail([](auto& k, auto&&... errors) {
+      // Handle raised errors.
+    })
+    .stop([](auto& k) {
+      // Handle stopped computation.
+    })
+```
+
+Each callback takes the continuation `k` and continues the pipeline as it sees fit (i.e., the `fail` callback can "recover" and call `k.Start(...)` if it wants).
+
+You can also call `.context()` which allows you to "capture" data that you can use in each callback:
+
+```cpp
+Eventual<std::string>()
+    .context("hello world")
+    .start([](auto& data, auto& k) {
+      k.Start(data);
+    })
+    .fail([](auto& data, auto& k, auto&&... errors) {
+      // Handle raised errors.
+    })
+    .stop([](auto& data, auto& k) {
+      // Handle stopped computation.
+    });
+```
+
+In many cases you can simply capture what you need in an individual callback, but sometimes you may need to use data across callbacks.
+
+#### Interrupting an Eventual
+
+Sometimes after you've started an eventual you'll want to cancel or stop it. You can do so by interrupting it. By default an eventual is not interruptible, but you can make it interruptible by doing the following:
+
+```cpp
+Eventual<std::string>()
+    .interruptible()
+    .start([](auto& k, Interrupt::Handler& handler) {
+      handler.Install([&k]() {
+        // Handle interruption ... in this case by
+        // propagating 'Stop()' to the next eventual.
+        k.Stop();
+      });
+      k.Start("hello world");
+    });
+```
+
+The above example isn't very interesting because the start callable isn't actually asynchronous, but if it was then you can manage whether or not you call `k.Start(...)` or `k.Stop()` or `k.Fail(...)` depending on when you get an interrupt and what your semantics are for handling interrupts.
+
+You can register an interrupt with an eventual (pipeline) and trigger the interrupt like so:
+
+```cpp
+auto [future, k] = Terminate(
+    Eventual<std::string>()
+        .interruptible()
+        .start([](auto& k, Interrupt::Handler& handler) {
+          handler.Install([&k]() {
+            k.Stop();
+          });
+          // Imitate a really long asynchronous computation by just never
+          // starting the continuation 'k' ...
+        }));
+
+Interrupt interrupt;
+
+k.Register(interrupt);
+
+k.Start();
+
+interrupt.Trigger();
+
+future.get(); // Will throw an exception that the eventual was interrupted!
+```
+
+Note we chose the more broad "interrupt" instead of "cancel" as there may be many possible reasons for "interrupting" an eventual beyond just for "cancellation". When creating a general abstraction, however, error on the side of assuming that interrupt means cancel.
 
 ### `Stream`, `Repeat`, and `Loop`
 
@@ -545,7 +574,7 @@ You "convert" a stream back into an eventual with a `Loop` and use `next()`, `do
 By default streams are not buffered so as to be able to provide explicit flow control and back pressure. Here's a simple stream and loop:
 
 ```cpp
-auto e = Stream<int>()
+Stream<int>()
   .context(5)
   .next([](auto& count, auto& k) {
     if (count-- > 0) {
@@ -568,51 +597,28 @@ auto e = Stream<int>()
 You can construct a stream out of repeated asynchronous computations using `Repeat`:
 
 ```cpp
-auto e = Repeat(Asynchronous());
+Repeat([]() { return Asynchronous(); });
 ```
 
-`Repeat` acts just like `Stream` where you can continue it with a `Loop` that calls `next()` and `done()`. By default a `Repeat` will repeat forever (i.e., for every call to `next()`) but you can override the default behavior during construction:
+`Repeat()` acts just like `Stream()` where you can continue it with a `Loop()` that calls `next()` and `done()` for you.
 
+### `Map` and `Reduce`
 
-```cpp
-auto e = Repeat(Then([](int n) { return Asynchronous(n); }))
-  .context(5) // Only repeat 5 times.
-  .next([](auto& count, auto& k) {
-    if (count-- > 0) {
-      repeat(k, count);
-    } else {
-      ended(k);
-    }
-  });
-```
-
-### `Map`
-
-Often times you'll want to perform some transformations on your stream. You can do that with `Map`. Here's an example of doing a "map reduce":
+Often times you'll want to perform some transformations on your stream. You can do that with `Map()`. Here's an example of doing a "map reduce":
 
 ```cpp
-auto e = Stream<int>()
-  .context(5)
-  .next([](auto& count, auto& k) {
-    if (count-- > 0) {
-      emit(k, count);
-    } else {
-      ended(k);
-    }
-  })
-  | Map(Eventual<int>()
-        .start([](auto& k, auto&& i) {
-          succeed(k, i + 1);
-        }))
-  | Loop<int>()
-     .context(0)
-     .body([](auto& sum, auto& stream, auto&& value) {
-       sum += value;
-       next(stream);
-     })
-     .ended([](auto& sum, auto& k) {
-       succeed(k, sum);
-     });
+Iterate({1, 2, 3, 4, 5})
+    | Map([](int i) {
+        return i + 1;
+      })
+    | Reduce(
+        /* sum = */ 0,
+        [](auto& sum) {
+          return Then([&](auto&& value) {
+            sum += value;
+            return true;
+          });
+        });
 ```
 
 ### Infinite `Loop`
@@ -620,37 +626,10 @@ auto e = Stream<int>()
 Sometimes you'll have an infinite stream. You can loop over it infinitely by using `Loop()`:
 
 ```cpp
-auto e = SomeInfiniteStream()
-  | Map(Then([](auto&& i) { return Foo(i); }))
+SomeInfiniteStream()
+  | Map([](auto&& i) { return Foo(i); })
   | Loop(); // Infinitely loop.
 ```
-
-### `Task`
-
-You can use a `Task` to type-erase your continuation or pipeline. Currently this performs dynamic heap allocation but in the future we'll likely provide a `SizedTask` version that lets you specify the size such that you can type-erase without requiring dynamic heap allocation. Note however, that `Task` requires a callable/lambda in order to delay the dynamic heap allocation until the task is started so that the current scheduler has a chance of optimizing the allocation based on the current execution resource being used (e.g., allocating from the local NUMA node for the current thread).
-
-```cpp
-Task<int> task = []() { return Asynchronous(); };
-```
-
-You can compose a `Task` just like any other eventual as well:
-
-```cpp
-auto e = Task<int>([]() { return Asynchronous(); })
-  | [](int i) {
-    return stringify(i);
-  };
-```
-
-A `Task` needs to be terminated just like any other eventual unless the callable/lambda passed to `Task` is terminted. In tests you can use `*` to add a terminal for you, but again, be careful as this ***blocks*** the current thread!
-
-```cpp
-string s = *e; // BLOCKING! Only use in tests.
-```
-
-#### Scheduling and Memory
-
-*... to be completed ...*
 
 ### `http`
 
@@ -800,6 +779,30 @@ std::filesystem::path path = "/path/to/certificate";
 
 Expected::Of<x509::Certificate> certificate = pem::ReadCertificate(path);
 ```
+
+### Scheduling and Memory Allocation
+
+*... to be completed ...*
+
+### Bazel
+
+You can easily incorporate eventuals into your own build if you're using Bazel.
+
+Copy `bazel/repos.bzl` into the directory `3rdparty/eventuals` of your
+own project/workspace and add an empty `BUILD.bazel` into that
+directory as well.
+
+Now you can add the following to your `WORKSPACE` (or `WORKSPACE.bazel`):
+
+```
+load("//3rdparty/eventuals:repos.bzl", eventuals_repos = "repos")
+eventuals_repos()
+
+load("@com_github_3rdparty_eventuals//bazel:deps.bzl", eventuals_deps="deps")
+eventuals_deps()
+```
+
+You can then depend on `@eventuals//:eventuals` in your Bazel targets.
 
 ## Contributing
 
