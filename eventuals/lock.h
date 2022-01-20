@@ -460,11 +460,8 @@ struct _Wait {
               // and we make sure we're not notifiable after the first
               // notification so we don't try and add ourselves to the
               // list of waiters again.
-              //
-              // TODO(benh): make sure *we've* acquired the lock
-              // (where 'we' is the current "eventual").
               if (notifiable_) {
-                CHECK(!lock_->Available());
+                CHECK(lock_->OwnedByCurrentSchedulerContext());
 
                 EVENTUALS_LOG(2)
                     << "'" << CHECK_NOTNULL(waiter_.context)->name()
@@ -682,6 +679,73 @@ class Synchronizable {
 
  private:
   Lock lock_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+class ConditionVariable {
+ public:
+  ConditionVariable(Lock* lock)
+    : lock_(CHECK_NOTNULL(lock)) {}
+
+  auto Wait() {
+    return eventuals::Wait(
+        lock_,
+        [this, waiter = Waiter()](auto notify) mutable {
+          waiter.notify = std::move(notify);
+          if (head_ == nullptr) {
+            head_ = &waiter;
+          } else if (head_->next == nullptr) {
+            head_->next = &waiter;
+          } else {
+            auto* next = head_->next;
+            while (next->next != nullptr) {
+              next = next->next;
+            }
+            next->next = &waiter;
+          }
+          return [&waiter]() mutable {
+            return !waiter.notified;
+          };
+        });
+  }
+
+  void Notify() {
+    CHECK(lock_->OwnedByCurrentSchedulerContext());
+    Waiter* waiter = head_;
+    if (waiter != nullptr) {
+      head_ = waiter->next;
+
+      waiter->next = nullptr;
+      waiter->notified = true;
+      waiter->notify();
+    }
+  }
+
+  void NotifyAll() {
+    CHECK(lock_->OwnedByCurrentSchedulerContext());
+    while (head_ != nullptr) {
+      Notify();
+    }
+  }
+
+ private:
+  Lock* lock_ = nullptr;
+
+  // Using an _intrusive_ linked list here so we don't have to do any
+  // dynamic memory allocation for each waiter. Instead the allocation
+  // takes place "on the stack" as part of the 'Wait()' above. This is
+  // safe because it must be the case that 'Notify()' has been called
+  // in order for 'Wait()' to return and thus there are no races with
+  // accessing any of the linked list 'next' pointers.
+  struct Waiter {
+    Callback<> notify;
+    bool notified = false;
+    Waiter* next = nullptr;
+  };
+
+  // Head of the intrusive linked list of waiters.
+  Waiter* head_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////

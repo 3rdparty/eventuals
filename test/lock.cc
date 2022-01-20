@@ -2,6 +2,7 @@
 
 #include <thread>
 
+#include "eventuals/if.h"
 #include "eventuals/iterate.h"
 #include "eventuals/just.h"
 #include "eventuals/map.h"
@@ -13,7 +14,9 @@
 
 using eventuals::Acquire;
 using eventuals::Callback;
+using eventuals::ConditionVariable;
 using eventuals::Eventual;
+using eventuals::If;
 using eventuals::Interrupt;
 using eventuals::Iterate;
 using eventuals::Just;
@@ -292,4 +295,86 @@ TEST(LockTest, SynchronizedMap) {
   Foo foo;
 
   EXPECT_EQ(5, *foo.Operation());
+}
+
+
+TEST(LockTest, ConditionVariable) {
+  struct Foo : public Synchronizable {
+    auto WaitFor(int id) {
+      return Synchronized(Then([this, id]() {
+        auto [iterator, inserted] = condition_variables_.emplace(id, &lock());
+        auto& condition_variable = iterator->second;
+        return condition_variable.Wait();
+      }));
+    }
+
+    auto NotifyFor(int id) {
+      return Synchronized(Then([this, id]() {
+        auto iterator = condition_variables_.find(id);
+        return If(iterator == condition_variables_.end())
+            .then(Just(false))
+            .otherwise(Then([iterator]() {
+              auto& condition_variable = iterator->second;
+              condition_variable.Notify();
+              return true;
+            }));
+      }));
+    }
+
+    auto NotifyAllFor(int id) {
+      return Synchronized(Then([this, id]() {
+        auto iterator = condition_variables_.find(id);
+        return If(iterator == condition_variables_.end())
+            .then(Just(false))
+            .otherwise(Then([iterator]() {
+              auto& condition_variable = iterator->second;
+              condition_variable.NotifyAll();
+              return true;
+            }));
+      }));
+    }
+
+    std::map<int, ConditionVariable> condition_variables_;
+  };
+
+  Foo foo;
+
+  auto [future1, k1] = Terminate(foo.WaitFor(42));
+  auto [future2, k2] = Terminate(foo.WaitFor(42));
+  auto [future3, k3] = Terminate(foo.WaitFor(42));
+
+  k1.Start();
+  k2.Start();
+  k3.Start();
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future1.wait_for(std::chrono::seconds(0)));
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future2.wait_for(std::chrono::seconds(0)));
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future3.wait_for(std::chrono::seconds(0)));
+
+  EXPECT_FALSE(*foo.NotifyFor(41));
+
+  EXPECT_TRUE(*foo.NotifyFor(42));
+
+  future1.get();
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future2.wait_for(std::chrono::seconds(0)));
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future3.wait_for(std::chrono::seconds(0)));
+
+  EXPECT_TRUE(*foo.NotifyAllFor(42));
+
+  future2.get();
+  future3.get();
 }
