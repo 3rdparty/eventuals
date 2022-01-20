@@ -1,0 +1,49 @@
+# Workflow for building and testing eventuals:grpc on
+# macOS, Ubuntu. In future we gonna run this job for
+# Windows.  
+name: Build and Run all tests
+
+on:
+  push:
+    branches:
+      - "**"
+    paths-ignore:
+      - "**.md"
+  
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ["macos-latest", "ubuntu-latest"]
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      # Checkout the repository under $GITHUB_WORKSPACE.
+      - uses: actions/checkout@v2
+
+      - name: Build
+        run: |
+          bazel build \
+            --spawn_strategy=local \
+            -c dbg \
+            --strip="never" \
+            :grpc       
+
+      - name: Test
+        run: | 
+          bazel test \
+            --spawn_strategy=local \
+            -c dbg \
+            --strip="never" \
+            --test_output=errors \
+            test:grpc \
+            --test_arg=--gtest_shuffle \
+            --test_arg=--gtest_repeat=100
+
+      - name: Debug using tmate (if failure)
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3  
