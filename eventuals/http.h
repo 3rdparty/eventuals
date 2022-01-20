@@ -28,6 +28,8 @@ enum Method {
 // First string is key, second is value.
 // TODO(folming): switch to RapidJSON.
 using PostFields = std::vector<std::pair<std::string, std::string>>;
+using Header = std::pair<std::string, std::string>;
+using Headers = std::vector<Header>;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +79,7 @@ class Request {
 
   std::string uri_;
   Method method_;
-  std::vector<std::pair<std::string, std::string>> headers_;
+  Headers headers_;
   std::string body_;
   std::chrono::nanoseconds timeout_;
   PostFields fields_;
@@ -231,9 +233,7 @@ class Request::_Builder : public builder::Builder {
       builder::Field<PostFields, has_fields_> fields,
       builder::Field<bool, has_verify_peer_> verify_peer,
       builder::Field<x509::Certificate, has_certificate_> certificate,
-      builder::FieldWithDefault<
-          std::vector<std::pair<std::string, std::string>>,
-          has_headers_> headers)
+      builder::FieldWithDefault<Headers, has_headers_> headers)
     : uri_(std::move(uri)),
       method_(std::move(method)),
       timeout_(std::move(timeout)),
@@ -248,10 +248,7 @@ class Request::_Builder : public builder::Builder {
   builder::Field<PostFields, has_fields_> fields_;
   builder::Field<bool, has_verify_peer_> verify_peer_;
   builder::Field<x509::Certificate, has_certificate_> certificate_;
-  builder::FieldWithDefault<
-      std::vector<std::pair<std::string, std::string>>,
-      has_headers_>
-      headers_ = std::vector<std::pair<std::string, std::string>>{};
+  builder::FieldWithDefault<Headers, has_headers_> headers_ = Headers{};
 };
 
 ////////////////////////////////////////////////////////////////////////
