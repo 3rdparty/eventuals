@@ -366,35 +366,47 @@ class MyClass : public Synchronizable {
 };
 ```
 
-#### `Wait`
+#### `ConditionVariable`
 
-Sometimes you need to "wait" for a specific condition to become true while holding on to the lock, similar to what you'd use a condition variable for. With eventuals you can use `Wait()` which works similarly to how Java provides the ability to call `wait()` and `notify()` on any object:
+Sometimes you need to "wait" for a specific condition to become true while holding on to the lock, e.g., you need a condition variable. You can do that with a `ConditionVariable`:
 
 ```cpp
-class MyClass : public Synchronizable {
+class SomeAggregateSystem : public Synchronizable {
  public:
+  SomeAggregateSystem()
+    : initialization_(&lock()) {}
+
   auto MyMethod() {
     return Synchronized(
         // Need to wait until we've completed initialization.
-        Wait([this](auto notify) {
-          notify_ = std::move(notify);
-          return [this]() {
-            return !initialized_;
-          };
+        initalization_.Wait([]() {
+          return cooling_subsystem_initialized_
+              && safety_subsystem_initialized_;
         })
         | Then([](auto&& result) {
             // ...
           }));
   }
 
+  auto InitializeCoolingSubsystem() {
+    return CoolingSubsystemInitialization()
+        | Synchronized(
+               Then([this]() {
+                 cooling_subsystem_initialized_ = true;
+                 initialization_.Notify();
+               }));
+  }
+
+  auto InitializeSafetySubsystem() { ... }
+
  private:
-  bool initalized_ = false;
+  ConditionVariable initialization_;
 };
 ```
 
-Let's break down what's happening here. First, `Wait()` takes a callable that gets _passed_ a callable that when invoked does a "notify" for this "wait". You'll want to save this. Convention is to name this variable with the prefix `notify`, e.g., `notify_x` when you have more than one of these that you need to save. `Wait()` expects you'll return a callable that it will invoke every time it needs to check the condition which will return a boolean whether or not it should keep waiting (if it returns `true` then it keeps waiting and `false` means it stops waiting). Just like a condition variable and Java's object wait/notify mechanism, the condition you're waiting for is checked initially and then only again when there is a "notify", i.e., you do a `notify()` (or a `notify_x()`). Also, just like a condition variable, when you wait the lock is released so other `Synchronized()` or `Acquire()` eventuals can proceed!
+If you just want to wait for a single call to `Notify()` you can invoke `Wait()` with no arguments.
 
-For a good example of `Synchronized()` and `Wait()` see `eventuals/pipe.h`.
+For a good example of `Synchronized()` and `ConditionVariable` see `eventuals/pipe.h`.
 
 ### `Task`
 
