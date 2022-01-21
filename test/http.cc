@@ -3,7 +3,9 @@
 #include "event-loop-test.h"
 #include "eventuals/eventual.h"
 #include "eventuals/interrupt.h"
+#include "eventuals/let.h"
 #include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/http-mock-server.h"
@@ -12,7 +14,9 @@ namespace http = eventuals::http;
 
 using eventuals::EventLoop;
 using eventuals::Interrupt;
+using eventuals::Let;
 using eventuals::Terminate;
+using eventuals::Then;
 
 class HttpTest
   : public EventLoopTest,
@@ -55,6 +59,61 @@ TEST_P(HttpTest, Get) {
   EXPECT_THAT(response.headers(), testing::ContainsRegex("Foo: Bar"));
   EXPECT_EQ("<html>Hello World!</html>", response.body());
 }
+
+
+TEST_P(HttpTest, GetGet) {
+  std::string scheme = GetParam();
+
+  HttpMockServer server(scheme);
+
+  // NOTE: using an 'http::Client' configured to work for the server.
+  http::Client client = server.Client();
+
+  EXPECT_CALL(server, ReceivedHeaders)
+      .WillOnce([](auto socket, const std::string& data) {
+        socket->Send(
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Length: 26\r\n"
+            "\r\n"
+            "<html>Hello Nikita!</html>\r\n"
+            "\r\n");
+
+        socket->Close();
+      })
+      .WillOnce([](auto socket, const std::string& data) {
+        socket->Send(
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Length: 23\r\n"
+            "\r\n"
+            "<html>Hello Ben!</html>\r\n"
+            "\r\n");
+
+        socket->Close();
+      });
+
+  auto e = client.Get(server.uri())
+      | Then(Let([&](auto& response1) {
+             return client.Get(server.uri())
+                 | Then([&](auto&& response2) {
+                      return std::tuple{response1, response2};
+                    });
+           }));
+
+  auto [future, k] = Terminate(std::move(e));
+
+  k.Start();
+
+  EventLoop::Default().RunUntil(future);
+
+  auto [response1, response2] = future.get();
+
+  EXPECT_EQ(200, response1.code());
+  EXPECT_EQ("<html>Hello Nikita!</html>", response1.body());
+
+  EXPECT_EQ(200, response2.code());
+  EXPECT_EQ("<html>Hello Ben!</html>", response2.body());
+}
+
 
 TEST_P(HttpTest, GetFailTimeout) {
   std::string scheme = GetParam();
