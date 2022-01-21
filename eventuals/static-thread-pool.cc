@@ -9,7 +9,8 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 StaticThreadPool::StaticThreadPool()
-  : concurrency(std::thread::hardware_concurrency()) {
+  : Scheduler::Scheduler(Scheduler::SchedulerType::StaticThreadPoolScheduler_),
+    concurrency(std::thread::hardware_concurrency()) {
   semaphores_.reserve(concurrency);
   heads_.reserve(concurrency);
   threads_.reserve(concurrency);
@@ -112,7 +113,12 @@ StaticThreadPool::~StaticThreadPool() {
 ////////////////////////////////////////////////////////////////////////
 
 void StaticThreadPool::Submit(Callback<> callback, Context* context) {
-  auto* waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
+  Waiter* waiter = nullptr;
+  if (!context->data_) {
+    waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
+  } else {
+    waiter = static_cast<Waiter*>(CHECK_NOTNULL(context->data_));
+  }
 
   CHECK(!waiter->waiting) << waiter->name();
   CHECK(waiter->next == nullptr) << waiter->name();
@@ -163,6 +169,23 @@ bool StaticThreadPool::Continuable(Context* context) {
   unsigned int core = pinned.core.value();
 
   return StaticThreadPool::member && StaticThreadPool::core == core;
+}
+
+void StaticThreadPool::Clone(Context* context) {
+  //StaticThreadPool::Waiter* c =
+  //       (StaticThreadPool::Waiter*) Scheduler::Context::Get();
+
+  //   StaticThreadPool::Waiter waiter(
+  //       (StaticThreadPool*) scheduler(),
+  //       c->requirements());
+  //   saved_ = std::move(waiter);
+  //   data_ = &saved_.value();
+
+  StaticThreadPool::Waiter* c =
+      (StaticThreadPool::Waiter*) Scheduler::Context::Get();
+
+  context->data_ =
+      new Waiter((StaticThreadPool*) context->scheduler(), c->requirements());
 }
 
 ////////////////////////////////////////////////////////////////////////

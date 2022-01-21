@@ -2,7 +2,6 @@
 
 #include <atomic>
 #include <deque>
-#include <memory>
 #include <thread>
 #include <vector>
 
@@ -51,7 +50,9 @@ class StaticThreadPool : public Scheduler {
 
   struct Waiter : public Scheduler::Context {
    public:
-    Waiter(StaticThreadPool* pool, Requirements* requirements)
+    Waiter(
+        StaticThreadPool* pool,
+        Requirements* requirements)
       : Scheduler::Context(pool),
         requirements_(requirements) {}
 
@@ -72,6 +73,15 @@ class StaticThreadPool : public Scheduler {
 
     auto* requirements() {
       return requirements_;
+    }
+
+    Waiter& operator=(Waiter&& that) {
+      // NOTE: should only get moved before it's "started".
+      CHECK(!that.waiting && !callback && next == nullptr);
+      setScheduler(that.scheduler());
+      requirements_ = that.requirements();
+
+      return *this;
     }
 
     bool waiting = false;
@@ -123,6 +133,8 @@ class StaticThreadPool : public Scheduler {
   bool Continuable(Context* context) override;
 
   void Submit(Callback<> callback, Context* context) override;
+
+  void Clone(Context* context) override;
 
   template <typename E>
   auto Schedule(Requirements* requirements, E e);

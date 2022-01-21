@@ -19,8 +19,27 @@ namespace eventuals {
 
 class Scheduler {
  public:
+  enum class SchedulerType {
+    NotSpecifiedScheduler_ = 0,
+    DefaultScheduler_ = 1,
+    StaticThreadPoolScheduler_ = 2,
+    UserTypeScheduler_ = 3,
+  };
+
+  Scheduler()
+    : scheduler_type_(SchedulerType::NotSpecifiedScheduler_) {}
+
+  Scheduler(SchedulerType scheduler_type)
+    : scheduler_type_(scheduler_type) {}
+
+  SchedulerType scheduler_type_;
+
   struct Context {
-    virtual ~Context() {}
+    virtual ~Context() {
+      if (data_) {
+        delete data_;
+      }
+    }
 
     static void Set(Context* context) {
       current_ = context;
@@ -74,6 +93,12 @@ class Scheduler {
       return scheduler_;
     }
 
+    void setScheduler(Scheduler* scheduler) {
+      scheduler_ = scheduler;
+    }
+
+    Context* data_ = nullptr;
+
    private:
     static thread_local Context* current_;
 
@@ -83,6 +108,8 @@ class Scheduler {
   static Scheduler* Default();
 
   virtual bool Continuable(Context* context) = 0;
+
+  virtual void Clone(Context* context){};
 
   virtual void Submit(Callback<> callback, Context* context) = 0;
 };

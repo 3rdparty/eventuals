@@ -10,6 +10,7 @@
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
 #include "eventuals/repeat.h"
+#include "eventuals/static-thread-pool.h"
 #include "eventuals/task.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
@@ -55,6 +56,7 @@ struct _Concurrent {
   // more functions than necessary (even if the compiler should be
   // able to figure this out, emperically this doesn't appear to be
   // the case, at least with clang).
+  template <typename T = StaticThreadPool::Waiter>
   struct TypeErasedAdaptor : public Synchronizable {
     // 'TypeErasedFiber' is used to type erase all fiber functionality
     // that can be used by 'TypeErasedAdaptor'.
@@ -71,7 +73,7 @@ struct _Concurrent {
     // 'CreateOrReuseFiber()').
     struct TypeErasedFiber : Scheduler::Context {
       TypeErasedFiber()
-        : Scheduler::Context(Scheduler::Default()) {}
+        : Scheduler::Context(Scheduler::Context::Get()->scheduler()) {}
 
       const std::string& name() override {
         // TODO(benh): differentiate the names of the fibers for
@@ -88,6 +90,20 @@ struct _Concurrent {
         interrupt.~Interrupt();
         new (&interrupt) class Interrupt();
       }
+
+      // void CloneStaticThreadPool() {
+      //   StaticThreadPool::Waiter* c =
+      //       (StaticThreadPool::Waiter*) Scheduler::Context::Get();
+
+      //   StaticThreadPool::Waiter waiter(
+      //       (StaticThreadPool*) scheduler(),
+      //       c->requirements());
+      //   saved_ = std::move(waiter);
+      //   data_ = &saved_.value();
+      // }
+
+      // For saving cloned context.
+      std::optional<T> saved_;
 
       // A fiber indicates it is done with this boolean.
       bool done = false;
@@ -477,10 +493,13 @@ struct _Concurrent {
       static_cast<Fiber<E>*>(fiber)->k.emplace(
           Build(FiberEventual(fiber, std::move(arg))));
 
-      // NOTE: we need to "submit" using the default scheduler so that
-      // each fiber will properly be using it's own scheduler context.
-      Scheduler::Default()->Submit(
+      //fiber->CloneStaticThreadPool();
+      fiber->scheduler()->Clone(fiber);
+
+      fiber->scheduler()->Submit(
           [fiber]() {
+            // Submitting on the 'cloned' context.
+            CHECK_EQ(Scheduler::Context::Get(), fiber->data_);
             static_cast<Fiber<E>*>(fiber)->k->Register(fiber->interrupt);
             static_cast<Fiber<E>*>(fiber)->k->Start();
           },
@@ -727,7 +746,17 @@ struct _Concurrent {
 
 template <typename F>
 auto Concurrent(F f) {
-  return _Concurrent::Composable<F>{std::move(f)};
+  switch (Scheduler::Context::Get()->scheduler()->scheduler_type_) {
+    case Scheduler::SchedulerType::DefaultScheduler_:
+      return _Concurrent::Composable<F>{std::move(f)};
+      // do DefaultScheduler structure.
+    case Scheduler::SchedulerType::StaticThreadPoolScheduler_:
+      return _Concurrent::Composable<StaticThreadPool::Waiter, F>{std::move(f)};
+    default:
+      LOG(FATAL) << "unreachable";
+  }
+
+  //return _Concurrent::Composable<F>{std::move(f)};
 }
 
 ////////////////////////////////////////////////////////////////////////

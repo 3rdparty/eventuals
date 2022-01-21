@@ -1,5 +1,6 @@
 #include "eventuals/scheduler.h"
 
+#include "eventuals/concurrent.h"
 #include "glog/logging.h" // For GetTID().
 
 ////////////////////////////////////////////////////////////////////////
@@ -47,6 +48,9 @@ class DefaultScheduler : public Scheduler {
     std::string name_;
   };
 
+  DefaultScheduler()
+    : Scheduler(Scheduler::SchedulerType::DefaultScheduler_) {}
+
   bool Continuable(Context*) override {
     return Context::Get()->scheduler() == this;
   }
@@ -55,6 +59,10 @@ class DefaultScheduler : public Scheduler {
     // Default scheduler does not defer because it can't (unless we
     // update all calls that "wait" on tasks to execute outstanding
     // callbacks).
+    if (context->data_) {
+      context = context->data_;
+    }
+
     Context* previous = Context::Switch(context);
 
     EVENTUALS_LOG(1)
@@ -65,6 +73,11 @@ class DefaultScheduler : public Scheduler {
     CHECK_EQ(context, Context::Get());
 
     Context::Switch(previous);
+  }
+
+  void Clone(Context* context) override {
+    context->data_ =
+        new DefaultContext(context->scheduler(), "default context");
   }
 };
 
