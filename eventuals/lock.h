@@ -688,10 +688,11 @@ class ConditionVariable {
   ConditionVariable(Lock* lock)
     : lock_(CHECK_NOTNULL(lock)) {}
 
-  auto Wait() {
+  template <typename F>
+  auto Wait(F f) {
     return eventuals::Wait(
         lock_,
-        [this, waiter = Waiter()](auto notify) mutable {
+        [this, f = std::move(f), waiter = Waiter()](auto notify) mutable {
           waiter.notify = std::move(notify);
           if (head_ == nullptr) {
             head_ = &waiter;
@@ -704,10 +705,18 @@ class ConditionVariable {
             }
             next->next = &waiter;
           }
-          return [&waiter]() mutable {
-            return !waiter.notified;
+          return [&]() {
+            if constexpr (std::is_same_v<F, EmptyCondition>) {
+              return f(waiter);
+            } else {
+              return f();
+            }
           };
         });
+  }
+
+  auto Wait() {
+    return Wait(EmptyCondition());
   }
 
   void Notify() {
@@ -746,6 +755,13 @@ class ConditionVariable {
 
   // Head of the intrusive linked list of waiters.
   Waiter* head_ = nullptr;
+
+  // Helper struct for when no condition function is specified.
+  struct EmptyCondition {
+    bool operator()(const Waiter& waiter) const {
+      return !waiter.notified;
+    }
+  };
 };
 
 ////////////////////////////////////////////////////////////////////////
