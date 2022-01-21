@@ -18,11 +18,14 @@ namespace eventuals {
 template <typename T>
 class Pipe : public Synchronizable {
  public:
+  Pipe()
+    : has_values_or_closed_(&lock()) {}
+
   auto Write(T&& value) {
     return Synchronized(Then([this, value = std::move(value)]() mutable {
       if (!is_closed_) {
         values_.emplace_back(std::move(value));
-        notify_();
+        has_values_or_closed_.Notify();
       }
     }));
   }
@@ -30,11 +33,10 @@ class Pipe : public Synchronizable {
   auto Read() {
     return Repeat()
         | Synchronized(
-               Wait([this](auto notify) {
-                 notify_ = std::move(notify);
-                 return [this]() {
+               Map([this]() {
+                 return has_values_or_closed_.Wait([this]() {
                    return values_.empty() && !is_closed_;
-                 };
+                 });
                })
                | Map([this]() {
                    if (!values_.empty()) {
@@ -58,7 +60,7 @@ class Pipe : public Synchronizable {
   auto Close() {
     return Synchronized(Then([this]() {
       is_closed_ = true;
-      notify_();
+      has_values_or_closed_.Notify();
     }));
   }
 
@@ -69,7 +71,7 @@ class Pipe : public Synchronizable {
   }
 
  private:
-  Callback<> notify_ = []() {};
+  ConditionVariable has_values_or_closed_;
   std::deque<T> values_;
   bool is_closed_ = false;
 };
