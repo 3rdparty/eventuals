@@ -359,9 +359,9 @@ class MyClass : public Synchronizable {
  public:
   auto MyMethod() {
     return Synchronized(
-        | Then([](auto&& result) {
-            // Protected by 'Synchronizable::lock()' ...
-          }));
+        Then([](auto&& result) {
+          // Protected by 'Synchronizable::lock()' ...
+        }));
   }
 };
 ```
