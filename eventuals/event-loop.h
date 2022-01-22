@@ -206,15 +206,15 @@ class EventLoop : public Scheduler {
           : k_(std::move(k)),
             clock_(clock),
             nanoseconds_(std::move(nanoseconds)),
-            start_(&clock.loop(), "Timer (start)"),
-            interrupt_(&clock.loop(), "Timer (interrupt)") {}
+            waiter_(&clock.loop(), "Timer (start/fail/stop)"),
+            interrupt_waiter_(&clock.loop(), "Timer (interrupt)") {}
 
         Continuation(Continuation&& that)
           : k_(std::move(that.k_)),
             clock_(that.clock_),
             nanoseconds_(std::move(that.nanoseconds_)),
-            start_(&that.clock_.loop(), "Timer (start)"),
-            interrupt_(&that.clock_.loop(), "Timer (interrupt)") {
+            waiter_(&that.clock_.loop(), "Timer (start/fail/stop)"),
+            interrupt_waiter_(&that.clock_.loop(), "Timer (interrupt)") {
           CHECK(!that.started_ || !that.completed_) << "moving after starting";
           CHECK(!handler_);
         }
@@ -294,18 +294,40 @@ class EventLoop : public Scheduler {
                         }
                       }
                     },
-                    &start_);
+                    &waiter_);
               },
               nanoseconds_);
         }
 
         template <typename... Args>
         void Fail(Args&&... args) {
-          k_.Fail(std::forward<Args>(args)...);
+          // TODO(benh): avoid allocating on heap by storing args in
+          // pre-allocated buffer based on composing with Errors.
+          using Tuple = std::tuple<decltype(this), Args...>;
+          auto tuple = std::make_unique<Tuple>(
+              this,
+              std::forward<Args>(args)...);
+
+          // Submitting to event loop to avoid race with interrupt.
+          loop().Submit(
+              [tuple = std::move(tuple)]() mutable {
+                std::apply(
+                    [](auto* continuation, auto&&... args) {
+                      auto& k_ = continuation->k_;
+                      k_.Fail(std::forward<decltype(args)>(args)...);
+                    },
+                    std::move(*tuple));
+              },
+              &waiter_);
         }
 
         void Stop() {
-          k_.Stop();
+          // Submitting to event loop to avoid race with interrupt.
+          loop().Submit(
+              [this]() {
+                k_.Stop();
+              },
+              &waiter_);
         }
 
         void Register(Interrupt& interrupt) {
@@ -342,7 +364,7 @@ class EventLoop : public Scheduler {
                     });
                   }
                 },
-                &interrupt_);
+                &interrupt_waiter_);
           });
 
           // NOTE: we always install the handler in case 'Start()'
@@ -376,8 +398,10 @@ class EventLoop : public Scheduler {
 
         int error_ = 0;
 
-        EventLoop::Waiter start_;
-        EventLoop::Waiter interrupt_;
+        // NOTE: we use 'waiter_' in each of 'Start()', 'Fail()', and
+        // 'Stop()' because only one of them will called at runtime.
+        EventLoop::Waiter waiter_;
+        EventLoop::Waiter interrupt_waiter_;
 
         std::optional<Interrupt::Handler> handler_;
       };
@@ -490,15 +514,15 @@ class EventLoop : public Scheduler {
         : k_(std::move(k)),
           loop_(loop),
           signum_(signum),
-          start_(&loop, "WaitForSignal (start)"),
-          interrupt_(&loop, "WaitForSignal (interrupt)") {}
+          waiter_(&loop, "WaitForSignal (start/fail/stop)"),
+          interrupt_waiter_(&loop, "WaitForSignal (interrupt)") {}
 
       Continuation(Continuation&& that)
         : k_(std::move(that.k_)),
           loop_(that.loop_),
           signum_(that.signum_),
-          start_(&that.loop_, "WaitForSignal (start)"),
-          interrupt_(&that.loop_, "WaitForSignal (interrupt)") {
+          waiter_(&that.loop_, "WaitForSignal (start/fail/stop)"),
+          interrupt_waiter_(&that.loop_, "WaitForSignal (interrupt)") {
         CHECK(!that.started_ || !that.completed_) << "moving after starting";
         CHECK(!handler_);
       }
@@ -556,16 +580,38 @@ class EventLoop : public Scheduler {
                 }
               }
             },
-            &start_);
+            &waiter_);
       }
 
       template <typename... Args>
       void Fail(Args&&... args) {
-        k_.Fail(std::forward<Args>(args)...);
+        // TODO(benh): avoid allocating on heap by storing args in
+        // pre-allocated buffer based on composing with Errors.
+        using Tuple = std::tuple<decltype(this), Args...>;
+        auto tuple = std::make_unique<Tuple>(
+            this,
+            std::forward<Args>(args)...);
+
+        // Submitting to event loop to avoid race with interrupt.
+        loop_.Submit(
+            [tuple = std::move(tuple)]() {
+              std::apply(
+                  [](auto* continuation, auto&&... args) {
+                    auto& k_ = continuation->k_;
+                    k_.Fail(std::forward<decltype(args)>(args)...);
+                  },
+                  std::move(*tuple));
+            },
+            &waiter_);
       }
 
       void Stop() {
-        k_.Stop();
+        // Submitting to event loop to avoid race with interrupt.
+        loop_.Submit(
+            [this]() {
+              k_.Stop();
+            },
+            &waiter_);
       }
 
       void Register(class Interrupt& interrupt) {
@@ -598,7 +644,7 @@ class EventLoop : public Scheduler {
                   });
                 }
               },
-              &interrupt_);
+              &interrupt_waiter_);
         });
 
         // NOTE: we always install the handler in case 'Start()'
@@ -628,8 +674,10 @@ class EventLoop : public Scheduler {
 
       int error_ = 0;
 
-      EventLoop::Waiter start_;
-      EventLoop::Waiter interrupt_;
+      // NOTE: we use 'waiter_' in each of 'Start()', 'Fail()', and
+      // 'Stop()' because only one of them will called at runtime.
+      EventLoop::Waiter waiter_;
+      EventLoop::Waiter interrupt_waiter_;
 
       std::optional<Interrupt::Handler> handler_;
     };
