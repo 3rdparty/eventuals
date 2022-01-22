@@ -419,8 +419,8 @@ struct _HTTP {
         easy_(curl_easy_init(), &curl_easy_cleanup),
         multi_(curl_multi_init(), &curl_multi_cleanup),
         curl_headers_(nullptr, &curl_slist_free_all),
-        start_(&loop, "HTTP (start)"),
-        interrupt_(&loop_, "HTTP (interrupt)") {}
+        waiter_(&loop, "HTTP (start/fail/stop)"),
+        interrupt_waiter_(&loop_, "HTTP (interrupt)") {}
 
     Continuation(Continuation&& that)
       : k_(std::move(that.k_)),
@@ -430,8 +430,8 @@ struct _HTTP {
         easy_(std::move(that.easy_)),
         multi_(std::move(that.multi_)),
         curl_headers_(std::move(that.curl_headers_)),
-        start_(&that.loop_, "HTTP (start)"),
-        interrupt_(&that.loop_, "HTTP (interrupt)") {
+        waiter_(&that.loop_, "HTTP (start/fail/stop)"),
+        interrupt_waiter_(&that.loop_, "HTTP (interrupt)") {
       CHECK(!that.started_ || !that.completed_) << "moving after starting";
       CHECK(!handler_);
     }
@@ -957,16 +957,38 @@ struct _HTTP {
                   CURLM_OK);
             }
           },
-          &start_);
+          &waiter_);
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
-      k_.Fail(std::forward<Args>(args)...);
+      // TODO(benh): avoid allocating on heap by storing args in
+      // pre-allocated buffer based on composing with Errors.
+      using Tuple = std::tuple<decltype(this), Args...>;
+      auto tuple = std::make_unique<Tuple>(
+          this,
+          std::forward<Args>(args)...);
+
+      // Submitting to event loop to avoid race with interrupt.
+      loop_.Submit(
+          [tuple = std::move(tuple)]() {
+            std::apply(
+                [](auto* continuation, auto&&... args) {
+                  auto& k_ = continuation->k_;
+                  k_.Fail(std::forward<decltype(args)>(args)...);
+                },
+                std::move(*tuple));
+          },
+          &waiter_);
     }
 
     void Stop() {
-      k_.Stop();
+      // Submitting to event loop to avoid race with interrupt.
+      loop_.Submit(
+          [this]() {
+            k_.Stop();
+          },
+          &waiter_);
     }
 
     void Register(Interrupt& interrupt) {
@@ -1015,7 +1037,7 @@ struct _HTTP {
                     CURLM_OK);
               }
             },
-            &interrupt_);
+            &interrupt_waiter_);
       });
 
       // NOTE: we always install the handler in case 'Start()'
@@ -1050,8 +1072,10 @@ struct _HTTP {
 
     int error_ = 0;
 
-    EventLoop::Waiter start_;
-    EventLoop::Waiter interrupt_;
+    // NOTE: we use 'waiter_' in each of 'Start()', 'Fail()', and
+    // 'Stop()' because only one of them will called at runtime.
+    EventLoop::Waiter waiter_;
+    EventLoop::Waiter interrupt_waiter_;
 
     std::optional<Interrupt::Handler> handler_;
   };
