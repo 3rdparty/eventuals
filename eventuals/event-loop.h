@@ -5,6 +5,7 @@
 #include <chrono>
 #include <future>
 #include <list>
+#include <memory>
 #include <mutex>
 #include <optional>
 
@@ -767,10 +768,13 @@ struct _EventLoopSchedule {
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
-        auto* tuple = new std::tuple{this, std::forward<Args>(args)...};
+        using Tuple = std::tuple<decltype(this), Args...>;
+        auto tuple = std::make_unique<Tuple>(
+            this,
+            std::forward<Args>(args)...);
 
         loop()->Submit(
-            [tuple]() {
+            [tuple = std::move(tuple)]() mutable {
               std::apply(
                   [](auto* schedule, auto&&... args) {
                     schedule->Adapt();
@@ -778,7 +782,6 @@ struct _EventLoopSchedule {
                         std::forward<decltype(args)>(args)...);
                   },
                   std::move(*tuple));
-              delete tuple;
             },
             this);
       }
