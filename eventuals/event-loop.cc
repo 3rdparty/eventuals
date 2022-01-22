@@ -184,7 +184,7 @@ EventLoop::~EventLoop() {
   uv_close((uv_handle_t*) &async_, nullptr);
 
   // NOTE: ideally we can just run 'uv_run()' once now in order to
-  // properly from the 'uv_close()' calls we just made. Unfortunately
+  // properly handle the 'uv_close()' calls we just made. Unfortunately
   // libuv has a peculiar behavior where if 'async_' has an
   // outstanding 'uv_async_send()' then we won't actually process the
   // 'uv_close()' call we just made for 'async_' with a single
