@@ -9,6 +9,7 @@
 //
 // TODO(benh): disallow calling 'Emit()' before call to 'Next()'.
 
+#include <memory>
 #include <variant>
 
 #include "eventuals/eventual.h"
@@ -59,14 +60,16 @@ struct _Stream {
           [&]() {
             // TODO(benh): avoid allocating on heap by storing args in
             // pre-allocated buffer based on composing with Errors.
-            auto* tuple = new std::tuple{k_, std::forward<Args>(args)...};
-            return [tuple]() {
+            using Tuple = std::tuple<decltype(k_), Args...>;
+            auto tuple = std::make_unique<Tuple>(
+                k_,
+                std::forward<Args>(args)...);
+            return [tuple = std::move(tuple)]() mutable {
               std::apply(
                   [](auto* k_, auto&&... args) {
                     k_->Fail(std::forward<decltype(args)>(args)...);
                   },
                   std::move(*tuple));
-              delete tuple;
             };
           });
     }

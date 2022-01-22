@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <deque>
+#include <memory>
 #include <thread>
 #include <vector>
 
@@ -246,12 +247,15 @@ struct _StaticThreadPoolSchedule {
         } else {
           // TODO(benh): avoid allocating on heap by storing args in
           // pre-allocated buffer based on composing with Errors.
-          auto* tuple = new std::tuple{this, std::forward<Args>(args)...};
+          using Tuple = std::tuple<decltype(this), Args...>;
+          auto tuple = std::make_unique<Tuple>(
+              this,
+              std::forward<Args>(args)...);
 
           EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
 
           pool()->Submit(
-              [tuple]() {
+              [tuple = std::move(tuple)]() mutable {
                 std::apply(
                     [](auto* schedule, auto&&... args) {
                       schedule->Adapt();
@@ -259,7 +263,6 @@ struct _StaticThreadPoolSchedule {
                           std::forward<decltype(args)>(args)...);
                     },
                     std::move(*tuple));
-                delete tuple;
               },
               this);
         }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <memory>
 #include <optional>
 
 #include "eventuals/callback.h"
@@ -196,22 +197,22 @@ struct _Acquire {
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
-        auto* tuple = new std::tuple{this, std::forward<Args>(args)...};
+        using Tuple = std::tuple<decltype(this), Args...>;
+        auto tuple = std::make_unique<Tuple>(
+            this,
+            std::forward<Args>(args)...);
 
-        waiter_.f = [tuple]() mutable {
-          std::apply(
-              [tuple](auto* acquire, auto&&...) {
-                acquire->waiter_.context->Unblock([tuple]() mutable {
-                  std::apply(
-                      [](auto* acquire, auto&&... args) {
-                        auto& k_ = acquire->k_;
-                        k_.Fail(std::forward<decltype(args)>(args)...);
-                      },
-                      std::move(*tuple));
-                  delete tuple;
-                });
-              },
-              std::move(*tuple));
+        waiter_.f = [tuple = std::move(tuple)]() mutable {
+          auto* acquire = std::get<0>(*tuple);
+          acquire->waiter_.context->Unblock(
+              [tuple = std::move(tuple)]() mutable {
+                std::apply(
+                    [](auto* acquire, auto&&... args) {
+                      auto& k_ = acquire->k_;
+                      k_.Fail(std::forward<decltype(args)>(args)...);
+                    },
+                    std::move(*tuple));
+              });
         };
 
         if (lock_->AcquireSlow(&waiter_)) {
