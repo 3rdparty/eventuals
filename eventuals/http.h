@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -30,7 +31,7 @@ enum Method {
 // TODO(folming): switch to RapidJSON.
 using PostFields = std::vector<std::pair<std::string, std::string>>;
 using Header = std::pair<std::string, std::string>;
-using Headers = std::vector<Header>;
+using Headers = std::map<std::string, std::string>;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -181,7 +182,25 @@ class Request::_Builder : public builder::Builder {
   }
 
   auto header(std::string&& key, std::string&& value) && {
-    headers_.value().emplace_back(std::move(key), std::move(value));
+    // RFC 7230, section 3.2.2:
+    // A sender MUST NOT generate multiple header fields with the same field
+    // name in a message unless either the entire field value for that
+    // header field is defined as a comma-separated list [i.e., #(values)]
+    // or the header field is a well-known exception (as noted below).
+    //
+    // NOTE: If user tries to add an already existing header,
+    // append the new one to the old one using comma.
+    // Example:
+    // Cookie: cookie1=value1, cookie2=value2
+    auto iterator = headers_->find(key);
+    if (iterator == headers_->end()) {
+      // Header doesn't exist yet.
+      headers_->emplace(std::move(key), std::move(value));
+    } else {
+      // Header already exists.
+      iterator->second += ", ";
+      iterator->second += std::move(value);
+    }
     return Construct<_Builder>(
         std::move(uri_),
         std::move(method_),
@@ -234,7 +253,7 @@ class Request::_Builder : public builder::Builder {
       builder::Field<PostFields, has_fields_> fields,
       builder::Field<bool, has_verify_peer_> verify_peer,
       builder::Field<x509::Certificate, has_certificate_> certificate,
-      builder::FieldWithDefault<Headers, has_headers_> headers)
+      builder::RepeatedField<Headers, has_headers_> headers)
     : uri_(std::move(uri)),
       method_(std::move(method)),
       timeout_(std::move(timeout)),
@@ -249,7 +268,7 @@ class Request::_Builder : public builder::Builder {
   builder::Field<PostFields, has_fields_> fields_;
   builder::Field<bool, has_verify_peer_> verify_peer_;
   builder::Field<x509::Certificate, has_certificate_> certificate_;
-  builder::FieldWithDefault<Headers, has_headers_> headers_ = Headers{};
+  builder::RepeatedField<Headers, has_headers_> headers_ = Headers{};
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -286,14 +305,14 @@ struct Response {
 
   Response(
       long code,
-      std::string&& headers,
+      Headers&& headers,
       std::string&& body)
     : code_(code),
       headers_(std::move(headers)),
       body_(std::move(body)) {}
 
   long code_;
-  std::string headers_;
+  Headers headers_;
   std::string body_;
 };
 
@@ -548,9 +567,102 @@ struct _HTTP {
                       continuation.closed_ = true;
 
                       if (!continuation.error_) {
+                        // Build headers map.
+                        std::stringstream headers_buffer_stringstream(
+                            continuation.headers_buffer_.Extract());
+                        std::map<std::string, std::string> headers;
+
+                        // Typical 'headers_buffer_stringstream'
+                        // looks like this:
+                        // --------------------------------
+                        // HTTP/1.1 200
+                        // SomeHeaderKey1: SomeHeaderValue1
+                        // SomeHeaderKey2: SomeHeaderValue2
+                        // --------------------------------
+                        while (!headers_buffer_stringstream.eof()) {
+                          std::string line;
+                          std::getline(headers_buffer_stringstream, line);
+
+                          // Find where ':' is.
+                          auto column_iterator = std::find(
+                              line.cbegin(),
+                              line.cend(),
+                              ':');
+
+                          // Skip lines like 'HTTP/1.1 200' that aren't headers.
+                          if (column_iterator == line.cend()) {
+                            continue;
+                          }
+
+                          // Assign key and value.
+                          auto key = std::string(
+                              line.cbegin(),
+                              column_iterator);
+                          auto value = std::string(
+                              column_iterator + 1,
+                              line.cend());
+
+                          // Helper lambda for removing leading
+                          // and trailing spaces.
+                          // TODO: use absl.
+                          static auto trim = [](std::string&& string) {
+                            auto start_iterator = string.begin();
+                            while (start_iterator != string.end()
+                                   && std::isspace(*start_iterator)) {
+                              start_iterator++;
+                            }
+
+                            auto end_iterator = string.end();
+                            do {
+                              end_iterator--;
+                            } while (std::distance(
+                                         start_iterator,
+                                         end_iterator)
+                                         > 0
+                                     && std::isspace(*end_iterator));
+
+                            return std::string(
+                                start_iterator,
+                                end_iterator + 1);
+                          };
+
+                          // Remove leading and trailing spaces.
+                          key = trim(std::move(key));
+                          value = trim(std::move(value));
+
+                          // Add key and value to the map.
+                          // RFC 7230, section 3.2.2:
+                          // A recipient MAY combine multiple header fields
+                          // with the same field name into one
+                          // "field-name: field-value" pair, without changing
+                          // the semantics of the message, by appending each
+                          // subsequent field value to the combined field
+                          // value in order, separated by a comma. The order
+                          // in which header fields with the same field name
+                          // are received is therefore significant to the
+                          // interpretation of the combined field value;
+                          // a proxy MUST NOT change the order of these field
+                          // values when forwarding a message.
+                          //
+                          // NOTE: If user tries to add an already
+                          // existing header, append the new one
+                          // to the old one using comma.
+                          // Example:
+                          // Cookie: cookie1=value1, cookie2=value2
+                          auto iterator = headers.find(key);
+                          if (iterator == headers.end()) {
+                            // Header doesn't exist yet.
+                            headers.emplace(std::move(key), std::move(value));
+                          } else {
+                            // Header already exists.
+                            headers[key] += ", ";
+                            headers[key] += std::move(value);
+                          }
+                        }
+
                         continuation.k_.Start(Response{
                             continuation.code_,
-                            continuation.headers_buffer_.Extract(),
+                            std::move(headers),
                             continuation.body_buffer_.Extract()});
                       } else {
                         continuation.k_.Fail(
