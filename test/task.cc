@@ -284,6 +284,16 @@ TEST(Task, StopContinuation) {
   EXPECT_TRUE(stopped);
 }
 
+TEST(Task, ConstRef) {
+  auto e = []() -> Task::Of<const int&> {
+    return []() {
+      return Just(42);
+    };
+  };
+
+  EXPECT_EQ(42, *e());
+}
+
 TEST(Task, FromTo) {
   auto task = []() {
     return Task::From<int>::To<std::string>::With<int>(
@@ -364,7 +374,7 @@ TEST(Task, Success) {
   };
 
   auto g = []() -> Task::Of<std::string> {
-    return Task::Success(std::string("hello"));
+    return Task::Success("hello");
   };
 
   auto e = [&]() {
@@ -381,63 +391,4 @@ TEST(Task, Failure) {
   };
 
   EXPECT_THROW(*e(), std::exception_ptr);
-}
-
-TEST(Task, Inheritance) {
-  struct Base {
-    virtual Task::Of<int> GetTask() = 0;
-  };
-
-  struct Sync : public Base {
-    Task::Of<int> GetTask() override {
-      return Task::Success(10);
-    }
-  };
-
-  struct Async : public Base {
-    Task::Of<int> GetTask() override {
-      return []() {
-        return Just(20);
-      };
-    }
-  };
-
-  struct Failure : public Base {
-    Task::Of<int> GetTask() override {
-      return Task::Failure("error");
-    }
-  };
-
-  auto f = []() -> Task::Of<void> {
-    return []() {
-      return Just();
-    };
-  };
-
-  auto sync = [&]() {
-    return f()
-        | Sync().GetTask();
-  };
-
-  auto async = [&]() {
-    return f()
-        | Async().GetTask();
-  };
-
-  auto failure = [&]() {
-    return f()
-        | Failure().GetTask();
-  };
-
-  EXPECT_EQ(*sync(), 10);
-  EXPECT_EQ(*async(), 20);
-  EXPECT_THROW(*failure(), std::exception_ptr);
-}
-
-TEST(Task, MoveableSuccess) {
-  auto e = []() -> Task::Of<std::unique_ptr<int>> {
-    return Task::Success(std::make_unique<int>(10));
-  };
-
-  EXPECT_EQ(*(*e()), 10);
 }
