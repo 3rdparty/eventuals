@@ -1,14 +1,16 @@
 #pragma once
 
+#include <functional> // For 'std::reference_wrapper'.
 #include <memory> // For 'std::unique_ptr'.
 #include <optional>
 #include <tuple>
-#include <variant> // For 'std::monostate'.
+#include <variant>
 
 #include "eventuals/eventual.h"
 #include "eventuals/just.h"
 #include "eventuals/raise.h"
 #include "eventuals/terminal.h"
+#include "eventuals/type-traits.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -156,6 +158,26 @@ struct _TaskFailure {
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename T>
+using MonostateIfVoidOr =
+    std::conditional_t<
+        std::is_void_v<T>,
+        std::monostate,
+        T>;
+
+template <typename T>
+using MonostateIfVoidOrReferenceWrapperOr =
+    std::conditional_t<
+        std::is_void_v<T>,
+        std::monostate,
+        std::conditional_t<
+            !std::is_reference_v<T>,
+            T,
+            std::reference_wrapper<
+                std::remove_reference_t<T>>>>;
+
+////////////////////////////////////////////////////////////////////////
+
 struct _TaskFromToWith {
   // Since we move lambda function at 'Composable' constructor we need to
   // specify the callback that should be triggered on the produced eventual.
@@ -166,18 +188,63 @@ struct _TaskFromToWith {
     Fail = 2,
   };
 
-  template <typename K_, typename From_, typename To_, typename... Args_>
+  // Using templated type name to allow using both
+  // in 'Composable' and 'Continuation'.
+  template <typename From, typename To, typename... Args>
+  using DispatchCallback =
+      Callback<
+          Action,
+          std::optional<std::exception_ptr>&&,
+          Args&&...,
+          // Can't have a 'void' argument type
+          // so we are using 'std::monostate'.
+          std::optional<
+              std::conditional_t<
+                  std::is_void_v<From>,
+                  std::monostate,
+                  From>>&&,
+          std::unique_ptr<void, Callback<void*>>&,
+          Interrupt&,
+          std::conditional_t<
+              std::is_void_v<To>,
+              Callback<>&&,
+              Callback<To>&&>,
+          Callback<std::exception_ptr>&&,
+          Callback<>&&>;
+
+  template <
+      typename K_,
+      typename From_,
+      typename To_,
+      typename... Args_>
   struct Continuation {
     template <typename... From>
     void Start(From&&... from) {
-      if constexpr (std::is_void_v<From_>) {
-        Dispatch(Action::Start, std::monostate{});
-      } else {
-        static_assert(
-            sizeof...(from) > 0,
-            "Expecting \"from\" argument for 'Task<From, To>' "
-            "but no argument passed");
-        Dispatch(Action::Start, std::forward<From>(from)...);
+      switch (value_or_dispatch_.index()) {
+        case 0:
+          if constexpr (!std::is_void_v<To_>) {
+            // Need cast to 'To_' to cast to reference type, otherwise
+            // it casts to non-reference.
+            k_.Start(
+                static_cast<To_>(
+                    std::move(std::get<0>(value_or_dispatch_))));
+          } else {
+            k_.Start();
+          }
+          break;
+        case 1:
+          if constexpr (std::is_void_v<From_>) {
+            Dispatch(Action::Start, std::monostate{});
+          } else {
+            static_assert(
+                sizeof...(from) > 0,
+                "Expecting \"from\" argument for 'Task<From, To>' "
+                "but no argument passed");
+            Dispatch(Action::Start, std::forward<From>(from)...);
+          }
+          break;
+        default:
+          LOG(FATAL) << "unreachable";
       }
     }
 
@@ -207,15 +274,13 @@ struct _TaskFromToWith {
 
     void Dispatch(
         Action action,
-        std::optional<
-            std::conditional_t<
-                std::is_void_v<From_>,
-                std::monostate,
-                From_>>&& from = std::nullopt,
+        std::optional<MonostateIfVoidOr<From_>>&& from = std::nullopt,
         std::optional<std::exception_ptr>&& exception = std::nullopt) {
+      CHECK_EQ(value_or_dispatch_.index(), 1u);
+
       std::apply(
           [&](auto&&... args) {
-            dispatch_(
+            std::get<1>(value_or_dispatch_)(
                 action,
                 std::move(exception),
                 std::forward<decltype(args)>(args)...,
@@ -238,41 +303,35 @@ struct _TaskFromToWith {
     K_ k_;
     std::tuple<Args_...> args_;
 
-    Callback<
-        Action,
-        std::optional<std::exception_ptr>&&,
-        Args_&&...,
-        std::optional<
-            std::conditional_t<
-                std::is_void_v<From_>,
-                std::monostate,
-                From_>>&&,
-        std::unique_ptr<void, Callback<void*>>&,
-        Interrupt&,
-        std::conditional_t<
-            std::is_void_v<To_>,
-            Callback<>&&,
-            Callback<To_>&&>,
-        Callback<std::exception_ptr>&&,
-        Callback<>&&>
-        dispatch_;
+    // The 'dispatch_' is a `std::variant` because its either a function that
+    // creates an eventual or the value from 'Task::Success' that should be
+    // passed on to the continuation.
+    std::variant<
+        MonostateIfVoidOrReferenceWrapperOr<To_>,
+        DispatchCallback<From_, To_, Args_...>>
+        value_or_dispatch_;
 
     std::unique_ptr<void, Callback<void*>> e_;
     Interrupt* interrupt_ = nullptr;
   };
 
-  template <typename From_, typename To_, typename... Args_>
+  template <
+      typename From_,
+      typename To_,
+      typename... Args_>
   struct Composable {
     template <typename>
     using ValueFrom = To_;
+
+    Composable(MonostateIfVoidOrReferenceWrapperOr<To_> value)
+      : value_or_dispatch_(std::move(value)) {}
 
     template <typename F>
     Composable(Args_... args, F f)
       : args_(std::tuple<Args_...>(std::move(args)...)) {
       static_assert(
           std::tuple_size<decltype(args_)>{} > 0 || std::is_invocable_v<F>,
-          "'Task' expects a callable that "
-          "takes no arguments");
+          "'Task' expects a callable that takes no arguments");
 
       static_assert(
           std::tuple_size<decltype(args_)>{}
@@ -295,23 +354,19 @@ struct _TaskFromToWith {
               std::is_convertible<Value, To_>>,
           "eventual result type can not be converted into type of 'Task'");
 
-      dispatch_ = [f = std::move(f)](
-                      Action action,
-                      std::optional<std::exception_ptr>&& exception,
-                      Args_&&... args,
-                      std::optional<
-                          std::conditional_t<
-                              std::is_void_v<From_>,
-                              std::monostate,
-                              From_>>&& arg,
-                      std::unique_ptr<void, Callback<void*>>& e_,
-                      Interrupt& interrupt,
-                      std::conditional_t<
-                          std::is_void_v<To_>,
-                          Callback<>&&,
-                          Callback<To_>&&> start,
-                      Callback<std::exception_ptr>&& fail,
-                      Callback<>&& stop) mutable {
+      value_or_dispatch_ = [f = std::move(f)](
+                               Action action,
+                               std::optional<std::exception_ptr>&& exception,
+                               Args_&&... args,
+                               std::optional<MonostateIfVoidOr<From_>>&& arg,
+                               std::unique_ptr<void, Callback<void*>>& e_,
+                               Interrupt& interrupt,
+                               std::conditional_t<
+                                   std::is_void_v<To_>,
+                                   Callback<>&&,
+                                   Callback<To_>&&> start,
+                               Callback<std::exception_ptr>&& fail,
+                               Callback<>&& stop) mutable {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void*>>(
               new HeapTask<E, From_, To_>(f(std::move(args)...)),
@@ -357,28 +412,18 @@ struct _TaskFromToWith {
       return Continuation<K, From_, To_, Args_...>{
           std::move(k),
           std::move(args_),
-          std::move(dispatch_)};
+          std::move(value_or_dispatch_.value())};
     }
 
-    Callback<
-        Action,
-        std::optional<std::exception_ptr>&&,
-        Args_&&...,
-        // Can't have a 'void' argument type so we are using 'std::monostate'.
-        std::optional<
-            std::conditional_t<
-                std::is_void_v<From_>,
-                std::monostate,
-                From_>>&&,
-        std::unique_ptr<void, Callback<void*>>&,
-        Interrupt&,
-        std::conditional_t<
-            std::is_void_v<To_>,
-            Callback<>&&,
-            Callback<To_>&&>,
-        Callback<std::exception_ptr>&&,
-        Callback<>&&>
-        dispatch_;
+    // See comment in `Continuation` for explanation of `dispatch_` member.
+    // Using 'std::optional' because of implicitly deleted 'std::variant'
+    // constructor.
+    std::optional<
+        std::variant<
+            MonostateIfVoidOrReferenceWrapperOr<To_>,
+            DispatchCallback<From_, To_, Args_...>>>
+        value_or_dispatch_;
+
     std::tuple<Args_...> args_;
   };
 };
@@ -389,11 +434,17 @@ struct _TaskFromToWith {
 // started via 'TaskFromToWith::Start()'. If used as a continuation
 // then it can't be moved after starting, just like all other
 // continuations.
-template <typename From_, typename To_, typename... Args_>
+template <
+    typename From_,
+    typename To_,
+    typename... Args_>
 class TaskFromToWith {
  public:
   template <typename Arg>
   using ValueFrom = To_;
+
+  TaskFromToWith(MonostateIfVoidOrReferenceWrapperOr<To_> value)
+    : e_(std::move(value)) {}
 
   template <typename F>
   TaskFromToWith(Args_... args, F f)
@@ -510,6 +561,9 @@ struct Task {
       template <typename... Args_>
       using With = TaskFromToWith<From_, To_, Args_...>;
 
+      To(MonostateIfVoidOr<To_> value)
+        : TaskFromToWith<From_, To_>(std::move(value)) {}
+
       template <typename F>
       To(F f)
         : TaskFromToWith<From_, To_>(std::move(f)) {}
@@ -532,21 +586,24 @@ struct Task {
   // Helpers for synchronous tasks.
   template <typename Value>
   static auto Success(Value value) {
-    // TODO(benh): optimize away heap allocation.
-    return [value = std::make_unique<Value>(std::move(value))]() mutable {
-      return Just(Value(std::move(*value)));
-    };
+    return TaskFromToWith<void, Value>(std::move(value));
+  }
+
+  template <typename Value>
+  static auto Success(std::reference_wrapper<Value> value) {
+    return TaskFromToWith<void, Value&>(std::move(value));
   }
 
   static auto Success() {
-    return []() {
-      return Just();
-    };
+    return TaskFromToWith<void, void>(std::monostate{});
   }
 
   template <typename Error>
   static auto Failure(Error error) {
     // TODO(benh): optimize away heap allocation.
+    // If we store an error using 'std::exception_ptr' it is also a memory
+    // allocation, otherwise we need to store one more template parameter
+    // for the 'Error' type.
     return [error = std::make_unique<Error>(std::move(error))]() mutable {
       return Eventual<_TaskFailure>()
           .start([&](auto& k) mutable {
