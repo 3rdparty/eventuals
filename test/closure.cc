@@ -33,76 +33,87 @@ using eventuals::Until;
 using testing::ElementsAre;
 using testing::MockFunction;
 
-TEST(ClosureTest, Then) {
-  auto e = []() {
-    return Just(1)
-        | Closure([i = 41]() {
-             return Then([&](auto&& value) { return i + value; });
-           });
+TEST(ClosureTest, Then)
+{
+  auto e = []()
+  {
+    return Just(1) | Closure([i = 41]()
+                             { return Then([&](auto &&value)
+                                           { return i + value; }); });
   };
 
   EXPECT_EQ(42, *e());
 }
 
-
-TEST(ClosureTest, Functor) {
-  struct Functor {
-    auto operator()() {
-      return Then([this](auto&& value) { return i + value; });
+// Just test comment.
+TEST(ClosureTest, Functor)
+{
+  struct Functor
+  {
+    auto operator()()
+    {
+      return Then([this](auto &&value)
+                  { return i + value; });
     }
 
     int i;
   };
 
-  auto e = []() {
-    return Just(1)
-        | Closure(Functor{41});
+  auto e = []()
+  {
+    return Just(1) | Closure(Functor{41});
   };
 
   EXPECT_EQ(42, *e());
 }
 
-
-TEST(ClosureTest, OuterRepeat) {
-  auto e = []() {
-    return Repeat([]() { return 1; })
-        | Closure([i = 41]() {
-             return Reduce(
-                 i,
-                 [](auto& i) {
-                   return Then([&](auto&& value) {
-                     i += value;
-                     return false;
+TEST(ClosureTest, OuterRepeat)
+{
+  auto e = []()
+  {
+    return Repeat([]()
+                  { return 1; }) |
+           Closure([i = 41]()
+                   {
+                     return Reduce(
+                         i,
+                         [](auto &i)
+                         {
+                           return Then([&](auto &&value)
+                                       {
+                                         i += value;
+                                         return false;
+                                       });
+                         });
                    });
-                 });
-           });
   };
 
   EXPECT_EQ(42, *e());
 }
 
-
-TEST(ClosureTest, InnerRepeat) {
-  auto e = []() {
-    return Closure([strings = deque<string>{"hello", "world"}]() mutable {
-      return Repeat()
-          | Until([&]() {
-               return strings.empty();
-             })
-          | Map([&]() mutable {
-               auto s = std::move(strings.front());
-               strings.pop_front();
-               return s;
-             })
-          | Reduce(
-                 deque<string>(),
-                 [](auto& results) {
-                   return Then([&](auto&& result) mutable {
-                     results.push_back(result);
-                     return true;
+TEST(ClosureTest, InnerRepeat)
+{
+  auto e = []()
+  {
+    return Closure([strings = deque<string>{"hello", "world"}]() mutable
+                   {
+                     return Repeat() | Until([&]()
+                                             { return strings.empty(); }) |
+                            Map([&]() mutable
+                                {
+                                  auto s = std::move(strings.front());
+                                  strings.pop_front();
+                                  return s;
+                                }) |
+                            Reduce(deque<string>(), [](auto &results)
+                                   {
+                                     return Then([&](auto &&result) mutable
+                                                 {
+                                                   results.push_back(result);
+                                                   return true;
+                                                 });
+                                   });
                    });
-                 });
-    });
   };
 
   auto results = *e();
@@ -110,35 +121,36 @@ TEST(ClosureTest, InnerRepeat) {
   EXPECT_THAT(results, ElementsAre("hello", "world"));
 }
 
-
-TEST(ClosureTest, Fail) {
-  auto e = []() {
-    return Raise("error")
-        | Closure([i = 41]() {
-             return Then([&]() { return i + 1; });
-           });
+TEST(ClosureTest, Fail)
+{
+  auto e = []()
+  {
+    return Raise("error") | Closure([i = 41]()
+                                    { return Then([&]()
+                                                  { return i + 1; }); });
   };
 
-  EXPECT_THROW(*e(), const char*);
+  EXPECT_THROW(*e(), const char *);
 }
 
-
-TEST(ClosureTest, Interrupt) {
+TEST(ClosureTest, Interrupt)
+{
   // Using mocks to ensure start is only called once.
   MockFunction<void()> start;
 
-  auto e = [&]() {
-    return Just(1)
-        | Closure([&]() {
-             return Eventual<std::string>()
-                 .interruptible()
-                 .start([&](auto& k, Interrupt::Handler& handler, auto&&) {
-                   handler.Install([&k]() {
-                     k.Stop();
-                   });
-                   start.Call();
-                 });
-           });
+  auto e = [&]()
+  {
+    return Just(1) | Closure([&]()
+                             {
+                               return Eventual<std::string>()
+                                   .interruptible()
+                                   .start([&](auto &k, Interrupt::Handler &handler, auto &&)
+                                          {
+                                            handler.Install([&k]()
+                                                            { k.Stop(); });
+                                            start.Call();
+                                          });
+                             });
   };
 
   auto [future, k] = Terminate(e());
@@ -148,9 +160,8 @@ TEST(ClosureTest, Interrupt) {
   k.Register(interrupt);
 
   EXPECT_CALL(start, Call())
-      .WillOnce([&]() {
-        interrupt.Trigger();
-      });
+      .WillOnce([&]()
+                { interrupt.Trigger(); });
 
   k.Start();
 
