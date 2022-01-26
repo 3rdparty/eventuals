@@ -4,9 +4,12 @@ name: Build and Run all tests
 on:
   push:
     branches:
-      - "**"
+      - "main"
     paths-ignore:
       - "**.md"
+  pull_request:
+    paths-ignore:
+      - "**.md"   
   
 jobs:
   build-and-test:
