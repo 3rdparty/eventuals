@@ -720,6 +720,10 @@ class ConditionVariable {
     return Wait(EmptyCondition());
   }
 
+  Lock* lock() {
+    return lock_;
+  }
+
   void Notify() {
     CHECK(lock_->OwnedByCurrentSchedulerContext());
     Waiter* waiter = head_;
