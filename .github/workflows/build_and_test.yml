@@ -1,12 +1,17 @@
-# Workflow for building and testing eventuals:grpc on
-# macOS, Ubuntu. In future we gonna run this job for
-# Windows.  
 name: Build and Run all tests
 
+# We use action's triggers 'push' and 'pull_request'.
+# The strategy is the following: this action will be
+# triggered on any push to 'main' branch and any pull
+# request to any branch. Thus we avoid duplicate work-
+# flows.
 on:
   push:
     branches:
-      - "**"
+      - "main"
+    paths-ignore:
+      - "**.md"
+  pull_request:
     paths-ignore:
       - "**.md"
   
@@ -16,6 +21,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        # We're not using Windows because of a build error.
+        # In future we gonna run this job for Windows too. 
         os: ["macos-latest", "ubuntu-latest"]
     defaults:
       run:
@@ -24,6 +31,8 @@ jobs:
     steps:
       # Checkout the repository under $GITHUB_WORKSPACE.
       - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
 
       - name: Build
         run: |
