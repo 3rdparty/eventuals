@@ -56,7 +56,12 @@ TEST_P(HttpTest, Get) {
   auto response = future.get();
 
   EXPECT_EQ(200, response.code());
-  EXPECT_THAT(response.headers(), testing::ContainsRegex("Foo: Bar"));
+  EXPECT_THAT(
+      response.headers(),
+      testing::Contains(http::Header("Foo", "Bar")));
+  EXPECT_THAT(
+      response.headers(),
+      testing::Contains(http::Header("Content-Length", "25")));
   EXPECT_EQ("<html>Hello World!</html>", response.body());
 }
 
@@ -108,9 +113,15 @@ TEST_P(HttpTest, GetGet) {
   auto [response1, response2] = future.get();
 
   EXPECT_EQ(200, response1.code());
+  EXPECT_THAT(
+      response1.headers(),
+      testing::Contains(http::Header("Content-Length", "26")));
   EXPECT_EQ("<html>Hello Nikita!</html>", response1.body());
 
   EXPECT_EQ(200, response2.code());
+  EXPECT_THAT(
+      response2.headers(),
+      testing::Contains(http::Header("Content-Length", "23")));
   EXPECT_EQ("<html>Hello Ben!</html>", response2.body());
 }
 
@@ -290,6 +301,60 @@ TEST_P(HttpTest, GetHeaders) {
   auto response = future.get();
 
   EXPECT_EQ(200, response.code());
-  EXPECT_THAT(response.headers(), testing::ContainsRegex("Foo: Bar"));
+  EXPECT_THAT(
+      response.headers(),
+      testing::Contains(http::Header("Foo", "Bar")));
+  EXPECT_THAT(
+      response.headers(),
+      testing::Contains(http::Header("Content-Length", "25")));
+  EXPECT_EQ("<html>Hello World!</html>", response.body());
+}
+
+
+TEST_P(HttpTest, GetDuplicateHeaders) {
+  std::string scheme = GetParam();
+
+  HttpMockServer server(scheme);
+
+  // NOTE: using an 'http::Client' configured to work for the server.
+  http::Client client = server.Client();
+
+  EXPECT_CALL(server, ReceivedHeaders)
+      .WillOnce([](auto socket, const std::string& data) {
+        EXPECT_THAT(data, testing::ContainsRegex("foo: bar1, bar2"));
+
+        socket->Send(
+            "HTTP/1.1 200 OK\r\n"
+            "Foo: Bar1\r\n"
+            "Foo: Bar2\r\n"
+            "Content-Length: 25\r\n"
+            "\r\n"
+            "<html>Hello World!</html>\r\n"
+            "\r\n");
+
+        socket->Close();
+      });
+
+  auto e = client.Do(
+      http::Request::Builder()
+          .uri(server.uri())
+          .method(http::GET)
+          .header("foo", "bar1")
+          .header("foo", "bar2")
+          .Build());
+  auto [future, k] = Terminate(std::move(e));
+  k.Start();
+
+  EventLoop::Default().RunUntil(future);
+
+  auto response = future.get();
+
+  EXPECT_EQ(200, response.code());
+  EXPECT_THAT(
+      response.headers(),
+      testing::Contains(http::Header("Foo", "Bar1, Bar2")));
+  EXPECT_THAT(
+      response.headers(),
+      testing::Contains(http::Header("Content-Length", "25")));
   EXPECT_EQ("<html>Hello World!</html>", response.body());
 }

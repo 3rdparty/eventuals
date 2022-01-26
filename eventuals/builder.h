@@ -121,6 +121,74 @@ class FieldWithDefault<Value_, true> : public Field<Value_, true> {
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename Value_, bool has_>
+class RepeatedField;
+
+template <typename Value_>
+class RepeatedField<Value_, false> : public Field<Value_, false> {
+ public:
+  template <
+      typename Value,
+      std::enable_if_t<std::is_convertible_v<Value, Value_>, int> = 0>
+  RepeatedField(Value&& value)
+    : default_(std::forward<Value>(value)) {}
+
+  RepeatedField(RepeatedField&&) = default;
+
+  template <typename Value>
+  auto Set(Value&& value) {
+    static_assert(std::is_convertible_v<Value, Value_>);
+    return RepeatedField<Value_, true>{std::forward<Value>(value)};
+  }
+
+  auto& value() & {
+    return default_;
+  }
+
+  const auto& value() const& {
+    return default_;
+  }
+
+  auto&& value() && {
+    return std::move(default_);
+  }
+
+  const auto&& value() const&& {
+    return std::move(default_);
+  }
+
+  const auto* operator->() const {
+    return &default_;
+  }
+
+  auto* operator->() {
+    return &default_;
+  }
+
+ private:
+  Value_ default_;
+};
+
+template <typename Value_>
+class RepeatedField<Value_, true> : public Field<Value_, true> {
+ public:
+  template <
+      typename Value,
+      std::enable_if_t<std::is_convertible_v<Value, Value_>, int> = 0>
+  RepeatedField(Value&& value)
+    : Field<Value_, true>(std::forward<Value>(value)) {}
+
+  RepeatedField(RepeatedField&&) = default;
+
+  template <typename Value>
+  auto Set(Value&& value) {
+    static_assert(std::is_convertible_v<Value, Value_>);
+    return RepeatedField<Value_, true>{std::forward<Value>(value)};
+  }
+};
+
+////////////////////////////////////////////////////////////////////////
+
 class Builder {
  protected:
   // Helper that creates a "builder" by calling it's constructor with a
