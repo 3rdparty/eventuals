@@ -1,6 +1,11 @@
 # Workflow for building and testing eventuals on macOS, Ubuntu and Windows.  
 name: Build and Run all tests
 
+# We use action's triggers 'push' and 'pull_request'.
+# The strategy is the following: this action will be
+# triggered on any push to 'main' branch and any pull
+# request to any branch. Thus we avoid duplicate work-
+# flows.
 on:
   push:
     branches:
