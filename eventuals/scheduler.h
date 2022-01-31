@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional> // For 'std::reference_wrapper'.
 #include <memory>
 #include <optional>
 #include <string>
@@ -213,7 +214,13 @@ struct _Reschedule {
     Scheduler::Context* context_;
 
     std::optional<
-        std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
+        std::conditional_t<
+            !std::is_void_v<Arg_>,
+            std::conditional_t<
+                std::is_reference_v<Arg_>,
+                std::reference_wrapper<std::remove_reference_t<Arg_>>,
+                Arg_>,
+            Undefined>>
         arg_;
 
     TypeErasedStream* stream_ = nullptr;

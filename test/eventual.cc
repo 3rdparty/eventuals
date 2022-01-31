@@ -1,5 +1,6 @@
 #include "eventuals/eventual.h"
 
+#include <functional>
 #include <memory>
 #include <thread>
 
@@ -254,4 +255,76 @@ TEST(EventualTest, Then) {
   };
 
   EXPECT_EQ(42, *e());
+}
+
+TEST(EventualTest, ConstRef) {
+  int x = 10;
+
+  auto e = [&]() {
+    return Eventual<const int&>([&](auto& k) {
+             k.Start(std::cref(x));
+           })
+        | Then([](const int& x) {
+             return std::cref(x);
+           });
+  };
+
+  auto [future, k] = Terminate(e());
+
+  k.Start();
+
+  x = 42;
+
+  EXPECT_EQ(42, future.get());
+}
+
+TEST(EventualTest, Ref) {
+  int x = 10;
+
+  auto e = [&]() {
+    return Eventual<int&>([&](auto& k) {
+             k.Start(std::ref(x));
+           })
+        | Then([](int& x) {
+             x += 100;
+           });
+  };
+
+  *e();
+
+  EXPECT_EQ(110, x);
+}
+
+TEST(EventualTest, JustRef) {
+  int x = 10;
+
+  auto e = [&]() {
+    return Just(std::ref(x))
+        | Then([](int& x) {
+             x += 100;
+           });
+  };
+
+  *e();
+
+  EXPECT_EQ(110, x);
+}
+
+TEST(EventualTest, JustConstRef) {
+  int x = 10;
+
+  auto e = [&]() {
+    return Just(std::cref(x))
+        | Then([](const int& x) {
+             return std::cref(x);
+           });
+  };
+
+  auto [future, k] = Terminate(e());
+
+  k.Start();
+
+  x = 42;
+
+  EXPECT_EQ(42, future.get());
 }
