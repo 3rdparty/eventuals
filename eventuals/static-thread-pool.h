@@ -3,9 +3,12 @@
 #include <atomic>
 #include <deque>
 #include <memory>
+#include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
+#include "eventuals/lazy.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/semaphore.h"
 
@@ -49,39 +52,6 @@ class StaticThreadPool : public Scheduler {
     Pinned pinned;
   };
 
-  struct Waiter : public Scheduler::Context {
-   public:
-    Waiter(StaticThreadPool* pool, Requirements* requirements)
-      : Scheduler::Context(pool),
-        requirements_(requirements) {}
-
-    Waiter(Waiter&& that)
-      : Scheduler::Context(that.scheduler()),
-        requirements_(that.requirements_) {
-      // NOTE: should only get moved before it's "started".
-      CHECK(!that.waiting && !callback && next == nullptr);
-    }
-
-    const std::string& name() override {
-      return requirements_->name;
-    }
-
-    StaticThreadPool* pool() {
-      return static_cast<StaticThreadPool*>(scheduler());
-    }
-
-    auto* requirements() {
-      return requirements_;
-    }
-
-    bool waiting = false;
-    Callback<> callback;
-    Waiter* next = nullptr;
-
-   private:
-    Requirements* requirements_;
-  };
-
   class Schedulable {
    public:
     Schedulable(Requirements requirements = Requirements("[anonymous]"))
@@ -94,6 +64,9 @@ class StaticThreadPool : public Scheduler {
 
     template <typename E>
     auto Schedule(E e);
+
+    template <typename E>
+    auto Schedule(std::string&& name, E e);
 
     auto* requirements() {
       return &requirements_;
@@ -124,8 +97,13 @@ class StaticThreadPool : public Scheduler {
 
   void Submit(Callback<> callback, Context* context) override;
 
+  void Clone(Context* child) override;
+
   template <typename E>
   auto Schedule(Requirements* requirements, E e);
+
+  template <typename E>
+  auto Schedule(std::string&& name, Requirements* requirements, E e);
 
   template <typename E>
   static auto Spawn(Requirements&& requirements, E e);
@@ -135,7 +113,7 @@ class StaticThreadPool : public Scheduler {
   // "signalling" the thread because it should be faster/less overhead
   // in the kernel: https://stackoverflow.com/q/9826919
   std::vector<Semaphore*> semaphores_;
-  std::vector<std::atomic<Waiter*>*> heads_;
+  std::vector<std::atomic<Context*>*> heads_;
   std::deque<Semaphore> ready_;
   std::vector<std::thread> threads_;
   std::atomic<bool> shutdown_ = false;
@@ -146,16 +124,30 @@ class StaticThreadPool : public Scheduler {
 
 struct _StaticThreadPoolSchedule {
   template <typename K_, typename E_, typename Arg_>
-  struct Continuation : public StaticThreadPool::Waiter {
-    // NOTE: explicit constructor because inheriting 'StaticThreadPool::Waiter'.
+  struct Continuation {
     Continuation(
         K_ k,
         StaticThreadPool* pool,
         StaticThreadPool::Requirements* requirements,
+        std::string&& name,
         E_ e)
-      : StaticThreadPool::Waiter(pool, requirements),
-        k_(std::move(k)),
-        e_(std::move(e)) {}
+      : k_(std::move(k)),
+        e_(std::move(e)),
+        context_(
+            std::make_tuple(
+                CHECK_NOTNULL(pool),
+                std::move(name),
+                CHECK_NOTNULL(requirements))) {}
+
+    // To avoid casting default 'Scheduler' to 'StaticTheadPool' each time.
+    auto* pool() {
+      return static_cast<StaticThreadPool*>(context_->scheduler());
+    }
+
+    // To avoid casting 'void*' to 'StaticThreadPool::Requirements*' each time.
+    auto* requirements() {
+      return static_cast<StaticThreadPool::Requirements*>(context_->data);
+    }
 
     template <typename... Args>
     void Start(Args&&... args) {
@@ -163,7 +155,8 @@ struct _StaticThreadPoolSchedule {
           !std::is_void_v<Arg_> || sizeof...(args) == 0,
           "'Schedule' only supports 0 or 1 argument");
 
-      EVENTUALS_LOG(1) << "Scheduling '" << name() << "'";
+
+      EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
       auto& pinned = requirements()->pinned;
 
@@ -182,20 +175,21 @@ struct _StaticThreadPoolSchedule {
         if (interrupt_ != nullptr) {
           k_.Register(*interrupt_);
         }
-        k_.Fail("'" + name() + "' required core is > total cores");
+        k_.Fail("'" + context_->name() + "' required core is > total cores");
       } else {
         if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
           Adapt();
-          auto* previous = Scheduler::Context::Switch(this);
+          auto* previous = Scheduler::Context::Switch(context_.get());
           adapted_->Start(std::forward<Args>(args)...);
           previous = Scheduler::Context::Switch(previous);
-          CHECK_EQ(previous, this);
+          CHECK_EQ(previous, context_.get());
         } else {
           if constexpr (!std::is_void_v<Arg_>) {
             arg_.emplace(std::forward<Args>(args)...);
           }
 
-          EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
+          EVENTUALS_LOG(1)
+              << "Schedule submitting '" << context_->name() << "'";
 
           pool()->Submit(
               [this]() {
@@ -206,7 +200,7 @@ struct _StaticThreadPoolSchedule {
                   adapted_->Start();
                 }
               },
-              this);
+              context_.get());
         }
       }
     }
@@ -217,7 +211,8 @@ struct _StaticThreadPoolSchedule {
       // to support the use case where code wants to "catch" a failure
       // inside of a 'Schedule()' in order to either recover or
       // propagate a different failure.
-      EVENTUALS_LOG(1) << "Scheduling '" << name() << "'";
+
+      EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
       auto& pinned = requirements()->pinned;
 
@@ -236,14 +231,15 @@ struct _StaticThreadPoolSchedule {
         if (interrupt_ != nullptr) {
           k_.Register(*interrupt_);
         }
-        k_.Fail("'" + name() + "' required core is > total cores");
+        k_.Fail("'" + context_->name() + "' required core is > total cores");
       } else {
-        if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
+        if (StaticThreadPool::member
+            && StaticThreadPool::core == pinned.core) {
           Adapt();
-          auto* previous = Scheduler::Context::Switch(this);
+          auto* previous = Scheduler::Context::Switch(context_.get());
           adapted_->Fail(std::forward<Args>(args)...);
           previous = Scheduler::Context::Switch(previous);
-          CHECK_EQ(previous, this);
+          CHECK_EQ(previous, context_.get());
         } else {
           // TODO(benh): avoid allocating on heap by storing args in
           // pre-allocated buffer based on composing with Errors.
@@ -252,7 +248,8 @@ struct _StaticThreadPoolSchedule {
               this,
               std::forward<Args>(args)...);
 
-          EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
+          EVENTUALS_LOG(1)
+              << "Schedule submitting '" << context_->name() << "'";
 
           pool()->Submit(
               [tuple = std::move(tuple)]() mutable {
@@ -264,7 +261,7 @@ struct _StaticThreadPoolSchedule {
                     },
                     std::move(*tuple));
               },
-              this);
+              context_.get());
         }
       }
     }
@@ -274,7 +271,8 @@ struct _StaticThreadPoolSchedule {
       // sure to support the use case where code wants to "catch" the
       // stop inside of a 'Schedule()' in order to do something
       // different.
-      EVENTUALS_LOG(1) << "Scheduling '" << name() << "'";
+
+      EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
       auto& pinned = requirements()->pinned;
 
@@ -293,23 +291,25 @@ struct _StaticThreadPoolSchedule {
         if (interrupt_ != nullptr) {
           k_.Register(*interrupt_);
         }
-        k_.Fail("'" + name() + "' required core is > total cores");
+        k_.Fail("'" + context_->name() + "' required core is > total cores");
       } else {
-        if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
+        if (StaticThreadPool::member
+            && StaticThreadPool::core == pinned.core) {
           Adapt();
-          auto* previous = Scheduler::Context::Switch(this);
+          auto* previous = Scheduler::Context::Switch(context_.get());
           adapted_->Stop();
           previous = Scheduler::Context::Switch(previous);
-          CHECK_EQ(previous, this);
+          CHECK_EQ(previous, context_.get());
         } else {
-          EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
+          EVENTUALS_LOG(1)
+              << "Schedule submitting '" << context_->name() << "'";
 
           pool()->Submit(
               [this]() {
                 Adapt();
                 adapted_->Stop();
               },
-              this);
+              context_.get());
         }
       }
     }
@@ -318,7 +318,7 @@ struct _StaticThreadPoolSchedule {
       CHECK(stream_ == nullptr);
       stream_ = &stream;
 
-      EVENTUALS_LOG(1) << "Scheduling '" << name() << "'";
+      EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
       auto& pinned = requirements()->pinned;
 
@@ -337,23 +337,25 @@ struct _StaticThreadPoolSchedule {
         if (interrupt_ != nullptr) {
           k_.Register(*interrupt_);
         }
-        k_.Fail("'" + name() + "' required core is > total cores");
+        k_.Fail("'" + context_->name() + "' required core is > total cores");
       } else {
-        if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
+        if (StaticThreadPool::member
+            && StaticThreadPool::core == pinned.core) {
           Adapt();
-          auto* previous = Scheduler::Context::Switch(this);
+          auto* previous = Scheduler::Context::Switch(context_.get());
           adapted_->Begin(*CHECK_NOTNULL(stream_));
           previous = Scheduler::Context::Switch(previous);
-          CHECK_EQ(previous, this);
+          CHECK_EQ(previous, context_.get());
         } else {
-          EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
+          EVENTUALS_LOG(1)
+              << "Schedule submitting '" << context_->name() << "'";
 
           pool()->Submit(
               [this]() {
                 Adapt();
                 adapted_->Begin(*CHECK_NOTNULL(stream_));
               },
-              this);
+              context_.get());
         }
       }
     }
@@ -364,10 +366,9 @@ struct _StaticThreadPoolSchedule {
           !std::is_void_v<Arg_> || sizeof...(args) == 0,
           "'Schedule' only supports 0 or 1 argument");
 
-      EVENTUALS_LOG(1) << "Scheduling '" << name() << "'";
+      EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
       auto& pinned = requirements()->pinned;
-
       if (!pinned.core) {
         // TODO(benh): pick the least loaded core. This will require
         // iterating through and checking the sizes of all the "queues"
@@ -383,20 +384,22 @@ struct _StaticThreadPoolSchedule {
         if (interrupt_ != nullptr) {
           k_.Register(*interrupt_);
         }
-        k_.Fail("'" + name() + "' required core is > total cores");
+        k_.Fail("'" + context_->name() + "' required core is > total cores");
       } else {
-        if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
+        if (StaticThreadPool::member
+            && StaticThreadPool::core == pinned.core) {
           Adapt();
-          auto* previous = Scheduler::Context::Switch(this);
+          auto* previous = Scheduler::Context::Switch(context_.get());
           adapted_->Body(std::forward<Args>(args)...);
           previous = Scheduler::Context::Switch(previous);
-          CHECK_EQ(previous, this);
+          CHECK_EQ(previous, context_.get());
         } else {
           if constexpr (!std::is_void_v<Arg_>) {
             arg_.emplace(std::forward<Args>(args)...);
           }
 
-          EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
+          EVENTUALS_LOG(1)
+              << "Schedule submitting '" << context_->name() << "'";
 
           pool()->Submit(
               [this]() {
@@ -407,7 +410,7 @@ struct _StaticThreadPoolSchedule {
                   adapted_->Body();
                 }
               },
-              this);
+              context_.get());
         }
       }
     }
@@ -417,7 +420,8 @@ struct _StaticThreadPoolSchedule {
       // sure to support the use case where code wants to handle the
       // stream ended inside of a 'Schedule()' in order to do
       // something different.
-      EVENTUALS_LOG(1) << "Scheduling '" << name() << "'";
+
+      EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
       auto& pinned = requirements()->pinned;
 
@@ -436,23 +440,25 @@ struct _StaticThreadPoolSchedule {
         if (interrupt_ != nullptr) {
           k_.Register(*interrupt_);
         }
-        k_.Fail("'" + name() + "' required core is > total cores");
+        k_.Fail("'" + context_->name() + "' required core is > total cores");
       } else {
-        if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
+        if (
+            StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
           Adapt();
-          auto* previous = Scheduler::Context::Switch(this);
+          auto* previous = Scheduler::Context::Switch(context_.get());
           adapted_->Ended();
           previous = Scheduler::Context::Switch(previous);
-          CHECK_EQ(previous, this);
+          CHECK_EQ(previous, context_.get());
         } else {
-          EVENTUALS_LOG(1) << "Schedule submitting '" << name() << "'";
+          EVENTUALS_LOG(1)
+              << "Schedule submitting '" << context_->name() << "'";
 
           pool()->Submit(
               [this]() {
                 Adapt();
                 adapted_->Ended();
               },
-              this);
+              context_.get());
         }
       }
     }
@@ -500,6 +506,15 @@ struct _StaticThreadPoolSchedule {
 
     Interrupt* interrupt_ = nullptr;
 
+    // Need to store context instead of using inheritance because
+    // we don't want to support move operation for contexts.
+    _Lazy<
+        Scheduler::Context,
+        StaticThreadPool*,
+        std::string,
+        StaticThreadPool::Requirements*>
+        context_;
+
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
     using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
@@ -520,12 +535,14 @@ struct _StaticThreadPoolSchedule {
           std::move(k),
           pool_,
           requirements_,
+          std::move(name_),
           std::move(e_));
     }
 
     StaticThreadPool* pool_;
     StaticThreadPool::Requirements* requirements_;
     E_ e_;
+    std::string name_;
   };
 };
 
@@ -539,11 +556,31 @@ auto StaticThreadPool::Schedule(Requirements* requirements, E e) {
       std::move(e)};
 }
 
+template <typename E>
+auto StaticThreadPool::Schedule(
+    std::string&& name,
+    Requirements* requirements,
+    E e) {
+  return _StaticThreadPoolSchedule::Composable<E>{
+      this,
+      requirements,
+      std::move(e),
+      std::move(name)};
+}
+
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E>
 auto StaticThreadPool::Schedulable::Schedule(E e) {
   return StaticThreadPool::Scheduler().Schedule(
+      &requirements_,
+      std::move(e));
+}
+
+template <typename E>
+auto StaticThreadPool::Schedulable::Schedule(std::string&& name, E e) {
+  return StaticThreadPool::Scheduler().Schedule(
+      std::move(name),
       &requirements_,
       std::move(e));
 }

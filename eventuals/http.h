@@ -439,8 +439,8 @@ struct _HTTP {
         easy_(curl_easy_init(), &curl_easy_cleanup),
         multi_(curl_multi_init(), &curl_multi_cleanup),
         curl_headers_(nullptr, &curl_slist_free_all),
-        waiter_(&loop, "HTTP (start/fail/stop)"),
-        interrupt_waiter_(&loop_, "HTTP (interrupt)") {}
+        context_(&loop, "HTTP (start/fail/stop)"),
+        interrupt_context_(&loop_, "HTTP (interrupt)") {}
 
     Continuation(Continuation&& that)
       : k_(std::move(that.k_)),
@@ -450,8 +450,8 @@ struct _HTTP {
         easy_(std::move(that.easy_)),
         multi_(std::move(that.multi_)),
         curl_headers_(std::move(that.curl_headers_)),
-        waiter_(&that.loop_, "HTTP (start/fail/stop)"),
-        interrupt_waiter_(&that.loop_, "HTTP (interrupt)") {
+        context_(&that.loop_, "HTTP (start/fail/stop)"),
+        interrupt_context_(&that.loop_, "HTTP (interrupt)") {
       CHECK(!that.started_ || !that.completed_) << "moving after starting";
       CHECK(!handler_);
     }
@@ -1070,7 +1070,7 @@ struct _HTTP {
                   CURLM_OK);
             }
           },
-          &waiter_);
+          &context_);
     }
 
     template <typename... Args>
@@ -1092,7 +1092,7 @@ struct _HTTP {
                 },
                 std::move(*tuple));
           },
-          &waiter_);
+          &context_);
     }
 
     void Stop() {
@@ -1101,7 +1101,7 @@ struct _HTTP {
           [this]() {
             k_.Stop();
           },
-          &waiter_);
+          &context_);
     }
 
     void Register(Interrupt& interrupt) {
@@ -1150,7 +1150,7 @@ struct _HTTP {
                     CURLM_OK);
               }
             },
-            &interrupt_waiter_);
+            &interrupt_context_);
       });
 
       // NOTE: we always install the handler in case 'Start()'
@@ -1185,10 +1185,10 @@ struct _HTTP {
 
     int error_ = 0;
 
-    // NOTE: we use 'waiter_' in each of 'Start()', 'Fail()', and
+    // NOTE: we use 'context_' in each of 'Start()', 'Fail()', and
     // 'Stop()' because only one of them will called at runtime.
-    EventLoop::Waiter waiter_;
-    EventLoop::Waiter interrupt_waiter_;
+    Scheduler::Context context_;
+    Scheduler::Context interrupt_context_;
 
     std::optional<Interrupt::Handler> handler_;
   };

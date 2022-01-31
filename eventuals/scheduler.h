@@ -21,8 +21,6 @@ namespace eventuals {
 class Scheduler {
  public:
   struct Context {
-    virtual ~Context() {}
-
     static void Set(Context* context) {
       current_ = context;
     }
@@ -37,12 +35,44 @@ class Scheduler {
       return previous;
     }
 
-    Context(Scheduler* scheduler)
-      : scheduler_(scheduler) {}
+    Context(
+        Scheduler* scheduler,
+        const std::string& name,
+        void* new_data = nullptr)
+      : data(new_data),
+        scheduler_(CHECK_NOTNULL(scheduler)),
+        name_(name) {}
+
+    Context(
+        const std::string& name)
+      // 'data' field will be set in 'Clone'.
+      : Context(CHECK_NOTNULL(Context::Get()->scheduler_), name) {
+      scheduler_->Clone(this);
+    }
 
     Context(Context&& that) = delete;
 
-    virtual const std::string& name() = 0;
+    virtual ~Context() {}
+
+    auto* scheduler() {
+      return scheduler_;
+    }
+
+    void block() {
+      blocked_ = true;
+    }
+
+    void unblock() {
+      blocked_ = false;
+    }
+
+    bool blocked() {
+      return blocked_;
+    }
+
+    const std::string& name() {
+      return name_;
+    }
 
     template <typename F>
     void Unblock(F f) {
@@ -71,14 +101,26 @@ class Scheduler {
       }
     }
 
-    auto* scheduler() {
-      return scheduler_;
-    }
+    // Schedulers that need arbitrary data for this context can use 'data'.
+    void* data = nullptr;
+
+    // Many schedulers need to store a blocked context in some kind of data
+    // structure and you can use 'next' for doing that.
+    Context* next = nullptr;
+
+    // Schedulers can use 'callback' to store the function that "starts" or
+    // "unblocks"/"resumes" the context.
+    Callback<> callback;
 
    private:
     static thread_local Context* current_;
 
     Scheduler* scheduler_;
+
+    // There is the most common set of variables to create contexts.
+    bool blocked_ = false;
+
+    std::string name_;
   };
 
   static Scheduler* Default();
@@ -86,6 +128,8 @@ class Scheduler {
   virtual bool Continuable(Context* context) = 0;
 
   virtual void Submit(Callback<> callback, Context* context) = 0;
+
+  virtual void Clone(Context* child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -310,20 +354,20 @@ struct _Preempt {
   template <typename K_, typename E_, typename Arg_>
   struct Continuation : public Scheduler::Context {
     Continuation(K_ k, E_ e, std::string name)
-      : Scheduler::Context(Scheduler::Default()),
+      : Scheduler::Context(
+          Scheduler::Default(),
+          "preempt continuation"),
         k_(std::move(k)),
         e_(std::move(e)),
         name_(std::move(name)) {}
 
     Continuation(Continuation&& that)
-      : Scheduler::Context(Scheduler::Default()),
+      : Scheduler::Context(
+          Scheduler::Default(),
+          "preempt continuation"),
         k_(std::move(that.k_)),
         e_(std::move(that.e_)),
         name_(std::move(that.name_)) {}
-
-    const std::string& name() override {
-      return name_;
-    }
 
     template <typename... Args>
     void Start(Args&&... args) {

@@ -69,17 +69,7 @@ struct _Concurrent {
     // nicely matches our algorithm for being able to reuse fibers
     // that have completed but haven't yet been pruned (see
     // 'CreateOrReuseFiber()').
-    struct TypeErasedFiber : Scheduler::Context {
-      TypeErasedFiber()
-        : Scheduler::Context(Scheduler::Default()) {}
-
-      const std::string& name() override {
-        // TODO(benh): differentiate the names of the fibers for
-        // easier debugging!
-        static std::string name = "[concurrent fiber]";
-        return name;
-      }
-
+    struct TypeErasedFiber {
       void Reuse() {
         done = false;
         // Need to reinitialize the interrupt so that the
@@ -98,6 +88,9 @@ struct _Concurrent {
 
       // Each fiber forms a linked list of currently created fibers.
       std::unique_ptr<TypeErasedFiber> next;
+
+      // Need to store a cloned context in which would be stored callback.
+      std::optional<Scheduler::Context> context;
     };
 
     // Returns the fiber created from the templated class 'Adaptor'
@@ -477,14 +470,18 @@ struct _Concurrent {
       static_cast<Fiber<E>*>(fiber)->k.emplace(
           Build(FiberEventual(fiber, std::move(arg))));
 
-      // NOTE: we need to "submit" using the default scheduler so that
-      // each fiber will properly be using it's own scheduler context.
-      Scheduler::Default()->Submit(
+      // TODO(benh): differentiate the names of the fibers for
+      // easier debugging!
+      fiber->context.emplace(
+          Scheduler::Context::Get()->name() + " [concurrent fiber]");
+
+      fiber->context->scheduler()->Submit(
           [fiber]() {
+            CHECK_EQ(&fiber->context.value(), Scheduler::Context::Get());
             static_cast<Fiber<E>*>(fiber)->k->Register(fiber->interrupt);
             static_cast<Fiber<E>*>(fiber)->k->Start();
           },
-          fiber);
+          &fiber->context.value());
     }
 
     // Returns an eventual which implements the logic of handling each

@@ -35,18 +35,6 @@ namespace eventuals {
 
 class DefaultScheduler : public Scheduler {
  public:
-  struct DefaultContext : public Context {
-    DefaultContext(Scheduler* scheduler, std::string name)
-      : Context(scheduler),
-        name_(std::move(name)) {}
-
-    const std::string& name() override {
-      return name_;
-    }
-
-    std::string name_;
-  };
-
   bool Continuable(Context*) override {
     return Context::Get()->scheduler() == this;
   }
@@ -66,6 +54,10 @@ class DefaultScheduler : public Scheduler {
 
     Context::Switch(previous);
   }
+
+  // 'DefaultScheduler' just invokes what ever callback was specified
+  // to 'Submit()' with no other.
+  void Clone(Context* context) override {}
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -77,7 +69,7 @@ Scheduler* Scheduler::Default() {
 
 ////////////////////////////////////////////////////////////////////////
 
-static thread_local DefaultScheduler::DefaultContext context(
+static thread_local Scheduler::Context context(
     Scheduler::Default(),
     "[" + std::to_string(static_cast<unsigned int>(GetTID())) + "]");
 

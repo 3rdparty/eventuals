@@ -32,7 +32,7 @@ StaticThreadPool::StaticThreadPool()
           // so as to hopefully get less false sharing when other
           // threads are trying to enqueue a waiter.
           Semaphore semaphore;
-          std::atomic<Waiter*> head = nullptr;
+          std::atomic<Context*> head = nullptr;
 
           semaphores_[core] = &semaphore;
           heads_[core] = &head;
@@ -43,43 +43,43 @@ StaticThreadPool::StaticThreadPool()
             semaphore.Wait();
 
           load:
-            auto* waiter = head.load(std::memory_order_relaxed);
+            auto* context = head.load(std::memory_order_relaxed);
 
-            if (waiter != nullptr) {
-              if (waiter->next == nullptr) {
+            if (context != nullptr) {
+              if (context->next == nullptr) {
                 if (!head.compare_exchange_weak(
-                        waiter,
+                        context,
                         nullptr,
                         std::memory_order_release,
                         std::memory_order_relaxed)) {
                   goto load; // Try again.
                 }
               } else {
-                while (waiter->next->next != nullptr) {
-                  waiter = waiter->next;
+                while (context->next->next != nullptr) {
+                  context = context->next;
                 }
 
-                assert(waiter->next != nullptr);
+                assert(context->next != nullptr);
 
-                auto* next = waiter->next;
-                waiter->next = nullptr;
-                waiter = next;
+                auto* next = context->next;
+                context->next = nullptr;
+                context = next;
               }
 
-              CHECK_NOTNULL(waiter);
+              CHECK_NOTNULL(context);
 
-              CHECK_EQ(nullptr, waiter->next);
+              CHECK_EQ(nullptr, context->next);
 
-              Context::Set(waiter);
+              Context::Set(context);
 
-              waiter->waiting = false;
+              context->unblock();
 
-              EVENTUALS_LOG(1) << "Resuming '" << waiter->name() << "'";
+              EVENTUALS_LOG(1) << "Resuming '" << context->name() << "'";
 
-              CHECK(waiter->callback);
-              waiter->callback();
+              CHECK(context->callback);
+              context->callback();
 
-              CHECK_EQ(waiter, Context::Get());
+              CHECK_EQ(context, Context::Get());
 
               ////////////////////////////////////////////////////
               // NOTE: can't use 'waiter' at this point in time //
@@ -112,14 +112,14 @@ StaticThreadPool::~StaticThreadPool() {
 ////////////////////////////////////////////////////////////////////////
 
 void StaticThreadPool::Submit(Callback<> callback, Context* context) {
-  auto* waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
+  CHECK(!context->blocked()) << context->name();
+  CHECK(context->next == nullptr) << context->name();
 
-  CHECK(!waiter->waiting) << waiter->name();
-  CHECK(waiter->next == nullptr) << waiter->name();
+  EVENTUALS_LOG(1) << "Submitting '" << context->name() << "'";
 
-  EVENTUALS_LOG(1) << "Submitting '" << waiter->name() << "'";
-
-  auto& pinned = waiter->requirements()->pinned;
+  auto* requirements =
+      static_cast<StaticThreadPool::Requirements*>(context->data);
+  auto& pinned = requirements->pinned;
 
   if (!pinned.core) {
     pinned.core = next_++ % concurrency;
@@ -129,17 +129,17 @@ void StaticThreadPool::Submit(Callback<> callback, Context* context) {
 
   assert(core < concurrency);
 
-  waiter->waiting = true;
+  context->block();
 
-  waiter->callback = std::move(callback);
+  context->callback = std::move(callback);
 
   auto* head = heads_[core];
 
-  waiter->next = head->load(std::memory_order_relaxed);
+  context->next = head->load(std::memory_order_relaxed);
 
   while (!head->compare_exchange_weak(
-      waiter->next,
-      waiter,
+      context->next,
+      context,
       std::memory_order_release,
       std::memory_order_relaxed)) {}
 
@@ -151,18 +151,27 @@ void StaticThreadPool::Submit(Callback<> callback, Context* context) {
 ////////////////////////////////////////////////////////////////////////
 
 bool StaticThreadPool::Continuable(Context* context) {
-  auto* waiter = static_cast<Waiter*>(CHECK_NOTNULL(context));
+  CHECK(!context->blocked()) << context->name();
+  CHECK(context->next == nullptr) << context->name();
 
-  CHECK(!waiter->waiting) << waiter->name();
-  CHECK(waiter->next == nullptr) << waiter->name();
+  auto* requirements =
+      static_cast<StaticThreadPool::Requirements*>(context->data);
+  auto& pinned = requirements->pinned;
 
-  auto& pinned = waiter->requirements()->pinned;
-
-  CHECK(pinned.core) << waiter->name();
+  CHECK(pinned.core) << context->name();
 
   unsigned int core = pinned.core.value();
 
   return StaticThreadPool::member && StaticThreadPool::core == core;
+}
+
+////////////////////////////////////////////////////////////////////////
+
+void StaticThreadPool::Clone(Context* child) {
+  // Storing additional requirements pinned core.
+  // No need to reallocate parent's 'data' because requirements that
+  // stored there is common for whole StaticThreadPool.
+  child->data = CHECK_NOTNULL(Scheduler::Context::Get()->data);
 }
 
 ////////////////////////////////////////////////////////////////////////
