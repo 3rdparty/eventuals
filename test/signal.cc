@@ -4,6 +4,7 @@
 
 #include "event-loop-test.h"
 #include "eventuals/event-loop.h"
+#include "eventuals/scheduler.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
@@ -12,6 +13,7 @@
 using eventuals::EventLoop;
 using eventuals::Eventual;
 using eventuals::Interrupt;
+using eventuals::Scheduler;
 using eventuals::Terminate;
 using eventuals::Then;
 using eventuals::WaitForOneOfSignals;
@@ -47,13 +49,13 @@ TEST_F(SignalTest, SignalComposition) {
   // submitting another callback we will ensure there is a
   // happens-before relationship between setting up the signal handler
   // and raising the signal.
-  EventLoop::Waiter waiter(&EventLoop::Default(), "raise(SIGQUIT)");
+  Scheduler::Context context(&EventLoop::Default(), "raise(SIGQUIT)");
 
   EventLoop::Default().Submit(
       []() {
         EXPECT_EQ(raise(SIGQUIT), 0);
       },
-      &waiter);
+      &context);
 
   EventLoop::Default().RunUntil(future);
 
@@ -72,13 +74,13 @@ TEST_F(SignalTest, WaitForSignal) {
   // submitting another callback we will ensure there is a
   // happens-before relationship between setting up the signal handler
   // and raising the signal.
-  EventLoop::Waiter waiter(&EventLoop::Default(), "raise(SIGQUIT)");
+  Scheduler::Context context(&EventLoop::Default(), "raise(SIGQUIT)");
 
   EventLoop::Default().Submit(
       []() {
         EXPECT_EQ(raise(SIGQUIT), 0);
       },
-      &waiter);
+      &context);
 
   EventLoop::Default().RunUntil(future);
 

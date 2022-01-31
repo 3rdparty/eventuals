@@ -8,6 +8,8 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
+#include <tuple>
 
 #include "eventuals/callback.h"
 #include "eventuals/closure.h"
@@ -132,35 +134,6 @@ class EventLoop : public Scheduler {
     uv_buf_t buffer_ = {};
   };
 
-  struct Waiter : public Scheduler::Context {
-   public:
-    Waiter(EventLoop* loop, std::string&& name)
-      : Scheduler::Context(loop),
-        name_(std::move(name)) {}
-
-    Waiter(Waiter&& that)
-      : Scheduler::Context(that.scheduler()),
-        name_(that.name_) {
-      // NOTE: should only get moved before it's "started".
-      CHECK(!that.waiting && !callback && next == nullptr);
-    }
-
-    const std::string& name() override {
-      return name_;
-    }
-
-    EventLoop* loop() {
-      return static_cast<EventLoop*>(scheduler());
-    }
-
-    bool waiting = false;
-    Callback<> callback;
-    Waiter* next = nullptr;
-
-   private:
-    std::string name_;
-  };
-
   class Clock {
    public:
     Clock(const Clock&) = delete;
@@ -207,15 +180,15 @@ class EventLoop : public Scheduler {
           : k_(std::move(k)),
             clock_(clock),
             nanoseconds_(std::move(nanoseconds)),
-            waiter_(&clock.loop(), "Timer (start/fail/stop)"),
-            interrupt_waiter_(&clock.loop(), "Timer (interrupt)") {}
+            context_(&clock.loop(), "Timer (start/fail/stop)"),
+            interrupt_context_(&clock.loop(), "Timer (interrupt)") {}
 
         Continuation(Continuation&& that)
           : k_(std::move(that.k_)),
             clock_(that.clock_),
             nanoseconds_(std::move(that.nanoseconds_)),
-            waiter_(&that.clock_.loop(), "Timer (start/fail/stop)"),
-            interrupt_waiter_(&that.clock_.loop(), "Timer (interrupt)") {
+            context_(&that.clock_.loop(), "Timer (start/fail/stop)"),
+            interrupt_context_(&that.clock_.loop(), "Timer (interrupt)") {
           CHECK(!that.started_ || !that.completed_) << "moving after starting";
           CHECK(!handler_);
         }
@@ -295,7 +268,7 @@ class EventLoop : public Scheduler {
                         }
                       }
                     },
-                    &waiter_);
+                    &context_);
               },
               nanoseconds_);
         }
@@ -319,7 +292,7 @@ class EventLoop : public Scheduler {
                     },
                     std::move(*tuple));
               },
-              &waiter_);
+              &context_);
         }
 
         void Stop() {
@@ -328,7 +301,7 @@ class EventLoop : public Scheduler {
               [this]() {
                 k_.Stop();
               },
-              &waiter_);
+              &context_);
         }
 
         void Register(Interrupt& interrupt) {
@@ -365,7 +338,7 @@ class EventLoop : public Scheduler {
                     });
                   }
                 },
-                &interrupt_waiter_);
+                &interrupt_context_);
           });
 
           // NOTE: we always install the handler in case 'Start()'
@@ -399,10 +372,10 @@ class EventLoop : public Scheduler {
 
         int error_ = 0;
 
-        // NOTE: we use 'waiter_' in each of 'Start()', 'Fail()', and
+        // NOTE: we use 'context_' in each of 'Start()', 'Fail()', and
         // 'Stop()' because only one of them will called at runtime.
-        EventLoop::Waiter waiter_;
-        EventLoop::Waiter interrupt_waiter_;
+        Scheduler::Context context_;
+        Scheduler::Context interrupt_context_;
 
         std::optional<Interrupt::Handler> handler_;
       };
@@ -478,6 +451,8 @@ class EventLoop : public Scheduler {
 
   void Submit(Callback<> callback, Scheduler::Context* context) override;
 
+  void Clone(Context* child) override {}
+
   // Schedules the eventual for execution on the event loop thread.
   template <typename E>
   auto Schedule(E e);
@@ -515,15 +490,15 @@ class EventLoop : public Scheduler {
         : k_(std::move(k)),
           loop_(loop),
           signum_(signum),
-          waiter_(&loop, "WaitForSignal (start/fail/stop)"),
-          interrupt_waiter_(&loop, "WaitForSignal (interrupt)") {}
+          context_(&loop, "WaitForSignal (start/fail/stop)"),
+          interrupt_context_(&loop, "WaitForSignal (interrupt)") {}
 
       Continuation(Continuation&& that)
         : k_(std::move(that.k_)),
           loop_(that.loop_),
           signum_(that.signum_),
-          waiter_(&that.loop_, "WaitForSignal (start/fail/stop)"),
-          interrupt_waiter_(&that.loop_, "WaitForSignal (interrupt)") {
+          context_(&that.loop_, "WaitForSignal (start/fail/stop)"),
+          interrupt_context_(&that.loop_, "WaitForSignal (interrupt)") {
         CHECK(!that.started_ || !that.completed_) << "moving after starting";
         CHECK(!handler_);
       }
@@ -581,7 +556,7 @@ class EventLoop : public Scheduler {
                 }
               }
             },
-            &waiter_);
+            &context_);
       }
 
       template <typename... Args>
@@ -603,7 +578,7 @@ class EventLoop : public Scheduler {
                   },
                   std::move(*tuple));
             },
-            &waiter_);
+            &context_);
       }
 
       void Stop() {
@@ -612,7 +587,7 @@ class EventLoop : public Scheduler {
             [this]() {
               k_.Stop();
             },
-            &waiter_);
+            &context_);
       }
 
       void Register(class Interrupt& interrupt) {
@@ -645,7 +620,7 @@ class EventLoop : public Scheduler {
                   });
                 }
               },
-              &interrupt_waiter_);
+              &interrupt_context_);
         });
 
         // NOTE: we always install the handler in case 'Start()'
@@ -675,10 +650,10 @@ class EventLoop : public Scheduler {
 
       int error_ = 0;
 
-      // NOTE: we use 'waiter_' in each of 'Start()', 'Fail()', and
+      // NOTE: we use 'context_' in each of 'Start()', 'Fail()', and
       // 'Stop()' because only one of them will called at runtime.
-      EventLoop::Waiter waiter_;
-      EventLoop::Waiter interrupt_waiter_;
+      Scheduler::Context context_;
+      Scheduler::Context interrupt_context_;
 
       std::optional<Interrupt::Handler> handler_;
     };
@@ -707,7 +682,7 @@ class EventLoop : public Scheduler {
 
   static inline thread_local bool in_event_loop_ = false;
 
-  std::atomic<Waiter*> waiters_ = nullptr;
+  std::atomic<Scheduler::Context*> contexts_ = nullptr;
 
   Clock clock_;
 };
@@ -716,12 +691,19 @@ class EventLoop : public Scheduler {
 
 struct _EventLoopSchedule {
   template <typename K_, typename E_, typename Arg_>
-  struct Continuation : public EventLoop::Waiter {
-    // NOTE: explicit constructor because inheriting 'EventLoop::Waiter'.
+  struct Continuation {
     Continuation(K_ k, E_ e, EventLoop* loop, std::string&& name)
-      : EventLoop::Waiter(loop, std::move(name)),
-        k_(std::move(k)),
-        e_(std::move(e)) {}
+      : k_(std::move(k)),
+        e_(std::move(e)),
+        context_(
+            std::make_tuple(
+                CHECK_NOTNULL(loop),
+                std::move(name))) {}
+
+    // To avoid casting default 'Scheduler' to 'EventLoop' each time.
+    auto* loop() {
+      return static_cast<EventLoop*>(context_->scheduler());
+    }
 
     template <typename... Args>
     void Start(Args&&... args) {
@@ -731,10 +713,10 @@ struct _EventLoopSchedule {
 
       if (loop()->InEventLoop()) {
         Adapt();
-        auto* previous = Scheduler::Context::Switch(this);
+        auto* previous = Scheduler::Context::Switch(context_.get());
         adapted_->Start(std::forward<Args>(args)...);
         previous = Scheduler::Context::Switch(previous);
-        CHECK_EQ(previous, this);
+        CHECK_EQ(previous, context_.get());
       } else {
         if constexpr (!std::is_void_v<Arg_>) {
           arg_.emplace(std::forward<Args>(args)...);
@@ -749,7 +731,7 @@ struct _EventLoopSchedule {
                 adapted_->Start();
               }
             },
-            this);
+            context_.get());
       }
     }
 
@@ -761,10 +743,10 @@ struct _EventLoopSchedule {
       // propagate a different failure.
       if (loop()->InEventLoop()) {
         Adapt();
-        auto* previous = Scheduler::Context::Switch(this);
+        auto* previous = Scheduler::Context::Switch(context_.get());
         adapted_->Fail(std::forward<Args>(args)...);
         previous = Scheduler::Context::Switch(previous);
-        CHECK_EQ(previous, this);
+        CHECK_EQ(previous, context_.get());
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
@@ -783,7 +765,7 @@ struct _EventLoopSchedule {
                   },
                   std::move(*tuple));
             },
-            this);
+            context_.get());
       }
     }
 
@@ -792,19 +774,20 @@ struct _EventLoopSchedule {
       // sure to support the use case where code wants to "catch" the
       // stop inside of a 'Schedule()' in order to do something
       // different.
+
       if (loop()->InEventLoop()) {
         Adapt();
-        auto* previous = Scheduler::Context::Switch(this);
+        auto* previous = Scheduler::Context::Switch(context_.get());
         adapted_->Stop();
         previous = Scheduler::Context::Switch(previous);
-        CHECK_EQ(previous, this);
+        CHECK_EQ(previous, context_.get());
       } else {
         loop()->Submit(
             [this]() {
               Adapt();
               adapted_->Stop();
             },
-            this);
+            context_.get());
       }
     }
 
@@ -845,6 +828,12 @@ struct _EventLoopSchedule {
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
 
+    _Lazy<
+        Scheduler::Context,
+        EventLoop*,
+        std::string>
+        context_;
+
     Interrupt* interrupt_ = nullptr;
 
     using Value_ = typename E_::template ValueFrom<Arg_>;
@@ -884,7 +873,6 @@ auto EventLoop::Schedule(E e) {
 }
 
 ////////////////////////////////////////////////////////////////////////
-
 template <typename E>
 auto EventLoop::Schedule(std::string&& name, E e) {
   return _EventLoopSchedule::Composable<E>{std::move(e), this, std::move(name)};

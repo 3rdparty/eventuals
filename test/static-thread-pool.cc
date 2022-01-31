@@ -1,24 +1,39 @@
 #include "eventuals/static-thread-pool.h"
 
+#include <vector>
+
 #include "eventuals/closure.h"
+#include "eventuals/collect.h"
+#include "eventuals/concurrent.h"
 #include "eventuals/eventual.h"
+#include "eventuals/iterate.h"
+#include "eventuals/let.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
 #include "eventuals/repeat.h"
+#include "eventuals/scheduler.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/until.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 using eventuals::Closure;
+using eventuals::Collect;
+using eventuals::Concurrent;
 using eventuals::Eventual;
+using eventuals::Iterate;
+using eventuals::Let;
 using eventuals::Loop;
 using eventuals::Map;
 using eventuals::Pinned;
 using eventuals::Repeat;
+using eventuals::Scheduler;
 using eventuals::StaticThreadPool;
 using eventuals::Then;
 using eventuals::Until;
+
+using testing::UnorderedElementsAre;
 
 TEST(StaticThreadPoolTest, Schedulable) {
   struct Foo : public StaticThreadPool::Schedulable {
@@ -150,4 +165,35 @@ TEST(StaticThreadPoolTest, Spawn) {
   };
 
   *e();
+}
+
+TEST(StaticThreadPoolTest, Concurrent) {
+  StaticThreadPool::Requirements requirements("pinned to 2", Pinned(2));
+
+  auto e = [&]() {
+    return StaticThreadPool::Scheduler().Schedule(
+        "static thread pool",
+        &requirements,
+        Iterate({1, 2, 3})
+            | Concurrent([&]() {
+                auto* parent = Scheduler::Context::Get();
+                EXPECT_EQ(
+                    parent->name(),
+                    "static thread pool");
+                EXPECT_EQ(&requirements, parent->data);
+                return Map([&](int i) {
+                  // Should be executed on a cloned StaticThreadPool context.
+                  auto* child = Scheduler::Context::Get();
+                  EXPECT_NE(parent, child);
+                  EXPECT_EQ(&requirements, child->data);
+                  EXPECT_EQ(
+                      child->name(),
+                      "static thread pool [concurrent fiber]");
+                  return i;
+                });
+              })
+            | Collect<std::vector<int>>());
+  };
+
+  EXPECT_THAT(*e(), UnorderedElementsAre(1, 2, 3));
 }

@@ -4,6 +4,7 @@
 #include "eventuals/eventual.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/let.h"
+#include "eventuals/scheduler.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
@@ -15,6 +16,7 @@ namespace http = eventuals::http;
 using eventuals::EventLoop;
 using eventuals::Interrupt;
 using eventuals::Let;
+using eventuals::Scheduler;
 using eventuals::Terminate;
 using eventuals::Then;
 
@@ -216,13 +218,13 @@ TEST_P(HttpTest, GetInterruptAfterStart) {
   // submitting another callback we will ensure there is a
   // happens-before relationship between starting the transfer
   // and triggering the interrupt.
-  EventLoop::Waiter waiter(&EventLoop::Default(), "interrupt.Trigger()");
+  Scheduler::Context context(&EventLoop::Default(), "interrupt.Trigger()");
 
   EventLoop::Default().Submit(
       [&interrupt]() {
         interrupt.Trigger();
       },
-      &waiter);
+      &context);
 
   EventLoop::Default().RunUntil(future);
 
@@ -250,13 +252,13 @@ TEST_P(HttpTest, PostInterruptAfterStart) {
   // submitting another callback we will ensure there is a
   // happens-before relationship between starting the transfer
   // and triggering the interrupt.
-  EventLoop::Waiter waiter(&EventLoop::Default(), "interrupt.Trigger()");
+  Scheduler::Context context(&EventLoop::Default(), "interrupt.Trigger()");
 
   EventLoop::Default().Submit(
       [&interrupt]() {
         interrupt.Trigger();
       },
-      &waiter);
+      &context);
 
   EventLoop::Default().RunUntil(future);
 
