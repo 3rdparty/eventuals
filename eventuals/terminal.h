@@ -200,11 +200,29 @@ struct StoppedException : public std::exception {
 
 ////////////////////////////////////////////////////////////////////////
 
+// Using to get right type for 'std::promise' at 'Terminate' because
+// using 'std::promise<std::reference_wrapper<T>>' is forbidden on
+// Windows build using MSVC.
+// https://stackoverflow.com/questions/49830864
+template <typename T>
+struct ReferenceWrapperTypeExtractor {
+  using type = T;
+};
+
+template <typename T>
+struct ReferenceWrapperTypeExtractor<std::reference_wrapper<T>> {
+  using type = T&;
+};
+
+////////////////////////////////////////////////////////////////////////
+
 template <typename E>
 auto Terminate(E e) {
   using Value = typename E::template ValueFrom<void>;
 
-  std::promise<Value> promise;
+  std::promise<
+      typename ReferenceWrapperTypeExtractor<Value>::type>
+      promise;
 
   auto future = promise.get_future();
 
