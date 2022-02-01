@@ -1,3 +1,6 @@
 [submodule "submodules/eventuals"]
 	path = submodules/eventuals
 	url = https://github.com/3rdparty/eventuals.git
+[submodule "submodules/dev-tools"]
+	path = submodules/dev-tools
+	url = https://github.com/3rdparty/dev-tools.git

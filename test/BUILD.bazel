@@ -10,6 +10,9 @@ cc_test(
         "cancelled-by-server.cc",
         "client-death-test.cc",
         "deadline.cc",
+        "greeter-server.cc",
+        "helloworld.eventuals.cc",
+        "helloworld.eventuals.h",
         "multiple-hosts.cc",
         "server-death-test.cc",
         "server-unavailable.cc",
@@ -17,10 +20,6 @@ cc_test(
         "test.h",
         "unary.cc",
         "unimplemented.cc",
-
-        "greeter-server.cc",
-        "helloworld.eventuals.cc",
-        "helloworld.eventuals.h",
     ],
     # NOTE: need to add 'linkstatic = True' in order to get this to
     # link until https://github.com/grpc/grpc/issues/13856 gets

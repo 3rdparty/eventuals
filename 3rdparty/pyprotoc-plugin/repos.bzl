@@ -9,8 +9,8 @@
 # instructions at https://github.com/reboot-dev/pyprotoc-plugin.
 ########################################################################
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 def repos(external = True, repo_mapping = {}):
     http_archive(

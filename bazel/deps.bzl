@@ -9,6 +9,13 @@ load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
 load("@com_github_reboot_dev_pyprotoc_plugin//bazel:deps.bzl", pyprotoc_plugin_deps = "deps")
 
 def deps(repo_mapping = {}):
+    """Propagate all dependencies.
+
+    Args:
+        repo_mapping: Passed through to all other functions that expect/use
+            repo_mapping, e.g., 'git_repository'
+    """
+
     eventuals_deps(
         repo_mapping = repo_mapping,
     )

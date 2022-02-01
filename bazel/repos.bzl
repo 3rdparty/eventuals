@@ -9,14 +9,23 @@
 # instructions at https://github.com/3rdparty/eventuals-grpc.
 ########################################################################
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//3rdparty/eventuals:repos.bzl", eventuals_repos = "repos")
+load("//3rdparty/pyprotoc-plugin:repos.bzl", pyprotoc_plugin_repos = "repos")
 load("//3rdparty/stout-borrowed-ptr:repos.bzl", stout_borrowed_ptr_repos = "repos")
 load("//3rdparty/stout-notification:repos.bzl", stout_notification_repos = "repos")
-load("//3rdparty/pyprotoc-plugin:repos.bzl", pyprotoc_plugin_repos = "repos")
 
 def repos(external = True, repo_mapping = {}):
+    """Adds repositories we depend on.
+
+    Args:
+        external: Whether or not we're invoking this function as though
+            though we're an external dependency
+        repo_mapping: Passed through to all other functions that expect/use
+            repo_mapping, e.g., 'git_repository'
+    """
+
     eventuals_repos(
         repo_mapping = repo_mapping,
     )

@@ -1,15 +1,17 @@
+"""Define and export the eventuals protoc plugin."""
+
 load("@rules_python//python:defs.bzl", "py_binary")
 
 py_binary(
-    name='protoc-gen-eventuals',
-    srcs=["protoc-gen-eventuals.py"],
-    srcs_version='PY3',
-    deps=[
+    name = "protoc-gen-eventuals",
+    srcs = ["protoc-gen-eventuals.py"],
+    data = [
+        "//protoc-gen-eventuals/templates:eventuals.cc.j2",
+        "//protoc-gen-eventuals/templates:eventuals.h.j2",
+    ],
+    srcs_version = "PY3",
+    visibility = ["//visibility:public"],
+    deps = [
         "@com_github_reboot_dev_pyprotoc_plugin//:pyprotoc_plugin",
     ],
-    data=[
-        "//protoc-gen-eventuals/templates:eventuals.h.j2",
-        "//protoc-gen-eventuals/templates:eventuals.cc.j2",
-    ],
-    visibility=["//visibility:public"],
 )
