@@ -1,0 +1,48 @@
+# Workflow for doing review based on clang-tidy.
+name: Code review with clang-tidy
+
+on:
+  push:
+    branches:
+      - "main"
+    paths-ignore:
+      - "**.md"
+  pull_request:
+    paths-ignore:
+      - "**.md"    
+
+jobs:
+  clang_tidy_checks:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # For now we run clang-tidy checks for macOS and Ubuntu.
+        # Later we will run clang-tidy checks for Windows too.
+        os: ["macos-latest", "ubuntu-latest"]
+
+    steps:
+      - uses: actions/checkout@v2
+        with: 
+          submodules: 'recursive'
+
+      - name: Generate compile_commands.json
+        run: |
+          chmod +x dev-tools/clang-tidy-review/generate_compilation_database.sh
+          dev-tools/clang-tidy-review/generate_compilation_database.sh
+
+      - name: Install clang-tidy on Ubuntu
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          sudo apt-get install -y clang-tidy-12
+          sudo ln -s $(which clang-tidy-12) /usr/bin/clang-tidy
+
+      - name: Create clang-tidy symlink on macOS
+        if: ${{ matrix.os == 'macos-latest' }}
+        run: |
+          ln -s "$(brew --prefix llvm)/bin/clang-tidy" "/usr/local/bin/clang-tidy"
+          clang-tidy --version
+                    
+      - name: Run clang-tidy checks
+        run: |
+          chmod +x dev-tools/clang-tidy-review/clang_tidy_review.sh
+          dev-tools/clang-tidy-review/clang_tidy_review.sh
