@@ -21,31 +21,31 @@ using eventuals::Then;
 
 using testing::MockFunction;
 
-TEST(IfTest, Then) {
+TEST(IfTest, Yes) {
   auto e = []() {
     return Just(1)
         | Then([](int i) {
              return If(i == 1)
-                 .then(Just("then"))
-                 .otherwise(Just("otherwise"));
+                 .yes(Just("yes"))
+                 .no(Just("no"));
            });
   };
 
-  EXPECT_EQ("then", *e());
+  EXPECT_EQ("yes", *e());
 }
 
 
-TEST(IfTest, Otherwise) {
+TEST(IfTest, No) {
   auto e = []() {
     return Just(0)
         | Then([](int i) {
              return If(i == 1)
-                 .then(Just("then"))
-                 .otherwise(Just("otherwise"));
+                 .yes(Just("yes"))
+                 .no(Just("no"));
            });
   };
 
-  EXPECT_EQ("otherwise", *e());
+  EXPECT_EQ("no", *e());
 }
 
 
@@ -55,8 +55,8 @@ TEST(IfTest, Fail) {
         | Raise("error")
         | Then([](int i) {
              return If(i == 1)
-                 .then(Just("then"))
-                 .otherwise(Just("otherwise"));
+                 .yes(Just("yes"))
+                 .no(Just("no"));
            });
   };
 
@@ -72,15 +72,15 @@ TEST(IfTest, Interrupt) {
     return Just(1)
         | Then([&](int i) {
              return If(i == 1)
-                 .then(Eventual<const char*>()
-                           .interruptible()
-                           .start([&](auto& k, Interrupt::Handler& handler) {
-                             handler.Install([&k]() {
-                               k.Stop();
-                             });
-                             start.Call();
-                           }))
-                 .otherwise(Just("otherwise"));
+                 .yes(Eventual<const char*>()
+                          .interruptible()
+                          .start([&](auto& k, Interrupt::Handler& handler) {
+                            handler.Install([&k]() {
+                              k.Stop();
+                            });
+                            start.Call();
+                          }))
+                 .no(Just("no"));
            });
   };
 
@@ -106,8 +106,8 @@ TEST(IfTest, Raise) {
     return Just(1)
         | Then([](int i) {
              return If(i == 1)
-                 .then(Just(i))
-                 .otherwise(Raise("raise"));
+                 .yes(Just(i))
+                 .no(Raise("raise"));
            });
   };
 
