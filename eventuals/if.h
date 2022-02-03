@@ -11,28 +11,28 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 struct _If {
-  template <typename K_, typename ThenE_, typename OtherwiseE_>
+  template <typename K_, typename YesE_, typename NoE_>
   struct Continuation {
     template <typename... Args>
     void Start(Args&&...) {
       if (condition_) {
-        then_adapted_.emplace(
-            std::move(then_).template k<void>(_Then::Adaptor<K_>{k_}));
+        yes_adapted_.emplace(
+            std::move(yes_).template k<void>(_Then::Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
-          then_adapted_->Register(*interrupt_);
+          yes_adapted_->Register(*interrupt_);
         }
 
-        then_adapted_->Start();
+        yes_adapted_->Start();
       } else {
-        otherwise_adapted_.emplace(
-            std::move(otherwise_).template k<void>(_Then::Adaptor<K_>{k_}));
+        no_adapted_.emplace(
+            std::move(no_).template k<void>(_Then::Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
-          otherwise_adapted_->Register(*interrupt_);
+          no_adapted_->Register(*interrupt_);
         }
 
-        otherwise_adapted_->Start();
+        no_adapted_->Start();
       }
     }
 
@@ -53,104 +53,104 @@ struct _If {
 
     K_ k_;
     bool condition_;
-    ThenE_ then_;
-    OtherwiseE_ otherwise_;
+    YesE_ yes_;
+    NoE_ no_;
 
     Interrupt* interrupt_ = nullptr;
 
-    using ThenValue_ = typename ThenE_::template ValueFrom<void>;
-    using OtherwiseValue_ = typename OtherwiseE_::template ValueFrom<void>;
+    using YesValue_ = typename YesE_::template ValueFrom<void>;
+    using NoValue_ = typename NoE_::template ValueFrom<void>;
 
     static_assert(
         std::disjunction_v<
-            std::is_same<ThenValue_, OtherwiseValue_>,
-            std::is_void<ThenValue_>,
-            std::is_void<OtherwiseValue_>>,
-        "'then' and 'otherwise' of 'If' *DO NOT* return "
+            std::is_same<YesValue_, NoValue_>,
+            std::is_void<YesValue_>,
+            std::is_void<NoValue_>>,
+        "'yes' and 'no' of 'If' *DO NOT* return "
         "an eventual value of the same type");
 
-    using ThenAdapted_ =
-        decltype(std::declval<ThenE_>().template k<void>(
+    using YesAdapted_ =
+        decltype(std::declval<YesE_>().template k<void>(
             std::declval<_Then::Adaptor<K_>>()));
 
-    using OtherwiseAdapted_ =
-        decltype(std::declval<OtherwiseE_>().template k<void>(
+    using NoAdapted_ =
+        decltype(std::declval<NoE_>().template k<void>(
             std::declval<_Then::Adaptor<K_>>()));
 
-    std::optional<ThenAdapted_> then_adapted_;
-    std::optional<OtherwiseAdapted_> otherwise_adapted_;
+    std::optional<YesAdapted_> yes_adapted_;
+    std::optional<NoAdapted_> no_adapted_;
   };
 
-  template <typename ThenE_, typename OtherwiseE_>
+  template <typename YesE_, typename NoE_>
   struct Builder {
-    template <typename ThenValue, typename OtherwiseValue>
+    template <typename YesValue, typename NoValue>
     using Unify_ = typename std::conditional_t<
-        std::is_same_v<ThenValue, OtherwiseValue>,
-        type_identity<ThenValue>,
+        std::is_same_v<YesValue, NoValue>,
+        type_identity<YesValue>,
         std::conditional_t<
-            std::is_void_v<ThenValue>,
-            type_identity<OtherwiseValue>,
-            std::enable_if<std::is_void_v<OtherwiseValue>, ThenValue>>>::type;
+            std::is_void_v<YesValue>,
+            type_identity<NoValue>,
+            std::enable_if<std::is_void_v<NoValue>, YesValue>>>::type;
 
     template <typename Arg>
     using ValueFrom = Unify_<
         // NOTE: we propagate 'void' as the value type for both
-        // 'ThenE_' and 'OtherwiseE_' until they are defined (which
+        // 'YesE_' and 'NoE_' until they are defined (which
         // they must eventually be otherwise a 'static_assert()' will
         // raise a compile error when invoking 'k()').
         typename std::conditional_t<
-            IsUndefined<ThenE_>::value,
+            IsUndefined<YesE_>::value,
             decltype(Eventual<void>()),
-            ThenE_>::template ValueFrom<void>,
+            YesE_>::template ValueFrom<void>,
         typename std::conditional_t<
-            IsUndefined<OtherwiseE_>::value,
+            IsUndefined<NoE_>::value,
             decltype(Eventual<void>()),
-            OtherwiseE_>::template ValueFrom<void>>;
+            NoE_>::template ValueFrom<void>>;
 
-    template <typename ThenE, typename OtherwiseE>
-    static auto create(bool condition, ThenE then, OtherwiseE otherwise) {
-      return Builder<ThenE, OtherwiseE>{
+    template <typename YesE, typename NoE>
+    static auto create(bool condition, YesE yes, NoE no) {
+      return Builder<YesE, NoE>{
           condition,
-          std::move(then),
-          std::move(otherwise)};
+          std::move(yes),
+          std::move(no)};
     }
 
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      static_assert(!IsUndefined<ThenE_>::value, "Missing 'then'");
-      static_assert(!IsUndefined<OtherwiseE_>::value, "Missing 'otherwise'");
+      static_assert(!IsUndefined<YesE_>::value, "Missing 'yes'");
+      static_assert(!IsUndefined<NoE_>::value, "Missing 'no'");
 
       static_assert(
-          HasValueFrom<ThenE_>::value,
-          "'If' expects an eventual for 'then'");
+          HasValueFrom<YesE_>::value,
+          "'If' expects an eventual for 'yes'");
 
       static_assert(
-          HasValueFrom<OtherwiseE_>::value,
-          "'If' expects an eventual for 'otherwise'");
+          HasValueFrom<NoE_>::value,
+          "'If' expects an eventual for 'no'");
 
-      return Continuation<K, ThenE_, OtherwiseE_>{
+      return Continuation<K, YesE_, NoE_>{
           std::move(k),
           condition_,
-          std::move(then_),
-          std::move(otherwise_)};
+          std::move(yes_),
+          std::move(no_)};
     }
 
-    template <typename ThenE>
-    auto then(ThenE then) && {
-      static_assert(IsUndefined<ThenE_>::value, "Duplicate 'then'");
-      return create(condition_, std::move(then), std::move(otherwise_));
+    template <typename YesE>
+    auto yes(YesE yes) && {
+      static_assert(IsUndefined<YesE_>::value, "Duplicate 'yes'");
+      return create(condition_, std::move(yes), std::move(no_));
     }
 
-    template <typename OtherwiseE>
-    auto otherwise(OtherwiseE otherwise) && {
-      static_assert(IsUndefined<OtherwiseE_>::value, "Duplicate 'otherwise'");
-      return create(condition_, std::move(then_), std::move(otherwise));
+    template <typename NoE>
+    auto no(NoE no) && {
+      static_assert(IsUndefined<NoE_>::value, "Duplicate 'no'");
+      return create(condition_, std::move(yes_), std::move(no));
     }
 
     bool condition_;
-    ThenE_ then_;
-    OtherwiseE_ otherwise_;
+    YesE_ yes_;
+    NoE_ no_;
   };
 };
 

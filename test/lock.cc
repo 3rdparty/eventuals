@@ -312,8 +312,8 @@ TEST(LockTest, ConditionVariable) {
       return Synchronized(Then([this, id]() {
         auto iterator = condition_variables_.find(id);
         return If(iterator == condition_variables_.end())
-            .then(Just(false))
-            .otherwise(Then([iterator]() {
+            .yes(Just(false))
+            .no(Then([iterator]() {
               auto& condition_variable = iterator->second;
               condition_variable.Notify();
               return true;
@@ -325,8 +325,8 @@ TEST(LockTest, ConditionVariable) {
       return Synchronized(Then([this, id]() {
         auto iterator = condition_variables_.find(id);
         return If(iterator == condition_variables_.end())
-            .then(Just(false))
-            .otherwise(Then([iterator]() {
+            .yes(Just(false))
+            .no(Then([iterator]() {
               auto& condition_variable = iterator->second;
               condition_variable.NotifyAll();
               return true;
