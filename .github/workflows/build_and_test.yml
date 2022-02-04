@@ -42,6 +42,7 @@ jobs:
       - name: Test
         run: | 
           bazel test \
+            --experimental_ui_max_stdouterr_bytes=-1 \
             --spawn_strategy=local \
             -c dbg \
             --strip="never" \
