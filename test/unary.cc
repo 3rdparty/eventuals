@@ -93,4 +93,10 @@ TEST_F(EventualsGrpcTest, Unary) {
   EXPECT_TRUE(status.ok());
 
   EXPECT_FALSE(cancelled.get());
+
+  // NOTE: explicitly calling 'Shutdown()' and 'Wait()' to test that
+  // they can be called safely since the destructor for a server
+  // _also_ trys to call them .
+  server->Shutdown();
+  server->Wait();
 }

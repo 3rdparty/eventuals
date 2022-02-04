@@ -208,6 +208,10 @@ Server::Server(
 ////////////////////////////////////////////////////////////////////////
 
 Server::~Server() {
+  // NOTE: unlike gRPC we try 'Shutdown()' and 'Wait()' here during
+  // destruction so that resources are properly released. While this
+  // is safer, it is different than gRPCs semantics hence being called
+  // out explicitly here!
   Shutdown();
   Wait();
 }
@@ -215,7 +219,7 @@ Server::~Server() {
 ////////////////////////////////////////////////////////////////////////
 
 void Server::Shutdown() {
-  // Server might have gotten moved.
+  // Server might have already been shutdown.
   if (server_) {
     server_->Shutdown();
   }
@@ -230,49 +234,60 @@ void Server::Shutdown() {
 ////////////////////////////////////////////////////////////////////////
 
 void Server::Wait() {
-  // We first wait for the underlying server to shutdown, that means
-  // that all the workers and the serves should have gotten some kind
-  // of error and be shutting down themselves.
   if (server_) {
+    // We first wait for the underlying server to shutdown, that means
+    // that all the workers and the serves should have gotten some
+    // kind of error and be shutting down themselves.
     server_->Wait();
-  }
 
-  // Now wait for the workers to complete.
-  for (auto& worker : workers_) {
-    while (!worker->done.load()) {
-      // TODO(benh): cpu relax or some other spin loop strategy.
+    // Now wait for the workers to complete.
+    for (auto& worker : workers_) {
+      while (!worker->done.load()) {
+        // TODO(benh): cpu relax or some other spin loop strategy.
+      }
     }
-  }
 
-  // Now wait for the serve tasks to be done (note that like workers
-  // ordering is not important since these are each independent).
-  for (auto& serve : serves_) {
-    while (!serve->done.load()) {
-      // TODO(benh): cpu relax or some other spin loop strategy.
+    // Now wait for the serve tasks to be done (note that like workers
+    // ordering is not important since these are each independent).
+    for (auto& serve : serves_) {
+      while (!serve->done.load()) {
+        // TODO(benh): cpu relax or some other spin loop strategy.
+      }
     }
-  }
 
-  // We shutdown the completion queues _after_ all 'workers_' and
-  // 'serves_' have completed because if they try to use the
-  // completion queues after they're shutdown that may cause internal
-  // grpc assertions to fire (which makes sense, we called shutdown on
-  // them and then tried to use them).
-  //
-  // NOTE: it's unclear if we need to shutdown the completion queues
-  // before we wait on the server but at least emperically it appears
-  // that it doesn't matter.
-  for (auto& cq : cqs_) {
-    cq->Shutdown();
-  }
+    // We shutdown the completion queues _after_ all 'workers_' and
+    // 'serves_' have completed because if they try to use the
+    // completion queues after they're shutdown that may cause
+    // internal grpc assertions to fire (which makes sense, we called
+    // shutdown on them and then tried to use them).
+    //
+    // NOTE: it's unclear if we need to shutdown the completion queues
+    // before we wait on the server but at least emperically it
+    // appears that it doesn't matter.
+    for (auto& cq : cqs_) {
+      cq->Shutdown();
+    }
 
-  for (auto& thread : threads_) {
-    thread.join();
-  }
+    for (auto& thread : threads_) {
+      thread.join();
+    }
 
-  for (auto& cq : cqs_) {
-    void* tag = nullptr;
-    bool ok = false;
-    while (cq->Next(&tag, &ok)) {}
+    for (auto& cq : cqs_) {
+      void* tag = nullptr;
+      bool ok = false;
+      while (cq->Next(&tag, &ok)) {}
+    }
+
+    // NOTE: gRPC doesn't want us calling 'Wait()' more than once (as
+    // in, it causes an abort) presumably because it has already
+    // released resources. This is possible at the very least if one
+    // manually calls this function and then this function gets called
+    // again from the destructor. Thus, we reset 'server_' here (BUT
+    // AFTER WE HAVE WAITED FOR ALL THREADS ABOVE TO HAVE JOINED) so
+    // that we won't try and call 'Wait()' more than once because
+    // 'server_' will be valueless (or call 'Shutdown()' more than
+    // once since we also check for 'server_' there).
+    server_.reset();
   }
 }
 
