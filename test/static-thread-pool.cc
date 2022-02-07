@@ -38,7 +38,7 @@ using testing::UnorderedElementsAre;
 TEST(StaticThreadPoolTest, Schedulable) {
   struct Foo : public StaticThreadPool::Schedulable {
     Foo()
-      : StaticThreadPool::Schedulable(Pinned(
+      : StaticThreadPool::Schedulable(Pinned::ExactCPU(
           std::thread::hardware_concurrency() - 1)) {}
 
     auto Operation() {
@@ -132,8 +132,8 @@ TEST(StaticThreadPoolTest, PingPong) {
     size_t count = 0;
   };
 
-  Streamer streamer(Pinned(0));
-  Listener listener(Pinned(1));
+  Streamer streamer(Pinned::ExactCPU(0));
+  Listener listener(Pinned::ExactCPU(1));
 
   EXPECT_EQ(6, *(streamer.Stream() | listener.Listen()));
 }
@@ -168,7 +168,9 @@ TEST(StaticThreadPoolTest, Spawn) {
 }
 
 TEST(StaticThreadPoolTest, Concurrent) {
-  StaticThreadPool::Requirements requirements("pinned to 2", Pinned(2));
+  StaticThreadPool::Requirements requirements(
+      "modulo total CPUs 2",
+      Pinned::ModuloTotalCPUs(2));
 
   auto e = [&]() {
     return StaticThreadPool::Scheduler().Schedule(

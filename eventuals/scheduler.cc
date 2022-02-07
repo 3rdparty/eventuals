@@ -55,9 +55,10 @@ class DefaultScheduler : public Scheduler {
     Context::Switch(previous);
   }
 
-  // 'DefaultScheduler' just invokes what ever callback was specified
-  // to 'Submit()' with no other.
-  void Clone(Context* context) override {}
+  void Clone(Context* context) override {
+    // This function is intentionally empty because the 'DefaultScheduler'
+    // just invokes what ever callback was specified to 'Submit()'.
+  }
 };
 
 ////////////////////////////////////////////////////////////////////////

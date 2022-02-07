@@ -13,19 +13,19 @@ StaticThreadPool::StaticThreadPool()
   semaphores_.reserve(concurrency);
   heads_.reserve(concurrency);
   threads_.reserve(concurrency);
-  for (size_t core = 0; core < concurrency; core++) {
+  for (size_t cpu = 0; cpu < concurrency; cpu++) {
     semaphores_.emplace_back();
     heads_.emplace_back();
     ready_.emplace_back();
     threads_.emplace_back(
-        [this, core]() {
+        [this, cpu]() {
           StaticThreadPool::member = true;
-          StaticThreadPool::core = core;
+          StaticThreadPool::cpu = cpu;
 
-          SetAffinity(threads_[core], core);
+          SetAffinity(threads_[cpu], cpu);
 
           EVENTUALS_LOG(3)
-              << "Thread " << core << " (id=" << std::this_thread::get_id()
+              << "Thread " << cpu << " (id=" << std::this_thread::get_id()
               << ") is running on core " << GetRunningCPU();
 
           // NOTE: we store each 'semaphore' and 'head' in each thread
@@ -34,10 +34,10 @@ StaticThreadPool::StaticThreadPool()
           Semaphore semaphore;
           std::atomic<Context*> head = nullptr;
 
-          semaphores_[core] = &semaphore;
-          heads_[core] = &head;
+          semaphores_[cpu] = &semaphore;
+          heads_[cpu] = &head;
 
-          ready_[core].Signal();
+          ready_[cpu].Signal();
 
           do {
             semaphore.Wait();
@@ -121,19 +121,17 @@ void StaticThreadPool::Submit(Callback<> callback, Context* context) {
       static_cast<StaticThreadPool::Requirements*>(context->data);
   auto& pinned = requirements->pinned;
 
-  if (!pinned.core) {
-    pinned.core = next_++ % concurrency;
-  }
+  CHECK(pinned.cpu()) << context->name();
 
-  unsigned int core = pinned.core.value();
+  unsigned int cpu = pinned.cpu().value();
 
-  assert(core < concurrency);
+  assert(cpu < concurrency);
 
   context->block();
 
   context->callback = std::move(callback);
 
-  auto* head = heads_[core];
+  auto* head = heads_[cpu];
 
   context->next = head->load(std::memory_order_relaxed);
 
@@ -143,7 +141,7 @@ void StaticThreadPool::Submit(Callback<> callback, Context* context) {
       std::memory_order_release,
       std::memory_order_relaxed)) {}
 
-  auto* semaphore = semaphores_[core];
+  auto* semaphore = semaphores_[cpu];
 
   semaphore->Signal();
 }
@@ -158,19 +156,20 @@ bool StaticThreadPool::Continuable(Context* context) {
       static_cast<StaticThreadPool::Requirements*>(context->data);
   auto& pinned = requirements->pinned;
 
-  CHECK(pinned.core) << context->name();
+  CHECK(pinned.cpu()) << context->name();
 
-  unsigned int core = pinned.core.value();
+  unsigned int cpu = pinned.cpu().value();
 
-  return StaticThreadPool::member && StaticThreadPool::core == core;
+  return StaticThreadPool::member && StaticThreadPool::cpu == cpu;
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 void StaticThreadPool::Clone(Context* child) {
-  // Storing additional requirements pinned core.
-  // No need to reallocate parent's 'data' because requirements that
-  // stored there is common for whole StaticThreadPool.
+  // We copy the parent's data pointer which points to the 'Requirements'.
+  // We don't need to reallocate the pointer to 'Requirements' because it must
+  // outlive the parent context and the parent context must outlive this child
+  // context.
   child->data = CHECK_NOTNULL(Scheduler::Context::Get()->data);
 }
 

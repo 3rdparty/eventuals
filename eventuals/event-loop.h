@@ -700,7 +700,7 @@ struct _EventLoopSchedule {
                 CHECK_NOTNULL(loop),
                 std::move(name))) {}
 
-    // To avoid casting default 'Scheduler' to 'EventLoop' each time.
+    // To avoid casting default 'Scheduler*' to 'EventLoop*' each time.
     auto* loop() {
       return static_cast<EventLoop*>(context_->scheduler());
     }
@@ -828,6 +828,8 @@ struct _EventLoopSchedule {
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
 
+    // Need to store context using '_Lazy' because we need to be able to move
+    // this class _before_ it's started and 'Context' is not movable.
     _Lazy<
         Scheduler::Context,
         EventLoop*,
