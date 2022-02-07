@@ -1,0 +1,15 @@
+UseColor: true
+
+# Discuss if we wanna add some extra checks.
+Checks: >
+    bugprone-*,
+    clang-analyzer-cplusplus*,
+    concurrency-*,
+    cppcoreguidelines-*,
+    google-*,
+    modernize-*,
+    performance-*,
+    readability-*,
+HeaderFilterRegex: '^\.\/eventuals\/.*|^\.\/test\/.*'
+
+WarningsAsErrors: ""

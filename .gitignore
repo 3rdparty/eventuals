@@ -5,4 +5,5 @@ bazel-bin
 bazel-eventuals
 bazel-out
 bazel-testlogs
+dev-tools/compilation-database/bazel-compilation-database.*
 user.bazelrc
