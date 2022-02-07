@@ -17,7 +17,7 @@ cc_library(
         "eventuals/concurrent.h",
         "eventuals/concurrent-ordered.h",
         "eventuals/conditional.h",
-        "eventuals/context.h",
+        "eventuals/lazy.h",
         "eventuals/do-all.h",
         "eventuals/eventual.h",
         "eventuals/expected.h",

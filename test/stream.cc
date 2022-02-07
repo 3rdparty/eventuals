@@ -2,8 +2,8 @@
 
 #include <thread>
 
-#include "eventuals/context.h"
 #include "eventuals/head.h"
+#include "eventuals/lazy.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
 #include "eventuals/reduce.h"
@@ -12,10 +12,10 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using eventuals::Context;
 using eventuals::Eventual;
 using eventuals::Head;
 using eventuals::Interrupt;
+using eventuals::Lazy;
 using eventuals::Loop;
 using eventuals::Map;
 using eventuals::Reduce;
@@ -177,7 +177,7 @@ TEST(StreamTest, InterruptStream) {
 
   auto s = [&]() {
     return Stream<int>()
-               .context(Context<std::atomic<bool>>(false))
+               .context(Lazy<std::atomic<bool>>(false))
                .interruptible()
                .begin([](auto& interrupted,
                          auto& k,
@@ -256,7 +256,7 @@ TEST(StreamTest, InterruptLoop) {
                  k.Ended();
                })
         | Loop<int>()
-              .context(Context<std::atomic<bool>>(false))
+              .context(Lazy<std::atomic<bool>>(false))
               .interruptible()
               .begin([](auto& interrupted,
                         auto& k,

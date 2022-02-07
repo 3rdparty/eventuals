@@ -6,12 +6,12 @@
 
 #include "eventuals/closure.h"
 #include "eventuals/collect.h"
-#include "eventuals/context.h"
 #include "eventuals/eventual.h"
 #include "eventuals/flat-map.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/iterate.h"
 #include "eventuals/just.h"
+#include "eventuals/lazy.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
 #include "eventuals/range.h"
@@ -24,13 +24,13 @@
 
 using eventuals::Closure;
 using eventuals::Collect;
-using eventuals::Context;
 using eventuals::Eventual;
 using eventuals::FlatMap;
 using eventuals::Generator;
 using eventuals::Interrupt;
 using eventuals::Iterate;
 using eventuals::Just;
+using eventuals::Lazy;
 using eventuals::Loop;
 using eventuals::Map;
 using eventuals::Range;
@@ -120,7 +120,7 @@ TEST(Generator, InterruptStream) {
   auto stream = [&functions]() -> Generator::Of<int> {
     return [&]() {
       return Stream<int>()
-          .context(Context<std::atomic<bool>>(false))
+          .context(Lazy<std::atomic<bool>>(false))
           .interruptible()
           .begin([](auto&, auto& k, Interrupt::Handler& handler) {
             handler.Install([&k]() {

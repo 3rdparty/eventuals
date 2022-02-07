@@ -11,8 +11,8 @@
 
 #include "eventuals/callback.h"
 #include "eventuals/closure.h"
-#include "eventuals/context.h"
 #include "eventuals/eventual.h"
+#include "eventuals/lazy.h"
 #include "eventuals/then.h"
 #include "uv.h"
 
