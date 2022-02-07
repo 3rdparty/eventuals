@@ -79,6 +79,8 @@ struct _Concurrent {
         new (&interrupt) class Interrupt();
       }
 
+      virtual ~TypeErasedFiber() {}
+
       // A fiber indicates it is done with this boolean.
       bool done = false;
 

@@ -38,17 +38,18 @@ class Scheduler {
     Context(
         Scheduler* scheduler,
         const std::string& name,
-        void* new_data = nullptr)
-      : data(new_data),
+        void* data = nullptr)
+      : data(data),
         scheduler_(CHECK_NOTNULL(scheduler)),
         name_(name) {}
 
     Context(
         const std::string& name)
-      // 'data' field will be set in 'Clone'.
       : Context(CHECK_NOTNULL(Context::Get()->scheduler_), name) {
       scheduler_->Clone(this);
     }
+
+    Context(const Context& that) = delete;
 
     Context(Context&& that) = delete;
 

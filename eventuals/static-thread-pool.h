@@ -19,15 +19,34 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 struct Pinned {
-  Pinned() {}
+  static Pinned ModuloTotalCPUs(unsigned int cpu) {
+    return Pinned(cpu % std::thread::hardware_concurrency());
+  }
 
-  Pinned(unsigned int core)
-    : core(core) {}
+  static Pinned Any() {
+    return Pinned();
+  }
+
+  static Pinned ExactCPU(unsigned int cpu) {
+    CHECK(cpu < std::thread::hardware_concurrency())
+        << "specified CPU is not valid";
+    return Pinned(cpu);
+  }
+
+  std::optional<unsigned int> cpu() {
+    return cpu_;
+  }
 
   Pinned(const Pinned& that)
-    : core(that.core) {}
+    : cpu_(that.cpu_) {}
 
-  std::optional<unsigned int> core;
+ private:
+  Pinned() = default;
+
+  Pinned(unsigned int cpu)
+    : cpu_(cpu) {}
+
+  std::optional<unsigned int> cpu_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -35,16 +54,10 @@ struct Pinned {
 class StaticThreadPool : public Scheduler {
  public:
   struct Requirements {
-    Requirements(const char* name)
-      : Requirements(std::string(name)) {}
-
-    Requirements(const char* name, Pinned pinned)
+    Requirements(const char* name, Pinned pinned = Pinned::Any())
       : Requirements(std::string(name), std::move(pinned)) {}
 
-    Requirements(std::string name)
-      : name(std::move(name)) {}
-
-    Requirements(std::string name, Pinned pinned)
+    Requirements(std::string name, Pinned pinned = Pinned::Any())
       : name(std::move(name)),
         pinned(pinned) {}
 
@@ -84,8 +97,8 @@ class StaticThreadPool : public Scheduler {
   // Is thread a member of the static pool?
   static inline thread_local bool member = false;
 
-  // If 'member', for which core?
-  static inline thread_local unsigned int core = 0;
+  // If 'member', for which cpu?
+  static inline thread_local unsigned int cpu = 0;
 
   const unsigned int concurrency;
 
@@ -117,7 +130,6 @@ class StaticThreadPool : public Scheduler {
   std::deque<Semaphore> ready_;
   std::vector<std::thread> threads_;
   std::atomic<bool> shutdown_ = false;
-  size_t next_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -139,12 +151,14 @@ struct _StaticThreadPoolSchedule {
                 std::move(name),
                 CHECK_NOTNULL(requirements))) {}
 
-    // To avoid casting default 'Scheduler' to 'StaticTheadPool' each time.
+    // Helper to avoid casting default 'Scheduler*' to 'StaticThreadPool*'
+    // each time.
     auto* pool() {
       return static_cast<StaticThreadPool*>(context_->scheduler());
     }
 
-    // To avoid casting 'void*' to 'StaticThreadPool::Requirements*' each time.
+    // Helper to avoid casting 'void*' to 'StaticThreadPool::Requirements*'
+    // each time.
     auto* requirements() {
       return static_cast<StaticThreadPool::Requirements*>(context_->data);
     }
@@ -160,48 +174,40 @@ struct _StaticThreadPoolSchedule {
 
       auto& pinned = requirements()->pinned;
 
-      if (!pinned.core) {
-        // TODO(benh): pick the least loaded core. This will require
+      if (!pinned.cpu()) {
+        // TODO(benh): pick the least loaded cpu. This will require
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned.core = 0;
+        pinned = Pinned::ExactCPU(0);
       }
 
-      assert(pinned.core);
+      CHECK(pinned.cpu() <= pool()->concurrency);
 
-      if (!(*pinned.core < pool()->concurrency)) {
-        CHECK(!adapted_);
-        if (interrupt_ != nullptr) {
-          k_.Register(*interrupt_);
-        }
-        k_.Fail("'" + context_->name() + "' required core is > total cores");
+      if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
+        Adapt();
+        auto* previous = Scheduler::Context::Switch(context_.get());
+        adapted_->Start(std::forward<Args>(args)...);
+        previous = Scheduler::Context::Switch(previous);
+        CHECK_EQ(previous, context_.get());
       } else {
-        if (StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
-          Adapt();
-          auto* previous = Scheduler::Context::Switch(context_.get());
-          adapted_->Start(std::forward<Args>(args)...);
-          previous = Scheduler::Context::Switch(previous);
-          CHECK_EQ(previous, context_.get());
-        } else {
-          if constexpr (!std::is_void_v<Arg_>) {
-            arg_.emplace(std::forward<Args>(args)...);
-          }
-
-          EVENTUALS_LOG(1)
-              << "Schedule submitting '" << context_->name() << "'";
-
-          pool()->Submit(
-              [this]() {
-                Adapt();
-                if constexpr (sizeof...(args) > 0) {
-                  adapted_->Start(std::move(*arg_));
-                } else {
-                  adapted_->Start();
-                }
-              },
-              context_.get());
+        if constexpr (!std::is_void_v<Arg_>) {
+          arg_.emplace(std::forward<Args>(args)...);
         }
+
+        EVENTUALS_LOG(1)
+            << "Schedule submitting '" << context_->name() << "'";
+
+        pool()->Submit(
+            [this]() {
+              Adapt();
+              if constexpr (sizeof...(args) > 0) {
+                adapted_->Start(std::move(*arg_));
+              } else {
+                adapted_->Start();
+              }
+            },
+            context_.get());
       }
     }
 
@@ -216,53 +222,44 @@ struct _StaticThreadPoolSchedule {
 
       auto& pinned = requirements()->pinned;
 
-      if (!pinned.core) {
-        // TODO(benh): pick the least loaded core. This will require
+      if (!pinned.cpu()) {
+        // TODO(benh): pick the least loaded cpu. This will require
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned.core = 0;
+        pinned = Pinned::ExactCPU(0);
       }
 
-      assert(pinned.core);
+      CHECK(pinned.cpu() <= pool()->concurrency);
 
-      if (!(*pinned.core < pool()->concurrency)) {
-        CHECK(!adapted_);
-        if (interrupt_ != nullptr) {
-          k_.Register(*interrupt_);
-        }
-        k_.Fail("'" + context_->name() + "' required core is > total cores");
+      if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
+        Adapt();
+        auto* previous = Scheduler::Context::Switch(context_.get());
+        adapted_->Fail(std::forward<Args>(args)...);
+        previous = Scheduler::Context::Switch(previous);
+        CHECK_EQ(previous, context_.get());
       } else {
-        if (StaticThreadPool::member
-            && StaticThreadPool::core == pinned.core) {
-          Adapt();
-          auto* previous = Scheduler::Context::Switch(context_.get());
-          adapted_->Fail(std::forward<Args>(args)...);
-          previous = Scheduler::Context::Switch(previous);
-          CHECK_EQ(previous, context_.get());
-        } else {
-          // TODO(benh): avoid allocating on heap by storing args in
-          // pre-allocated buffer based on composing with Errors.
-          using Tuple = std::tuple<decltype(this), Args...>;
-          auto tuple = std::make_unique<Tuple>(
-              this,
-              std::forward<Args>(args)...);
+        // TODO(benh): avoid allocating on heap by storing args in
+        // pre-allocated buffer based on composing with Errors.
+        using Tuple = std::tuple<decltype(this), Args...>;
+        auto tuple = std::make_unique<Tuple>(
+            this,
+            std::forward<Args>(args)...);
 
-          EVENTUALS_LOG(1)
-              << "Schedule submitting '" << context_->name() << "'";
+        EVENTUALS_LOG(1)
+            << "Schedule submitting '" << context_->name() << "'";
 
-          pool()->Submit(
-              [tuple = std::move(tuple)]() mutable {
-                std::apply(
-                    [](auto* schedule, auto&&... args) {
-                      schedule->Adapt();
-                      schedule->adapted_->Fail(
-                          std::forward<decltype(args)>(args)...);
-                    },
-                    std::move(*tuple));
-              },
-              context_.get());
-        }
+        pool()->Submit(
+            [tuple = std::move(tuple)]() mutable {
+              std::apply(
+                  [](auto* schedule, auto&&... args) {
+                    schedule->Adapt();
+                    schedule->adapted_->Fail(
+                        std::forward<decltype(args)>(args)...);
+                  },
+                  std::move(*tuple));
+            },
+            context_.get());
       }
     }
 
@@ -276,41 +273,32 @@ struct _StaticThreadPoolSchedule {
 
       auto& pinned = requirements()->pinned;
 
-      if (!pinned.core) {
-        // TODO(benh): pick the least loaded core. This will require
+      if (!pinned.cpu()) {
+        // TODO(benh): pick the least loaded cpu. This will require
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned.core = 0;
+        pinned = Pinned::ExactCPU(0);
       }
 
-      assert(pinned.core);
+      CHECK(pinned.cpu() <= pool()->concurrency);
 
-      if (!(*pinned.core < pool()->concurrency)) {
-        CHECK(!adapted_);
-        if (interrupt_ != nullptr) {
-          k_.Register(*interrupt_);
-        }
-        k_.Fail("'" + context_->name() + "' required core is > total cores");
+      if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
+        Adapt();
+        auto* previous = Scheduler::Context::Switch(context_.get());
+        adapted_->Stop();
+        previous = Scheduler::Context::Switch(previous);
+        CHECK_EQ(previous, context_.get());
       } else {
-        if (StaticThreadPool::member
-            && StaticThreadPool::core == pinned.core) {
-          Adapt();
-          auto* previous = Scheduler::Context::Switch(context_.get());
-          adapted_->Stop();
-          previous = Scheduler::Context::Switch(previous);
-          CHECK_EQ(previous, context_.get());
-        } else {
-          EVENTUALS_LOG(1)
-              << "Schedule submitting '" << context_->name() << "'";
+        EVENTUALS_LOG(1)
+            << "Schedule submitting '" << context_->name() << "'";
 
-          pool()->Submit(
-              [this]() {
-                Adapt();
-                adapted_->Stop();
-              },
-              context_.get());
-        }
+        pool()->Submit(
+            [this]() {
+              Adapt();
+              adapted_->Stop();
+            },
+            context_.get());
       }
     }
 
@@ -322,41 +310,32 @@ struct _StaticThreadPoolSchedule {
 
       auto& pinned = requirements()->pinned;
 
-      if (!pinned.core) {
-        // TODO(benh): pick the least loaded core. This will require
+      if (!pinned.cpu()) {
+        // TODO(benh): pick the least loaded cpu. This will require
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned.core = 0;
+        pinned = Pinned::ExactCPU(0);
       }
 
-      assert(pinned.core);
+      CHECK(pinned.cpu() <= pool()->concurrency);
 
-      if (!(*pinned.core < pool()->concurrency)) {
-        CHECK(!adapted_);
-        if (interrupt_ != nullptr) {
-          k_.Register(*interrupt_);
-        }
-        k_.Fail("'" + context_->name() + "' required core is > total cores");
+      if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
+        Adapt();
+        auto* previous = Scheduler::Context::Switch(context_.get());
+        adapted_->Begin(*CHECK_NOTNULL(stream_));
+        previous = Scheduler::Context::Switch(previous);
+        CHECK_EQ(previous, context_.get());
       } else {
-        if (StaticThreadPool::member
-            && StaticThreadPool::core == pinned.core) {
-          Adapt();
-          auto* previous = Scheduler::Context::Switch(context_.get());
-          adapted_->Begin(*CHECK_NOTNULL(stream_));
-          previous = Scheduler::Context::Switch(previous);
-          CHECK_EQ(previous, context_.get());
-        } else {
-          EVENTUALS_LOG(1)
-              << "Schedule submitting '" << context_->name() << "'";
+        EVENTUALS_LOG(1)
+            << "Schedule submitting '" << context_->name() << "'";
 
-          pool()->Submit(
-              [this]() {
-                Adapt();
-                adapted_->Begin(*CHECK_NOTNULL(stream_));
-              },
-              context_.get());
-        }
+        pool()->Submit(
+            [this]() {
+              Adapt();
+              adapted_->Begin(*CHECK_NOTNULL(stream_));
+            },
+            context_.get());
       }
     }
 
@@ -369,49 +348,41 @@ struct _StaticThreadPoolSchedule {
       EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
       auto& pinned = requirements()->pinned;
-      if (!pinned.core) {
-        // TODO(benh): pick the least loaded core. This will require
+
+      if (!pinned.cpu()) {
+        // TODO(benh): pick the least loaded cpu. This will require
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned.core = 0;
+        pinned = Pinned::ExactCPU(0);
       }
 
-      assert(pinned.core);
+      CHECK(pinned.cpu() <= pool()->concurrency);
 
-      if (!(*pinned.core < pool()->concurrency)) {
-        CHECK(!adapted_);
-        if (interrupt_ != nullptr) {
-          k_.Register(*interrupt_);
-        }
-        k_.Fail("'" + context_->name() + "' required core is > total cores");
+      if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
+        Adapt();
+        auto* previous = Scheduler::Context::Switch(context_.get());
+        adapted_->Body(std::forward<Args>(args)...);
+        previous = Scheduler::Context::Switch(previous);
+        CHECK_EQ(previous, context_.get());
       } else {
-        if (StaticThreadPool::member
-            && StaticThreadPool::core == pinned.core) {
-          Adapt();
-          auto* previous = Scheduler::Context::Switch(context_.get());
-          adapted_->Body(std::forward<Args>(args)...);
-          previous = Scheduler::Context::Switch(previous);
-          CHECK_EQ(previous, context_.get());
-        } else {
-          if constexpr (!std::is_void_v<Arg_>) {
-            arg_.emplace(std::forward<Args>(args)...);
-          }
-
-          EVENTUALS_LOG(1)
-              << "Schedule submitting '" << context_->name() << "'";
-
-          pool()->Submit(
-              [this]() {
-                Adapt();
-                if constexpr (sizeof...(args) > 0) {
-                  adapted_->Body(std::move(*arg_));
-                } else {
-                  adapted_->Body();
-                }
-              },
-              context_.get());
+        if constexpr (!std::is_void_v<Arg_>) {
+          arg_.emplace(std::forward<Args>(args)...);
         }
+
+        EVENTUALS_LOG(1)
+            << "Schedule submitting '" << context_->name() << "'";
+
+        pool()->Submit(
+            [this]() {
+              Adapt();
+              if constexpr (sizeof...(args) > 0) {
+                adapted_->Body(std::move(*arg_));
+              } else {
+                adapted_->Body();
+              }
+            },
+            context_.get());
       }
     }
 
@@ -425,41 +396,32 @@ struct _StaticThreadPoolSchedule {
 
       auto& pinned = requirements()->pinned;
 
-      if (!pinned.core) {
-        // TODO(benh): pick the least loaded core. This will require
+      if (!pinned.cpu()) {
+        // TODO(benh): pick the least loaded cpu. This will require
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned.core = 0;
+        pinned = Pinned::ExactCPU(0);
       }
 
-      assert(pinned.core);
+      CHECK(pinned.cpu() <= pool()->concurrency);
 
-      if (!(*pinned.core < pool()->concurrency)) {
-        CHECK(!adapted_);
-        if (interrupt_ != nullptr) {
-          k_.Register(*interrupt_);
-        }
-        k_.Fail("'" + context_->name() + "' required core is > total cores");
+      if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
+        Adapt();
+        auto* previous = Scheduler::Context::Switch(context_.get());
+        adapted_->Ended();
+        previous = Scheduler::Context::Switch(previous);
+        CHECK_EQ(previous, context_.get());
       } else {
-        if (
-            StaticThreadPool::member && StaticThreadPool::core == pinned.core) {
-          Adapt();
-          auto* previous = Scheduler::Context::Switch(context_.get());
-          adapted_->Ended();
-          previous = Scheduler::Context::Switch(previous);
-          CHECK_EQ(previous, context_.get());
-        } else {
-          EVENTUALS_LOG(1)
-              << "Schedule submitting '" << context_->name() << "'";
+        EVENTUALS_LOG(1)
+            << "Schedule submitting '" << context_->name() << "'";
 
-          pool()->Submit(
-              [this]() {
-                Adapt();
-                adapted_->Ended();
-              },
-              context_.get());
-        }
+        pool()->Submit(
+            [this]() {
+              Adapt();
+              adapted_->Ended();
+            },
+            context_.get());
       }
     }
 
@@ -506,8 +468,8 @@ struct _StaticThreadPoolSchedule {
 
     Interrupt* interrupt_ = nullptr;
 
-    // Need to store context instead of using inheritance because
-    // we don't want to support move operation for contexts.
+    // Need to store context using '_Lazy' because we need to be able to move
+    // this class _before_ it's started and 'Context' is not movable.
     _Lazy<
         Scheduler::Context,
         StaticThreadPool*,
