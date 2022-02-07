@@ -12,15 +12,15 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T, typename... Args>
-class _Context {
+class _Lazy {
  public:
   template <typename Tuple>
-  _Context(Tuple args)
+  _Lazy(Tuple args)
     : args_(std::move(args)) {}
 
-  _Context(_Context&& that)
+  _Lazy(_Lazy&& that)
     : args_(std::move(that.args_)) {
-    CHECK(!t_) << "'Context' can not be moved after using";
+    CHECK(!t_) << "'Lazy' can not be moved after using";
   }
 
   T* get() {
@@ -50,8 +50,8 @@ class _Context {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T, typename... Args>
-auto Context(Args&&... args) {
-  return _Context<T, Args...>(
+auto Lazy(Args&&... args) {
+  return _Lazy<T, Args...>(
       std::forward_as_tuple(std::forward<Args>(args)...));
 }
 
