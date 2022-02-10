@@ -243,8 +243,11 @@ TEST(EventualTest, Catch) {
   auto e = []() {
     return Just(41)
         | Raise("error")
-        | Catch([](auto&& error) {
-             return Just(42);
+        | Catch([](auto&&... error) {
+             return 42;
+           })
+        | Then([](int&& value) {
+             return value;
            });
   };
 
