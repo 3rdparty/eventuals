@@ -378,3 +378,42 @@ TEST(LockTest, ConditionVariable) {
   future2.get();
   future3.get();
 }
+
+TEST(LockTest, ConditionVariable_UseAfterFree) {
+  // A bug was caught in the wild where `ConditionVariable` would enqueue a
+  // waiting `eventual` for later notification, even if the waiting condition
+  // was already met at the time of creation. This would result in a
+  // use-after-free type bug where the `ConditionVariable` at a later point
+  // attempts to `notify` a stale eventual.
+
+  struct Foo : public Synchronizable {
+    Foo()
+      : condition_variable_(&lock()) {}
+
+    auto NotifyAll() {
+      return Synchronized(Then([this]() mutable {
+        condition_variable_.NotifyAll();
+      }));
+    }
+
+    auto Wait() {
+      return Synchronized(condition_variable_.Wait([]() {
+        // Nothing to wait for, carry on.
+        return false;
+      }));
+    }
+
+    ConditionVariable condition_variable_;
+  };
+
+  // Create condition object
+  Foo foo;
+
+  // `Wait` on an already met condition.
+  *foo.Wait();
+
+  // Notify all waiters.
+  // There should be none, but if the previous call caused the temporary
+  // eventual to be queued up, this will blow up.
+  *foo.NotifyAll();
+}

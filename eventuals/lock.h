@@ -694,25 +694,40 @@ class ConditionVariable {
     return eventuals::Wait(
         lock_,
         [this, f = std::move(f), waiter = Waiter()](auto notify) mutable {
-          waiter.notify = std::move(notify);
-          if (head_ == nullptr) {
-            head_ = &waiter;
-          } else if (head_->next == nullptr) {
-            head_->next = &waiter;
-          } else {
-            auto* next = head_->next;
-            while (next->next != nullptr) {
-              next = next->next;
-            }
-            next->next = &waiter;
-          }
-          return [&]() {
-            if constexpr (std::is_same_v<F, EmptyCondition>) {
+          // Check if template `F` is for `EmptyCondition`.
+          constexpr bool using_empty_condition =
+              std::is_same_v<F, EmptyCondition>;
+
+          // Helper to determine if we need to wait or not.
+          auto should_wait = [&]() {
+            if constexpr (using_empty_condition) {
               return f(waiter);
             } else {
               return f();
             }
           };
+
+          // If we should wait, the `waiter` need to be
+          // enqueued with other waiters so it can later be notified.
+          if (should_wait()) {
+            // Assign `nofify` callback to `waiter` for later use.
+            waiter.notify = std::move(notify);
+
+            // Add `waiter` to list of waiters. The below might look convoluted
+            // at first but is a text book "append" to a linked list.
+            if (head_ == nullptr) {
+              head_ = &waiter;
+            } else if (head_->next == nullptr) {
+              head_->next = &waiter;
+            } else {
+              auto* next = head_->next;
+              while (next->next != nullptr) {
+                next = next->next;
+              }
+              next->next = &waiter;
+            }
+          }
+          return should_wait;
         });
   }
 
