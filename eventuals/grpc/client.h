@@ -1,10 +1,10 @@
 #pragma once
 
 #include "eventuals/callback.h"
-#include "eventuals/context.h"
 #include "eventuals/eventual.h"
 #include "eventuals/grpc/completion-pool.h"
 #include "eventuals/grpc/traits.h"
+#include "eventuals/lazy.h"
 #include "eventuals/stream.h"
 #include "eventuals/then.h"
 #include "grpcpp/client_context.h"
@@ -235,7 +235,7 @@ class Client {
 
   auto Context() {
     return Eventual<::grpc::ClientContext*>()
-        .context(eventuals::Context<::grpc::ClientContext>())
+        .context(eventuals::Lazy<::grpc::ClientContext>())
         .start([](auto& context, auto& k) {
           k.Start(context.get());
         });
