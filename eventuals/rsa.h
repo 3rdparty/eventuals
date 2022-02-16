@@ -57,6 +57,16 @@ class Key {
 
   // Helper that copies a key so we can have value semantics.
   static Key Copy(const Key& from) {
+    // TODO(alexmc, rjh): the following code uses deprecated APIs, including
+    // RSAPrivateKey_dup, EVP_PKEY_get1_RSA, and EVP_PKEY_set1_RSA. We should
+    // port to a replacement, which looks like EVP_PKEY_fromdata.
+    // See:
+    // https://www.openssl.org/docs/manmaster/man3/RSAPrivateKey_dup.html
+    // https://www.openssl.org/docs/manmaster/man3/EVP_PKEY_get0_RSA.html
+    // https://www.openssl.org/docs/manmaster/man3/EVP_PKEY_set1_RSA.html
+    // and:
+    // https://www.openssl.org/docs/manmaster/man3/EVP_PKEY_fromdata.html
+
     // Get the underlying RSA key.
     CHECK_EQ(CHECK_NOTNULL(from.key_.get())->type, EVP_PKEY_RSA);
     RSA* rsa = EVP_PKEY_get1_RSA(from.key_.get());
@@ -64,7 +74,9 @@ class Key {
     EVP_PKEY* to = EVP_PKEY_new();
 
     // Duplicate the RSA key.
-    EVP_PKEY_set1_RSA(to, RSAPrivateKey_dup(rsa));
+    RSA* duplicate = RSAPrivateKey_dup(rsa);
+    EVP_PKEY_set1_RSA(to, duplicate);
+    RSA_free(duplicate);
 
     // Decrement reference count incremented from calling
     // 'EVP_PKEY_get1_RSA()'.
