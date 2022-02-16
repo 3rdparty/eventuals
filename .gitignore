@@ -1,7 +1,4 @@
 .vs
 .vscode
-bazel-bin
-bazel-out
-bazel-stout-grpc
-bazel-testlogs
+bazel-*
 *~
