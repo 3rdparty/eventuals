@@ -806,7 +806,7 @@ struct _HTTP {
                     uv_close(
                         (uv_handle_t*) socket_poller,
                         [](uv_handle_t* handle) {
-                          delete handle;
+                          delete (uv_poll_t*) handle;
                         });
 
                     // Remove this poll handle from vector.
