@@ -1,3 +1,5 @@
+try-import submodules/dev-tools/.bazelrc
+
 # Specific Bazel build/test options.
 build --enable_platform_specific_config
 
