@@ -1,6 +1,10 @@
+try-import submodules/dev-tools/.bazelrc
+
+# When we use C++, we use C++17.
+build --cxxopt='-std=c++17'
+
 # Specific Bazel build/test options.
 
 #build --cxxopt='-Werror=thread-safety-analysis' --cxxopt='-Werror=thread-safety-reference'
-build --cxxopt='-std=c++17' 
 #test --cxxopt='-fstandalone-debug' -c dbg --strip='never'
 test -c dbg --strip='never'
