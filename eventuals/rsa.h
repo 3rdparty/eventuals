@@ -64,7 +64,9 @@ class Key {
     EVP_PKEY* to = EVP_PKEY_new();
 
     // Duplicate the RSA key.
-    EVP_PKEY_set1_RSA(to, RSAPrivateKey_dup(rsa));
+    RSA* duplicate = RSAPrivateKey_dup(rsa);
+    EVP_PKEY_set1_RSA(to, duplicate);
+    RSA_free(duplicate);
 
     // Decrement reference count incremented from calling
     // 'EVP_PKEY_get1_RSA()'.
