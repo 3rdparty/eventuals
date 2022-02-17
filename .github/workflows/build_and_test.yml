@@ -23,7 +23,15 @@ jobs:
       matrix:
         # We're not using Windows because of a build error.
         # In future we gonna run this job for Windows too. 
-        os: ["macos-latest", "ubuntu-latest"]
+        include:
+          - os: macos-latest
+            bazel-config: ""
+          - os: ubuntu-latest
+            bazel-config: "--config=asan"
+
+    env:
+      BAZEL_CONFIG: ${{ matrix.bazel-config }}
+
     defaults:
       run:
         shell: bash
@@ -37,14 +45,16 @@ jobs:
       - name: Build
         run: |
           bazel build \
+            ${BAZEL_CONFIG} \
             --spawn_strategy=local \
             -c dbg \
             --strip="never" \
             :grpc       
 
       - name: Test
-        run: | 
+        run: |
           bazel test \
+            ${BAZEL_CONFIG} \
             --spawn_strategy=local \
             -c dbg \
             --strip="never" \
