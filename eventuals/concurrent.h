@@ -573,15 +573,14 @@ struct _Concurrent {
   // having them all return 'Task' or 'Generator').
   template <typename K_, typename F_, typename Arg_>
   struct Continuation : public TypeErasedStream {
-    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, F_ f)
-      : k_(std::move(k)),
-        adaptor_(std::move(f)) {}
+      : adaptor_(std::move(f)),
+        k_(std::move(k)) {}
 
     // NOTE: explicit move-constructor because of 'std::atomic_flag'.
     Continuation(Continuation&& that)
-      : k_(std::move(that.k_)),
-        adaptor_(std::move(that.adaptor_.f_)) {}
+      : adaptor_(std::move(that.adaptor_.f_)),
+        k_(std::move(that.k_)) {}
 
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
@@ -680,8 +679,6 @@ struct _Concurrent {
       handler_->Install();
     }
 
-    K_ k_;
-
     Adaptor<F_, Arg_> adaptor_;
 
     TypeErasedStream* stream_ = nullptr;
@@ -691,7 +688,7 @@ struct _Concurrent {
     using Ingress_ = decltype(Build<Arg_>(adaptor_.Ingress()));
     std::optional<Ingress_> ingress_;
 
-    using Egress_ = decltype(Build(adaptor_.Egress(), std::move(k_)));
+    using Egress_ = decltype(Build(adaptor_.Egress(), std::declval<K_>()));
     std::optional<Egress_> egress_;
 
     using WaitForDone_ = decltype(Build(
@@ -705,6 +702,12 @@ struct _Concurrent {
     std::optional<Interrupt_> interrupt_;
 
     std::optional<Interrupt::Handler> handler_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename F_>

@@ -56,10 +56,9 @@ struct _FlatMap {
 
   template <typename K_, typename F_, typename Arg_>
   struct Continuation : public TypeErasedStream {
-    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, F_ f)
-      : k_(std::move(k)),
-        f_(std::move(f)) {}
+      : f_(std::move(f)),
+        k_(std::move(k)) {}
 
     void Begin(TypeErasedStream& stream) {
       outer_ = &stream;
@@ -125,7 +124,6 @@ struct _FlatMap {
       });
     }
 
-    K_ k_;
     F_ f_;
 
     TypeErasedStream* outer_ = nullptr;
@@ -143,6 +141,12 @@ struct _FlatMap {
     bool done_ = false;
 
     Scheduler::Context* previous_ = nullptr;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename F_>
@@ -155,7 +159,7 @@ struct _FlatMap {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, F_, Arg>{std::move(k), std::move(f_)};
+      return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
     }
 
     F_ f_;

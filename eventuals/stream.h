@@ -130,7 +130,6 @@ struct _Stream {
       typename Value_,
       typename... Errors_>
   struct Continuation : public TypeErasedStream {
-    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(
         K_ k,
         Context_ context,
@@ -139,13 +138,13 @@ struct _Stream {
         Done_ done,
         Fail_ fail,
         Stop_ stop)
-      : k_(std::move(k)),
-        context_(std::move(context)),
+      : context_(std::move(context)),
         begin_(std::move(begin)),
         next_(std::move(next)),
         done_(std::move(done)),
         fail_(std::move(fail)),
-        stop_(std::move(stop)) {}
+        stop_(std::move(stop)),
+        k_(std::move(k)) {}
 
     Continuation(Continuation&& that) = default;
 
@@ -239,7 +238,6 @@ struct _Stream {
       });
     }
 
-    K_ k_;
     Context_ context_;
     Begin_ begin_;
     Next_ next_;
@@ -252,6 +250,12 @@ struct _Stream {
     StreamK<Continuation, K_, Value_> streamk_;
 
     std::optional<Interrupt::Handler> handler_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <

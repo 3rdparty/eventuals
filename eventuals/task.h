@@ -218,6 +218,17 @@ struct _TaskFromToWith {
       typename To_,
       typename... Args_>
   struct Continuation {
+    Continuation(
+        K_ k,
+        std::tuple<Args_...> args,
+        std::variant<
+            MonostateIfVoidOrReferenceWrapperOr<To_>,
+            DispatchCallback<From_, To_, Args_...>>
+            value_or_dispatch)
+      : args_(std::move(args)),
+        value_or_dispatch_(std::move(value_or_dispatch)),
+        k_(std::move(k)) {}
+
     template <typename... From>
     void Start(From&&... from) {
       switch (value_or_dispatch_.index()) {
@@ -300,7 +311,6 @@ struct _TaskFromToWith {
           std::move(args_));
     }
 
-    K_ k_;
     std::tuple<Args_...> args_;
 
     // The 'dispatch_' is a `std::variant` because its either a function that
@@ -313,6 +323,12 @@ struct _TaskFromToWith {
 
     std::unique_ptr<void, Callback<void*>> e_;
     Interrupt* interrupt_ = nullptr;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <
@@ -409,10 +425,10 @@ struct _TaskFromToWith {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, From_, To_, Args_...>{
+      return Continuation<K, From_, To_, Args_...>(
           std::move(k),
           std::move(args_),
-          std::move(value_or_dispatch_.value())};
+          std::move(value_or_dispatch_.value()));
     }
 
     // See comment in `Continuation` for explanation of `dispatch_` member.
@@ -548,6 +564,10 @@ class TaskFromToWith {
             .fail(std::declval<Callback<std::exception_ptr>&&>())
             .stop(std::declval<Callback<>&&>())));
 
+  // NOTE: we store 'k_' as the _last_ member so it will be
+  // destructed _first_ and thus we won't have any use-after-delete
+  // issues during destruction of 'k_' if it holds any references or
+  // pointers to any (or within any) of the above members.
   std::optional<K_> k_;
 };
 

@@ -16,10 +16,9 @@ namespace eventuals {
 struct _TakeLastN {
   template <typename K_, typename Arg_>
   struct Continuation : public TypeErasedStream {
-    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, size_t n)
-      : k_(std::move(k)),
-        n_(n) {}
+      : n_(n),
+        k_(std::move(k)) {}
 
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
@@ -90,7 +89,6 @@ struct _TakeLastN {
       });
     }
 
-    K_ k_;
     size_t n_;
 
     // NOTE: because we are "taking" we need a value type here (not
@@ -103,6 +101,12 @@ struct _TakeLastN {
 
     TypeErasedStream* stream_ = nullptr;
     Scheduler::Context* previous_ = nullptr;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   struct Composable {
@@ -111,7 +115,7 @@ struct _TakeLastN {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Arg>{std::move(k), std::move(n_)};
+      return Continuation<K, Arg>(std::move(k), std::move(n_));
     }
 
     size_t n_;

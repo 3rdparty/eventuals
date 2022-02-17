@@ -143,13 +143,13 @@ struct _StaticThreadPoolSchedule {
         StaticThreadPool::Requirements* requirements,
         std::string&& name,
         E_ e)
-      : k_(std::move(k)),
-        e_(std::move(e)),
+      : e_(std::move(e)),
         context_(
             std::make_tuple(
                 CHECK_NOTNULL(pool),
                 std::move(name),
-                CHECK_NOTNULL(requirements))) {}
+                CHECK_NOTNULL(requirements))),
+        k_(std::move(k)) {}
 
     // Helper to avoid casting default 'Scheduler*' to 'StaticThreadPool*'
     // each time.
@@ -457,7 +457,6 @@ struct _StaticThreadPoolSchedule {
       }
     }
 
-    K_ k_;
     E_ e_;
 
     std::optional<
@@ -484,6 +483,12 @@ struct _StaticThreadPoolSchedule {
             .template k<Value_>(std::declval<K_>())));
 
     std::unique_ptr<Adapted_> adapted_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename E_>

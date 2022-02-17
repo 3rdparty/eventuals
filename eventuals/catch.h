@@ -14,6 +14,10 @@ namespace eventuals {
 struct _Catch {
   template <typename K_, typename F_>
   struct Continuation {
+    Continuation(K_ k, F_ f)
+      : f_(std::move(f)),
+        k_(std::move(k)) {}
+
     template <typename... Args>
     void Start(Args&&... args) {
       k_.Start(std::forward<Args>(args)...);
@@ -51,7 +55,6 @@ struct _Catch {
       k_.Register(interrupt);
     }
 
-    K_ k_;
     F_ f_;
 
     Interrupt* interrupt_ = nullptr;
@@ -59,6 +62,12 @@ struct _Catch {
     // TODO(benh): propagate eventual errors so we don't need to
     // allocate on the heap in order to type erase.
     std::unique_ptr<void, Callback<void*>> e_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename F_>
@@ -68,7 +77,7 @@ struct _Catch {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, F_>{std::move(k), std::move(f_)};
+      return Continuation<K, F_>(std::move(k), std::move(f_));
     }
 
     F_ f_;

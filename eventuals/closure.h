@@ -19,6 +19,10 @@ struct TypeErasedStream;
 struct _Closure {
   template <typename K_, typename F_, typename Arg_>
   struct Continuation {
+    Continuation(K_ k, F_ f)
+      : f_(std::move(f)),
+        k_(std::move(k)) {}
+
     template <typename... Args>
     void Start(Args&&... args) {
       continuation().Start(std::forward<Args>(args)...);
@@ -63,7 +67,6 @@ struct _Closure {
       return *continuation_;
     }
 
-    K_ k_;
     F_ f_;
 
     Interrupt* interrupt_ = nullptr;
@@ -71,6 +74,12 @@ struct _Closure {
     using Continuation_ = decltype(f_().template k<Arg_>(std::declval<K_&&>()));
 
     std::optional<Continuation_> continuation_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename F_>
@@ -81,7 +90,7 @@ struct _Closure {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, F_, Arg>{std::move(k), std::move(f_)};
+      return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
     }
 
     F_ f_;

@@ -431,27 +431,27 @@ inline auto Client::Builder() {
 struct _HTTP {
   template <typename K_>
   struct Continuation {
-    Continuation(K_&& k, EventLoop& loop, Request&& request)
-      : k_(std::move(k)),
-        loop_(loop),
+    Continuation(K_ k, EventLoop& loop, Request&& request)
+      : loop_(loop),
         request_(std::move(request)),
         fields_string_(nullptr, &curl_free),
         easy_(curl_easy_init(), &curl_easy_cleanup),
         multi_(curl_multi_init(), &curl_multi_cleanup),
         curl_headers_(nullptr, &curl_slist_free_all),
         context_(&loop, "HTTP (start/fail/stop)"),
-        interrupt_context_(&loop_, "HTTP (interrupt)") {}
+        interrupt_context_(&loop_, "HTTP (interrupt)"),
+        k_(std::move(k)) {}
 
     Continuation(Continuation&& that)
-      : k_(std::move(that.k_)),
-        loop_(that.loop_),
+      : loop_(that.loop_),
         request_(std::move(that.request_)),
         fields_string_(std::move(that.fields_string_)),
         easy_(std::move(that.easy_)),
         multi_(std::move(that.multi_)),
         curl_headers_(std::move(that.curl_headers_)),
         context_(&that.loop_, "HTTP (start/fail/stop)"),
-        interrupt_context_(&that.loop_, "HTTP (interrupt)") {
+        interrupt_context_(&that.loop_, "HTTP (interrupt)"),
+        k_(std::move(that.k_)) {
       CHECK(!that.started_ || !that.completed_) << "moving after starting";
       CHECK(!handler_);
     }
@@ -1159,7 +1159,6 @@ struct _HTTP {
     }
 
    private:
-    K_ k_;
     EventLoop& loop_;
 
     Request request_;
@@ -1191,6 +1190,12 @@ struct _HTTP {
     Scheduler::Context interrupt_context_;
 
     std::optional<Interrupt::Handler> handler_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   struct Composable {
@@ -1199,7 +1204,7 @@ struct _HTTP {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K>{std::move(k), loop_, std::move(request_)};
+      return Continuation<K>(std::move(k), loop_, std::move(request_));
     }
 
     EventLoop& loop_;

@@ -177,18 +177,18 @@ class EventLoop : public Scheduler {
       template <typename K_>
       struct Continuation {
         Continuation(K_ k, Clock& clock, std::chrono::nanoseconds&& nanoseconds)
-          : k_(std::move(k)),
-            clock_(clock),
+          : clock_(clock),
             nanoseconds_(std::move(nanoseconds)),
             context_(&clock.loop(), "Timer (start/fail/stop)"),
-            interrupt_context_(&clock.loop(), "Timer (interrupt)") {}
+            interrupt_context_(&clock.loop(), "Timer (interrupt)"),
+            k_(std::move(k)) {}
 
         Continuation(Continuation&& that)
-          : k_(std::move(that.k_)),
-            clock_(that.clock_),
+          : clock_(that.clock_),
             nanoseconds_(std::move(that.nanoseconds_)),
             context_(&that.clock_.loop(), "Timer (start/fail/stop)"),
-            interrupt_context_(&that.clock_.loop(), "Timer (interrupt)") {
+            interrupt_context_(&that.clock_.loop(), "Timer (interrupt)"),
+            k_(std::move(that.k_)) {
           CHECK(!that.started_ || !that.completed_) << "moving after starting";
           CHECK(!handler_);
         }
@@ -360,7 +360,6 @@ class EventLoop : public Scheduler {
           return reinterpret_cast<uv_handle_t*>(&timer_);
         }
 
-        K_ k_;
         Clock& clock_;
         std::chrono::nanoseconds nanoseconds_;
 
@@ -378,6 +377,12 @@ class EventLoop : public Scheduler {
         Scheduler::Context interrupt_context_;
 
         std::optional<Interrupt::Handler> handler_;
+
+        // NOTE: we store 'k_' as the _last_ member so it will be
+        // destructed _first_ and thus we won't have any use-after-delete
+        // issues during destruction of 'k_' if it holds any references or
+        // pointers to any (or within any) of the above members.
+        K_ k_;
       };
 
       struct Composable {
@@ -386,7 +391,7 @@ class EventLoop : public Scheduler {
 
         template <typename Arg, typename K>
         auto k(K k) && {
-          return Continuation<K>{std::move(k), clock_, std::move(nanoseconds_)};
+          return Continuation<K>(std::move(k), clock_, std::move(nanoseconds_));
         }
 
         Clock& clock_;
@@ -487,18 +492,18 @@ class EventLoop : public Scheduler {
     template <typename K_>
     struct Continuation {
       Continuation(K_ k, EventLoop& loop, const int signum)
-        : k_(std::move(k)),
-          loop_(loop),
+        : loop_(loop),
           signum_(signum),
           context_(&loop, "WaitForSignal (start/fail/stop)"),
-          interrupt_context_(&loop, "WaitForSignal (interrupt)") {}
+          interrupt_context_(&loop, "WaitForSignal (interrupt)"),
+          k_(std::move(k)) {}
 
       Continuation(Continuation&& that)
-        : k_(std::move(that.k_)),
-          loop_(that.loop_),
+        : loop_(that.loop_),
           signum_(that.signum_),
           context_(&that.loop_, "WaitForSignal (start/fail/stop)"),
-          interrupt_context_(&that.loop_, "WaitForSignal (interrupt)") {
+          interrupt_context_(&that.loop_, "WaitForSignal (interrupt)"),
+          k_(std::move(that.k_)) {
         CHECK(!that.started_ || !that.completed_) << "moving after starting";
         CHECK(!handler_);
       }
@@ -638,7 +643,6 @@ class EventLoop : public Scheduler {
         return reinterpret_cast<uv_handle_t*>(&signal_);
       }
 
-      K_ k_;
       EventLoop& loop_;
       const int signum_;
 
@@ -656,6 +660,12 @@ class EventLoop : public Scheduler {
       Scheduler::Context interrupt_context_;
 
       std::optional<Interrupt::Handler> handler_;
+
+      // NOTE: we store 'k_' as the _last_ member so it will be
+      // destructed _first_ and thus we won't have any use-after-delete
+      // issues during destruction of 'k_' if it holds any references or
+      // pointers to any (or within any) of the above members.
+      K_ k_;
     };
 
     struct Composable {
@@ -664,7 +674,7 @@ class EventLoop : public Scheduler {
 
       template <typename Arg, typename K>
       auto k(K k) && {
-        return Continuation<K>{std::move(k), loop_, signum_};
+        return Continuation<K>(std::move(k), loop_, signum_);
       }
 
       EventLoop& loop_;
@@ -693,12 +703,12 @@ struct _EventLoopSchedule {
   template <typename K_, typename E_, typename Arg_>
   struct Continuation {
     Continuation(K_ k, E_ e, EventLoop* loop, std::string&& name)
-      : k_(std::move(k)),
-        e_(std::move(e)),
+      : e_(std::move(e)),
         context_(
             std::make_tuple(
                 CHECK_NOTNULL(loop),
-                std::move(name))) {}
+                std::move(name))),
+        k_(std::move(k)) {}
 
     // To avoid casting default 'Scheduler*' to 'EventLoop*' each time.
     auto* loop() {
@@ -821,7 +831,6 @@ struct _EventLoopSchedule {
       }
     }
 
-    K_ k_;
     E_ e_;
 
     std::optional<
@@ -845,6 +854,12 @@ struct _EventLoopSchedule {
             .template k<Value_>(std::declval<_Then::Adaptor<K_>>())));
 
     std::unique_ptr<Adapted_> adapted_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename E_>
@@ -854,11 +869,11 @@ struct _EventLoopSchedule {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, E_, Arg>{
+      return Continuation<K, E_, Arg>(
           std::move(k),
           std::move(e_),
           loop_,
-          std::move(name_)};
+          std::move(name_));
     }
 
     E_ e_;

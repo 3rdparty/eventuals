@@ -37,6 +37,10 @@ struct _Map {
 
   template <typename K_, typename E_, typename Arg_>
   struct Continuation {
+    Continuation(K_ k, E_ e)
+      : e_(std::move(e)),
+        k_(std::move(k)) {}
+
     void Begin(TypeErasedStream& stream) {
       k_.Begin(stream);
     }
@@ -75,7 +79,6 @@ struct _Map {
       k_.Register(interrupt);
     }
 
-    K_ k_;
     E_ e_;
 
     using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
@@ -84,6 +87,12 @@ struct _Map {
     std::optional<Adapted_> adapted_;
 
     Interrupt* interrupt_ = nullptr;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename>
@@ -113,11 +122,11 @@ struct _Map {
       if constexpr (Traits<K>::exists) {
         auto e = std::move(e_) | std::move(k.e_);
         using E = decltype(e);
-        return Continuation<decltype(k.k_), E, Arg>{
+        return Continuation<decltype(k.k_), E, Arg>(
             std::move(k.k_),
-            std::move(e)};
+            std::move(e));
       } else {
-        return Continuation<K, E_, Arg>{std::move(k), std::move(e_)};
+        return Continuation<K, E_, Arg>(std::move(k), std::move(e_));
       }
     }
 
