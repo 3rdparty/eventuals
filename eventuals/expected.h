@@ -130,12 +130,13 @@ class _Expected {
         "cannot convert 'Expected<T>' to 'Expected<U>' because "
         "'T' can not be converted to 'U'");
     if constexpr (std::is_same_v<Value_, _Unexpected>) {
-      return std::move(std::get<1>(variant_));
+      CHECK_EQ(1u, variant_.index());
+      return std::get<1>(std::move(variant_));
     } else {
       if (variant_.index() == 0) {
-        return To(std::move(std::get<0>(variant_)));
+        return To(std::get<0>(std::move(variant_)));
       } else {
-        return std::move(std::get<1>(variant_));
+        return std::get<1>(std::move(variant_));
       }
     }
   }
@@ -149,6 +150,7 @@ class _Expected {
         "cannot convert 'Expected<T>' to 'Expected<U>' because "
         "'T' can not be converted to 'U'");
     if constexpr (std::is_same_v<Value_, _Unexpected>) {
+      CHECK_EQ(1u, variant_.index());
       return std::get<1>(variant_);
     } else {
       if (variant_.index() == 0) {
