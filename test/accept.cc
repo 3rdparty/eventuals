@@ -3,6 +3,7 @@
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 #include "gtest/gtest.h"
+#include "test/expect-throw-what.h"
 #include "test/test.h"
 
 using helloworld::Greeter;
@@ -13,26 +14,6 @@ using eventuals::Head;
 
 using eventuals::grpc::ServerBuilder;
 using eventuals::grpc::Stream;
-
-#define EXPECT_THROW_WHAT(_expression_, _what_)                        \
-  [&]() {                                                              \
-    try {                                                              \
-      (_expression_);                                                  \
-    } catch (const std::exception& e) {                                \
-      if (std::string(e.what()) != std::string(_what_)) {              \
-        FAIL()                                                         \
-            << "std::exception::what() is '" << e.what()               \
-            << "' which does not match '" << (_what_) << "'";          \
-      } else {                                                         \
-        return;                                                        \
-      }                                                                \
-    } catch (...) {                                                    \
-      FAIL()                                                           \
-          << "caught exception does not inherit from std::exception "; \
-    }                                                                  \
-    FAIL() << "no exception thrown ";                                  \
-  }()
-
 
 TEST_F(EventualsGrpcTest, ServeValidate) {
   ServerBuilder builder;

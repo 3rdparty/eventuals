@@ -3,6 +3,7 @@
 #include "eventuals/terminal.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
+#include "test/expect-throw-what.h"
 #include "test/test.h"
 
 using helloworld::Greeter;
@@ -34,5 +35,5 @@ TEST_F(EventualsGrpcTest, ServerUnavailable) {
            }));
   };
 
-  EXPECT_THROW(*call(), const char*);
+  EXPECT_THROW_WHAT(*call(), "server unavailable");
 }

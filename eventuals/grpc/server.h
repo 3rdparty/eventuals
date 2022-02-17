@@ -178,7 +178,7 @@ class ServerReader {
                 if (deserialize(&data.buffer, &request)) {
                   k.Emit(std::move(request));
                 } else {
-                  k.Fail("request failed to deserialize");
+                  k.Fail(std::runtime_error("request failed to deserialize"));
                 }
               } else {
                 // Signify end of stream (or error).
@@ -240,12 +240,12 @@ class ServerWriter {
               if (ok) {
                 k.Start();
               } else {
-                k.Fail("failed to write");
+                k.Fail(std::runtime_error("failed to write"));
               }
             };
             stream_->Write(buffer, options, &callback);
           } else {
-            k.Fail("failed to serialize");
+            k.Fail(std::runtime_error("failed to serialize"));
           }
         });
   }
@@ -267,7 +267,7 @@ class ServerWriter {
             stream_->WriteLast(buffer, options, &callback);
             k.Start();
           } else {
-            k.Fail("failed to serialize");
+            k.Fail(std::runtime_error("failed to serialize"));
           }
         });
   }
@@ -352,7 +352,7 @@ class ServerCall {
             if (ok) {
               k.Start();
             } else {
-              k.Fail("failed to finish");
+              k.Fail(std::runtime_error("failed to finish"));
             }
           };
           context_->stream()->Finish(status, &callback);

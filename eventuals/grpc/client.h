@@ -93,7 +93,7 @@ class ClientWriter {
             if (ok) {
               k.Start();
             } else {
-              k.Fail("failed to write");
+              k.Fail(std::runtime_error("failed to write"));
             }
           };
           stream_->Write(request, options, &callback);
@@ -169,7 +169,7 @@ class ClientCall {
             if (ok) {
               k.Start();
             } else {
-              k.Fail("failed to do 'WritesDone()'");
+              k.Fail(std::runtime_error("failed to do 'WritesDone()'"));
             }
           };
           stream_->WritesDone(&callback);
@@ -192,7 +192,7 @@ class ClientCall {
             if (ok) {
               k.Start(std::move(data.status));
             } else {
-              k.Fail("failed to finish");
+              k.Fail(std::runtime_error("failed to finish"));
             }
           };
           stream_->Finish(&data.status, &callback);
@@ -302,11 +302,11 @@ class Client {
                   ->FindMethodByName(data.name);
 
           if (method == nullptr) {
-            k.Fail("method " + data.name + " not found");
+            k.Fail(std::runtime_error("method " + data.name + " not found"));
           } else {
             auto error = Traits::Validate<Request, Response>(method);
             if (error) {
-              k.Fail(error->message);
+              k.Fail(std::runtime_error(error->message));
             } else {
               if (data.host) {
                 data.context->set_authority(data.host.value());
@@ -326,7 +326,8 @@ class Client {
                 // redundant check because 'PrepareCall' also does
                 // this?  At the very least we'll probably give a
                 // better error message by checking.
-                k.Fail("GenericStub::PrepareCall returned nullptr");
+                k.Fail(std::runtime_error(
+                    "GenericStub::PrepareCall returned nullptr"));
               } else {
                 using K = std::decay_t<decltype(k)>;
                 data.k = &k;
@@ -342,7 +343,7 @@ class Client {
                             std::move(data.stub),
                             std::move(data.stream)));
                   } else {
-                    k.Fail("server unavailable");
+                    k.Fail(std::runtime_error("server unavailable"));
                   }
                 };
 
