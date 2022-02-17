@@ -262,7 +262,18 @@ auto operator*(E e) {
 
   k.Start();
 
-  return future.get();
+  try {
+    return future.get();
+  } catch (const std::exception& e) {
+    LOG(WARNING)
+        << "WARNING: exception thrown while dereferencing eventual: "
+        << e.what();
+    throw;
+  } catch (...) {
+    LOG(WARNING)
+        << "WARNING: exception thrown while dereferencing eventual";
+    throw;
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////
