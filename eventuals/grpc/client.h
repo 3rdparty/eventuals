@@ -3,6 +3,7 @@
 #include "eventuals/callback.h"
 #include "eventuals/eventual.h"
 #include "eventuals/grpc/completion-pool.h"
+#include "eventuals/grpc/logging.h"
 #include "eventuals/grpc/traits.h"
 #include "eventuals/lazy.h"
 #include "eventuals/stream.h"
@@ -29,11 +30,19 @@ class ClientReader {
   // TODO(benh): borrow 'stream' or the enclosing 'ClientCall' so
   // that we ensure that it doesn't get destructed while our
   // eventuals are still outstanding.
-  ClientReader(::grpc::internal::AsyncReaderInterface<ResponseType_>* stream)
-    : stream_(stream) {}
+  ClientReader(
+      const std::string& path,
+      const std::optional<std::string>& host,
+      ::grpc::ClientContext* context,
+      ::grpc::internal::AsyncReaderInterface<ResponseType_>* stream)
+    : path_(path),
+      host_(host),
+      context_(context),
+      stream_(stream) {}
 
   auto Read() {
     struct Data {
+      ClientReader* reader = nullptr;
       ResponseType_ response;
       void* k = nullptr;
     };
@@ -43,24 +52,43 @@ class ClientReader {
                callback = Callback<bool>()](auto& k) mutable {
           using K = std::decay_t<decltype(k)>;
           if (!callback) {
+            data.reader = this;
             data.k = &k;
             callback = [&data](bool ok) mutable {
               auto& k = *reinterpret_cast<K*>(data.k);
               if (ok) {
+                EVENTUALS_GRPC_LOG(1)
+                    << "Received response for call ("
+                    << data.reader->context_ << ") with "
+                    << "host = " + data.reader->host_.value_or("*") + " with "
+                    << "path = " << data.reader->path_ << " and response =\n"
+                    << data.response.DebugString();
+
                 k.Emit(std::move(data.response));
               } else {
+                EVENTUALS_GRPC_LOG(1)
+                    << "Received notice of last response (or error) for call ("
+                    << data.reader->context_ << ") with "
+                    << "host = " + data.reader->host_.value_or("*") + " with "
+                    << "path = " << data.reader->path_;
+
                 // Signify end of stream (or error).
                 k.Ended();
               }
             };
           }
 
-          // Initiate the read!
           stream_->Read(&data.response, &callback);
         });
   }
 
  private:
+  // TODO(benh): explicitly borrow these for better safety (they come
+  // from 'ClientCall' and outlive this 'ClientReader').
+  const std::string& path_;
+  const std::optional<std::string>& host_;
+  ::grpc::ClientContext* context_;
+
   // TODO(benh): don't depend on 'internal' types ... doing so now so
   // users don't have to include 'RequestType_' as part of
   // 'ClientReader' when they write out the full type.
@@ -78,8 +106,15 @@ class ClientWriter {
   // TODO(benh): borrow 'stream' or the enclosing 'ClientCall' so that
   // we ensure that it doesn't get destructed while our eventuals are
   // still outstanding.
-  ClientWriter(::grpc::internal::AsyncWriterInterface<RequestType_>* stream)
-    : stream_(stream) {}
+  ClientWriter(
+      const std::string& path,
+      const std::optional<std::string>& host,
+      ::grpc::ClientContext* context,
+      ::grpc::internal::AsyncWriterInterface<RequestType_>* stream)
+    : path_(path),
+      host_(host),
+      context_(context),
+      stream_(stream) {}
 
   auto Write(
       RequestType_ request,
@@ -96,6 +131,14 @@ class ClientWriter {
               k.Fail(std::runtime_error("failed to write"));
             }
           };
+
+          EVENTUALS_GRPC_LOG(1)
+              << "Sending " << (options.is_last_message() ? "(last)" : "")
+              << " request for call (" << context_ << ") with "
+              << "host = " + host_.value_or("*") + " with "
+              << "path = " << path_ << " and request =\n"
+              << request.DebugString();
+
           stream_->Write(request, options, &callback);
         });
   }
@@ -107,6 +150,12 @@ class ClientWriter {
   }
 
  private:
+  // TODO(benh): explicitly borrow these for better safety (they come
+  // from 'ClientCall' and outlive this 'ClientWriter').
+  const std::string& path_;
+  const std::optional<std::string>& host_;
+  ::grpc::ClientContext* context_;
+
   // TODO(benh): don't depend on 'internal' types ... doing so now so
   // users don't have to include 'ResponseType_' as part of
   // 'ClientWriter' when they write out the full type.
@@ -129,8 +178,8 @@ class ClientCall {
   using ResponseType_ = typename Traits_::Details<Response_>::Type;
 
   ClientCall(
-      std::string&& name,
-      std::optional<std::string>&& host,
+      const std::string& path,
+      const std::optional<std::string>& host,
       ::grpc::ClientContext* context,
       stout::borrowed_ptr<::grpc::CompletionQueue>&& cq,
       ::grpc::TemplatedGenericStub<RequestType_, ResponseType_>&& stub,
@@ -138,14 +187,14 @@ class ClientCall {
           ::grpc::ClientAsyncReaderWriter<
               RequestType_,
               ResponseType_>>&& stream)
-    : name_(std::move(name)),
-      host_(std::move(host)),
+    : path_(path),
+      host_(host),
       context_(context),
       cq_(std::move(cq)),
       stub_(std::move(stub)),
       stream_(std::move(stream)),
-      reader_(stream_.get()),
-      writer_(stream_.get()) {}
+      reader_(path_, host_, context_, stream_.get()),
+      writer_(path_, host_, context_, stream_.get()) {}
 
   auto* context() {
     return context_;
@@ -172,6 +221,12 @@ class ClientCall {
               k.Fail(std::runtime_error("failed to do 'WritesDone()'"));
             }
           };
+
+          EVENTUALS_GRPC_LOG(1)
+              << "Writing done for call (" << context_ << ") with "
+              << "host = " + host_.value_or("*") + " with "
+              << "path = " << path_;
+
           stream_->WritesDone(&callback);
         });
   }
@@ -181,6 +236,7 @@ class ClientCall {
       ::grpc::Status status;
       void* k = nullptr;
     };
+
     return Eventual<::grpc::Status>(
         [this,
          data = Data{},
@@ -195,13 +251,21 @@ class ClientCall {
               k.Fail(std::runtime_error("failed to finish"));
             }
           };
+
+          EVENTUALS_GRPC_LOG(1)
+              << "Finishing call (" << context_ << ") with "
+              << "host = " + host_.value_or("*") + " with "
+              << "path = " << path_;
+
           stream_->Finish(&data.status, &callback);
         });
   }
 
  private:
-  std::string name_;
-  std::optional<std::string> host_;
+  // TODO(benh): explicitly borrow these for better safety (they come
+  // from 'Client::Call()' and outlive this 'ClientCall').
+  const std::string& path_;
+  const std::optional<std::string>& host_;
 
   ::grpc::ClientContext* context_;
 
@@ -276,6 +340,7 @@ class Client {
     struct Data {
       ::grpc::ClientContext* context;
       std::string name;
+      std::string path;
       std::optional<std::string> host;
       stout::borrowed_ptr<::grpc::CompletionQueue> cq;
       ::grpc::TemplatedGenericStub<RequestType, ResponseType> stub;
@@ -291,6 +356,7 @@ class Client {
         [data = Data{
              context,
              std::move(name),
+             std::string(),
              std::move(host),
              pool_->Schedule(),
              ::grpc::TemplatedGenericStub<
@@ -312,40 +378,64 @@ class Client {
                 data.context->set_authority(data.host.value());
               }
 
-              std::string path = "/" + data.name;
-              size_t index = path.find_last_of(".");
-              path.replace(index, 1, "/");
+              data.path = "/" + data.name;
+              size_t index = data.path.find_last_of(".");
+              data.path.replace(index, 1, "/");
+
+              EVENTUALS_GRPC_LOG(1)
+                  << "Preparing call (" << data.context << ") with "
+                  << "host = " + data.host.value_or("*") + " with "
+                  << "path = " << data.path;
 
               data.stream = data.stub.PrepareCall(
                   data.context,
-                  path,
+                  data.path,
                   data.cq.get());
 
               if (!data.stream) {
+                EVENTUALS_GRPC_LOG(1)
+                    << "Failed to prepare call (" << data.context << ") with "
+                    << "host = " + data.host.value_or("*") + " with "
+                    << "path = " << data.path;
+
                 // TODO(benh): Check status of channel, is this a
                 // redundant check because 'PrepareCall' also does
                 // this?  At the very least we'll probably give a
                 // better error message by checking.
-                k.Fail(std::runtime_error(
-                    "GenericStub::PrepareCall returned nullptr"));
+                k.Fail(std::runtime_error("Failed to prepare call"));
               } else {
                 using K = std::decay_t<decltype(k)>;
                 data.k = &k;
                 callback = [&data](bool ok) {
                   auto& k = *reinterpret_cast<K*>(data.k);
                   if (ok) {
+                    EVENTUALS_GRPC_LOG(1)
+                        << "Started call (" << data.context << ") with "
+                        << "host = " + data.host.value_or("*") + " with "
+                        << "path = " << data.path;
+
                     k.Start(
                         ClientCall<Request, Response>(
-                            std::move(data.name),
-                            std::move(data.host),
+                            data.path,
+                            data.host,
                             data.context,
                             std::move(data.cq),
                             std::move(data.stub),
                             std::move(data.stream)));
                   } else {
-                    k.Fail(std::runtime_error("server unavailable"));
+                    EVENTUALS_GRPC_LOG(1)
+                        << "Failed to start call (" << data.context << ") with "
+                        << "host = " + data.host.value_or("*") + " with "
+                        << "path = " << data.path;
+
+                    k.Fail(std::runtime_error("Failed to start call"));
                   }
                 };
+
+                EVENTUALS_GRPC_LOG(1)
+                    << "Starting call (" << data.context << ") with "
+                    << "host = " + data.host.value_or("*") + " with "
+                    << "path = " << data.path;
 
                 data.stream->StartCall(&callback);
               }

@@ -35,5 +35,5 @@ TEST_F(EventualsGrpcTest, ServerUnavailable) {
            }));
   };
 
-  EXPECT_THROW_WHAT(*call(), "server unavailable");
+  EXPECT_THROW_WHAT(*call(), "Failed to start call");
 }

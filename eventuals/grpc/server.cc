@@ -81,8 +81,8 @@ auto Server::Lookup(ServerContext* context) {
 auto Server::Unimplemented(ServerContext* context) {
   return Then([context]() {
     EVENTUALS_GRPC_LOG(1)
-        << "Dropping " << context->method()
-        << " for host " << context->host();
+        << "Dropping call for host " << context->host()
+        << " and path = " << context->method();
 
     auto status = ::grpc::Status(
         ::grpc::UNIMPLEMENTED,
@@ -182,6 +182,9 @@ Server::Server(
                     })
                         | Loop()
                         | Catch([this](auto&&...) {
+                            EVENTUALS_GRPC_LOG(1)
+                                << "Failed to accept a call; shutting down";
+
                             // TODO(benh): refactor so we only call
                             // 'ShutdownEndpoints()' once on server
                             // shutdown, not for each worker (which

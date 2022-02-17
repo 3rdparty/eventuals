@@ -113,6 +113,11 @@ struct ServerContext {
       OnDone(std::move(finish_on_done_));
     };
 
+    EVENTUALS_GRPC_LOG(1)
+        << "Finishing call (" << this << ") for "
+        << "host = " << host() << " and "
+        << "path = " << method();
+
     stream_.Finish(status, &finish_callback_);
   }
 
@@ -152,14 +157,15 @@ struct ServerContext {
 template <typename RequestType_>
 class ServerReader {
  public:
-  // TODO(benh): borrow 'stream' or the enclosing 'ServerCall' so
+  // TODO(benh): borrow 'context' or the enclosing 'ServerCall' so
   // that we ensure that it doesn't get destructed while our
   // eventuals are still outstanding.
-  ServerReader(::grpc::GenericServerAsyncReaderWriter* stream)
-    : stream_(stream) {}
+  ServerReader(ServerContext* context)
+    : context_(context) {}
 
   auto Read() {
     struct Data {
+      ServerReader* reader = nullptr;
       ::grpc::ByteBuffer buffer;
       void* k = nullptr;
     };
@@ -170,25 +176,39 @@ class ServerReader {
           using K = std::decay_t<decltype(k)>;
 
           if (!callback) {
+            data.reader = this;
             data.k = &k;
             callback = [&data](bool ok) mutable {
               auto& k = *reinterpret_cast<K*>(data.k);
               if (ok) {
                 RequestType_ request;
                 if (deserialize(&data.buffer, &request)) {
+                  EVENTUALS_GRPC_LOG(1)
+                      << "Received request for call ("
+                      << data.reader->context_ << ") for "
+                      << "host = " << data.reader->context_->host() << " and "
+                      << "path = " << data.reader->context_->method()
+                      << " and request =\n"
+                      << request.DebugString();
+
                   k.Emit(std::move(request));
                 } else {
-                  k.Fail(std::runtime_error("request failed to deserialize"));
+                  k.Fail(std::runtime_error("Failed to deserialize request"));
                 }
               } else {
+                EVENTUALS_GRPC_LOG(1)
+                    << "Received notice of last request (or error) for call ("
+                    << data.reader->context_ << ") for "
+                    << "host = " << data.reader->context_->host() << " and "
+                    << "path = " << data.reader->context_->method();
+
                 // Signify end of stream (or error).
                 k.Ended();
               }
             };
           }
 
-          // Initiate the read!
-          stream_->Read(&data.buffer, &callback);
+          context_->stream()->Read(&data.buffer, &callback);
         });
   }
 
@@ -203,13 +223,15 @@ class ServerReader {
       return true;
     } else {
       EVENTUALS_GRPC_LOG(1)
-          << "failed to deserialize " << t->GetTypeName()
+          << "Failed to deserialize " << t->GetTypeName()
           << ": " << status.error_message() << std::endl;
       return false;
     }
   }
 
-  ::grpc::GenericServerAsyncReaderWriter* stream_;
+  // TODO(benh): explicitly borrow these for better safety (they come
+  // from 'ServerCall' and outlive this 'ServerReader').
+  ServerContext* context_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -220,11 +242,11 @@ class ServerReader {
 template <typename ResponseType_>
 class ServerWriter {
  public:
-  // TODO(benh): borrow 'stream' or the enclosing 'ServerCall' so
+  // TODO(benh): borrow 'context' or the enclosing 'ServerCall' so
   // that we ensure that it doesn't get destructed while our
   // eventuals are still outstanding.
-  ServerWriter(::grpc::GenericServerAsyncReaderWriter* stream)
-    : stream_(stream) {}
+  ServerWriter(ServerContext* context)
+    : context_(context) {}
 
   auto Write(
       ResponseType_ response,
@@ -240,12 +262,19 @@ class ServerWriter {
               if (ok) {
                 k.Start();
               } else {
-                k.Fail(std::runtime_error("failed to write"));
+                k.Fail(std::runtime_error("Failed to write"));
               }
             };
-            stream_->Write(buffer, options, &callback);
+
+            EVENTUALS_GRPC_LOG(1)
+                << "Sending response for call (" << context_ << ") for "
+                << "host = " << context_->host() << " and "
+                << "path = " << context_->method() << " and response =\n"
+                << response.DebugString();
+
+            context_->stream()->Write(buffer, options, &callback);
           } else {
-            k.Fail(std::runtime_error("failed to serialize"));
+            k.Fail(std::runtime_error("Failed to serialize response"));
           }
         });
   }
@@ -260,14 +289,20 @@ class ServerWriter {
          options = std::move(options)](auto& k) mutable {
           ::grpc::ByteBuffer buffer;
           if (serialize(response, &buffer)) {
+            EVENTUALS_GRPC_LOG(1)
+                << "Sending last response for call (" << context_ << ") for "
+                << "host = " << context_->host() << " and "
+                << "path = " << context_->method() << " and response =\n"
+                << response.DebugString();
+
             // NOTE: 'WriteLast()' will block until calling
             // 'Finish()' so we start the next continuation and
             // expect any errors to come from 'Finish()'.
             callback = [](bool ok) mutable {};
-            stream_->WriteLast(buffer, options, &callback);
+            context_->stream()->WriteLast(buffer, options, &callback);
             k.Start();
           } else {
-            k.Fail(std::runtime_error("failed to serialize"));
+            k.Fail(std::runtime_error("Failed to serialize response"));
           }
         });
   }
@@ -286,13 +321,15 @@ class ServerWriter {
       return true;
     } else {
       EVENTUALS_GRPC_LOG(1)
-          << "failed to serialize " << t.GetTypeName()
+          << "Failed to serialize " << t.GetTypeName()
           << ": " << status.error_message() << std::endl;
       return false;
     }
   }
 
-  ::grpc::GenericServerAsyncReaderWriter* stream_;
+  // TODO(benh): explicitly borrow these for better safety (they come
+  // from 'ServerCall' and outlive this 'ServerWriter').
+  ServerContext* context_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -323,13 +360,13 @@ class ServerCall {
 
   ServerCall(std::unique_ptr<ServerContext>&& context)
     : context_(std::move(context)),
-      reader_(context_->stream()),
-      writer_(context_->stream()) {}
+      reader_(context_.get()),
+      writer_(context_.get()) {}
 
   ServerCall(ServerCall&& that)
     : context_(std::move(that.context_)),
-      reader_(context_->stream()),
-      writer_(context_->stream()) {}
+      reader_(context_.get()),
+      writer_(context_.get()) {}
 
   auto* context() {
     return context_->context();
@@ -355,6 +392,15 @@ class ServerCall {
               k.Fail(std::runtime_error("failed to finish"));
             }
           };
+
+          EVENTUALS_GRPC_LOG(1)
+              << "Finishing call (" << context_.get() << ") for "
+              << "host = " << context_->host() << " and "
+              << "path = " << context_->method();
+
+          // TODO(benh): why aren't we calling 'FinishThenOnDone()'
+          // defind in _our_ 'ServerContext' in order to overcome the
+          // deficincies discussed there?
           context_->stream()->Finish(status, &callback);
         });
   }
@@ -362,6 +408,11 @@ class ServerCall {
   auto WaitForDone() {
     return Eventual<bool>(
         [this](auto& k, auto&&...) mutable {
+          EVENTUALS_GRPC_LOG(1)
+              << "Waiting for done on call (" << context_.get() << ") for "
+              << "host = " << context_->host() << " and "
+              << "path = " << context_->method();
+
           context_->OnDone([&k](bool cancelled) {
             k.Start(cancelled);
           });
@@ -383,6 +434,11 @@ class Endpoint : public Synchronizable {
       host_(std::move(host)) {}
 
   auto Enqueue(std::unique_ptr<ServerContext>&& context) {
+    EVENTUALS_GRPC_LOG(1)
+        << "Accepted call (" << context.get() << ") to "
+        << "host = " << host_ << " for "
+        << "path = " << path_;
+
     return pipe_.Write(std::move(context));
   }
 
@@ -570,11 +626,18 @@ inline auto Server::Insert(std::unique_ptr<Endpoint>&& endpoint) {
       [this, endpoint = std::move(endpoint)](auto& k) mutable {
         auto key = std::make_pair(endpoint->path(), endpoint->host());
 
-        if (!endpoints_.try_emplace(key, std::move(endpoint)).second) {
+        auto [_, inserted] = endpoints_.try_emplace(key, std::move(endpoint));
+
+        if (!inserted) {
           k.Fail(std::runtime_error(
               "Already serving " + endpoint->path()
               + " for host " + endpoint->host()));
         } else {
+          EVENTUALS_GRPC_LOG(1)
+              << "Serving endpoint for "
+              << "host = " << key.second << " and "
+              << "path = " << key.first;
+
           k.Start();
         }
       }));
