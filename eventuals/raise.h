@@ -11,6 +11,10 @@ namespace eventuals {
 struct _Raise {
   template <typename K_, typename T_>
   struct Continuation {
+    Continuation(K_ k, T_ t)
+      : t_(std::move(t)),
+        k_(std::move(k)) {}
+
     template <typename... Args>
     void Start(Args&&...) {
       k_.Fail(std::move(t_));
@@ -29,8 +33,13 @@ struct _Raise {
       k_.Register(interrupt);
     }
 
-    K_ k_;
     T_ t_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename T_>

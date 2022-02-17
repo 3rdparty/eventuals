@@ -138,6 +138,10 @@ class Scheduler {
 struct _Reschedule {
   template <typename K_, typename Arg_>
   struct Continuation {
+    Continuation(K_ k, Scheduler::Context* context)
+      : context_(context),
+        k_(std::move(k)) {}
+
     template <typename... Args>
     void Start(Args&&... args) {
       context_->Continue(
@@ -255,7 +259,6 @@ struct _Reschedule {
       k_.Register(interrupt);
     }
 
-    K_ k_;
     Scheduler::Context* context_;
 
     std::optional<
@@ -269,6 +272,12 @@ struct _Reschedule {
         arg_;
 
     TypeErasedStream* stream_ = nullptr;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   struct Composable {
@@ -277,7 +286,7 @@ struct _Reschedule {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Arg>{std::move(k), context_};
+      return Continuation<K, Arg>(std::move(k), context_);
     }
 
     Scheduler::Context* context_;
@@ -312,6 +321,9 @@ auto RescheduleAfter(E e) {
 // rescheduled before being executed.
 template <typename K_, typename Arg_>
 struct Reschedulable {
+  Reschedulable(K_ k)
+    : k_(std::move(k)) {}
+
   auto& operator()() {
     if (!continuation_) {
       previous_ = Scheduler::Context::Get();
@@ -336,17 +348,21 @@ struct Reschedulable {
     interrupt_ = &interrupt;
   }
 
-  K_ k_;
-
   Interrupt* interrupt_ = nullptr;
 
   Scheduler::Context* previous_ = nullptr;
 
   using Continuation_ =
       decltype(std::declval<_Reschedule::Composable>()
-                   .template k<Arg_>(std::move(k_)));
+                   .template k<Arg_>(std::declval<K_>()));
 
   std::optional<Continuation_> continuation_;
+
+  // NOTE: we store 'k_' as the _last_ member so it will be
+  // destructed _first_ and thus we won't have any use-after-delete
+  // issues during destruction of 'k_' if it holds any references or
+  // pointers to any (or within any) of the above members.
+  K_ k_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -358,17 +374,17 @@ struct _Preempt {
       : Scheduler::Context(
           Scheduler::Default(),
           "preempt continuation"),
-        k_(std::move(k)),
         e_(std::move(e)),
-        name_(std::move(name)) {}
+        name_(std::move(name)),
+        k_(std::move(k)) {}
 
     Continuation(Continuation&& that)
       : Scheduler::Context(
           Scheduler::Default(),
           "preempt continuation"),
-        k_(std::move(that.k_)),
         e_(std::move(that.e_)),
-        name_(std::move(that.name_)) {}
+        name_(std::move(that.name_)),
+        k_(std::move(that.k_)) {}
 
     template <typename... Args>
     void Start(Args&&... args) {
@@ -426,7 +442,6 @@ struct _Preempt {
       }
     }
 
-    K_ k_;
     E_ e_;
     std::string name_;
 
@@ -441,6 +456,12 @@ struct _Preempt {
             .template k<Value_>(std::declval<K_>())));
 
     std::optional<Adapted_> adapted_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename E_>

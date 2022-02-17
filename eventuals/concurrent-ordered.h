@@ -90,8 +90,6 @@ struct _ReorderAdaptor {
       upstream_->Done();
     }
 
-    K_ k_;
-
     TypeErasedStream* upstream_ = nullptr;
 
     std::map<int, std::deque<Value_>> buffer_;
@@ -101,6 +99,12 @@ struct _ReorderAdaptor {
     std::map<int, bool> ended_;
 
     bool done_ = false;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   // Arg there will be received from 'Concurrent::ConcurrentOrderedAdaptor'
@@ -190,13 +194,17 @@ struct _ConcurrentOrderedAdaptor {
       upstream_->Done();
     }
 
-    K_ k_;
-
     bool ended_ = false;
 
     std::optional<int> index_;
 
     TypeErasedStream* upstream_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   struct Composable {

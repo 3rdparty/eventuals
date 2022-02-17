@@ -185,16 +185,16 @@ struct _DoAll {
 
   template <typename K_, typename... Eventuals_>
   struct Continuation {
-    Continuation(K_&& k, std::tuple<Eventuals_...>&& eventuals)
-      : k_(std::move(k)),
-        eventuals_(std::move(eventuals)) {}
+    Continuation(K_ k, std::tuple<Eventuals_...>&& eventuals)
+      : eventuals_(std::move(eventuals)),
+        k_(std::move(k)) {}
 
     Continuation(Continuation&& that)
-      : k_(std::move(that.k_)),
-        eventuals_(std::move(that.eventuals_)),
+      : eventuals_(std::move(that.eventuals_)),
         adaptor_(std::move(that.adaptor_)),
         ks_(std::move(that.ks_)),
-        handler_(std::move(that.handler_)) {}
+        handler_(std::move(that.handler_)),
+        k_(std::move(that.k_)) {}
 
     template <typename... Args>
     void Start(Args&&...) {
@@ -232,7 +232,6 @@ struct _DoAll {
       });
     }
 
-    K_ k_;
     std::tuple<Eventuals_...> eventuals_;
     Interrupt interrupt_;
 
@@ -245,6 +244,12 @@ struct _DoAll {
         ks_;
 
     std::optional<Interrupt::Handler> handler_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename... Eventuals_>
@@ -258,9 +263,9 @@ struct _DoAll {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Eventuals_...>{
+      return Continuation<K, Eventuals_...>(
           std::move(k),
-          std::move(eventuals_)};
+          std::move(eventuals_));
     }
 
     std::tuple<Eventuals_...> eventuals_;

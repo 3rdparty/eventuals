@@ -12,6 +12,10 @@ namespace eventuals {
 struct _Filter {
   template <typename K_, typename F_, typename Arg_>
   struct Continuation {
+    Continuation(K_ k, F_ f)
+      : f_(std::move(f)),
+        k_(std::move(k)) {}
+
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
       k_.Begin(stream);
@@ -43,10 +47,15 @@ struct _Filter {
       k_.Register(interrupt);
     }
 
-    K_ k_;
     F_ f_;
 
     TypeErasedStream* stream_ = nullptr;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   // Using at compose.h to correctly create custom Continuation structure
@@ -58,7 +67,7 @@ struct _Filter {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, F_, Arg>{std::move(k), std::move(f_)};
+      return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
     }
 
     F_ f_;

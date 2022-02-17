@@ -211,9 +211,9 @@ struct _GeneratorFromToWith {
                 Callback<>,
                 Callback<To_>>&&,
             Callback<>&&>&& dispatch)
-      : k_(std::move(k)),
-        args_(std::move(args)),
-        dispatch_(std::move(dispatch)) {}
+      : args_(std::move(args)),
+        dispatch_(std::move(dispatch)),
+        k_(std::move(k)) {}
 
     // All Continuation functions just trigger dispatch Callback,
     // that stores all callbacks for different events
@@ -292,7 +292,6 @@ struct _GeneratorFromToWith {
           std::move(args_));
     }
 
-    K_ k_;
     std::tuple<Args_...> args_;
 
     Callback<
@@ -318,6 +317,12 @@ struct _GeneratorFromToWith {
 
     std::unique_ptr<void, Callback<void*>> e_;
     Interrupt* interrupt_ = nullptr;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename From_, typename To_, typename... Args_>

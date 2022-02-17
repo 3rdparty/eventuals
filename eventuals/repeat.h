@@ -14,7 +14,6 @@ namespace eventuals {
 struct _Repeat {
   template <typename K_>
   struct Continuation : public TypeErasedStream {
-    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k)
       : k_(std::move(k)) {}
 
@@ -50,9 +49,13 @@ struct _Repeat {
       });
     }
 
-    K_ k_;
-
     Scheduler::Context* previous_ = nullptr;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   struct Composable {
@@ -61,7 +64,7 @@ struct _Repeat {
 
     template <typename Arg, typename K>
     auto k(K k) {
-      return Continuation<K>{std::move(k)};
+      return Continuation<K>(std::move(k));
     }
   };
 };

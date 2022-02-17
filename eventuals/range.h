@@ -11,12 +11,11 @@ namespace eventuals {
 struct _Range {
   template <typename K_, typename Arg_>
   struct Continuation : public TypeErasedStream {
-    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, int from, int to, int step)
-      : k_(std::move(k)),
-        from_(from),
+      : from_(from),
         to_(to),
-        step_(step) {}
+        step_(step),
+        k_(std::move(k)) {}
 
     void Start() {
       previous_ = Scheduler::Context::Get();
@@ -62,12 +61,17 @@ struct _Range {
       });
     }
 
-    K_ k_;
     int from_;
     const int to_;
     const int step_;
 
     Scheduler::Context* previous_ = nullptr;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   struct Composable {
@@ -76,7 +80,7 @@ struct _Range {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Arg>{std::move(k), from_, to_, step_};
+      return Continuation<K, Arg>(std::move(k), from_, to_, step_);
     }
 
     const int from_;

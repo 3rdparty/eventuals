@@ -75,7 +75,7 @@ struct _Then {
           "callable passed to 'Then' is not invocable "
           "with the type of argument it receives");
 
-      return Continuation<K, F_, Arg>{std::move(k), std::move(f_)};
+      return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
     }
 
     F_ f_;
@@ -86,6 +86,10 @@ struct _Then {
 
 template <typename K_, typename F_, typename Arg_>
 struct _Then::Continuation<K_, F_, Arg_, false> {
+  Continuation(K_ k, F_ f)
+    : f_(std::move(f)),
+      k_(std::move(k)) {}
+
   template <typename... Args>
   void Start(Args&&... args) {
     if constexpr (std::is_void_v<std::invoke_result_t<F_, Args...>>) {
@@ -109,18 +113,22 @@ struct _Then::Continuation<K_, F_, Arg_, false> {
     k_.Register(interrupt);
   }
 
-  K_ k_;
   F_ f_;
+
+  // NOTE: we store 'k_' as the _last_ member so it will be
+  // destructed _first_ and thus we won't have any use-after-delete
+  // issues during destruction of 'k_' if it holds any references or
+  // pointers to any (or within any) of the above members.
+  K_ k_;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename F_, typename Arg_>
 struct _Then::Continuation<K_, F_, Arg_, true> {
-  using E_ = typename std::conditional_t<
-      std::is_void_v<Arg_>,
-      std::invoke_result<F_>,
-      std::invoke_result<F_, Arg_>>::type;
+  Continuation(K_ k, F_ f)
+    : f_(std::move(f)),
+      k_(std::move(k)) {}
 
   template <typename... Args>
   void Start(Args&&... args) {
@@ -149,15 +157,25 @@ struct _Then::Continuation<K_, F_, Arg_, true> {
     k_.Register(interrupt);
   }
 
-  K_ k_;
   F_ f_;
 
   Interrupt* interrupt_ = nullptr;
+
+  using E_ = typename std::conditional_t<
+      std::is_void_v<Arg_>,
+      std::invoke_result<F_>,
+      std::invoke_result<F_, Arg_>>::type;
 
   using Adapted_ = decltype(std::declval<E_>().template k<void>(
       std::declval<Adaptor<K_>>()));
 
   std::optional<Adapted_> adapted_;
+
+  // NOTE: we store 'k_' as the _last_ member so it will be
+  // destructed _first_ and thus we won't have any use-after-delete
+  // issues during destruction of 'k_' if it holds any references or
+  // pointers to any (or within any) of the above members.
+  K_ k_;
 };
 
 ////////////////////////////////////////////////////////////////////////

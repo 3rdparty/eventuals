@@ -140,6 +140,10 @@ class Lock {
 struct _Acquire {
   template <typename K_, typename Arg_>
   struct Continuation {
+    Continuation(K_ k, Lock* lock)
+      : lock_(lock),
+        k_(std::move(k)) {}
+
     template <typename... Args>
     void Start(Args&&... args) {
       waiter_.context = Scheduler::Context::Get();
@@ -356,13 +360,18 @@ struct _Acquire {
       k_.Register(interrupt);
     }
 
-    K_ k_;
     Lock* lock_;
     Lock::Waiter waiter_;
     std::optional<
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
     TypeErasedStream* stream_ = nullptr;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   struct Composable {
@@ -371,7 +380,7 @@ struct _Acquire {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Arg>{std::move(k), lock_};
+      return Continuation<K, Arg>(std::move(k), lock_);
     }
 
     Lock* lock_;
@@ -383,6 +392,10 @@ struct _Acquire {
 struct _Release {
   template <typename K_>
   struct Continuation {
+    Continuation(K_ k, Lock* lock)
+      : lock_(lock),
+        k_(std::move(k)) {}
+
     template <typename... Args>
     void Start(Args&&... args) {
       CHECK(!lock_->Available());
@@ -426,8 +439,13 @@ struct _Release {
       k_.Register(interrupt);
     }
 
-    K_ k_;
     Lock* lock_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   struct Composable {
@@ -436,7 +454,7 @@ struct _Release {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K>{std::move(k), lock_};
+      return Continuation<K>(std::move(k), lock_);
     }
 
     Lock* lock_;
@@ -448,6 +466,11 @@ struct _Release {
 struct _Wait {
   template <typename K_, typename F_, typename Arg_>
   struct Continuation {
+    Continuation(K_ k, Lock* lock, F_ f)
+      : lock_(lock),
+        f_(std::move(f)),
+        k_(std::move(k)) {}
+
     template <typename... Args>
     void Start(Args&&... args) {
       CHECK(!lock_->Available()) << "expecting lock to be acquired";
@@ -610,7 +633,6 @@ struct _Wait {
       k_.Register(interrupt);
     }
 
-    K_ k_;
     Lock* lock_;
     F_ f_;
 
@@ -620,6 +642,12 @@ struct _Wait {
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
     bool notifiable_ = false;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename F_>
@@ -629,7 +657,7 @@ struct _Wait {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, F_, Arg>{std::move(k), lock_, std::move(f_)};
+      return Continuation<K, F_, Arg>(std::move(k), lock_, std::move(f_));
     }
 
     Lock* lock_;

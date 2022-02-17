@@ -86,7 +86,7 @@ struct _Until {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, F_, Arg>{std::move(k), std::move(f_)};
+      return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
     }
 
     F_ f_;
@@ -97,6 +97,10 @@ struct _Until {
 
 template <typename K_, typename F_, typename Arg_>
 struct _Until::Continuation<K_, F_, Arg_, false> {
+  Continuation(K_ k, F_ f)
+    : f_(std::move(f)),
+      k_(std::move(k)) {}
+
   void Begin(TypeErasedStream& stream) {
     stream_ = &stream;
 
@@ -130,20 +134,24 @@ struct _Until::Continuation<K_, F_, Arg_, false> {
     k_.Ended();
   }
 
-  K_ k_;
   F_ f_;
 
   TypeErasedStream* stream_ = nullptr;
+
+  // NOTE: we store 'k_' as the _last_ member so it will be
+  // destructed _first_ and thus we won't have any use-after-delete
+  // issues during destruction of 'k_' if it holds any references or
+  // pointers to any (or within any) of the above members.
+  K_ k_;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename F_, typename Arg_>
 struct _Until::Continuation<K_, F_, Arg_, true> {
-  using E_ = typename std::conditional_t<
-      std::is_void_v<Arg_>,
-      std::invoke_result<F_>,
-      std::invoke_result<F_, std::add_lvalue_reference_t<Arg_>>>::type;
+  Continuation(K_ k, F_ f)
+    : f_(std::move(f)),
+      k_(std::move(k)) {}
 
   void Begin(TypeErasedStream& stream) {
     stream_ = &stream;
@@ -196,7 +204,6 @@ struct _Until::Continuation<K_, F_, Arg_, true> {
     k_.Ended();
   }
 
-  K_ k_;
   F_ f_;
 
   TypeErasedStream* stream_ = nullptr;
@@ -207,10 +214,21 @@ struct _Until::Continuation<K_, F_, Arg_, true> {
       std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
       arg_;
 
+  using E_ = typename std::conditional_t<
+      std::is_void_v<Arg_>,
+      std::invoke_result<F_>,
+      std::invoke_result<F_, std::add_lvalue_reference_t<Arg_>>>::type;
+
   using Adapted_ = decltype(std::declval<E_>().template k<void>(
       std::declval<Adaptor<K_, Arg_>>()));
 
   std::optional<Adapted_> adapted_;
+
+  // NOTE: we store 'k_' as the _last_ member so it will be
+  // destructed _first_ and thus we won't have any use-after-delete
+  // issues during destruction of 'k_' if it holds any references or
+  // pointers to any (or within any) of the above members.
+  K_ k_;
 };
 
 ////////////////////////////////////////////////////////////////////////

@@ -30,6 +30,18 @@ struct _Eventual {
       typename Value_,
       typename... Errors_>
   struct Continuation {
+    Continuation(
+        Reschedulable<K_, Value_> k,
+        Context_ context,
+        Start_ start,
+        Fail_ fail,
+        Stop_ stop)
+      : context_(std::move(context)),
+        start_(std::move(start)),
+        fail_(std::move(fail)),
+        stop_(std::move(stop)),
+        k_(std::move(k)) {}
+
     Continuation(Continuation&& that) = default;
 
     Continuation& operator=(Continuation&& that) {
@@ -91,13 +103,18 @@ struct _Eventual {
       }
     }
 
-    Reschedulable<K_, Value_> k_;
     Context_ context_;
     Start_ start_;
     Fail_ fail_;
     Stop_ stop_;
 
     std::optional<Interrupt::Handler> handler_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    Reschedulable<K_, Value_> k_;
   };
 
   template <
@@ -149,12 +166,12 @@ struct _Eventual {
           Stop_,
           Interruptible_,
           Value_,
-          Errors_...>{
+          Errors_...>(
           Reschedulable<K, Value_>{std::move(k)},
           std::move(context_),
           std::move(start_),
           std::move(fail_),
-          std::move(stop_)};
+          std::move(stop_));
     }
 
     template <typename Context>

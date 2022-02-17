@@ -11,6 +11,9 @@ namespace eventuals {
 struct _Head {
   template <typename K_, typename Arg_>
   struct Continuation {
+    Continuation(K_ k)
+      : k_(std::move(k)) {}
+
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
       stream.Next();
@@ -42,11 +45,15 @@ struct _Head {
       k_.Register(interrupt);
     }
 
-    K_ k_;
-
     std::optional<Arg_> arg_;
 
     TypeErasedStream* stream_ = nullptr;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   struct Composable {
@@ -55,7 +62,7 @@ struct _Head {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Arg>{std::move(k)};
+      return Continuation<K, Arg>(std::move(k));
     }
   };
 };

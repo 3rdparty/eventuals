@@ -151,6 +151,11 @@ struct _TransformerFromTo {
 
   template <typename K_, typename From_, typename To_>
   struct Continuation {
+    template <typename Dispatch>
+    Continuation(K_ k, Dispatch dispatch)
+      : dispatch_(std::move(dispatch)),
+        k_(std::move(k)) {}
+
     void Begin(TypeErasedStream& stream) {
       k_.Begin(stream);
     }
@@ -211,7 +216,6 @@ struct _TransformerFromTo {
           });
     }
 
-    K_ k_;
     Callback<
         Action,
         std::optional<std::exception_ptr>&&,
@@ -227,6 +231,12 @@ struct _TransformerFromTo {
 
     std::unique_ptr<void, Callback<void*>> e_;
     Interrupt* interrupt_ = nullptr;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename From_, typename To_>
@@ -316,9 +326,9 @@ struct _TransformerFromTo {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, From_, To_>{
+      return Continuation<K, From_, To_>(
           std::move(k),
-          std::move(dispatch_)};
+          std::move(dispatch_));
     }
 
     Callback<

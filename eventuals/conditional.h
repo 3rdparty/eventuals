@@ -18,6 +18,16 @@ struct _Conditional {
       typename Else_,
       typename Arg_>
   struct Continuation {
+    Continuation(
+        K_ k,
+        Condition_ condition,
+        Then_ then,
+        Else_ els3)
+      : condition_(std::move(condition)),
+        then_(std::move(then)),
+        else_(std::move(els3)),
+        k_(std::move(k)) {}
+
     template <typename... Args>
     void Start(Args&&... args) {
       // static_assert(
@@ -68,7 +78,6 @@ struct _Conditional {
       k_.Register(interrupt);
     }
 
-    K_ k_;
     Condition_ condition_;
     Then_ then_;
     Else_ else_;
@@ -104,6 +113,12 @@ struct _Conditional {
 
     std::optional<ThenAdapted_> then_adapted_;
     std::optional<ElseAdapted_> else_adapted_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename Condition_, typename Then_, typename Else_>
@@ -130,11 +145,11 @@ struct _Conditional {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Condition_, Then_, Else_, Arg>{
+      return Continuation<K, Condition_, Then_, Else_, Arg>(
           std::move(k),
           std::move(condition_),
           std::move(then_),
-          std::move(else_)};
+          std::move(else_));
     }
 
     Condition_ condition_;

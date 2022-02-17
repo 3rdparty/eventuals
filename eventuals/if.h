@@ -13,6 +13,12 @@ namespace eventuals {
 struct _If {
   template <typename K_, typename YesE_, typename NoE_>
   struct Continuation {
+    Continuation(K_ k, bool condition, YesE_ yes, NoE_ no)
+      : condition_(condition),
+        yes_(std::move(yes)),
+        no_(std::move(no)),
+        k_(std::move(k)) {}
+
     template <typename... Args>
     void Start(Args&&...) {
       if (condition_) {
@@ -51,7 +57,6 @@ struct _If {
       k_.Register(interrupt);
     }
 
-    K_ k_;
     bool condition_;
     YesE_ yes_;
     NoE_ no_;
@@ -79,6 +84,12 @@ struct _If {
 
     std::optional<YesAdapted_> yes_adapted_;
     std::optional<NoAdapted_> no_adapted_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename YesE_, typename NoE_>
@@ -129,11 +140,11 @@ struct _If {
           HasValueFrom<NoE_>::value,
           "'If' expects an eventual for 'no'");
 
-      return Continuation<K, YesE_, NoE_>{
+      return Continuation<K, YesE_, NoE_>(
           std::move(k),
           condition_,
           std::move(yes_),
-          std::move(no_)};
+          std::move(no_));
     }
 
     template <typename YesE>

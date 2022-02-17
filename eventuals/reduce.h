@@ -39,6 +39,11 @@ struct _Reduce {
 
   template <typename K_, typename T_, typename F_, typename Arg_>
   struct Continuation {
+    Continuation(K_ k, T_ t, F_ f)
+      : t_(std::move(t)),
+        f_(std::move(f)),
+        k_(std::move(k)) {}
+
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
 
@@ -80,7 +85,6 @@ struct _Reduce {
       k_.Register(interrupt);
     }
 
-    K_ k_;
     T_ t_;
     F_ f_;
 
@@ -98,6 +102,12 @@ struct _Reduce {
         std::declval<Adaptor<K_>>()));
 
     std::optional<Adapted_> adapted_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   template <typename T_, typename F_>
@@ -107,10 +117,10 @@ struct _Reduce {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, T_, F_, Arg>{
+      return Continuation<K, T_, F_, Arg>(
           std::move(k),
           std::move(t_),
-          std::move(f_)};
+          std::move(f_));
     }
 
     T_ t_;

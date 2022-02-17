@@ -24,6 +24,22 @@ struct _Loop {
       typename Value_,
       typename... Errors_>
   struct Continuation {
+    Continuation(
+        Reschedulable<K_, Value_> k,
+        Context_ context,
+        Begin_ begin,
+        Body_ body,
+        Ended_ ended,
+        Fail_ fail,
+        Stop_ stop)
+      : context_(std::move(context)),
+        begin_(std::move(begin)),
+        body_(std::move(body)),
+        ended_(std::move(ended)),
+        fail_(std::move(fail)),
+        stop_(std::move(stop)),
+        k_(std::move(k)) {}
+
     Continuation(Continuation&& that) = default;
 
     Continuation& operator=(Continuation&& that) {
@@ -111,7 +127,6 @@ struct _Loop {
       }
     }
 
-    Reschedulable<K_, Value_> k_;
     Context_ context_;
     Begin_ begin_;
     Body_ body_;
@@ -122,6 +137,12 @@ struct _Loop {
     TypeErasedStream* stream_ = nullptr;
 
     std::optional<Interrupt::Handler> handler_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    Reschedulable<K_, Value_> k_;
   };
 
   template <
@@ -185,14 +206,14 @@ struct _Loop {
           Stop_,
           Interruptible_,
           Value_,
-          Errors_...>{
+          Errors_...>(
           Reschedulable<K, Value_>{std::move(k)},
           std::move(context_),
           std::move(begin_),
           std::move(body_),
           std::move(ended_),
           std::move(fail_),
-          std::move(stop_)};
+          std::move(stop_));
     }
 
     template <typename Context>
