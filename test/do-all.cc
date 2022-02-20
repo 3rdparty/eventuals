@@ -27,9 +27,8 @@ TEST(DoAllTest, Succeed) {
   auto result = *e();
 
   using T = std::decay_t<decltype(result)>;
-  EXPECT_EQ(
-      std::tuple_size_v<T>,
-      3);
+
+  EXPECT_EQ(std::tuple_size_v<T>, 3);
 
   using T0 = decltype(std::get<0>(result));
   using T1 = decltype(std::get<1>(result));
