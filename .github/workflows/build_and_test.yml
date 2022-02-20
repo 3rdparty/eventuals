@@ -22,7 +22,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ["macos-latest", "ubuntu-latest", "windows-latest"]
+        include:
+          - os: macos-latest
+            bazel-config: ""
+          - os: ubuntu-latest
+            bazel-config: "--config=asan"
+          - os: windows-latest
+            bazel-config: ""
+
+    env:
+      BAZEL_CONFIG: ${{ matrix.bazel-config }}
+
     defaults:
       run:
         shell: bash
@@ -30,10 +40,13 @@ jobs:
     steps:
       # Checkout the repository under $GITHUB_WORKSPACE.
       - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
 
       - name: Build
         run: |
           bazel build \
+            ${BAZEL_CONFIG} \
             --spawn_strategy=local \
             -c dbg \
             --strip="never" \
@@ -42,6 +55,7 @@ jobs:
       - name: Test
         run: | 
           bazel test \
+            ${BAZEL_CONFIG} \
             --experimental_ui_max_stdouterr_bytes=-1 \
             --spawn_strategy=local \
             -c dbg \
