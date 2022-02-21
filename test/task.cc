@@ -117,7 +117,7 @@ TEST(Task, FailOnCallback) {
     };
   };
 
-  EXPECT_THROW(*e(), std::exception_ptr);
+  EXPECT_THROW(*e(), const char*);
 }
 
 TEST(Task, FailTerminated) {
@@ -143,7 +143,7 @@ TEST(Task, FailTerminated) {
   auto [future, k] = Terminate(e());
   k.Fail("error");
 
-  EXPECT_THROW(future.get(), std::exception_ptr);
+  EXPECT_THROW(future.get(), const char*);
 }
 
 TEST(Task, StopOnCallback) {
@@ -340,7 +340,7 @@ TEST(Task, FromToFail) {
            });
   };
 
-  EXPECT_THROW(*e(), std::exception_ptr);
+  EXPECT_THROW(*e(), const char*);
 }
 
 TEST(Task, FromToStop) {
@@ -390,7 +390,7 @@ TEST(Task, Failure) {
     return Task::Failure("error");
   };
 
-  EXPECT_THROW(*e(), std::exception_ptr);
+  EXPECT_THROW(*e(), const char*);
 }
 
 TEST(Task, Inheritance) {
@@ -441,7 +441,7 @@ TEST(Task, Inheritance) {
 
   EXPECT_EQ(*sync(), 10);
   EXPECT_EQ(*async(), 20);
-  EXPECT_THROW(*failure(), std::exception_ptr);
+  EXPECT_THROW(*failure(), const char*);
 }
 
 TEST(Task, MoveableSuccess) {

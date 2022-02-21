@@ -60,5 +60,5 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailInterrupt) {
 
   k.Start();
 
-  EXPECT_THROW(future.get(), std::exception_ptr);
+  EXPECT_THROW(future.get(), const char*);
 }

@@ -5,6 +5,7 @@
 
 #include "eventuals/callback.h"
 #include "eventuals/stream.h"
+#include "eventuals/terminal.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -40,13 +41,8 @@ struct HeapTransformer {
     template <typename... Args>
     void Fail(Args&&... args) {
       (*fail_)(
-          std::make_exception_ptr(
+          make_exception_ptr_or_forward(
               std::forward<decltype(args)>(args)...));
-    }
-
-    // NOTE: overload so we don't create nested std::exception_ptr.
-    void Fail(std::exception_ptr exception) {
-      (*fail_)(std::move(exception));
     }
 
     void Stop() {
@@ -165,7 +161,7 @@ struct _TransformerFromTo {
       static_assert(
           sizeof...(args) > 0,
           "Transformer expects Fail() to be called with an argument");
-      auto exception = std::make_exception_ptr(
+      auto exception = make_exception_ptr_or_forward(
           std::forward<decltype(args)>(args)...);
 
       Dispatch(Action::Fail, std::nullopt, std::move(exception));

@@ -200,6 +200,20 @@ struct StoppedException : public std::exception {
 
 ////////////////////////////////////////////////////////////////////////
 
+// Using to don't create nested 'std::exception_ptr'.
+template <typename... Args>
+auto make_exception_ptr_or_forward(Args&&... args) {
+  static_assert(sizeof...(args) > 0, "Expecting an error");
+  static_assert(!std::is_same_v<std::decay_t<Args>..., std::exception_ptr>);
+  return std::make_exception_ptr(std::forward<Args>(args)...);
+}
+
+inline auto make_exception_ptr_or_forward(std::exception_ptr error) {
+  return error;
+}
+
+////////////////////////////////////////////////////////////////////////
+
 // Using to get right type for 'std::promise' at 'Terminate' because
 // using 'std::promise<std::reference_wrapper<T>>' is forbidden on
 // Windows build using MSVC.
@@ -240,8 +254,9 @@ auto Terminate(E e) {
                static_assert(
                    sizeof...(errors) == 0 || sizeof...(errors) == 1,
                    "Task only supports 0 or 1 error, but found > 1");
+
                promise.set_exception(
-                   std::make_exception_ptr(
+                   make_exception_ptr_or_forward(
                        std::forward<decltype(errors)>(errors)...));
              })
              .stop([](auto& promise) {

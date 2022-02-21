@@ -73,6 +73,6 @@ TYPED_TEST(ConcurrentTypedTest, InterruptFailOrStop) {
   if constexpr (std::is_same_v<TypeParam, ConcurrentType>) {
     EXPECT_ANY_THROW(future.get());
   } else {
-    EXPECT_THROW(future.get(), std::exception_ptr);
+    EXPECT_THROW(future.get(), const char*);
   }
 }

@@ -52,7 +52,7 @@ TEST(DoAllTest, Fail) {
         Eventual<void>([](auto& k) { k.Start(); }));
   };
 
-  EXPECT_THROW(*e(), std::exception_ptr);
+  EXPECT_THROW(*e(), const char*);
 }
 
 
