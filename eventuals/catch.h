@@ -11,9 +11,9 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Catch {
+struct _Catch final {
   template <typename K_, typename F_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, F_ f)
       : f_(std::move(f)),
         k_(std::move(k)) {}
@@ -71,7 +71,7 @@ struct _Catch {
   };
 
   template <typename F_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
 

@@ -15,7 +15,7 @@ namespace filesystem {
 ////////////////////////////////////////////////////////////////////////
 
 // Moveable, not Copyable.
-class Request {
+class Request final {
  public:
   Request() {}
 
@@ -73,7 +73,7 @@ class Request {
 ////////////////////////////////////////////////////////////////////////
 
 // Moveable, not Copyable.
-class File {
+class File final {
  public:
   // Removing default constructor breaks Windows build
   // due to how std::future is implemented.

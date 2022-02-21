@@ -24,10 +24,10 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-class EventLoop : public Scheduler {
+class EventLoop final : public Scheduler {
  public:
   // Moveable and Copyable.
-  class Buffer {
+  class Buffer final {
    public:
     Buffer() {
       buffer_ = uv_buf_init(nullptr, 0);
@@ -134,7 +134,7 @@ class EventLoop : public Scheduler {
     uv_buf_t buffer_ = {};
   };
 
-  class Clock {
+  class Clock final {
    public:
     Clock(const Clock&) = delete;
 
@@ -425,7 +425,7 @@ class EventLoop : public Scheduler {
 
   EventLoop();
   EventLoop(const EventLoop&) = delete;
-  virtual ~EventLoop();
+  ~EventLoop() override;
 
   void RunForever();
 
@@ -488,9 +488,9 @@ class EventLoop : public Scheduler {
   auto WaitForSignal(int signum);
 
  private:
-  struct _WaitForSignal {
+  struct _WaitForSignal final {
     template <typename K_>
-    struct Continuation {
+    struct Continuation final {
       Continuation(K_ k, EventLoop& loop, const int signum)
         : loop_(loop),
           signum_(signum),
@@ -668,7 +668,7 @@ class EventLoop : public Scheduler {
       K_ k_;
     };
 
-    struct Composable {
+    struct Composable final {
       template <typename Arg>
       using ValueFrom = void;
 
@@ -699,9 +699,9 @@ class EventLoop : public Scheduler {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _EventLoopSchedule {
+struct _EventLoopSchedule final {
   template <typename K_, typename E_, typename Arg_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, E_ e, EventLoop* loop, std::string&& name)
       : e_(std::move(e)),
         context_(
@@ -863,7 +863,7 @@ struct _EventLoopSchedule {
   };
 
   template <typename E_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = typename E_::template ValueFrom<Arg>;
 

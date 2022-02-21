@@ -20,11 +20,15 @@ namespace eventuals {
 
 /////////////////////////////////////////////////////////////////////
 
-struct _ReorderAdaptor {
+struct _ReorderAdaptor final {
   template <typename K_, typename Value_>
-  struct Continuation : public TypeErasedStream {
+  struct Continuation final : public TypeErasedStream {
     Continuation(K_ k)
       : k_(std::move(k)) {}
+
+    Continuation(Continuation&& that) = default;
+
+    ~Continuation() override = default;
 
     void Begin(TypeErasedStream& stream) {
       upstream_ = &stream;
@@ -110,7 +114,7 @@ struct _ReorderAdaptor {
   // Arg there will be received from 'Concurrent::ConcurrentOrderedAdaptor'
   // that equals to 'std::tuple<int, std::optional<Value>>' and we need to
   // extract `Value`.
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = typename std::tuple_element<1, Arg>::type::value_type;
 
@@ -137,11 +141,13 @@ inline auto ReorderAdaptor() {
 // saves upstream and on `Next` tries to get a next value from upstream,
 // if not ended, otherwise it calls 'Ended'. So 'Next' is both ending and
 // getting next values function.
-struct _ConcurrentOrderedAdaptor {
+struct _ConcurrentOrderedAdaptor final {
   template <typename K_>
-  struct Continuation : public TypeErasedStream {
+  struct Continuation final : public TypeErasedStream {
     Continuation(K_ k)
       : k_(std::move(k)) {}
+
+    ~Continuation() override = default;
 
     void Begin(TypeErasedStream& stream) {
       upstream_ = &stream;
@@ -207,7 +213,7 @@ struct _ConcurrentOrderedAdaptor {
     K_ k_;
   };
 
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = std::tuple<
         int,

@@ -17,7 +17,8 @@ struct _Conditional {
       typename Then_,
       typename Else_,
       typename Arg_>
-  struct Continuation {
+
+  struct Continuation final {
     Continuation(
         K_ k,
         Condition_ condition,
@@ -122,7 +123,7 @@ struct _Conditional {
   };
 
   template <typename Condition_, typename Then_, typename Else_>
-  struct Composable {
+  struct Composable final {
     template <typename ThenValue, typename ElseValue>
     using Unify_ = typename std::conditional_t<
         std::is_same_v<ThenValue, ElseValue>,

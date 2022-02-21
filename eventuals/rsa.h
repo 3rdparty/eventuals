@@ -15,7 +15,7 @@ namespace rsa {
 
 ////////////////////////////////////////////////////////////////////////
 
-class Key {
+class Key final {
  public:
   static auto Builder();
 
@@ -95,8 +95,10 @@ class Key {
 
 // Builder for generating an RSA private key.
 template <bool has_bits_, bool has_exponent_>
-class Key::_Builder : public builder::Builder {
+class Key::_Builder final : public builder::Builder {
  public:
+  ~_Builder() override = default;
+
   auto bits(int bits) && {
     static_assert(!has_bits_, "Duplicate 'bits'");
     return Construct<_Builder>(

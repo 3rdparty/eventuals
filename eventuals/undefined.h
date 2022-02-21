@@ -8,7 +8,7 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct Undefined {};
+struct Undefined final {};
 
 template <typename>
 struct IsUndefined : std::false_type {};

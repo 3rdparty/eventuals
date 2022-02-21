@@ -16,10 +16,12 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-class Pipe : public Synchronizable {
+class Pipe final : public Synchronizable {
  public:
   Pipe()
     : has_values_or_closed_(&lock()) {}
+
+  ~Pipe() override = default;
 
   auto Write(T&& value) {
     return Synchronized(Then([this, value = std::move(value)]() mutable {

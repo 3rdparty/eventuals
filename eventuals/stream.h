@@ -21,18 +21,18 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 struct TypeErasedStream {
-  virtual ~TypeErasedStream() {}
+  virtual ~TypeErasedStream() = default;
   virtual void Next() = 0;
   virtual void Done() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Stream {
+struct _Stream final {
   // Helper that distinguishes when a stream's continuation needs to be
   // invoked (versus the stream being invoked as a continuation itself).
   template <typename S_, typename K_, typename Arg_>
-  struct StreamK {
+  struct StreamK final {
     S_* stream_ = nullptr;
     K_* k_ = nullptr;
     std::optional<
@@ -129,7 +129,8 @@ struct _Stream {
       bool Interruptible_,
       typename Value_,
       typename... Errors_>
-  struct Continuation : public TypeErasedStream {
+  struct Continuation final : public TypeErasedStream {
+    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(
         K_ k,
         Context_ context,
@@ -158,6 +159,8 @@ struct _Stream {
 
       return *this;
     }
+
+    ~Continuation() override = default;
 
     template <typename... Args>
     void Start(Args&&... args) {
@@ -268,7 +271,7 @@ struct _Stream {
       bool Interruptible_,
       typename Value_,
       typename... Errors_>
-  struct Builder {
+  struct Builder final {
     template <typename Arg>
     using ValueFrom = Value_;
 

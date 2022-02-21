@@ -10,9 +10,9 @@
 namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
-struct _FlatMap {
+struct _FlatMap final {
   template <typename FlatMap_>
-  struct Adaptor {
+  struct Adaptor final {
     void Begin(TypeErasedStream& stream) {
       CHECK(streamforeach_->adapted_.has_value());
       CHECK(streamforeach_->inner_ == nullptr);
@@ -55,10 +55,15 @@ struct _FlatMap {
   };
 
   template <typename K_, typename F_, typename Arg_>
-  struct Continuation : public TypeErasedStream {
+  struct Continuation final : public TypeErasedStream {
+    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, F_ f)
       : f_(std::move(f)),
         k_(std::move(k)) {}
+
+    Continuation(Continuation&& that) = default;
+
+    ~Continuation() override = default;
 
     void Begin(TypeErasedStream& stream) {
       outer_ = &stream;
@@ -150,7 +155,7 @@ struct _FlatMap {
   };
 
   template <typename F_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = typename std::conditional_t<
         std::is_void_v<Arg>,

@@ -8,9 +8,9 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Head {
+struct _Head final {
   template <typename K_, typename Arg_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k)
       : k_(std::move(k)) {}
 
@@ -56,7 +56,7 @@ struct _Head {
     K_ k_;
   };
 
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
 

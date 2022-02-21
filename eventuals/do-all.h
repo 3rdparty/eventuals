@@ -13,9 +13,9 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _DoAll {
+struct _DoAll final {
   template <typename K_, typename... Eventuals_>
-  struct Adaptor {
+  struct Adaptor final {
     Adaptor(K_& k, Interrupt& interrupt)
       : k_(k),
         interrupt_(interrupt) {}
@@ -184,7 +184,7 @@ struct _DoAll {
   };
 
   template <typename K_, typename... Eventuals_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, std::tuple<Eventuals_...>&& eventuals)
       : eventuals_(std::move(eventuals)),
         k_(std::move(k)) {}
@@ -253,7 +253,7 @@ struct _DoAll {
   };
 
   template <typename... Eventuals_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = std::tuple<
         std::conditional_t<

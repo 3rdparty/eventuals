@@ -16,9 +16,9 @@ struct TypeErasedStream;
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Closure {
+struct _Closure final {
   template <typename K_, typename F_, typename Arg_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, F_ f)
       : f_(std::move(f)),
         k_(std::move(k)) {}
@@ -83,7 +83,7 @@ struct _Closure {
   };
 
   template <typename F_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom =
         typename std::invoke_result_t<F_>::template ValueFrom<Arg>;

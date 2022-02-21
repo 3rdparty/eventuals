@@ -51,9 +51,9 @@ struct Pinned {
 
 ////////////////////////////////////////////////////////////////////////
 
-class StaticThreadPool : public Scheduler {
+class StaticThreadPool final : public Scheduler {
  public:
-  struct Requirements {
+  struct Requirements final {
     Requirements(const char* name, Pinned pinned = Pinned::Any())
       : Requirements(std::string(name), std::move(pinned)) {}
 
@@ -73,7 +73,7 @@ class StaticThreadPool : public Scheduler {
     Schedulable(Pinned pinned)
       : Schedulable(Requirements("[anonymous]", pinned)) {}
 
-    virtual ~Schedulable() {}
+    virtual ~Schedulable() = default;
 
     template <typename E>
     auto Schedule(E e);
@@ -104,7 +104,7 @@ class StaticThreadPool : public Scheduler {
 
   StaticThreadPool();
 
-  ~StaticThreadPool();
+  ~StaticThreadPool() override;
 
   bool Continuable(Context* context) override;
 
@@ -134,9 +134,9 @@ class StaticThreadPool : public Scheduler {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _StaticThreadPoolSchedule {
+struct _StaticThreadPoolSchedule final {
   template <typename K_, typename E_, typename Arg_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(
         K_ k,
         StaticThreadPool* pool,
@@ -492,7 +492,7 @@ struct _StaticThreadPoolSchedule {
   };
 
   template <typename E_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = typename E_::template ValueFrom<Arg>;
 

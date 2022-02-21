@@ -8,14 +8,19 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Range {
+struct _Range final {
   template <typename K_, typename Arg_>
-  struct Continuation : public TypeErasedStream {
+  struct Continuation final : public TypeErasedStream {
+    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, int from, int to, int step)
       : from_(from),
         to_(to),
         step_(step),
         k_(std::move(k)) {}
+
+    Continuation(Continuation&& that) = default;
+
+    ~Continuation() override = default;
 
     void Start() {
       previous_ = Scheduler::Context::Get();
@@ -74,7 +79,7 @@ struct _Range {
     K_ k_;
   };
 
-  struct Composable {
+  struct Composable final {
     template <typename>
     using ValueFrom = int;
 

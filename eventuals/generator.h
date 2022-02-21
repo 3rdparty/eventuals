@@ -16,8 +16,8 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E_, typename From_, typename To_>
-struct HeapGenerator {
-  struct Adaptor {
+struct HeapGenerator final {
+  struct Adaptor final {
     Adaptor(
         Callback<TypeErasedStream&>* begin,
         Callback<std::exception_ptr>* fail,
@@ -177,7 +177,7 @@ struct HeapGenerator {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _GeneratorFromToWith {
+struct _GeneratorFromToWith final {
   // Since we move lambda function at 'Composable' constructor we need to
   // specify the callback that should be triggered on the produced eventual.
   // For this reason we use 'Action'.
@@ -188,7 +188,7 @@ struct _GeneratorFromToWith {
   };
 
   template <typename K_, typename From_, typename To_, typename... Args_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(
         K_ k,
         std::tuple<Args_...>&& args,
@@ -422,6 +422,10 @@ struct _GeneratorFromToWith {
       };
     }
 
+    virtual ~Composable() = default;
+
+    Composable(Composable&& that) = default;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, From_, To_, Args_...>(
@@ -466,17 +470,21 @@ using GeneratorFromToWith = _GeneratorFromToWith::Composable<
     To,
     Args...>;
 
-struct Generator {
+struct Generator final {
   template <typename From_>
-  struct From {
+  struct From final {
     template <typename To_>
-    struct To : public GeneratorFromToWith<From_, To_> {
+    struct To final : public GeneratorFromToWith<From_, To_> {
       template <typename... Args_>
       using With = GeneratorFromToWith<From_, To_, Args_...>;
 
       template <typename F>
       To(F f)
         : GeneratorFromToWith<From_, To_>(std::move(f)){};
+
+      To(To&& that) = default;
+
+      ~To() override = default;
     };
 
     template <typename F>

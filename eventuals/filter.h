@@ -9,9 +9,9 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Filter {
+struct _Filter final {
   template <typename K_, typename F_, typename Arg_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, F_ f)
       : f_(std::move(f)),
         k_(std::move(k)) {}
@@ -61,7 +61,7 @@ struct _Filter {
   // Using at compose.h to correctly create custom Continuation structure
   // with provided lambda function to filter
   template <typename F_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
 

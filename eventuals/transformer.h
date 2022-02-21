@@ -14,8 +14,8 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E_, typename From_, typename To_>
-struct HeapTransformer {
-  struct Adaptor {
+struct HeapTransformer final {
+  struct Adaptor final {
     Adaptor(
         Callback<TypeErasedStream&>* begin,
         Callback<std::exception_ptr>* fail,
@@ -138,7 +138,7 @@ struct HeapTransformer {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _TransformerFromTo {
+struct _TransformerFromTo final {
   enum class Action {
     Body = 0,
     Fail = 1,
@@ -146,7 +146,7 @@ struct _TransformerFromTo {
   };
 
   template <typename K_, typename From_, typename To_>
-  struct Continuation {
+  struct Continuation final {
     template <typename Dispatch>
     Continuation(K_ k, Dispatch dispatch)
       : dispatch_(std::move(dispatch)),
@@ -236,7 +236,7 @@ struct _TransformerFromTo {
   };
 
   template <typename From_, typename To_>
-  struct Composable {
+  struct Composable final {
     template <typename>
     using ValueFrom = To_;
 
@@ -354,6 +354,10 @@ class TransformerFromTo {
   TransformerFromTo(F f)
     : e_(std::move(f)) {}
 
+  TransformerFromTo(TransformerFromTo&& that) = default;
+
+  virtual ~TransformerFromTo() = default;
+
   template <typename Arg, typename K>
   auto k(K k) && {
     return std::move(e_).template k<Arg>(std::move(k));
@@ -370,14 +374,18 @@ class TransformerFromTo {
   _TransformerFromTo::Composable<From_, To_> e_;
 };
 
-struct Transformer {
+struct Transformer final {
   template <typename From_>
-  struct From {
+  struct From final {
     template <typename To_>
-    struct To : public TransformerFromTo<From_, To_> {
+    struct To final : public TransformerFromTo<From_, To_> {
       template <typename F>
       To(F f)
         : TransformerFromTo<From_, To_>(std::move(f)) {}
+
+      To(To&& that) = default;
+
+      ~To() override = default;
     };
     template <typename F>
     From(F f) = delete;

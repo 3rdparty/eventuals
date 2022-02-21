@@ -15,13 +15,13 @@
 //
 // NOTE: this class is only expected to be used in tests so it
 // generously uses macros like 'EXPECT_*' and 'ADD_FAILURE'.
-class HttpMockServer {
+class HttpMockServer final {
  public:
   // Abstracts whether or not we have a secure, i.e., TLS/SSL, socket
   // or an insecure socket.
   class Socket {
    public:
-    virtual ~Socket() {}
+    virtual ~Socket() = default;
     virtual std::string Receive() = 0;
     virtual void Send(const std::string& data) = 0;
     virtual void Close() = 0;
@@ -31,10 +31,12 @@ class HttpMockServer {
   };
 
   // Implementation of an insecure socket, i.e, no TLS/SSL.
-  class InsecureSocket : public Socket {
+  class InsecureSocket final : public Socket {
    public:
     InsecureSocket(asio::ip::tcp::socket socket)
       : socket_(std::move(socket)) {}
+
+    ~InsecureSocket() override = default;
 
     std::string Receive() override {
       asio::error_code error;
@@ -69,10 +71,12 @@ class HttpMockServer {
   };
 
   // Implementation of an secure socket.
-  class SecureSocket : public Socket {
+  class SecureSocket final : public Socket {
    public:
     SecureSocket(asio::ssl::stream<asio::ip::tcp::socket> stream)
       : stream_(std::move(stream)) {}
+
+    ~SecureSocket() override = default;
 
     std::string Receive() override {
       asio::error_code error;

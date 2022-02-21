@@ -11,7 +11,7 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Loop {
+struct _Loop final {
   template <
       typename K_,
       typename Context_,
@@ -23,7 +23,7 @@ struct _Loop {
       bool Interruptible_,
       typename Value_,
       typename... Errors_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(
         Reschedulable<K_, Value_> k,
         Context_ context,
@@ -155,7 +155,7 @@ struct _Loop {
       bool Interruptible_,
       typename Value_,
       typename... Errors_>
-  struct Builder {
+  struct Builder final {
     template <typename Arg>
     using ValueFrom = Value_;
 

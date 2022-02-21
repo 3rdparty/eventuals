@@ -29,7 +29,7 @@ struct _Eventual {
       bool Interruptible_,
       typename Value_,
       typename... Errors_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(
         Reschedulable<K_, Value_> k,
         Context_ context,
@@ -41,6 +41,7 @@ struct _Eventual {
         fail_(std::move(fail)),
         stop_(std::move(stop)),
         k_(std::move(k)) {}
+
 
     Continuation(Continuation&& that) = default;
 
@@ -125,7 +126,7 @@ struct _Eventual {
       bool Interruptible_,
       typename Value_,
       typename... Errors_>
-  struct Builder {
+  struct Builder final {
     template <typename>
     using ValueFrom = Value_;
 

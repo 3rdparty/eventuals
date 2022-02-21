@@ -11,9 +11,9 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Map {
+struct _Map final {
   template <typename K_>
-  struct Adaptor {
+  struct Adaptor final {
     template <typename... Args>
     void Start(Args&&... args) {
       k_.Body(std::forward<Args>(args)...);
@@ -36,7 +36,7 @@ struct _Map {
   };
 
   template <typename K_, typename E_, typename Arg_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, E_ e)
       : e_(std::move(e)),
         k_(std::move(k)) {}
@@ -106,7 +106,7 @@ struct _Map {
   };
 
   template <typename E_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = typename E_::template ValueFrom<Arg>;
 

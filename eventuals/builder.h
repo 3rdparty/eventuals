@@ -16,6 +16,8 @@ class Field;
 template <typename Value_>
 class Field<Value_, false> {
  public:
+  virtual ~Field() = default;
+
   template <typename Value>
   auto Set(Value&& value) {
     static_assert(std::is_convertible_v<Value, Value_>);
@@ -28,6 +30,8 @@ class Field<Value_, true> {
  public:
   Field(Value_ value)
     : value_(std::move(value)) {}
+
+  virtual ~Field() = default;
 
   auto& value() & {
     return value_;
@@ -63,7 +67,7 @@ template <typename Value_, bool has_>
 class FieldWithDefault;
 
 template <typename Value_>
-class FieldWithDefault<Value_, false> : public Field<Value_, false> {
+class FieldWithDefault<Value_, false> final : public Field<Value_, false> {
  public:
   template <
       typename Value,
@@ -72,6 +76,8 @@ class FieldWithDefault<Value_, false> : public Field<Value_, false> {
     : default_(std::forward<Value>(value)) {}
 
   FieldWithDefault(FieldWithDefault&&) = default;
+
+  ~FieldWithDefault() override = default;
 
   template <typename Value>
   auto Set(Value&& value) {
@@ -108,7 +114,7 @@ class FieldWithDefault<Value_, false> : public Field<Value_, false> {
 };
 
 template <typename Value_>
-class FieldWithDefault<Value_, true> : public Field<Value_, true> {
+class FieldWithDefault<Value_, true> final : public Field<Value_, true> {
  public:
   template <
       typename Value,
@@ -117,6 +123,8 @@ class FieldWithDefault<Value_, true> : public Field<Value_, true> {
     : Field<Value_, true>(std::forward<Value>(value)) {}
 
   FieldWithDefault(FieldWithDefault&&) = default;
+
+  ~FieldWithDefault() override = default;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -125,7 +133,7 @@ template <typename Value_, bool has_>
 class RepeatedField;
 
 template <typename Value_>
-class RepeatedField<Value_, false> : public Field<Value_, false> {
+class RepeatedField<Value_, false> final : public Field<Value_, false> {
  public:
   template <
       typename Value,
@@ -134,6 +142,8 @@ class RepeatedField<Value_, false> : public Field<Value_, false> {
     : default_(std::forward<Value>(value)) {}
 
   RepeatedField(RepeatedField&&) = default;
+
+  ~RepeatedField() override = default;
 
   template <typename Value>
   auto Set(Value&& value) {
@@ -170,7 +180,7 @@ class RepeatedField<Value_, false> : public Field<Value_, false> {
 };
 
 template <typename Value_>
-class RepeatedField<Value_, true> : public Field<Value_, true> {
+class RepeatedField<Value_, true> final : public Field<Value_, true> {
  public:
   template <
       typename Value,
@@ -179,6 +189,8 @@ class RepeatedField<Value_, true> : public Field<Value_, true> {
     : Field<Value_, true>(std::forward<Value>(value)) {}
 
   RepeatedField(RepeatedField&&) = default;
+
+  ~RepeatedField() override = default;
 
   template <typename Value>
   auto Set(Value&& value) {
@@ -190,6 +202,9 @@ class RepeatedField<Value_, true> : public Field<Value_, true> {
 ////////////////////////////////////////////////////////////////////////
 
 class Builder {
+ public:
+  virtual ~Builder() = default;
+
  protected:
   // Helper that creates a "builder" by calling it's constructor with a
   // set of "fields". The "builder" is parameterized by the list of
