@@ -17,9 +17,9 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-class Lock {
+class Lock final {
  public:
-  struct Waiter {
+  struct Waiter final {
     Callback<> f;
     Waiter* next = nullptr;
     bool acquired = false;
@@ -137,9 +137,9 @@ class Lock {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Acquire {
+struct _Acquire final {
   template <typename K_, typename Arg_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, Lock* lock)
       : lock_(lock),
         k_(std::move(k)) {}
@@ -389,9 +389,9 @@ struct _Acquire {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Release {
+struct _Release final {
   template <typename K_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, Lock* lock)
       : lock_(lock),
         k_(std::move(k)) {}
@@ -448,7 +448,7 @@ struct _Release {
     K_ k_;
   };
 
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
 
@@ -463,9 +463,9 @@ struct _Release {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Wait {
+struct _Wait final {
   template <typename K_, typename F_, typename Arg_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, Lock* lock, F_ f)
       : lock_(lock),
         f_(std::move(f)),
@@ -651,7 +651,7 @@ struct _Wait {
   };
 
   template <typename F_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
 
@@ -688,7 +688,7 @@ auto Wait(Lock* lock, F f) {
 
 class Synchronizable {
  public:
-  virtual ~Synchronizable() {}
+  virtual ~Synchronizable() = default;
 
   template <typename E>
   auto Synchronized(E e) {
@@ -712,7 +712,7 @@ class Synchronizable {
 
 ////////////////////////////////////////////////////////////////////////
 
-class ConditionVariable {
+class ConditionVariable final {
  public:
   ConditionVariable(Lock* lock)
     : lock_(CHECK_NOTNULL(lock)) {}

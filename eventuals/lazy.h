@@ -12,7 +12,7 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T, typename... Args>
-class _Lazy {
+class _Lazy final {
  public:
   template <typename Tuple>
   _Lazy(Tuple args)

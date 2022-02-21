@@ -17,7 +17,7 @@ namespace eventuals {
 // implementations do for small lambdas).
 
 template <typename... Args>
-struct Callback {
+struct Callback final {
   // TODO(benh): Delete default constructor and force a usage pattern
   // where a delayed initialization requires std::optional so that a
   // user doesn't run into issues where they try and invoke a callback
@@ -98,11 +98,11 @@ struct Callback {
   };
 
   template <typename F>
-  struct Handler : Base {
+  struct Handler final : Base {
     Handler(F f)
       : f_(std::move(f)) {}
 
-    virtual ~Handler() = default;
+    ~Handler() override = default;
 
     void Invoke(Args... args) override {
       f_(std::forward<Args>(args)...);

@@ -9,9 +9,9 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Reduce {
+struct _Reduce final {
   template <typename K_>
-  struct Adaptor {
+  struct Adaptor final {
     void Start(bool next) {
       if (next) {
         stream_->Next();
@@ -38,7 +38,7 @@ struct _Reduce {
   };
 
   template <typename K_, typename T_, typename F_, typename Arg_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, T_ t, F_ f)
       : t_(std::move(t)),
         f_(std::move(f)),
@@ -111,7 +111,7 @@ struct _Reduce {
   };
 
   template <typename T_, typename F_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = T_;
 

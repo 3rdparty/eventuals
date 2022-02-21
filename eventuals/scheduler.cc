@@ -33,8 +33,10 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-class DefaultScheduler : public Scheduler {
+class DefaultScheduler final : public Scheduler {
  public:
+  ~DefaultScheduler() override = default;
+
   bool Continuable(Context*) override {
     return Context::Get()->scheduler() == this;
   }

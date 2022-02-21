@@ -10,9 +10,9 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _If {
+struct _If final {
   template <typename K_, typename YesE_, typename NoE_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, bool condition, YesE_ yes, NoE_ no)
       : condition_(condition),
         yes_(std::move(yes)),
@@ -93,7 +93,7 @@ struct _If {
   };
 
   template <typename YesE_, typename NoE_>
-  struct Builder {
+  struct Builder final {
     template <typename YesValue, typename NoValue>
     using Unify_ = typename std::conditional_t<
         std::is_same_v<YesValue, NoValue>,

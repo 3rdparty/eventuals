@@ -27,14 +27,14 @@ Overloaded(Fs...) -> Overloaded<Fs...>;
 ////////////////////////////////////////////////////////////////////////
 
 // Tag type to identify the result of 'Unexpected(...)'.
-struct _Unexpected {
+struct _Unexpected final {
   _Unexpected() = delete;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Value_>
-class _Expected {
+class _Expected final {
  public:
   // Providing 'ValueFrom' in order to compose with other eventuals.
   template <typename Arg>
@@ -170,7 +170,7 @@ class _Expected {
 // using a 'struct' instead of a 'namespace' we can have an overloaded
 // 'Expected()' function that can be used inside lambdas with deduced
 // return types to properly construct the correct type.
-struct Expected {
+struct Expected final {
   template <typename T>
   using Of = _Expected<T>;
 

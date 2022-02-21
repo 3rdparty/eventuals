@@ -18,9 +18,9 @@ using ValueFromMaybeComposable = typename std::conditional_t<
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Then {
+struct _Then final {
   template <typename K_>
-  struct Adaptor {
+  struct Adaptor final {
     template <typename... Args>
     void Start(Args&&... args) {
       k_.Start(std::forward<Args>(args)...);
@@ -54,7 +54,7 @@ struct _Then {
   struct Continuation;
 
   template <typename F_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = ValueFromMaybeComposable<
         typename std::conditional_t<
@@ -85,7 +85,7 @@ struct _Then {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename F_, typename Arg_>
-struct _Then::Continuation<K_, F_, Arg_, false> {
+struct _Then::Continuation<K_, F_, Arg_, false> final {
   Continuation(K_ k, F_ f)
     : f_(std::move(f)),
       k_(std::move(k)) {}
@@ -125,7 +125,7 @@ struct _Then::Continuation<K_, F_, Arg_, false> {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename F_, typename Arg_>
-struct _Then::Continuation<K_, F_, Arg_, true> {
+struct _Then::Continuation<K_, F_, Arg_, true> final {
   Continuation(K_ k, F_ f)
     : f_(std::move(f)),
       k_(std::move(k)) {}

@@ -19,7 +19,7 @@ namespace x509 {
 
 ////////////////////////////////////////////////////////////////////////
 
-class Certificate {
+class Certificate final {
  public:
   static auto Builder();
 
@@ -80,8 +80,10 @@ template <
     bool has_hostname_,
     bool has_ip_,
     bool has_organization_name_>
-class Certificate::_Builder : public builder::Builder {
+class Certificate::_Builder final : public builder::Builder {
  public:
+  ~_Builder() override = default;
+
   auto subject_key(rsa::Key&& subject_key) && {
     static_assert(!has_subject_key_, "Duplicate 'subject_key'");
     return Construct<_Builder>(

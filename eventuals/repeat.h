@@ -11,11 +11,16 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Repeat {
+struct _Repeat final {
   template <typename K_>
-  struct Continuation : public TypeErasedStream {
+  struct Continuation final : public TypeErasedStream {
+    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k)
       : k_(std::move(k)) {}
+
+    Continuation(Continuation&& that) = default;
+
+    ~Continuation() override = default;
 
     template <typename... Args>
     void Start(Args&&...) {
@@ -58,7 +63,7 @@ struct _Repeat {
     K_ k_;
   };
 
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = void;
 

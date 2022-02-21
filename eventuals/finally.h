@@ -10,9 +10,9 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Finally {
+struct _Finally final {
   template <typename K_, typename Arg_>
-  struct Continuation {
+  struct Continuation final {
     template <typename... Args>
     void Start(Args&&... args) {
       if constexpr (std::is_void_v<Arg_>) {
@@ -58,7 +58,7 @@ struct _Finally {
     K_ k_;
   };
 
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom =
         std::conditional_t<

@@ -13,13 +13,13 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Terminal {
+struct _Terminal final {
   template <
       typename Context_,
       typename Start_,
       typename Fail_,
       typename Stop_>
-  struct Continuation {
+  struct Continuation final {
     template <typename... Args>
     void Start(Args&&... args) {
       if constexpr (IsUndefined<Start_>::value) {
@@ -90,7 +90,7 @@ struct _Terminal {
       typename Start_,
       typename Fail_,
       typename Stop_>
-  struct Builder {
+  struct Builder final {
     template <typename...>
     using ValueFrom = void;
 
@@ -192,8 +192,14 @@ inline auto Terminal() {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct StoppedException : public std::exception {
-  const char* what() const throw() {
+struct StoppedException final : public std::exception {
+  StoppedException() = default;
+  StoppedException(const StoppedException& that) = default;
+  StoppedException(StoppedException&& that) = default;
+
+  ~StoppedException() override = default;
+
+  const char* what() const throw() override {
     return "Eventual computation stopped (cancelled)";
   }
 };

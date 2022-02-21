@@ -49,7 +49,7 @@ auto Concurrent(F f);
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Concurrent {
+struct _Concurrent final {
   // 'TypeErasedAdaptor' is used to type erase all of the adaptor
   // "functionality" so that the compiler doesn't have to instantiate
   // more functions than necessary (even if the compiler should be
@@ -79,7 +79,7 @@ struct _Concurrent {
         new (&interrupt) class Interrupt();
       }
 
-      virtual ~TypeErasedFiber() {}
+      virtual ~TypeErasedFiber() = default;
 
       // A fiber indicates it is done with this boolean.
       bool done = false;
@@ -428,9 +428,11 @@ struct _Concurrent {
   // 'Adaptor' is our typeful adaptor that the concurrent continuation
   // uses in order to implement the semantics of 'Concurrent()'.
   template <typename F_, typename Arg_>
-  struct Adaptor : TypeErasedAdaptor {
+  struct Adaptor final : TypeErasedAdaptor {
     Adaptor(F_ f)
       : f_(std::move(f)) {}
+
+    ~Adaptor() override = default;
 
     // Our typeful fiber includes the continuation 'K' that we'll
     // start for each upstream value.
@@ -572,7 +574,8 @@ struct _Concurrent {
   // returned from 'Adaptor' (vs having to heap allocate them by
   // having them all return 'Task' or 'Generator').
   template <typename K_, typename F_, typename Arg_>
-  struct Continuation : public TypeErasedStream {
+  struct Continuation final : public TypeErasedStream {
+    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, F_ f)
       : adaptor_(std::move(f)),
         k_(std::move(k)) {}
@@ -581,6 +584,8 @@ struct _Concurrent {
     Continuation(Continuation&& that)
       : adaptor_(std::move(that.adaptor_.f_)),
         k_(std::move(that.k_)) {}
+
+    ~Continuation() override = default;
 
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
@@ -711,7 +716,7 @@ struct _Concurrent {
   };
 
   template <typename F_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom =
         typename std::invoke_result_t<F_>::template ValueFrom<Arg>;

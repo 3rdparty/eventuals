@@ -2,7 +2,7 @@
 
 ////////////////////////////////////////////////////////////////////////
 
-class CURLGlobalInitializer {
+class CURLGlobalInitializer final {
  public:
   CURLGlobalInitializer() {
     CHECK_EQ(curl_global_init(CURL_GLOBAL_ALL), 0);

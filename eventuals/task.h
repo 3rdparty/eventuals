@@ -19,8 +19,8 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E_, typename From_, typename To_>
-struct HeapTask {
-  struct Adaptor {
+struct HeapTask final {
+  struct Adaptor final {
     Adaptor(
         std::conditional_t<
             std::is_void_v<To_>,
@@ -152,7 +152,7 @@ struct HeapTask {
 
 // Type used to identify when using a 'Task::Failure()' in order to
 // properly type-check with 'static_assert()'.
-struct _TaskFailure {
+struct _TaskFailure final {
   _TaskFailure() = delete;
 };
 
@@ -178,7 +178,7 @@ using MonostateIfVoidOrReferenceWrapperOr =
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _TaskFromToWith {
+struct _TaskFromToWith final {
   // Since we move lambda function at 'Composable' constructor we need to
   // specify the callback that should be triggered on the produced eventual.
   // For this reason we use 'Action'.
@@ -217,7 +217,7 @@ struct _TaskFromToWith {
       typename From_,
       typename To_,
       typename... Args_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(
         K_ k,
         std::tuple<Args_...> args,
@@ -335,7 +335,7 @@ struct _TaskFromToWith {
       typename From_,
       typename To_,
       typename... Args_>
-  struct Composable {
+  struct Composable final {
     template <typename>
     using ValueFrom = To_;
 
@@ -471,6 +471,8 @@ class TaskFromToWith {
     CHECK(!k_.has_value()) << "moving after starting";
   }
 
+  virtual ~TaskFromToWith() = default;
+
   template <typename Arg, typename K>
   auto k(K k) && {
     return std::move(e_).template k<Arg>(std::move(k));
@@ -573,11 +575,11 @@ class TaskFromToWith {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct Task {
+struct Task final {
   template <typename From_>
-  struct From : public TaskFromToWith<From_, void> {
+  struct From final : public TaskFromToWith<From_, void> {
     template <typename To_>
-    struct To : public TaskFromToWith<From_, To_> {
+    struct To final : public TaskFromToWith<From_, To_> {
       template <typename... Args_>
       using With = TaskFromToWith<From_, To_, Args_...>;
 
@@ -587,6 +589,10 @@ struct Task {
       template <typename F>
       To(F f)
         : TaskFromToWith<From_, To_>(std::move(f)) {}
+
+      To(To&& that) = default;
+
+      ~To() override = default;
     };
 
     template <typename... Args_>
@@ -595,6 +601,10 @@ struct Task {
     template <typename F>
     From(F f)
       : TaskFromToWith<From_, void>(std::move(f)) {}
+
+    From(From&& that) = default;
+
+    ~From() override = default;
   };
 
   template <typename To_>

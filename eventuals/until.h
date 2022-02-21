@@ -10,9 +10,9 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Until {
+struct _Until final {
   template <typename K_, typename Arg_>
-  struct Adaptor {
+  struct Adaptor final {
     void Start(bool done) {
       if (done) {
         stream_.Done();
@@ -40,7 +40,7 @@ struct _Until {
   };
 
   template <typename K_>
-  struct Adaptor<K_, void> {
+  struct Adaptor<K_, void> final {
     void Start(bool done) {
       if (done) {
         stream_.Done();
@@ -80,7 +80,7 @@ struct _Until {
   struct Continuation;
 
   template <typename F_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
 
@@ -96,7 +96,7 @@ struct _Until {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename F_, typename Arg_>
-struct _Until::Continuation<K_, F_, Arg_, false> {
+struct _Until::Continuation<K_, F_, Arg_, false> final {
   Continuation(K_ k, F_ f)
     : f_(std::move(f)),
       k_(std::move(k)) {}
@@ -148,7 +148,7 @@ struct _Until::Continuation<K_, F_, Arg_, false> {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename K_, typename F_, typename Arg_>
-struct _Until::Continuation<K_, F_, Arg_, true> {
+struct _Until::Continuation<K_, F_, Arg_, true> final {
   Continuation(K_ k, F_ f)
     : f_(std::move(f)),
       k_(std::move(k)) {}

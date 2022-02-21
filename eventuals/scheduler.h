@@ -20,7 +20,7 @@ namespace eventuals {
 
 class Scheduler {
  public:
-  struct Context {
+  struct Context final {
     static void Set(Context* context) {
       current_ = context;
     }
@@ -53,7 +53,7 @@ class Scheduler {
 
     Context(Context&& that) = delete;
 
-    virtual ~Context() {}
+    ~Context() = default;
 
     auto* scheduler() {
       return scheduler_;
@@ -124,6 +124,8 @@ class Scheduler {
     std::string name_;
   };
 
+  virtual ~Scheduler() = default;
+
   static Scheduler* Default();
 
   virtual bool Continuable(Context* context) = 0;
@@ -135,9 +137,9 @@ class Scheduler {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Reschedule {
+struct _Reschedule final {
   template <typename K_, typename Arg_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, Scheduler::Context* context)
       : context_(context),
         k_(std::move(k)) {}
@@ -280,7 +282,7 @@ struct _Reschedule {
     K_ k_;
   };
 
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
 
@@ -320,7 +322,7 @@ auto RescheduleAfter(E e) {
 // Helper for exposing continuations that might need to get
 // rescheduled before being executed.
 template <typename K_, typename Arg_>
-struct Reschedulable {
+struct Reschedulable final {
   Reschedulable(K_ k)
     : k_(std::move(k)) {}
 
@@ -367,61 +369,61 @@ struct Reschedulable {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _Preempt {
+struct _Preempt final {
   template <typename K_, typename E_, typename Arg_>
-  struct Continuation : public Scheduler::Context {
+  struct Continuation final {
     Continuation(K_ k, E_ e, std::string name)
-      : Scheduler::Context(
+      : context_(
           Scheduler::Default(),
           "preempt continuation"),
         e_(std::move(e)),
-        name_(std::move(name)),
         k_(std::move(k)) {}
 
     Continuation(Continuation&& that)
-      : Scheduler::Context(
+      : context_(
           Scheduler::Default(),
           "preempt continuation"),
         e_(std::move(that.e_)),
-        name_(std::move(that.name_)),
         k_(std::move(that.k_)) {}
+
+    ~Continuation() = default;
 
     template <typename... Args>
     void Start(Args&&... args) {
       Adapt();
 
-      auto* previous = Scheduler::Context::Switch(this);
+      auto* previous = Scheduler::Context::Switch(&context_);
       CHECK_EQ(previous, previous_);
 
       adapted_->Start(std::forward<Args>(args)...);
 
       auto* context = Scheduler::Context::Switch(previous_);
-      CHECK_EQ(context, this);
+      CHECK_EQ(context, &context_);
     }
 
     template <typename... Args>
     void Fail(Args&&... args) {
       Adapt();
 
-      auto* previous = Scheduler::Context::Switch(this);
+      auto* previous = Scheduler::Context::Switch(&context_);
       CHECK_EQ(previous, previous_);
 
       adapted_->Fail(std::forward<Args>(args)...);
 
       auto* context = Scheduler::Context::Switch(previous_);
-      CHECK_EQ(context, this);
+      CHECK_EQ(context, &context_);
     }
 
     void Stop() {
       Adapt();
 
-      auto* previous = Scheduler::Context::Switch(this);
+      auto* previous = Scheduler::Context::Switch(&context_);
       CHECK_EQ(previous, previous_);
 
       adapted_->Stop();
 
       auto* context = Scheduler::Context::Switch(previous_);
-      CHECK_EQ(context, this);
+      CHECK_EQ(context, &context_);
     }
 
     void Register(Interrupt& interrupt) {
@@ -442,8 +444,9 @@ struct _Preempt {
       }
     }
 
+    Scheduler::Context context_;
+
     E_ e_;
-    std::string name_;
 
     Interrupt* interrupt_ = nullptr;
 
@@ -465,7 +468,7 @@ struct _Preempt {
   };
 
   template <typename E_>
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = typename E_::template ValueFrom<Arg>;
 

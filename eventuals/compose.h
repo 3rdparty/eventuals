@@ -29,7 +29,7 @@ struct HasValueFrom<T, std::void_t<void_template<T::template ValueFrom>>>
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Left_, typename Right_>
-struct Composed {
+struct Composed final {
   Left_ left_;
   Right_ right_;
 

@@ -13,12 +13,17 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _TakeLastN {
+struct _TakeLastN final {
   template <typename K_, typename Arg_>
-  struct Continuation : public TypeErasedStream {
+  struct Continuation final : public TypeErasedStream {
+    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, size_t n)
       : n_(n),
         k_(std::move(k)) {}
+
+    Continuation(Continuation&& that) = default;
+
+    ~Continuation() override = default;
 
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
@@ -109,7 +114,7 @@ struct _TakeLastN {
     K_ k_;
   };
 
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
 
@@ -124,9 +129,9 @@ struct _TakeLastN {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _TakeRange {
+struct _TakeRange final {
   template <typename K_, typename Arg_>
-  struct Continuation {
+  struct Continuation final {
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
       k_.Begin(stream);
@@ -178,7 +183,7 @@ struct _TakeRange {
     TypeErasedStream* stream_ = nullptr;
   };
 
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
 

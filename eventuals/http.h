@@ -35,7 +35,7 @@ using Headers = std::map<std::string, std::string>;
 
 ////////////////////////////////////////////////////////////////////////
 
-class Request {
+class Request final {
  public:
   // Constructs a new http::Request "builder" with the default
   // undefined values.
@@ -99,8 +99,10 @@ template <
     bool has_verify_peer_,
     bool has_certificate_,
     bool has_headers_>
-class Request::_Builder : public builder::Builder {
+class Request::_Builder final : public builder::Builder {
  public:
+  ~_Builder() override = default;
+
   auto uri(std::string&& uri) && {
     static_assert(!has_uri_, "Duplicate 'uri'");
     return Construct<_Builder>(
@@ -244,7 +246,7 @@ class Request::_Builder : public builder::Builder {
   friend class builder::Builder;
   friend class Request;
 
-  _Builder() {}
+  _Builder() = default;
 
   _Builder(
       builder::Field<std::string, has_uri_> uri,
@@ -279,8 +281,8 @@ inline auto Request::Builder() {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct Response {
-  Response() {}
+struct Response final {
+  Response() = default;
 
   Response(const Response&) = default;
   Response(Response&&) = default;
@@ -318,13 +320,13 @@ struct Response {
 
 ////////////////////////////////////////////////////////////////////////
 
-class Client {
+class Client final {
  public:
   // Constructs a new http::Client "builder" with the default
   // undefined values.
   static auto Builder();
 
-  Client() {}
+  Client() = default;
 
   auto Get(
       std::string&& uri,
@@ -348,8 +350,10 @@ class Client {
 ////////////////////////////////////////////////////////////////////////
 
 template <bool has_verify_peer_, bool has_certificate_>
-class Client::_Builder : public builder::Builder {
+class Client::_Builder final : public builder::Builder {
  public:
+  ~_Builder() override = default;
+
   auto verify_peer(bool verify_peer) && {
     static_assert(!has_verify_peer_, "Duplicate 'verify_peer'");
     // TODO(benh): consider checking that the scheme is 'https'.
@@ -428,9 +432,9 @@ inline auto Client::Builder() {
 // 3. Whenever curl_multi_socket_action is called we can get an amount of
 //    remaining running easy handles. If this value is 0 then we read info
 //    from multi handle using check_multi_info lambda and clean everything up.
-struct _HTTP {
+struct _HTTP final {
   template <typename K_>
-  struct Continuation {
+  struct Continuation final {
     Continuation(K_ k, EventLoop& loop, Request&& request)
       : loop_(loop),
         request_(std::move(request)),
@@ -1198,7 +1202,7 @@ struct _HTTP {
     K_ k_;
   };
 
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = Response;
 

@@ -11,9 +11,9 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-class Interrupt {
+class Interrupt final {
  public:
-  struct Handler {
+  struct Handler final {
     Handler(Interrupt* interrupt, Callback<>&& callback)
       : interrupt_(CHECK_NOTNULL(interrupt)),
         callback_(std::move(callback)) {}
