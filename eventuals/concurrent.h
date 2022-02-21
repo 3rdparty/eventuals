@@ -232,7 +232,7 @@ struct _Concurrent {
                 upstream_done_ = true;
 
                 if (!exception_) {
-                  exception_ = std::make_exception_ptr(
+                  exception_ = make_exception_ptr_or_forward(
                       std::forward<decltype(error)>(error));
                 }
 
@@ -289,7 +289,7 @@ struct _Concurrent {
                 fiber->done = true;
 
                 if (!exception_) {
-                  exception_ = std::make_exception_ptr(
+                  exception_ = make_exception_ptr_or_forward(
                       std::forward<decltype(error)>(error));
                 }
 

@@ -176,7 +176,7 @@ TEST(EventualTest, Reuse) {
               })
               .fail([](auto& promise, auto&& error) {
                 promise.set_exception(
-                    std::make_exception_ptr(
+                    make_exception_ptr_or_forward(
                         std::forward<decltype(error)>(error)));
               })
               .stop([](auto& promise) {

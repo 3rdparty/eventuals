@@ -3,6 +3,7 @@
 #include <variant>
 
 #include "eventuals/eventual.h"
+#include "eventuals/terminal.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -186,7 +187,7 @@ auto Expected(T t) {
 
 template <typename T>
 auto Unexpected(T t) {
-  return _Expected<_Unexpected>(std::make_exception_ptr(std::move(t)));
+  return _Expected<_Unexpected>(make_exception_ptr_or_forward(std::move(t)));
 }
 
 ////////////////////////////////////////////////////////////////////////

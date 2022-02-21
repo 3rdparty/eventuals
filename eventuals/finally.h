@@ -27,12 +27,12 @@ struct _Finally {
       if constexpr (std::is_void_v<Arg_>) {
         k_.Start(
             std::optional<std::exception_ptr>(
-                std::make_exception_ptr(
+                make_exception_ptr_or_forward(
                     std::forward<Args>(args)...)));
       } else {
         k_.Start(
             Expected::Of<Arg_>(
-                std::make_exception_ptr(
+                make_exception_ptr_or_forward(
                     std::forward<Args>(args)...)));
       }
     }

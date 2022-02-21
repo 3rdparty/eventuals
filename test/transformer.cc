@@ -108,7 +108,7 @@ TEST(Transformer, Fail) {
         | Collect<std::vector<std::string>>();
   };
 
-  EXPECT_THROW(*e(), std::exception_ptr);
+  EXPECT_THROW(*e(), const char*);
 }
 
 TEST(Transformer, Interrupt) {
@@ -224,5 +224,5 @@ TEST(Transformer, PropagateFail) {
         | Collect<std::vector<std::string>>();
   };
 
-  EXPECT_THROW(*e(), std::exception_ptr);
+  EXPECT_THROW(*e(), const char*);
 }

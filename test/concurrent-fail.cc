@@ -63,5 +63,5 @@ TYPED_TEST(ConcurrentTypedTest, Fail) {
     callback();
   }
 
-  EXPECT_THROW(future.get(), std::exception_ptr);
+  EXPECT_THROW(future.get(), const char*);
 }

@@ -75,7 +75,7 @@ struct _DoAll {
                 .fail([this](auto&&... errors) {
                   std::get<index>(values_)
                       .template emplace<std::exception_ptr>(
-                          std::make_exception_ptr(
+                          make_exception_ptr_or_forward(
                               std::forward<decltype(errors)>(errors)...));
                   if (counter_.fetch_sub(1) == 1) {
                     // You're the last eventual so call the continuation.

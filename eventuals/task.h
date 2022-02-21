@@ -40,7 +40,7 @@ struct HeapTask {
     template <typename... Args>
     void Fail(Args&&... args) {
       (*fail_)(
-          std::make_exception_ptr(
+          make_exception_ptr_or_forward(
               std::forward<decltype(args)>(args)...));
     }
 
@@ -264,7 +264,7 @@ struct _TaskFromToWith {
       std::exception_ptr exception;
 
       if constexpr (sizeof...(args) > 0) {
-        exception = std::make_exception_ptr(
+        exception = make_exception_ptr_or_forward(
             std::forward<decltype(args)>(args)...);
       } else {
         exception = std::make_exception_ptr(

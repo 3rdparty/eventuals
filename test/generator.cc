@@ -237,7 +237,7 @@ TEST(Generator, FailStream) {
 
   k.Start();
 
-  EXPECT_THROW(future.get(), std::exception_ptr);
+  EXPECT_THROW(future.get(), const char*);
 }
 
 TEST(Generator, StopStream) {

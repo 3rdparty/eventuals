@@ -31,5 +31,5 @@ TYPED_TEST(ConcurrentTypedTest, StreamFail) {
 
   k.Start();
 
-  EXPECT_THROW(future.get(), std::exception_ptr);
+  EXPECT_THROW(future.get(), const char*);
 }
