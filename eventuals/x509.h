@@ -491,7 +491,7 @@ namespace pem {
 
 // Returns an expected 'std::string' with the encoded X509 certificate in
 // PEM format or an unexpected.
-eventuals::Expected::Of<std::string> Encode(X509* certificate) {
+inline eventuals::Expected::Of<std::string> Encode(X509* certificate) {
   BIO* bio = BIO_new(BIO_s_mem());
 
   int write = PEM_write_bio_X509(bio, certificate);
@@ -513,7 +513,7 @@ eventuals::Expected::Of<std::string> Encode(X509* certificate) {
 ////////////////////////////////////////////////////////////////////////
 
 // Returns an X509 certificate read from a file in PEM format.
-eventuals::Expected::Of<x509::Certificate> ReadCertificate(
+inline eventuals::Expected::Of<x509::Certificate> ReadCertificate(
     const std::filesystem::path& path) {
   // Using a 'FILE*' here as necessary for 'PEM_read_X509()'.
   FILE* file = fopen(path.string().c_str(), "r");
