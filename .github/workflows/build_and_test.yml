@@ -27,7 +27,7 @@ jobs:
             bazel-config: ""
           - os: ubuntu-latest
             bazel-config: "--config=asan"
-          - os: windows-latest
+          - os: windows-2019
             bazel-config: ""
 
     env:
