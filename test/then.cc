@@ -5,6 +5,7 @@
 #include "eventuals/terminal.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/expect-throw-what.h"
 
 using eventuals::Eventual;
 using eventuals::Interrupt;
@@ -56,7 +57,7 @@ TEST(ThenTest, Fail) {
                .start([](auto& k) {
                  auto thread = std::thread(
                      [&k]() mutable {
-                       k.Fail("error");
+                       k.Fail(std::runtime_error("error"));
                      });
                  thread.detach();
                })
@@ -66,7 +67,7 @@ TEST(ThenTest, Fail) {
            });
   };
 
-  EXPECT_THROW(*c(), const char*);
+  EXPECT_THROW_WHAT(*c(), "error");
 }
 
 

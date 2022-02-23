@@ -11,6 +11,7 @@
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/expect-throw-what.h"
 
 using eventuals::Eventual;
 using eventuals::Head;
@@ -135,7 +136,7 @@ TEST(StreamTest, Fail) {
     return Stream<int>()
                .context("error")
                .next([](auto& error, auto& k) {
-                 k.Fail(error);
+                 k.Fail(std::runtime_error(error));
                })
                .done([&](auto&, auto&) {
                  done.Call();
@@ -156,7 +157,7 @@ TEST(StreamTest, Fail) {
               });
   };
 
-  EXPECT_THROW(*s(), const char*);
+  EXPECT_THROW_WHAT(*s(), "error");
 }
 
 
@@ -280,7 +281,7 @@ TEST(StreamTest, InterruptLoop) {
                 if (interrupted->load()) {
                   k.Stop();
                 } else {
-                  k.Fail("error");
+                  k.Fail(std::runtime_error("error"));
                 }
               })
               .fail([&](auto&, auto&&) {
@@ -403,5 +404,5 @@ TEST(StreamTest, Head) {
         | Head();
   };
 
-  EXPECT_THROW(*s2(), const char*);
+  EXPECT_THROW_WHAT(*s2(), "empty stream");
 }

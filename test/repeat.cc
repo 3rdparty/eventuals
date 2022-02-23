@@ -9,6 +9,7 @@
 #include "eventuals/until.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/expect-throw-what.h"
 
 using eventuals::Acquire;
 using eventuals::Eventual;
@@ -60,7 +61,7 @@ TEST(RepeatTest, Fail) {
   auto e = [](auto) {
     return Eventual<int>()
         .start([](auto& k) {
-          k.Fail("error");
+          k.Fail(std::runtime_error("error"));
         });
   };
 
@@ -82,7 +83,7 @@ TEST(RepeatTest, Fail) {
                });
   };
 
-  EXPECT_THROW(*r(), const char*);
+  EXPECT_THROW_WHAT(*r(), "error");
 }
 
 

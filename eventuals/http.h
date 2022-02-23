@@ -487,7 +487,8 @@ struct _HTTP final {
                 if (!pem_certificate) {
                   completed_ = true;
 
-                  k_.Fail("Failed to PEM encode certificate");
+                  k_.Fail(std::runtime_error(
+                      "Failed to PEM encode certificate"));
 
                   curl_easy_cleanup(easy_.get());
                   curl_multi_cleanup(multi_.get());
@@ -670,8 +671,9 @@ struct _HTTP final {
                             continuation.body_buffer_.Extract()});
                       } else {
                         continuation.k_.Fail(
-                            curl_easy_strerror(
-                                (CURLcode) continuation.error_));
+                            std::runtime_error(
+                                curl_easy_strerror(
+                                    (CURLcode) continuation.error_)));
                       }
                     });
               };

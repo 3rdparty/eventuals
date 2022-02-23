@@ -183,12 +183,13 @@ inline auto OpenFile(
                   if (request->result >= 0) {
                     k.Start(File(request->result));
                   } else {
-                    k.Fail(uv_strerror(request->result));
+                    k.Fail(std::runtime_error(uv_strerror(request->result)));
                   }
                 });
 
             if (error) {
-              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+              static_cast<K*>(data.k)->Fail(
+                  std::runtime_error(uv_strerror(error)));
             }
           }));
 }
@@ -234,12 +235,13 @@ inline auto CloseFile(EventLoop& loop, File&& file) {
                     data.file.MarkAsClosed();
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(request->result));
+                    k.Fail(std::runtime_error(uv_strerror(request->result)));
                   };
                 });
 
             if (error) {
-              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+              static_cast<K*>(data.k)->Fail(
+                  std::runtime_error(uv_strerror(error)));
             }
           }));
 }
@@ -291,12 +293,13 @@ inline auto ReadFile(
                   if (request->result >= 0) {
                     k.Start(data.buffer.Extract());
                   } else {
-                    k.Fail(uv_strerror(request->result));
+                    k.Fail(std::runtime_error(uv_strerror(request->result)));
                   };
                 });
 
             if (error) {
-              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+              static_cast<K*>(data.k)->Fail(
+                  std::runtime_error(uv_strerror(error)));
             }
           }));
 }
@@ -350,12 +353,13 @@ inline auto WriteFile(
                   if (request->result >= 0) {
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(request->result));
+                    k.Fail(std::runtime_error(uv_strerror(request->result)));
                   };
                 });
 
             if (error) {
-              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+              static_cast<K*>(data.k)->Fail(
+                  std::runtime_error(uv_strerror(error)));
             }
           }));
 }
@@ -400,12 +404,13 @@ inline auto UnlinkFile(EventLoop& loop, const std::filesystem::path& path) {
                   if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(request->result));
+                    k.Fail(std::runtime_error(uv_strerror(request->result)));
                   }
                 });
 
             if (error) {
-              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+              static_cast<K*>(data.k)->Fail(
+                  std::runtime_error(uv_strerror(error)));
             }
           }));
 }
@@ -452,12 +457,13 @@ inline auto MakeDirectory(
                   if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(request->result));
+                    k.Fail(std::runtime_error(uv_strerror(request->result)));
                   }
                 });
 
             if (error) {
-              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+              static_cast<K*>(data.k)->Fail(
+                  std::runtime_error(uv_strerror(error)));
             }
           }));
 }
@@ -501,12 +507,13 @@ inline auto RemoveDirectory(
                   if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(request->result));
+                    k.Fail(std::runtime_error(uv_strerror(request->result)));
                   }
                 });
 
             if (error) {
-              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+              static_cast<K*>(data.k)->Fail(
+                  std::runtime_error(uv_strerror(error)));
             }
           }));
 }
@@ -556,12 +563,13 @@ inline auto CopyFile(
                   if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(request->result));
+                    k.Fail(std::runtime_error(uv_strerror(request->result)));
                   }
                 });
 
             if (error) {
-              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+              static_cast<K*>(data.k)->Fail(
+                  std::runtime_error(uv_strerror(error)));
             }
           }));
 }
@@ -611,12 +619,13 @@ inline auto RenameFile(
                   if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(uv_strerror(request->result));
+                    k.Fail(std::runtime_error(uv_strerror(request->result)));
                   }
                 });
 
             if (error) {
-              static_cast<K*>(data.k)->Fail(uv_strerror(error));
+              static_cast<K*>(data.k)->Fail(
+                  std::runtime_error(uv_strerror(error)));
             }
           }));
 }

@@ -14,6 +14,7 @@
 #include "eventuals/until.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/expect-throw-what.h"
 
 using std::deque;
 using std::string;
@@ -119,7 +120,7 @@ TEST(ClosureTest, Fail) {
            });
   };
 
-  EXPECT_THROW(*e(), const char*);
+  EXPECT_THROW_WHAT(*e(), "error");
 }
 
 
