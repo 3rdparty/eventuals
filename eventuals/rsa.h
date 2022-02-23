@@ -208,7 +208,7 @@ namespace pem {
 
 // Returns an expected 'std::string' with the encoded private key in
 // PEM format or an unexpected.
-eventuals::Expected::Of<std::string> Encode(EVP_PKEY* key) {
+inline eventuals::Expected::Of<std::string> Encode(EVP_PKEY* key) {
   BIO* bio = BIO_new(BIO_s_mem());
 
   int write = PEM_write_bio_PrivateKey(
