@@ -1,4 +1,26 @@
-load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
+
+cc_binary(
+    name = "death-client",
+    srcs = [
+        "death-client.cc",
+    ],
+    deps = [
+        "//:grpc",
+        "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
+    ],
+)
+
+cc_binary(
+    name = "death-server",
+    srcs = [
+        "death-server.cc",
+    ],
+    deps = [
+        "//:grpc",
+        "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
+    ],
+)
 
 cc_test(
     name = "grpc",
@@ -13,6 +35,7 @@ cc_test(
         "greeter-server.cc",
         "helloworld.eventuals.cc",
         "helloworld.eventuals.h",
+        "main.cc",
         "multiple-hosts.cc",
         "server-death-test.cc",
         "server-unavailable.cc",
@@ -21,13 +44,18 @@ cc_test(
         "unary.cc",
         "unimplemented.cc",
     ],
+    data = [
+        ":death-client",
+        ":death-server",
+    ],
     # NOTE: need to add 'linkstatic = True' in order to get this to
     # link until https://github.com/grpc/grpc/issues/13856 gets
     # resolved.
     linkstatic = True,
     deps = [
         "//:grpc",
-        "@com_github_google_googletest//:gtest_main",
+        "@bazel_tools//tools/cpp/runfiles",
+        "@com_github_google_googletest//:gtest",
         "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
         "@com_github_grpc_grpc//examples/protos:keyvaluestore",
     ],

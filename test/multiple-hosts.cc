@@ -69,7 +69,7 @@ TEST_F(EventualsGrpcTest, MultipleHosts) {
   Borrowable<CompletionPool> pool;
 
   Client client(
-      "0.0.0.0:" + stringify(port),
+      "0.0.0.0:" + std::to_string(port),
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 

@@ -1,3 +1,5 @@
+#include <filesystem>
+
 #include "eventuals/grpc/client.h"
 #include "eventuals/grpc/server.h"
 #include "eventuals/head.h"
@@ -27,57 +29,45 @@ using eventuals::grpc::ServerBuilder;
 TEST_F(EventualsGrpcTest, ServerDeathTest) {
   // NOTE: need pipes to get the server's port, this also helps
   // synchronize when the server is ready to have the client connect.
-  int pipefds[2];
+  int pipefds[2]; // 'port[0]' is for reading, 'port[1]' for writing.
 
   ASSERT_NE(-1, pipe(pipefds));
 
-  auto wait_for_port = [&]() {
+  auto WaitForPort = [&]() {
     int port;
     CHECK_GT(read(pipefds[0], &port, sizeof(int)), 0);
     return port;
   };
 
-  auto send_port = [&](int port) {
-    CHECK_GT(write(pipefds[1], &port, sizeof(port)), 0);
-  };
-
-  auto server = [&]() {
-    ServerBuilder builder;
-
-    int port = 0;
-
-    builder.AddListeningPort(
-        "0.0.0.0:0",
-        grpc::InsecureServerCredentials(),
-        &port);
-
-    auto build = builder.BuildAndStart();
-
-    ASSERT_TRUE(build.status.ok());
-
-    auto server = std::move(build.server);
-
-    ASSERT_TRUE(server);
-
-    auto serve = [&]() {
-      return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
-          | Head()
-          | Then([](auto&& call) {
-               exit(1);
-             });
-    };
-
-    auto [future, k] = Terminate(serve());
-
-    k.Start();
-
-    send_port(port);
-
-    future.get();
-  };
-
+  // We use a thread to fork/exec the 'death-server' so that we can
+  // simultaneously run and wait for the server to die while also
+  // running the client.
   std::thread thread([&]() {
-    ASSERT_DEATH(server(), "");
+    std::string path = GetRunfilePathFor("death-server").string();
+
+    std::string pipe = std::to_string(pipefds[1]);
+
+    // NOTE: doing a 'fork()' when a parent has multiple threads is
+    // wrought with potential issues because the child only gets a
+    // single one of those threads (the one that called 'fork()') so
+    // we ensure here that there is only the single extra thread.
+    ASSERT_EQ(GetThreadCount(), 2);
+
+    ASSERT_DEATH(
+        [&]() {
+          // Conventional wisdom is to do the least amount possible
+          // after a 'fork()', ideally just an 'exec*()', and that's
+          // what we're doing because when we tried to do more the
+          // tests were flaky likely do to some library that doesn't
+          // properly work after doing a 'fork()'.
+          execl(path.c_str(), path.c_str(), pipe.c_str(), nullptr);
+
+          // NOTE: if 'execve()' failed then this lamdba will return
+          // and gtest will see consider this "death" to be a failure.
+        }(),
+        // NOTE: to avoid false positives we check for a death with
+        // the string 'accepted' printed to stderr.
+        "accepted");
   });
 
   // NOTE: we detach the thread so that there isn't a race with the
@@ -89,12 +79,12 @@ TEST_F(EventualsGrpcTest, ServerDeathTest) {
   // test which might have been destructed before it destructs.
   thread.detach();
 
-  int port = wait_for_port();
+  int port = WaitForPort();
 
   Borrowable<CompletionPool> pool;
 
   Client client(
-      "0.0.0.0:" + stringify(port),
+      "0.0.0.0:" + std::to_string(port),
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 

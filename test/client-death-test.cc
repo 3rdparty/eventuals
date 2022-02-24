@@ -1,9 +1,6 @@
-#include "eventuals/eventual.h"
-#include "eventuals/grpc/client.h"
 #include "eventuals/grpc/server.h"
 #include "eventuals/head.h"
 #include "eventuals/let.h"
-#include "eventuals/loop.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
@@ -14,17 +11,11 @@ using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
-using stout::Borrowable;
-
-using eventuals::Eventual;
 using eventuals::Head;
 using eventuals::Let;
-using eventuals::Loop;
 using eventuals::Terminate;
 using eventuals::Then;
 
-using eventuals::grpc::Client;
-using eventuals::grpc::CompletionPool;
 using eventuals::grpc::Server;
 using eventuals::grpc::ServerBuilder;
 
@@ -35,57 +26,57 @@ TEST_F(EventualsGrpcTest, ClientDeathTest) {
   // https://github.com/grpc/grpc/issues/14055) and (2) the server can
   // send the client it's port.
   struct {
-    int fork[2];
-    int port[2];
+    int fork[2]; // 'fork[0]' is for reading, 'fork[1]' for writing.
+    int port[2]; // 'port[0]' is for reading, 'port[1]' for writing.
   } pipes;
 
   ASSERT_NE(-1, pipe(pipes.fork));
   ASSERT_NE(-1, pipe(pipes.port));
 
-  auto wait_for_fork = [&]() {
+  auto WaitForFork = [&]() {
     int _;
     CHECK_GT(read(pipes.fork[0], &_, sizeof(int)), 0);
   };
 
-  auto notify_forked = [&]() {
-    int _ = 1;
-    CHECK_GT(write(pipes.fork[1], &_, sizeof(int)), 0);
-  };
-
-  auto wait_for_port = [&]() {
-    int port;
-    CHECK_GT(read(pipes.port[0], &port, sizeof(int)), 0);
-    return port;
-  };
-
-  auto send_port = [&](int port) {
+  auto SendPort = [&](int port) {
     CHECK_GT(write(pipes.port[1], &port, sizeof(port)), 0);
   };
 
-  auto client = [&]() {
-    notify_forked();
-
-    int port = wait_for_port();
-
-    Borrowable<CompletionPool> pool;
-
-    Client client(
-        "0.0.0.0:" + stringify(port),
-        grpc::InsecureChannelCredentials(),
-        pool.Borrow());
-
-    auto call = [&]() {
-      return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-          | Then([](auto&& call) {
-               exit(1);
-             });
-    };
-
-    *call();
-  };
-
+  // We use a thread to fork/exec the 'death-client' so that we can
+  // simultaneously run and wait for the client to die while also
+  // running the server.
   std::thread thread([&]() {
-    ASSERT_DEATH(client(), "");
+    std::string path = GetRunfilePathFor("death-client").string();
+
+    std::string pipe_fork = std::to_string(pipes.fork[1]);
+    std::string pipe_port = std::to_string(pipes.port[0]);
+
+    // NOTE: doing a 'fork()' when a parent has multiple threads is
+    // wrought with potential issues because the child only gets a
+    // single one of those threads (the one that called 'fork()') so
+    // we ensure here that there is only the single extra thread.
+    ASSERT_EQ(GetThreadCount(), 2);
+
+    ASSERT_DEATH(
+        [&]() {
+          // Conventional wisdom is to do the least amount possible
+          // after a 'fork()', ideally just an 'exec*()', and that's
+          // what we're doing because when we tried to do more the
+          // tests were flaky likely do to some library that doesn't
+          // properly work after doing a 'fork()'.
+          execl(
+              path.c_str(),
+              path.c_str(),
+              pipe_fork.c_str(),
+              pipe_port.c_str(),
+              nullptr);
+
+          // NOTE: if 'execve()' failed then this lamdba will return
+          // and gtest will see consider this "death" to be a failure.
+        }(),
+        // NOTE: to avoid false positives we check for a death with
+        // the string 'connected' printed to stderr.
+        "connected");
   });
 
   // NOTE: we detach the thread so that there isn't a race with the
@@ -97,7 +88,9 @@ TEST_F(EventualsGrpcTest, ClientDeathTest) {
   // test which might have been destructed before it destructs.
   thread.detach();
 
-  wait_for_fork();
+  // NOTE: need to wait to call into gRPC till _after_ we've forked
+  // (see comment at top of test for more details).
+  WaitForFork();
 
   ServerBuilder builder;
 
@@ -128,7 +121,9 @@ TEST_F(EventualsGrpcTest, ClientDeathTest) {
 
   k.Start();
 
-  send_port(port);
+  // NOTE: sending this _after_ we start the eventual so that we're
+  // ready to accept clients!
+  SendPort(port);
 
   EXPECT_TRUE(cancelled.get());
 

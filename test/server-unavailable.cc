@@ -23,7 +23,7 @@ TEST_F(EventualsGrpcTest, ServerUnavailable) {
   // NOTE: we use 'getpid()' to create a _unique_ UNIX domain socket
   // path that should never have a server listening on for this test.
   Client client(
-      "unix:eventuals-grpc-test-server-unavailable-" + stringify(getpid()),
+      "unix:eventuals-grpc-test-server-unavailable-" + std::to_string(getpid()),
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 

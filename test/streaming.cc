@@ -85,7 +85,7 @@ void test_client_behavior(Handler handler) {
                       std::vector<keyvaluestore::Response> responses;
                       for (size_t i = 0; i < 3; i++) {
                         keyvaluestore::Response response;
-                        response.set_value(stringify(i + 10));
+                        response.set_value(std::to_string(i + 10));
                         responses.push_back(response);
                       }
                       return Iterate(std::move(responses));
@@ -101,7 +101,7 @@ void test_client_behavior(Handler handler) {
   Borrowable<CompletionPool> pool;
 
   Client client(
-      "0.0.0.0:" + stringify(port),
+      "0.0.0.0:" + std::to_string(port),
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
