@@ -6,3 +6,4 @@ bazel-eventuals
 bazel-out
 bazel-testlogs
 user.bazelrc
+.dazel_run
