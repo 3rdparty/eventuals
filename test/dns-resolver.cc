@@ -8,6 +8,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/event-loop-test.h"
+#include "test/expect-throw-what.h"
 
 using eventuals::DomainNameResolve;
 using eventuals::EventLoop;
@@ -48,7 +49,7 @@ TEST_F(DomainNameResolveTest, Fail) {
 
   EventLoop::Default().RunUntil(future);
 
-  EXPECT_THROW(future.get(), std::string);
+  EXPECT_THROW_WHAT(future.get(), "EAI_NONAME");
 }
 
 

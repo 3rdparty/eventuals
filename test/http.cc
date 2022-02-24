@@ -137,7 +137,9 @@ TEST_P(HttpTest, GetFailTimeout) {
 
   EventLoop::Default().RunUntil(future);
 
-  EXPECT_THROW(future.get(), const char*);
+  // NOTE: not checking 'what()' of error because it differs across
+  // operating systems.
+  EXPECT_THROW(future.get(), std::runtime_error);
 }
 
 
@@ -154,7 +156,9 @@ TEST_P(HttpTest, PostFailTimeout) {
 
   EventLoop::Default().RunUntil(future);
 
-  EXPECT_THROW(future.get(), const char*);
+  // NOTE: not checking 'what()' of error because it differs across
+  // operating systems.
+  EXPECT_THROW(future.get(), std::runtime_error);
 }
 
 

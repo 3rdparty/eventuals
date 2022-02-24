@@ -11,6 +11,7 @@
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/expect-throw-what.h"
 
 using eventuals::Build;
 using eventuals::Catch;
@@ -82,7 +83,7 @@ TEST(EventualTest, Fail) {
                .start([](auto& error, auto& k) {
                  auto thread = std::thread(
                      [&error, &k]() mutable {
-                       k.Fail(error);
+                       k.Fail(std::runtime_error(error));
                      });
                  thread.detach();
                })
@@ -96,7 +97,7 @@ TEST(EventualTest, Fail) {
               });
   };
 
-  EXPECT_THROW(*e(), const char*);
+  EXPECT_THROW_WHAT(*e(), "error");
 }
 
 
@@ -226,7 +227,7 @@ TEST(EventualTest, Raise) {
         | Raise("error");
   };
 
-  EXPECT_THROW(*e(), const char*);
+  EXPECT_THROW_WHAT(*e(), "error");
 }
 
 

@@ -7,6 +7,7 @@
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
 #include "test/concurrent.h"
+#include "test/expect-throw-what.h"
 
 using eventuals::Collect;
 using eventuals::Interrupt;
@@ -22,7 +23,7 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
                .interruptible()
                .begin([](auto& k, Interrupt::Handler& handler) {
                  handler.Install([&k]() {
-                   k.Fail("error");
+                   k.Fail(std::runtime_error("error"));
                  });
                  k.Begin();
                })
@@ -54,5 +55,5 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
 
   interrupt.Trigger();
 
-  EXPECT_THROW(future.get(), const char*);
+  EXPECT_THROW_WHAT(future.get(), "error");
 }

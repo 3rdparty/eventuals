@@ -187,9 +187,31 @@ auto Expected(T t) {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-auto Unexpected(T t) {
-  return _Expected<_Unexpected>(make_exception_ptr_or_forward(std::move(t)));
+template <typename Error>
+auto Unexpected(Error error) {
+  static_assert(
+      std::is_base_of_v<std::exception, std::decay_t<Error>>,
+      "Expecting a type derived from std::exception");
+  return _Expected<_Unexpected>(
+      make_exception_ptr_or_forward(std::move(error)));
+}
+
+////////////////////////////////////////////////////////////////////////
+
+inline auto Unexpected(const std::string& s) {
+  return Unexpected(std::runtime_error(s));
+}
+
+////////////////////////////////////////////////////////////////////////
+
+inline auto Unexpected(char* s) {
+  return Unexpected(std::runtime_error(s));
+}
+
+////////////////////////////////////////////////////////////////////////
+
+inline auto Unexpected(const char* s) {
+  return Unexpected(std::runtime_error(s));
 }
 
 ////////////////////////////////////////////////////////////////////////
