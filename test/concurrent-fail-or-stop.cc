@@ -40,8 +40,7 @@ TYPED_TEST(ConcurrentTypedTest, FailOrStop) {
                       if (data.i == 1) {
                         static_cast<K*>(data.k)->Stop();
                       } else {
-                        static_cast<K*>(data.k)->Fail(
-                            std::runtime_error("error"));
+                        static_cast<K*>(data.k)->Fail("error");
                       }
                     });
                   });

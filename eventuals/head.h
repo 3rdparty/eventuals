@@ -37,7 +37,7 @@ struct _Head final {
       if (arg_) {
         k_.Start(std::move(*arg_));
       } else {
-        k_.Fail(std::runtime_error("empty stream"));
+        k_.Fail("empty stream");
       }
     }
 

@@ -8,7 +8,6 @@
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 
 using std::string;
 
@@ -98,7 +97,7 @@ TEST(ConditionalTest, Fail) {
                .start([](auto& k) {
                  auto thread = std::thread(
                      [&k]() mutable {
-                       k.Fail(std::runtime_error("error"));
+                       k.Fail("error");
                      });
                  thread.detach();
                })
@@ -109,7 +108,7 @@ TEST(ConditionalTest, Fail) {
                [&](auto&&) { return els3(); });
   };
 
-  EXPECT_THROW_WHAT(*c(), "error");
+  EXPECT_THROW(*c(), const char*);
 }
 
 

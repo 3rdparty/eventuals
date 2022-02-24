@@ -5,7 +5,6 @@
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 
 using eventuals::Build;
 using eventuals::DoAll;
@@ -46,13 +45,13 @@ TEST(DoAllTest, Succeed) {
 TEST(DoAllTest, Fail) {
   auto e = []() {
     return DoAll(
-        Eventual<void>([](auto& k) { k.Fail(std::runtime_error("error")); }),
+        Eventual<void>([](auto& k) { k.Fail("error"); }),
         Eventual<int>([](auto& k) { k.Start(42); }),
         Eventual<std::string>([](auto& k) { k.Start(std::string("hello")); }),
         Eventual<void>([](auto& k) { k.Start(); }));
   };
 
-  EXPECT_THROW_WHAT(*e(), "error");
+  EXPECT_THROW(*e(), const char*);
 }
 
 

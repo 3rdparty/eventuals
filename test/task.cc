@@ -10,7 +10,6 @@
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 
 using eventuals::Eventual;
 using eventuals::Interrupt;
@@ -97,11 +96,11 @@ TEST(Task, FailOnCallback) {
     return [&]() {
       return Eventual<int>()
                  .start([](auto& k) {
-                   k.Fail(std::runtime_error("error from start"));
+                   k.Fail("error");
                  })
                  .fail([&](auto& k, auto&& error) {
                    functions.fail.Call();
-                   k.Fail(std::runtime_error("error from fail"));
+                   k.Fail("error");
                  })
           | Then([](int) { return 1; })
           | Eventual<int>()
@@ -118,7 +117,7 @@ TEST(Task, FailOnCallback) {
     };
   };
 
-  EXPECT_THROW_WHAT(*e(), "error from start");
+  EXPECT_THROW(*e(), const char*);
 }
 
 TEST(Task, FailTerminated) {
@@ -131,20 +130,20 @@ TEST(Task, FailTerminated) {
     return [&]() {
       return Eventual<int>()
                  .start([](auto& k) {
-                   k.Fail(std::runtime_error("error from start"));
+                   k.Fail("error");
                  })
                  .fail([&](auto& k, auto&& error) {
                    fail.Call();
-                   k.Fail(std::runtime_error("error from fail"));
+                   k.Fail("error");
                  })
           | Then([](int x) { return x + 1; });
     };
   };
 
   auto [future, k] = Terminate(e());
-  k.Fail(std::runtime_error("error"));
+  k.Fail("error");
 
-  EXPECT_THROW_WHAT(future.get(), "error from fail");
+  EXPECT_THROW(future.get(), const char*);
 }
 
 TEST(Task, StopOnCallback) {
@@ -240,7 +239,7 @@ TEST(Task, FailContinuation) {
   std::exception_ptr result;
 
   task->Fail(
-      std::runtime_error("error"),
+      "error",
       interrupt,
       [](int) {
         FAIL() << "test should not have succeeded";
@@ -252,7 +251,7 @@ TEST(Task, FailContinuation) {
         FAIL() << "test should not have stopped";
       });
 
-  EXPECT_THROW_WHAT(std::rethrow_exception(result), "error");
+  EXPECT_THROW(std::rethrow_exception(result), const char*);
 }
 
 TEST(Task, StopContinuation) {
@@ -331,7 +330,7 @@ TEST(Task, FromToFail) {
   auto e = [&]() {
     return Eventual<int>()
                .start([](auto& k) {
-                 k.Fail(std::runtime_error("error"));
+                 k.Fail("error");
                })
         | Just(10)
         | task()
@@ -341,7 +340,7 @@ TEST(Task, FromToFail) {
            });
   };
 
-  EXPECT_THROW_WHAT(*e(), "error");
+  EXPECT_THROW(*e(), const char*);
 }
 
 TEST(Task, FromToStop) {
@@ -391,7 +390,7 @@ TEST(Task, Failure) {
     return Task::Failure("error");
   };
 
-  EXPECT_THROW_WHAT(*e(), "error");
+  EXPECT_THROW(*e(), const char*);
 }
 
 TEST(Task, Inheritance) {
@@ -442,7 +441,7 @@ TEST(Task, Inheritance) {
 
   EXPECT_EQ(*sync(), 10);
   EXPECT_EQ(*async(), 20);
-  EXPECT_THROW_WHAT(*failure(), "error");
+  EXPECT_THROW(*failure(), const char*);
 }
 
 TEST(Task, MoveableSuccess) {

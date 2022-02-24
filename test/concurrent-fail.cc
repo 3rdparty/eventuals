@@ -10,7 +10,6 @@
 #include "eventuals/map.h"
 #include "eventuals/terminal.h"
 #include "test/concurrent.h"
-#include "test/expect-throw-what.h"
 
 using eventuals::Callback;
 using eventuals::Collect;
@@ -41,8 +40,7 @@ TYPED_TEST(ConcurrentTypedTest, Fail) {
                       if (data.i == 1) {
                         static_cast<K*>(data.k)->Start(std::to_string(data.i));
                       } else {
-                        static_cast<K*>(data.k)->Fail(
-                            std::runtime_error("error"));
+                        static_cast<K*>(data.k)->Fail("error");
                       }
                     });
                   });
@@ -65,5 +63,5 @@ TYPED_TEST(ConcurrentTypedTest, Fail) {
     callback();
   }
 
-  EXPECT_THROW_WHAT(future.get(), "error");
+  EXPECT_THROW(future.get(), const char*);
 }
