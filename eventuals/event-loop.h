@@ -246,8 +246,8 @@ class EventLoop final : public Scheduler {
                                       if (!continuation.error_) {
                                         continuation.k_.Start();
                                       } else {
-                                        continuation.k_.Fail(std::runtime_error(
-                                            uv_strerror(continuation.error_)));
+                                        continuation.k_.Fail(
+                                            uv_strerror(continuation.error_));
                                       }
                                     });
                               }
@@ -262,8 +262,8 @@ class EventLoop final : public Scheduler {
                             auto& continuation = *(Continuation*) handle->data;
                             continuation.closed_ = true;
                             CHECK(continuation.error_);
-                            continuation.k_.Fail(std::runtime_error(
-                                uv_strerror(continuation.error_)));
+                            continuation.k_.Fail(
+                                uv_strerror(continuation.error_));
                           });
                         }
                       }
@@ -332,8 +332,8 @@ class EventLoop final : public Scheduler {
                       if (!continuation.error_) {
                         continuation.k_.Stop();
                       } else {
-                        continuation.k_.Fail(std::runtime_error(
-                            uv_strerror(continuation.error_)));
+                        continuation.k_.Fail(
+                            uv_strerror(continuation.error_));
                       }
                     });
                   }
@@ -555,8 +555,8 @@ class EventLoop final : public Scheduler {
                     auto& continuation = *(Continuation*) handle->data;
                     continuation.closed_ = true;
                     CHECK(continuation.error_);
-                    continuation.k_.Fail(std::runtime_error(
-                        uv_strerror(continuation.error_)));
+                    continuation.k_.Fail(
+                        uv_strerror(continuation.error_));
                   });
                 }
               }
@@ -619,8 +619,8 @@ class EventLoop final : public Scheduler {
                     if (!continuation.error_) {
                       continuation.k_.Stop();
                     } else {
-                      continuation.k_.Fail(std::runtime_error(
-                          uv_strerror(continuation.error_)));
+                      continuation.k_.Fail(
+                          uv_strerror(continuation.error_));
                     }
                   });
                 }

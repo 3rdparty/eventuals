@@ -11,7 +11,6 @@
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 
 using eventuals::Acquire;
 using eventuals::Callback;
@@ -94,7 +93,7 @@ TEST(LockTest, Fail) {
               .start([](auto& k) {
                 auto thread = std::thread(
                     [&k]() mutable {
-                      k.Fail(std::runtime_error("error"));
+                      k.Fail("error");
                     });
                 thread.detach();
               })
@@ -107,7 +106,7 @@ TEST(LockTest, Fail) {
         | Then([]() { return "t2"; });
   };
 
-  EXPECT_THROW_WHAT(*e1(), "error");
+  EXPECT_THROW(*e1(), const char*);
 
   EXPECT_STREQ("t2", *e2());
 }

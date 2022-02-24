@@ -5,7 +5,6 @@
 #include "eventuals/raise.h"
 #include "eventuals/terminal.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 
 using eventuals::Eventual;
 using eventuals::Expected;
@@ -43,7 +42,7 @@ TEST(Finally, Fail) {
 
   static_assert(std::is_same_v<Expected::Of<int>, decltype(expected)>);
 
-  EXPECT_THROW_WHAT(*expected, "error");
+  EXPECT_THROW(*expected, const char*);
 }
 
 TEST(Finally, Stop) {
@@ -99,9 +98,9 @@ TEST(Finally, VoidFail) {
 
   ASSERT_TRUE(exception.has_value());
 
-  EXPECT_THROW_WHAT(
+  EXPECT_THROW(
       std::rethrow_exception(exception.value()),
-      "error");
+      const char*);
 }
 
 TEST(Finally, VoidStop) {

@@ -21,7 +21,6 @@
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 
 using eventuals::Closure;
 using eventuals::Collect;
@@ -215,7 +214,7 @@ TEST(Generator, FailStream) {
   auto e = [&]() {
     return Eventual<int>()
                .start([](auto& k) {
-                 k.Fail(std::runtime_error("error"));
+                 k.Fail("error");
                })
         | stream()
         | Loop<int>()
@@ -238,7 +237,7 @@ TEST(Generator, FailStream) {
 
   k.Start();
 
-  EXPECT_THROW_WHAT(future.get(), "error");
+  EXPECT_THROW(future.get(), const char*);
 }
 
 TEST(Generator, StopStream) {

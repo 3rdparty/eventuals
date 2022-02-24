@@ -12,7 +12,6 @@
 #include "eventuals/terminal.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 
 using eventuals::Collect;
 using eventuals::Eventual;
@@ -99,7 +98,7 @@ TEST(Transformer, Fail) {
   auto e = [&]() {
     return Stream<int>()
                .next([](auto& k) {
-                 k.Fail(std::runtime_error("error"));
+                 k.Fail("error");
                })
         | transformer()
         | Map([&](std::string s) {
@@ -109,7 +108,7 @@ TEST(Transformer, Fail) {
         | Collect<std::vector<std::string>>();
   };
 
-  EXPECT_THROW_WHAT(*e(), "error");
+  EXPECT_THROW(*e(), const char*);
 }
 
 TEST(Transformer, Interrupt) {
@@ -209,7 +208,7 @@ TEST(Transformer, PropagateFail) {
     return Transformer::From<int>::To<std::string>([]() {
       return Map(Let([](auto& i) {
         return Eventual<std::string>([](auto& k) {
-          k.Fail(std::runtime_error("error"));
+          k.Fail("error");
         });
       }));
     });
@@ -225,5 +224,5 @@ TEST(Transformer, PropagateFail) {
         | Collect<std::vector<std::string>>();
   };
 
-  EXPECT_THROW_WHAT(*e(), "error");
+  EXPECT_THROW(*e(), const char*);
 }
