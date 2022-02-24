@@ -40,7 +40,7 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualFail) {
                       });
                     } else {
                       handler.Install([&k]() {
-                        k.Fail("error");
+                        k.Fail(std::runtime_error("error"));
                       });
                       callbacks.emplace_back([]() {});
                     }

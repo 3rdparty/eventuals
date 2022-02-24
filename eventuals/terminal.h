@@ -211,6 +211,9 @@ template <typename... Args>
 auto make_exception_ptr_or_forward(Args&&... args) {
   static_assert(sizeof...(args) > 0, "Expecting an error");
   static_assert(!std::is_same_v<std::decay_t<Args>..., std::exception_ptr>);
+  static_assert(
+      std::is_base_of_v<std::exception, std::decay_t<Args>...>,
+      "Expecting a type derived from std::exception");
   return std::make_exception_ptr(std::forward<Args>(args)...);
 }
 

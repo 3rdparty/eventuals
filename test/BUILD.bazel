@@ -1,6 +1,14 @@
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("//bazel:copts.bzl", "copts")
 
+cc_library(
+    name = "expect-throw-what",
+    hdrs = [
+        "expect-throw-what.h",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 # NOTE: we build "concurrent" tests in a separate library to
 # significantly speed up linking on platforms which prefer shared
 # libraries (e.g., macos).
@@ -37,6 +45,7 @@ cc_library(
     ],
     copts = copts(),
     deps = [
+        ":expect-throw-what",
         "//:eventuals",
         "@com_github_google_googletest//:gtest",
     ],
@@ -82,6 +91,7 @@ cc_test(
     copts = copts(),
     deps = [
         ":concurrent-tests",
+        ":expect-throw-what",
         "//:eventuals",
         "@com_github_google_googletest//:gtest_main",
     ],
