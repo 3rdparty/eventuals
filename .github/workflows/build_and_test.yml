@@ -41,9 +41,6 @@ jobs:
             bazel-command: "bazel"
             bazel-config: ""
 
-    env:
-      BAZEL_CONFIG: ${{ matrix.bazel-config }}
-
     defaults:
       run:
         shell: bash
@@ -62,7 +59,7 @@ jobs:
       - name: Build
         run: |
           ${{ matrix.bazel-command }} build \
-            ${BAZEL_CONFIG} \
+            ${{ matrix.bazel-config }} \
             --spawn_strategy=local \
             -c dbg \
             --strip="never" \
@@ -71,7 +68,7 @@ jobs:
       - name: Test
         run: |
           ${{ matrix.bazel-command }} test \
-            ${BAZEL_CONFIG} \
+            ${{ matrix.bazel-config }} \
             --experimental_ui_max_stdouterr_bytes=-1 \
             --spawn_strategy=local \
             -c dbg \
