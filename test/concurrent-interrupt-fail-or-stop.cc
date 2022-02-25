@@ -11,6 +11,7 @@
 #include "eventuals/map.h"
 #include "eventuals/terminal.h"
 #include "test/concurrent.h"
+#include "test/expect-throw-what.h"
 
 using eventuals::Callback;
 using eventuals::Collect;
@@ -41,7 +42,7 @@ TYPED_TEST(ConcurrentTypedTest, InterruptFailOrStop) {
                       });
                     } else {
                       handler.Install([&k]() {
-                        k.Fail("error");
+                        k.Fail(std::runtime_error("error"));
                       });
                     }
                     callbacks.emplace_back([]() {});
@@ -73,6 +74,6 @@ TYPED_TEST(ConcurrentTypedTest, InterruptFailOrStop) {
   if constexpr (std::is_same_v<TypeParam, ConcurrentType>) {
     EXPECT_ANY_THROW(future.get());
   } else {
-    EXPECT_THROW(future.get(), const char*);
+    EXPECT_THROW_WHAT(future.get(), "error");
   }
 }

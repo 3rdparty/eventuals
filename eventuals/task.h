@@ -630,6 +630,10 @@ struct Task final {
 
   template <typename Error>
   static auto Failure(Error error) {
+    static_assert(
+        std::is_base_of_v<std::exception, std::decay_t<Error>>,
+        "Expecting a type derived from std::exception");
+
     // TODO(benh): optimize away heap allocation.
     // If we store an error using 'std::exception_ptr' it is also a memory
     // allocation, otherwise we need to store one more template parameter
@@ -640,6 +644,18 @@ struct Task final {
             k.Fail(Error(std::move(*error)));
           });
     };
+  }
+
+  static auto Failure(const std::string& s) {
+    return Failure(std::runtime_error(s));
+  }
+
+  static auto Failure(char* s) {
+    return Failure(std::runtime_error(s));
+  }
+
+  static auto Failure(const char* s) {
+    return Failure(std::runtime_error(s));
   }
 };
 

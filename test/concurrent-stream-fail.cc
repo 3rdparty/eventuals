@@ -6,6 +6,7 @@
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
 #include "test/concurrent.h"
+#include "test/expect-throw-what.h"
 
 using eventuals::Collect;
 using eventuals::Map;
@@ -17,7 +18,7 @@ TYPED_TEST(ConcurrentTypedTest, StreamFail) {
   auto e = [&]() {
     return Stream<int>()
                .next([](auto& k) {
-                 k.Fail("error");
+                 k.Fail(std::runtime_error("error"));
                })
         | this->ConcurrentOrConcurrentOrdered([]() {
             return Map([](int i) {
@@ -31,5 +32,5 @@ TYPED_TEST(ConcurrentTypedTest, StreamFail) {
 
   k.Start();
 
-  EXPECT_THROW(future.get(), const char*);
+  EXPECT_THROW_WHAT(future.get(), "error");
 }

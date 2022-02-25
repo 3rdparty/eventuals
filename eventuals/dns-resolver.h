@@ -40,8 +40,8 @@ inline auto DomainNameResolve(
                    struct addrinfo* result) {
                   auto& data = *static_cast<Data*>(request->data);
                   if (status < 0) {
-                    static_cast<K*>(data.k)
-                        ->Fail(std::string{uv_err_name(status)});
+                    static_cast<K*>(data.k)->Fail(
+                        std::runtime_error(uv_err_name(status)));
                   } else {
                     // Array "ip" is resulting IPv4 for the specified address.
                     char ip[17] = {'\0'};
@@ -52,8 +52,8 @@ inline auto DomainNameResolve(
                         16);
 
                     if (error) {
-                      static_cast<K*>(data.k)
-                          ->Fail(std::string{uv_err_name(error)});
+                      static_cast<K*>(data.k)->Fail(
+                          std::runtime_error(uv_err_name(error)));
                     } else {
                       uv_freeaddrinfo(result);
                       static_cast<K*>(data.k)->Start(std::string{ip});
@@ -65,7 +65,8 @@ inline auto DomainNameResolve(
                 &(data.hints));
 
             if (error) {
-              static_cast<K*>(data.k)->Fail(std::string{uv_err_name(error)});
+              static_cast<K*>(data.k)->Fail(
+                  std::runtime_error(uv_err_name(error)));
             }
           }));
   // TODO (Artur): think later about implementing

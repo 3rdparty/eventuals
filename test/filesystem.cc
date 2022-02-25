@@ -9,6 +9,7 @@
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
+#include "test/expect-throw-what.h"
 
 using eventuals::Closure;
 using eventuals::EventLoop;
@@ -72,7 +73,7 @@ TEST_F(FilesystemTest, OpenFileFail) {
 
   EXPECT_FALSE(std::filesystem::exists(path));
 
-  EXPECT_THROW(future.get(), const char*);
+  EXPECT_THROW_WHAT(future.get(), "no such file or directory");
 }
 
 
@@ -146,7 +147,9 @@ TEST_F(FilesystemTest, ReadFileFail) {
   std::filesystem::remove(path);
   EXPECT_FALSE(std::filesystem::exists(path));
 
-  EXPECT_THROW(future.get(), const char*);
+  // NOTE: not checking 'what()' of error because it differs across
+  // operating systems.
+  EXPECT_THROW(future.get(), std::runtime_error);
 }
 
 
@@ -218,7 +221,9 @@ TEST_F(FilesystemTest, WriteFileFail) {
   std::filesystem::remove(path);
   EXPECT_FALSE(std::filesystem::exists(path));
 
-  EXPECT_THROW(future.get(), const char*);
+  // NOTE: not checking 'what()' of error because it differs across
+  // operating systems.
+  EXPECT_THROW(future.get(), std::runtime_error);
 }
 
 
@@ -254,7 +259,7 @@ TEST_F(FilesystemTest, UnlinkFileFail) {
 
   EventLoop::Default().RunUntil(future);
 
-  EXPECT_THROW(future.get(), const char*);
+  EXPECT_THROW_WHAT(future.get(), "no such file or directory");
 }
 
 
@@ -291,7 +296,7 @@ TEST_F(FilesystemTest, MakeDirectoryFail) {
   std::filesystem::remove(path);
   EXPECT_FALSE(std::filesystem::exists(path));
 
-  EXPECT_THROW(future.get(), const char*);
+  EXPECT_THROW_WHAT(future.get(), "file already exists");
 }
 
 
@@ -325,7 +330,7 @@ TEST_F(FilesystemTest, RemoveDirectoryFail) {
 
   EventLoop::Default().RunUntil(future);
 
-  EXPECT_THROW(future.get(), const char*);
+  EXPECT_THROW_WHAT(future.get(), "no such file or directory");
 }
 
 
@@ -373,7 +378,7 @@ TEST_F(FilesystemTest, CopyFileFail) {
   EXPECT_FALSE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
 
-  EXPECT_THROW(future.get(), const char*);
+  EXPECT_THROW_WHAT(future.get(), "no such file or directory");
 }
 
 
@@ -421,5 +426,5 @@ TEST_F(FilesystemTest, RenameFileFail) {
   EXPECT_FALSE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
 
-  EXPECT_THROW(future.get(), const char*);
+  EXPECT_THROW_WHAT(future.get(), "no such file or directory");
 }
