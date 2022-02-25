@@ -113,7 +113,7 @@ TEST(Task, FailOnCallback) {
                 })
                 .fail([&](auto& k, auto&& error) {
                   functions.fail.Call();
-                  k.Fail(error);
+                  k.Fail(std::move(error));
                 });
     };
   };

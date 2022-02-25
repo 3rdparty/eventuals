@@ -20,9 +20,9 @@ struct _Reduce final {
       }
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      k_.Fail(std::forward<Args>(args)...);
+    template <typename Error>
+    void Fail(Error&& error) {
+      k_.Fail(std::move(error));
     }
 
     void Stop() {
@@ -50,10 +50,10 @@ struct _Reduce final {
       stream_->Next();
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       // TODO(benh): do we need to stop via the adaptor?
-      k_.Fail(std::forward<Args>(args)...);
+      k_.Fail(std::move(error));
     }
 
     void Stop() {

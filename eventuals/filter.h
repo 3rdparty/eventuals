@@ -21,9 +21,9 @@ struct _Filter final {
       k_.Begin(stream);
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      k_.Fail(std::forward<Args>(args)...);
+    template <typename Error>
+    void Fail(Error&& error) {
+      k_.Fail(std::move(error));
     }
 
     void Stop() {

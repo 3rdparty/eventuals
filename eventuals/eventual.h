@@ -75,14 +75,14 @@ struct _Eventual {
       }
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       if constexpr (IsUndefined<Fail_>::value) {
-        k_().Fail(std::forward<Args>(args)...);
+        k_().Fail(std::move(error));
       } else if constexpr (IsUndefined<Context_>::value) {
-        fail_(k_(), std::forward<Args>(args)...);
+        fail_(k_(), std::move(error));
       } else {
-        fail_(context_, k_(), std::forward<Args>(args)...);
+        fail_(context_, k_(), std::move(error));
       }
     }
 

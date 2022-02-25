@@ -22,18 +22,18 @@ struct _Finally final {
       }
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       if constexpr (std::is_void_v<Arg_>) {
         k_.Start(
             std::optional<std::exception_ptr>(
                 make_exception_ptr_or_forward(
-                    std::forward<Args>(args)...)));
+                    std::move(error))));
       } else {
         k_.Start(
             Expected::Of<Arg_>(
                 make_exception_ptr_or_forward(
-                    std::forward<Args>(args)...)));
+                    std::move(error))));
       }
     }
 

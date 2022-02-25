@@ -192,19 +192,19 @@ struct _Acquire final {
       }
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       waiter_.context = Scheduler::Context::Get();
 
       if (lock_->AcquireFast(&waiter_)) {
-        k_.Fail(std::forward<Args>(args)...);
+        k_.Fail(std::move(error));
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
-        using Tuple = std::tuple<decltype(this), Args...>;
+        using Tuple = std::tuple<decltype(this), Error>;
         auto tuple = std::make_unique<Tuple>(
             this,
-            std::forward<Args>(args)...);
+            std::move(error));
 
         waiter_.f = [tuple = std::move(tuple)]() mutable {
           auto* acquire = std::get<0>(*tuple);
@@ -403,11 +403,11 @@ struct _Release final {
       k_.Start(std::forward<decltype(args)>(args)...);
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       CHECK(!lock_->Available());
       lock_->Release();
-      k_.Fail(std::forward<Args>(args)...);
+      k_.Fail(std::move(error));
     }
 
     void Stop() {
@@ -540,9 +540,9 @@ struct _Wait final {
       }
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      k_.Fail(std::forward<Args>(args)...);
+    template <typename Error>
+    void Fail(Error&& error) {
+      k_.Fail(std::move(error));
     }
 
     void Stop() {

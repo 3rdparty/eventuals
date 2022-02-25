@@ -212,10 +212,9 @@ struct _DoAll final {
           ks_.value());
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      // TODO: consider propagating through each eventual?
-      k_.Fail(std::forward<Args>(args)...);
+    template <typename Error>
+    void Fail(Error&& error) {
+      k_.Fail(std::move(error));
     }
 
     void Stop() {

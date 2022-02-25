@@ -36,8 +36,8 @@ struct _Terminal final {
       }
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       if constexpr (IsUndefined<Fail_>::value) {
         EVENTUALS_LOG(1)
             << "'Terminal::Fail()' reached by "
@@ -45,19 +45,9 @@ struct _Terminal final {
             << " but undefined";
       } else {
         if constexpr (IsUndefined<Context_>::value) {
-          if constexpr (sizeof...(args) > 0) {
-            fail_(std::forward<Args>(args)...);
-          } else {
-            fail_(std::runtime_error("empty error"));
-          }
+          fail_(std::move(error));
         } else {
-          if constexpr (sizeof...(args) > 0) {
-            fail_(context_, std::forward<Args>(args)...);
-          } else {
-            fail_(
-                context_,
-                std::runtime_error("empty error"));
-          }
+          fail_(context_, std::move(error));
         }
       }
     }

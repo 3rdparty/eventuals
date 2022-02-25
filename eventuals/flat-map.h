@@ -42,9 +42,9 @@ struct _FlatMap final {
       streamforeach_->Stop();
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      streamforeach_->Fail(std::forward<Args>(args)...);
+    template <typename Error>
+    void Fail(Error&& error) {
+      streamforeach_->Fail(std::move(error));
     }
 
     void Register(Interrupt&) {
@@ -72,9 +72,9 @@ struct _FlatMap final {
       k_.Begin(*this);
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      k_.Fail(std::forward<Args>(args)...);
+    template <typename Error>
+    void Fail(Error&& error) {
+      k_.Fail(std::move(error));
     }
 
     void Stop() {
