@@ -1,4 +1,4 @@
-# Workflow for building and testing eventuals on macOS, Ubuntu and Windows.  
+# Workflow for building and testing eventuals on macOS, Ubuntu and Windows.
 name: Build and Run all tests
 
 # We use action's triggers 'push' and 'pull_request'.
@@ -14,8 +14,8 @@ on:
       - "**.md"
   pull_request:
     paths-ignore:
-      - "**.md"   
-  
+      - "**.md"
+
 jobs:
   build-and-test:
     name: Build and Test
@@ -24,14 +24,22 @@ jobs:
       matrix:
         include:
           - os: macos-latest
+            sudo-command: "sudo"
+            # The macos runner doesn't have `docker` installed, so can't run
+            # `dazel`. Fall back to `bazel`.
+            bazel-command: "bazel"
             bazel-config: ""
           - os: ubuntu-latest
+            sudo-command: "sudo"
+            bazel-command: "dazel"
             bazel-config: "--config=asan"
           - os: windows-2019
+            sudo-command: "" # The Windows runner already runs as root.
+            # Our `dazel` container is based on `ubuntu:latest`, which doesn't
+            # support running on the `windows/amd64` platform. Fall back to
+            # `bazel`.
+            bazel-command: "bazel"
             bazel-config: ""
-
-    env:
-      BAZEL_CONFIG: ${{ matrix.bazel-config }}
 
     defaults:
       run:
@@ -41,21 +49,26 @@ jobs:
       # Checkout the repository under $GITHUB_WORKSPACE.
       - uses: actions/checkout@v2
         with:
-          submodules: 'recursive'
+          submodules: "recursive"
+
+      # Install Dazel, so that we use the same build tooling in our Actions as
+      # we do on our workstations.
+      - name: Install Dazel
+        run: ${{ matrix.sudo-command }} pip3 install dazel
 
       - name: Build
         run: |
-          bazel build \
-            ${BAZEL_CONFIG} \
+          ${{ matrix.bazel-command }} build \
+            ${{ matrix.bazel-config }} \
             --spawn_strategy=local \
             -c dbg \
             --strip="never" \
-            :eventuals       
+            :eventuals
 
       - name: Test
-        run: | 
-          bazel test \
-            ${BAZEL_CONFIG} \
+        run: |
+          ${{ matrix.bazel-command }} test \
+            ${{ matrix.bazel-config }} \
             --experimental_ui_max_stdouterr_bytes=-1 \
             --spawn_strategy=local \
             -c dbg \
@@ -67,4 +80,4 @@ jobs:
 
       - name: Debug using tmate (if failure)
         if: ${{ failure() }}
-        uses: mxschmitt/action-tmate@v3  
+        uses: mxschmitt/action-tmate@v3
