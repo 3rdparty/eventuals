@@ -28,9 +28,9 @@ struct _Closure final {
       continuation().Start(std::forward<Args>(args)...);
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      continuation().Fail(std::forward<Args>(args)...);
+    template <typename Error>
+    void Fail(Error&& error) {
+      continuation().Fail(std::forward<Error>(error));
     }
 
     void Stop() {

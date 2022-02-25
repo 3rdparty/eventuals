@@ -20,9 +20,9 @@ struct _Raise final {
       k_.Fail(std::move(t_));
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      k_.Fail(std::forward<Args>(args)...);
+    template <typename Error>
+    void Fail(Error&& error) {
+      k_.Fail(std::move(error));
     }
 
     void Stop() {

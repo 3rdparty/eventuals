@@ -1079,14 +1079,14 @@ struct _HTTP final {
           &context_);
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       // TODO(benh): avoid allocating on heap by storing args in
       // pre-allocated buffer based on composing with Errors.
-      using Tuple = std::tuple<decltype(this), Args...>;
+      using Tuple = std::tuple<decltype(this), Error>;
       auto tuple = std::make_unique<Tuple>(
           this,
-          std::forward<Args>(args)...);
+          std::move(error));
 
       // Submitting to event loop to avoid race with interrupt.
       loop_.Submit(

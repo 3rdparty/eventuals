@@ -174,19 +174,20 @@ struct _Reschedule final {
           });
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       context_->Continue(
           [&]() {
-            k_.Fail(std::forward<Args>(args)...);
+            k_.Fail(std::move(error));
           },
           [&]() {
             // TODO(benh): avoid allocating on heap by storing args in
             // pre-allocated buffer based on composing with Errors.
-            using Tuple = std::tuple<decltype(&k_), Args...>;
+            using Tuple = std::tuple<decltype(&k_), Error>;
             auto tuple = std::make_unique<Tuple>(
                 &k_,
-                std::forward<Args>(args)...);
+                std::move(error));
+
             return [tuple = std::move(tuple)]() mutable {
               std::apply(
                   [](auto* k_, auto&&... args) {
@@ -401,14 +402,14 @@ struct _Preempt final {
       CHECK_EQ(context, &context_);
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       Adapt();
 
       auto* previous = Scheduler::Context::Switch(&context_);
       CHECK_EQ(previous, previous_);
 
-      adapted_->Fail(std::forward<Args>(args)...);
+      adapted_->Fail(std::move(error));
 
       auto* context = Scheduler::Context::Switch(previous_);
       CHECK_EQ(context, &context_);

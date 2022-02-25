@@ -26,9 +26,9 @@ struct _Then final {
       k_.Start(std::forward<Args>(args)...);
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      k_.Fail(std::forward<Args>(args)...);
+    template <typename Error>
+    void Fail(Error&& error) {
+      k_.Fail(std::move(error));
     }
 
     void Stop() {
@@ -100,9 +100,9 @@ struct _Then::Continuation<K_, F_, Arg_, false> final {
     }
   }
 
-  template <typename... Args>
-  void Fail(Args&&... args) {
-    k_.Fail(std::forward<Args>(args)...);
+  template <typename Error>
+  void Fail(Error&& error) {
+    k_.Fail(std::move(error));
   }
 
   void Stop() {
@@ -142,9 +142,9 @@ struct _Then::Continuation<K_, F_, Arg_, true> final {
     adapted_->Start();
   }
 
-  template <typename... Args>
-  void Fail(Args&&... args) {
-    k_.Fail(std::forward<Args>(args)...);
+  template <typename Error>
+  void Fail(Error&& error) {
+    k_.Fail(std::move(error));
   }
 
   void Stop() {

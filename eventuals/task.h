@@ -37,11 +37,11 @@ struct HeapTask final {
       (*start_)(std::forward<Args>(args)...);
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       (*fail_)(
           make_exception_ptr_or_forward(
-              std::forward<decltype(args)>(args)...));
+              std::move(error)));
     }
 
     // NOTE: overload so we don't create nested std::exception_ptr.
@@ -259,17 +259,12 @@ struct _TaskFromToWith final {
       }
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       std::exception_ptr exception;
 
-      if constexpr (sizeof...(args) > 0) {
-        exception = make_exception_ptr_or_forward(
-            std::forward<decltype(args)>(args)...);
-      } else {
-        exception = std::make_exception_ptr(
-            std::runtime_error("empty error"));
-      }
+      exception = make_exception_ptr_or_forward(
+          std::move(error));
 
       Dispatch(Action::Fail, std::nullopt, std::move(exception));
     }

@@ -54,9 +54,9 @@ struct _ReorderAdaptor final {
       }
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      k_.Fail(std::forward<Args>(args)...);
+    template <typename Error>
+    void Fail(Error&& error) {
+      k_.Fail(std::move(error));
     }
 
     void Register(Interrupt& interrupt) {
@@ -169,9 +169,9 @@ struct _ConcurrentOrderedAdaptor final {
           std::make_optional(std::move(std::get<1>(tuple)))));
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      k_.Fail(std::forward<Args>(args)...);
+    template <typename Error>
+    void Fail(Error&& error) {
+      k_.Fail(std::move(error));
     }
 
     void Register(Interrupt& interrupt) {

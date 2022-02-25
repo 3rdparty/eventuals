@@ -51,19 +51,20 @@ struct _Stream final {
       });
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       stream_->previous_->Continue(
           [&]() {
-            k_->Fail(std::forward<Args>(args)...);
+            k_->Fail(std::move(error));
           },
           [&]() {
             // TODO(benh): avoid allocating on heap by storing args in
             // pre-allocated buffer based on composing with Errors.
-            using Tuple = std::tuple<decltype(k_), Args...>;
+            using Tuple = std::tuple<decltype(k_), Error>;
             auto tuple = std::make_unique<Tuple>(
                 k_,
-                std::forward<Args>(args)...);
+                std::move(error));
+
             return [tuple = std::move(tuple)]() mutable {
               std::apply(
                   [](auto* k_, auto&&... args) {
@@ -186,14 +187,14 @@ struct _Stream final {
       }
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       if constexpr (IsUndefined<Fail_>::value) {
-        k_.Fail(std::forward<Args>(args)...);
+        k_.Fail(std::move(error));
       } else if constexpr (IsUndefined<Context_>::value) {
-        fail_(k_, std::forward<Args>(args)...);
+        fail_(k_, std::move(error));
       } else {
-        fail_(context_, k_, std::forward<Args>(args)...);
+        fail_(context_, k_, std::move(error));
       }
     }
 

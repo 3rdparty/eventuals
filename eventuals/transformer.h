@@ -38,11 +38,11 @@ struct HeapTransformer final {
       (*body_)(std::forward<decltype(args)>(args)...);
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       (*fail_)(
           make_exception_ptr_or_forward(
-              std::forward<decltype(args)>(args)...));
+              std::move(error)));
     }
 
     void Stop() {
@@ -156,13 +156,10 @@ struct _TransformerFromTo final {
       k_.Begin(stream);
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
-      static_assert(
-          sizeof...(args) > 0,
-          "Transformer expects Fail() to be called with an argument");
+    template <typename Error>
+    void Fail(Error&& error) {
       auto exception = make_exception_ptr_or_forward(
-          std::forward<decltype(args)>(args)...);
+          std::move(error));
 
       Dispatch(Action::Fail, std::nullopt, std::move(exception));
     }

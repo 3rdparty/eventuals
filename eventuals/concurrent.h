@@ -617,13 +617,13 @@ struct _Concurrent final {
       egress_->Begin(*this);
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       if (!ingress_) {
         CHECK(!egress_);
-        k_.Fail(std::forward<Args>(args)...);
+        k_.Fail(std::move(error));
       } else {
-        ingress_->Fail(std::forward<Args>(args)...);
+        ingress_->Fail(std::move(error));
       }
     }
 

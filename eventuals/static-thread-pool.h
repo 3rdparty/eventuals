@@ -211,8 +211,8 @@ struct _StaticThreadPoolSchedule final {
       }
     }
 
-    template <typename... Args>
-    void Fail(Args&&... args) {
+    template <typename Error>
+    void Fail(Error&& error) {
       // NOTE: rather than skip the scheduling all together we make sure
       // to support the use case where code wants to "catch" a failure
       // inside of a 'Schedule()' in order to either recover or
@@ -235,16 +235,16 @@ struct _StaticThreadPoolSchedule final {
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
         auto* previous = Scheduler::Context::Switch(context_.get());
-        adapted_->Fail(std::forward<Args>(args)...);
+        adapted_->Fail(std::move(error));
         previous = Scheduler::Context::Switch(previous);
         CHECK_EQ(previous, context_.get());
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
-        using Tuple = std::tuple<decltype(this), Args...>;
+        using Tuple = std::tuple<decltype(this), Error>;
         auto tuple = std::make_unique<Tuple>(
             this,
-            std::forward<Args>(args)...);
+            std::move(error));
 
         EVENTUALS_LOG(1)
             << "Schedule submitting '" << context_->name() << "'";
