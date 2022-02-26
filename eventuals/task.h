@@ -635,6 +635,7 @@ struct Task final {
     // for the 'Error' type.
     return [error = std::make_unique<Error>(std::move(error))]() mutable {
       return Eventual<_TaskFailure>()
+          .raises<Error>()
           .start([&](auto& k) mutable {
             k.Fail(Error(std::move(*error)));
           });

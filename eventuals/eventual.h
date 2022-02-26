@@ -8,10 +8,6 @@
 #include "eventuals/undefined.h"
 
 // TODO(benh): catch exceptions from 'start', 'fail', 'stop', etc.
-//
-// TODO(benh): aggregate errors across all the eventuals.
-//
-// TODO(benh): lambda visitor for matching errors.
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -20,6 +16,49 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 struct _Eventual {
+  // Helper struct for enforcing that values and errors are only
+  // propagated of the correct type.
+  template <typename K_, typename Value_, typename Errors_>
+  struct Adaptor final {
+    template <typename... Args>
+    void Start(Args&&... args) {
+      // TODO(benh): ensure 'Args' and 'Value_' are compatible.
+      (*k_)().Start(std::forward<Args>(args)...);
+    }
+
+    template <typename Error>
+    void Fail(Error&& error) {
+      // TODO(benh): revisit whether or not we want to always allow
+      // 'std::exception_ptr' to be an escape hatch for arbitrary
+      // exceptions or if we should have our own type to ensure that
+      // only types derived from 'std::exception' are used.
+      static_assert(
+          std::disjunction_v<
+              std::is_same<std::exception_ptr, std::decay_t<Error>>,
+              std::is_base_of<std::exception, std::decay_t<Error>>>,
+          "Expecting a type derived from std::exception ");
+
+      static_assert(
+          std::disjunction_v<
+              std::is_same<std::exception_ptr, std::decay_t<Error>>,
+              tuple_types_contains<std::exception, Errors_>,
+              tuple_types_contains<std::decay_t<Error>, Errors_>>,
+          "Error is not specified in 'raises<...>()'");
+
+      (*k_)().Fail(std::forward<Error>(error));
+    }
+
+    void Stop() {
+      (*k_)().Stop();
+    }
+
+    void Register(Interrupt& interrupt) {
+      (*k_)().Register(interrupt);
+    }
+
+    Reschedulable<K_, Value_>* k_ = nullptr;
+  };
+
   template <
       typename K_,
       typename Context_,
@@ -28,7 +67,7 @@ struct _Eventual {
       typename Stop_,
       bool Interruptible_,
       typename Value_,
-      typename... Errors_>
+      typename Errors_>
   struct Continuation final {
     Continuation(
         Reschedulable<K_, Value_> k,
@@ -41,7 +80,6 @@ struct _Eventual {
         fail_(std::move(fail)),
         stop_(std::move(stop)),
         k_(std::move(k)) {}
-
 
     Continuation(Continuation&& that) = default;
 
@@ -64,14 +102,14 @@ struct _Eventual {
 
       if constexpr (!IsUndefined<Context_>::value && Interruptible_) {
         CHECK(handler_);
-        start_(context_, k_(), *handler_, std::forward<Args>(args)...);
+        start_(context_, adaptor(), *handler_, std::forward<Args>(args)...);
       } else if constexpr (!IsUndefined<Context_>::value && !Interruptible_) {
-        start_(context_, k_(), std::forward<Args>(args)...);
+        start_(context_, adaptor(), std::forward<Args>(args)...);
       } else if constexpr (IsUndefined<Context_>::value && Interruptible_) {
         CHECK(handler_);
-        start_(k_(), *handler_, std::forward<Args>(args)...);
+        start_(adaptor(), *handler_, std::forward<Args>(args)...);
       } else {
-        start_(k_(), std::forward<Args>(args)...);
+        start_(adaptor(), std::forward<Args>(args)...);
       }
     }
 
@@ -80,9 +118,9 @@ struct _Eventual {
       if constexpr (IsUndefined<Fail_>::value) {
         k_().Fail(std::move(error));
       } else if constexpr (IsUndefined<Context_>::value) {
-        fail_(k_(), std::move(error));
+        fail_(adaptor(), std::move(error));
       } else {
-        fail_(context_, k_(), std::move(error));
+        fail_(context_, adaptor(), std::move(error));
       }
     }
 
@@ -90,9 +128,9 @@ struct _Eventual {
       if constexpr (IsUndefined<Stop_>::value) {
         k_().Stop();
       } else if constexpr (IsUndefined<Context_>::value) {
-        stop_(k_());
+        stop_(adaptor());
       } else {
-        stop_(context_, k_());
+        stop_(context_, adaptor());
       }
     }
 
@@ -104,12 +142,25 @@ struct _Eventual {
       }
     }
 
+    Adaptor<K_, Value_, Errors_>& adaptor() {
+      // Note: needed to delay doing this until now because this
+      // eventual might have been moved before being started.
+      adaptor_.k_ = &k_;
+
+      // And also need to capture any reschedulable context!
+      k_();
+
+      return adaptor_;
+    }
+
     Context_ context_;
     Start_ start_;
     Fail_ fail_;
     Stop_ stop_;
 
     std::optional<Interrupt::Handler> handler_;
+
+    Adaptor<K_, Value_, Errors_> adaptor_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete
@@ -125,15 +176,18 @@ struct _Eventual {
       typename Stop_,
       bool Interruptible_,
       typename Value_,
-      typename... Errors_>
+      typename Errors_ = std::tuple<>>
   struct Builder final {
     template <typename>
     using ValueFrom = Value_;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = tuple_types_union_t<Errors_, Errors>;
+
     template <
         bool Interruptible,
         typename Value,
-        typename... Errors,
+        typename Errors,
         typename Context,
         typename Start,
         typename Fail,
@@ -150,7 +204,7 @@ struct _Eventual {
           Stop,
           Interruptible,
           Value,
-          Errors...>{
+          Errors>{
           std::move(context),
           std::move(start),
           std::move(fail),
@@ -167,7 +221,7 @@ struct _Eventual {
           Stop_,
           Interruptible_,
           Value_,
-          Errors_...>(
+          Errors_>(
           Reschedulable<K, Value_>{std::move(k)},
           std::move(context_),
           std::move(start_),
@@ -178,7 +232,7 @@ struct _Eventual {
     template <typename Context>
     auto context(Context context) && {
       static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
-      return create<Interruptible_, Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_>(
           std::move(context),
           std::move(start_),
           std::move(fail_),
@@ -188,7 +242,7 @@ struct _Eventual {
     template <typename Start>
     auto start(Start start) && {
       static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
-      return create<Interruptible_, Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_>(
           std::move(context_),
           std::move(start),
           std::move(fail_),
@@ -198,7 +252,7 @@ struct _Eventual {
     template <typename Fail>
     auto fail(Fail fail) && {
       static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
-      return create<Interruptible_, Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_>(
           std::move(context_),
           std::move(start_),
           std::move(fail),
@@ -208,7 +262,7 @@ struct _Eventual {
     template <typename Stop>
     auto stop(Stop stop) && {
       static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
-      return create<Interruptible_, Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_>(
           std::move(context_),
           std::move(start_),
           std::move(fail_),
@@ -217,7 +271,17 @@ struct _Eventual {
 
     auto interruptible() && {
       static_assert(!Interruptible_, "Already 'interruptible'");
-      return create<true, Value_, Errors_...>(
+      return create<true, Value_, Errors_>(
+          std::move(context_),
+          std::move(start_),
+          std::move(fail_),
+          std::move(stop_));
+    }
+
+    template <typename Error = std::exception, typename... Errors>
+    auto raises() && {
+      static_assert(std::tuple_size_v<Errors_> == 0, "Duplicate 'raises'");
+      return create<Interruptible_, Value_, std::tuple<Error, Errors...>>(
           std::move(context_),
           std::move(start_),
           std::move(fail_),
@@ -233,7 +297,7 @@ struct _Eventual {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Value, typename... Errors>
+template <typename Value>
 auto Eventual() {
   return _Eventual::Builder<
       Undefined,
@@ -241,13 +305,12 @@ auto Eventual() {
       Undefined,
       Undefined,
       false,
-      Value,
-      Errors...>{};
+      Value>{};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Value, typename... Errors, typename Start>
+template <typename Value, typename Start>
 auto Eventual(Start start) {
   return _Eventual::Builder<
       Undefined,
@@ -255,8 +318,7 @@ auto Eventual(Start start) {
       Undefined,
       Undefined,
       false,
-      Value,
-      Errors...>{
+      Value>{
       Undefined(),
       std::move(start)};
 }

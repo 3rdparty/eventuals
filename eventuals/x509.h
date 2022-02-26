@@ -23,6 +23,16 @@ class Certificate final {
  public:
   static auto Builder();
 
+#if _WIN32
+  // NOTE: default constructor should not exist or be used but is
+  // necessary on Windows so this type can be used as a type parameter
+  // to 'std::promise', see: https://bit.ly/VisualStudioStdPromiseBug
+  Certificate()
+    : certificate_(nullptr, &X509_free) {}
+#else
+  Certificate() = delete;
+#endif
+
   Certificate(std::unique_ptr<X509, decltype(&X509_free)> certificate)
     : certificate_(std::move(certificate)) {
     CHECK(certificate_);
@@ -55,7 +65,7 @@ class Certificate final {
   static Certificate Copy(const Certificate& from) {
     return Certificate(
         std::unique_ptr<X509, decltype(&X509_free)>(
-            X509_dup(from.certificate_.get()),
+            X509_dup(CHECK_NOTNULL(from.certificate_.get())),
             &X509_free));
   }
 

@@ -214,6 +214,7 @@ TEST(Generator, FailStream) {
 
   auto e = [&]() {
     return Eventual<int>()
+               .raises<std::runtime_error>()
                .start([](auto& k) {
                  k.Fail(std::runtime_error("error"));
                })
