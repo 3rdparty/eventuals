@@ -47,6 +47,9 @@ struct _Raise final {
     template <typename Arg>
     using ValueFrom = Arg;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = tuple_types_union_t<std::tuple<T_>, Errors>;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, T_>{std::move(k), std::move(t_)};

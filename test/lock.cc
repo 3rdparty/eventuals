@@ -91,6 +91,7 @@ TEST(LockTest, Fail) {
   auto e1 = [&]() {
     return Acquire(&lock)
         | Eventual<std::string>()
+              .raises<std::runtime_error>()
               .start([](auto& k) {
                 auto thread = std::thread(
                     [&k]() mutable {

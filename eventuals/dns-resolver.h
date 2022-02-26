@@ -25,6 +25,7 @@ inline auto DomainNameResolve(
   return loop.Schedule(
       "DomainNameResolve",
       Eventual<std::string>()
+          .raises<std::runtime_error>()
           .context(Data{loop, address, port})
           .start([](auto& data, auto& k) {
             using K = std::decay_t<decltype(k)>;

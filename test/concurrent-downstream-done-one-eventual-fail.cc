@@ -33,6 +33,7 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualFail) {
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
                   .interruptible()
+                  .raises()
                   .start([&](auto& k, Interrupt::Handler& handler) mutable {
                     if (i == 1) {
                       callbacks.emplace_back([&k]() {

@@ -208,9 +208,11 @@ TEST(Transformer, PropagateFail) {
   auto transformer = []() {
     return Transformer::From<int>::To<std::string>([]() {
       return Map(Let([](auto& i) {
-        return Eventual<std::string>([](auto& k) {
-          k.Fail(std::runtime_error("error"));
-        });
+        return Eventual<std::string>()
+            .raises<std::runtime_error>()
+            .start([](auto& k) {
+              k.Fail(std::runtime_error("error"));
+            });
       }));
     });
   };

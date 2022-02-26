@@ -164,6 +164,7 @@ inline auto OpenFile(
   return loop.Schedule(
       "OpenFile",
       Eventual<File>()
+          .raises<std::runtime_error>()
           .context(Data{loop, flags, mode, path})
           .start([](auto& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -217,6 +218,7 @@ inline auto CloseFile(EventLoop& loop, File&& file) {
   return loop.Schedule(
       "CloseFile",
       Eventual<void>()
+          .raises<std::runtime_error>()
           .context(Data{loop, std::move(file)})
           .start([](auto& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -273,6 +275,7 @@ inline auto ReadFile(
   return loop.Schedule(
       "ReadFile",
       Eventual<std::string>()
+          .raises<std::runtime_error>()
           .context(Data{loop, file, bytes_to_read, offset, bytes_to_read})
           .start([](auto& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -333,6 +336,7 @@ inline auto WriteFile(
   return loop.Schedule(
       "WriteFile",
       Eventual<void>()
+          .raises<std::runtime_error>()
           .context(Data{loop, file, data, offset})
           .start([](auto& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -387,6 +391,7 @@ inline auto UnlinkFile(EventLoop& loop, const std::filesystem::path& path) {
   return loop.Schedule(
       "UnlinkFile",
       Eventual<void>()
+          .raises<std::runtime_error>()
           .context(Data{loop, path})
           .start([](auto& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -439,6 +444,7 @@ inline auto MakeDirectory(
   return loop.Schedule(
       "MakeDirectory",
       Eventual<void>()
+          .raises<std::runtime_error>()
           .context(Data{loop, path, mode})
           .start([](auto& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -490,6 +496,7 @@ inline auto RemoveDirectory(
   return loop.Schedule(
       "RemoveDirectory",
       Eventual<void>()
+          .raises<std::runtime_error>()
           .context(Data{loop, path})
           .start([](auto& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -544,6 +551,7 @@ inline auto CopyFile(
   return loop.Schedule(
       "CopyFile",
       Eventual<void>()
+          .raises<std::runtime_error>()
           .context(Data{loop, src, dst, flags})
           .start([](auto& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -601,6 +609,7 @@ inline auto RenameFile(
   return loop.Schedule(
       "RenameFile",
       Eventual<void>()
+          .raises<std::runtime_error>()
           .context(Data{loop, src, dst})
           .start([](auto& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;

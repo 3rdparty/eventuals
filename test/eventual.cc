@@ -79,6 +79,7 @@ TEST(EventualTest, Fail) {
 
   auto e = [&]() {
     return Eventual<int>()
+               .raises()
                .context("error")
                .start([](auto& error, auto& k) {
                  auto thread = std::thread(
@@ -224,8 +225,15 @@ TEST(EventualTest, Just) {
 TEST(EventualTest, Raise) {
   auto e = []() {
     return Just(42)
-        | Raise("error");
+        | Raise("error")
+        | Raise("another error")
+        | Just(12);
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   EXPECT_THROW_WHAT(*e(), "error");
 }

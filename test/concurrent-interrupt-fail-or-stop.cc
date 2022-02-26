@@ -35,6 +35,7 @@ TYPED_TEST(ConcurrentTypedTest, InterruptFailOrStop) {
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
                   .interruptible()
+                  .raises()
                   .start([&](auto& k, Interrupt::Handler& handler) mutable {
                     if (i == 1) {
                       handler.Install([&k]() {

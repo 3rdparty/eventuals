@@ -95,6 +95,7 @@ TEST(ConditionalTest, Fail) {
 
   auto c = [&]() {
     return Eventual<int>()
+               .raises<std::runtime_error>()
                .start([](auto& k) {
                  auto thread = std::thread(
                      [&k]() mutable {

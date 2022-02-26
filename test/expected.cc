@@ -5,6 +5,7 @@
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
+#include "test/expect-throw-what.h"
 
 using eventuals::Expected;
 using eventuals::Then;
@@ -76,6 +77,98 @@ TEST(Expected, Compose) {
              return Expected(i + 1);
            });
   };
+
+  EXPECT_EQ(42, *e());
+}
+
+TEST(Expected, NoRaisesDeclarationUnexpected) {
+  auto f = []() -> Expected::Of<int> {
+    return Unexpected("unexpected");
+  };
+
+  auto e = [&]() {
+    return f()
+        | Then([](int i) {
+             return i + 1;
+           });
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::exception>>);
+
+  EXPECT_THROW_WHAT(*e(), "unexpected");
+}
+
+TEST(Expected, NoRaisesDeclarationUnexpectedFromDerivedException) {
+  struct MyException final : public std::exception {
+    const char* what() const noexcept override {
+      return "woah";
+    }
+  };
+
+  auto f = []() -> Expected::Of<int> {
+    return Unexpected(MyException());
+  };
+
+  auto e = [&]() {
+    return f()
+        | Then([](int i) {
+             return i + 1;
+           });
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::exception>>);
+
+  EXPECT_THROW_WHAT(*e(), "woah");
+}
+
+TEST(Expected, RaisesDeclarationUnexpectedFromDerivedException) {
+  struct MyException final : public std::exception {
+    const char* what() const noexcept override {
+      return "woah";
+    }
+  };
+
+  auto f = []() -> Expected::Of<int>::Raises<MyException> {
+    return Unexpected(MyException());
+  };
+
+  auto e = [&]() {
+    return f()
+        | Then([](int i) {
+             return i + 1;
+           });
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<MyException>>);
+
+  EXPECT_THROW_WHAT(*e(), "woah");
+}
+
+TEST(Expected, ExpectedNoErrors) {
+  auto f = []() {
+    return Expected(41);
+  };
+
+  auto e = [&]() {
+    return f()
+        | Then([](int i) {
+             return i + 1;
+           });
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
 
   EXPECT_EQ(42, *e());
 }

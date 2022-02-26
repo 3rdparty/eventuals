@@ -86,6 +86,7 @@ cc_test(
         "then.cc",
         "timer.cc",
         "transformer.cc",
+        "type-traits.cc",
         "unpack.cc",
     ],
     copts = copts(),

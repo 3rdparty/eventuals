@@ -96,6 +96,7 @@ TEST(Task, FailOnCallback) {
   auto e = [&]() -> Task::Of<int> {
     return [&]() {
       return Eventual<int>()
+                 .raises<std::runtime_error>()
                  .start([](auto& k) {
                    k.Fail(std::runtime_error("error from start"));
                  })
@@ -113,7 +114,8 @@ TEST(Task, FailOnCallback) {
                 })
                 .fail([&](auto& k, auto&& error) {
                   functions.fail.Call();
-                  k.Fail(std::move(error));
+                  k.Fail(eventuals::make_exception_ptr_or_forward(
+                      std::forward<decltype(error)>(error)));
                 });
     };
   };
@@ -130,6 +132,7 @@ TEST(Task, FailTerminated) {
   auto e = [&]() -> Task::Of<int> {
     return [&]() {
       return Eventual<int>()
+                 .raises<std::runtime_error>()
                  .start([](auto& k) {
                    k.Fail(std::runtime_error("error from start"));
                  })
@@ -330,6 +333,7 @@ TEST(Task, FromToFail) {
 
   auto e = [&]() {
     return Eventual<int>()
+               .raises<std::runtime_error>()
                .start([](auto& k) {
                  k.Fail(std::runtime_error("error"));
                })
