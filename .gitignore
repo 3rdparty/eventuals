@@ -2,3 +2,6 @@
 .vscode
 bazel-*
 *~
+
+# Runtime file for Dazel.
+.dazel_run
