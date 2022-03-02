@@ -1086,7 +1086,7 @@ struct _HTTP final {
       using Tuple = std::tuple<decltype(this), Error>;
       auto tuple = std::make_unique<Tuple>(
           this,
-          std::move(error));
+          std::forward<Error>(error));
 
       // Submitting to event loop to avoid race with interrupt.
       loop_.Submit(

@@ -235,7 +235,7 @@ struct _StaticThreadPoolSchedule final {
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
         auto* previous = Scheduler::Context::Switch(context_.get());
-        adapted_->Fail(std::move(error));
+        adapted_->Fail(std::forward<Error>(error));
         previous = Scheduler::Context::Switch(previous);
         CHECK_EQ(previous, context_.get());
       } else {
@@ -244,7 +244,7 @@ struct _StaticThreadPoolSchedule final {
         using Tuple = std::tuple<decltype(this), Error>;
         auto tuple = std::make_unique<Tuple>(
             this,
-            std::move(error));
+            std::forward<Error>(error));
 
         EVENTUALS_LOG(1)
             << "Schedule submitting '" << context_->name() << "'";

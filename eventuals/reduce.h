@@ -22,7 +22,7 @@ struct _Reduce final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      k_.Fail(std::move(error));
+      k_.Fail(std::forward<Error>(error));
     }
 
     void Stop() {
@@ -53,7 +53,7 @@ struct _Reduce final {
     template <typename Error>
     void Fail(Error&& error) {
       // TODO(benh): do we need to stop via the adaptor?
-      k_.Fail(std::move(error));
+      k_.Fail(std::forward<Error>(error));
     }
 
     void Stop() {

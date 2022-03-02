@@ -21,7 +21,7 @@ struct _Map final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      k_.Fail(std::move(error));
+      k_.Fail(std::forward<Error>(error));
     }
 
     void Stop() {
@@ -48,7 +48,7 @@ struct _Map final {
     template <typename Error>
     void Fail(Error&& error) {
       // TODO(benh): do we need to fail via the adaptor?
-      k_.Fail(std::move(error));
+      k_.Fail(std::forward<Error>(error));
     }
 
     void Stop() {

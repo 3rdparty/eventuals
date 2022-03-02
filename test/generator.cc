@@ -228,7 +228,7 @@ TEST(Generator, FailStream) {
               })
               .fail([&](auto& k, auto&& error) {
                 functions.fail.Call();
-                k.Fail(std::move(error));
+                k.Fail(std::forward<decltype(error)>(error));
               })
               .stop([&](auto& k) {
                 functions.stop.Call();
