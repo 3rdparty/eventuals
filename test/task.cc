@@ -45,6 +45,7 @@ TEST(Task, Succeed) {
         42,
         "hello world",
         [](auto i, auto s) {
+          EXPECT_EQ(s, "hello world");
           return Just(i);
         });
   };
@@ -93,7 +94,7 @@ TEST(Task, FailOnCallback) {
   EXPECT_CALL(functions.start, Call())
       .Times(0);
 
-  auto e = [&]() -> Task::Of<int> {
+  auto e = [&]() -> Task::Of<int>::Raises<std::runtime_error> {
     return [&]() {
       return Eventual<int>()
                  .raises<std::runtime_error>()
@@ -120,6 +121,11 @@ TEST(Task, FailOnCallback) {
     };
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
   EXPECT_THROW_WHAT(*e(), "error from start");
 }
 
@@ -129,7 +135,7 @@ TEST(Task, FailTerminated) {
   EXPECT_CALL(fail, Call())
       .Times(1);
 
-  auto e = [&]() -> Task::Of<int> {
+  auto e = [&]() -> Task::Of<int>::Raises<std::runtime_error> {
     return [&]() {
       return Eventual<int>()
                  .raises<std::runtime_error>()
@@ -143,6 +149,11 @@ TEST(Task, FailTerminated) {
           | Then([](int x) { return x + 1; });
     };
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   auto [future, k] = Terminate(e());
   k.Fail(std::runtime_error("error"));
@@ -234,7 +245,12 @@ TEST(Task, FailContinuation) {
     };
   };
 
-  std::optional<Task::Of<int>> task;
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
+  std::optional<Task::Of<int>::Raises<std::runtime_error>> task;
 
   task.emplace(e());
 
@@ -254,6 +270,13 @@ TEST(Task, FailContinuation) {
       []() {
         FAIL() << "test should not have stopped";
       });
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          std::decay_t<decltype(task.value())>::ErrorsFrom<
+              void,
+              std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   EXPECT_THROW_WHAT(std::rethrow_exception(result), "error");
 }
@@ -345,6 +368,11 @@ TEST(Task, FromToFail) {
            });
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
   EXPECT_THROW_WHAT(*e(), "error");
 }
 
@@ -391,26 +419,31 @@ TEST(Task, Success) {
 }
 
 TEST(Task, Failure) {
-  auto e = []() -> Task::Of<std::string> {
+  auto e = []() -> Task::Of<std::string>::Raises<std::runtime_error> {
     return Task::Failure("error");
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   EXPECT_THROW_WHAT(*e(), "error");
 }
 
 TEST(Task, Inheritance) {
   struct Base {
-    virtual Task::Of<int> GetTask() = 0;
+    virtual Task::Of<int>::Raises<std::runtime_error> GetTask() = 0;
   };
 
   struct Sync : public Base {
-    Task::Of<int> GetTask() override {
-      return Task::Success(10);
+    Task::Of<int>::Raises<std::runtime_error> GetTask() override {
+      return Task::Success<int>(10);
     }
   };
 
   struct Async : public Base {
-    Task::Of<int> GetTask() override {
+    Task::Of<int>::Raises<std::runtime_error> GetTask() override {
       return []() {
         return Just(20);
       };
@@ -418,7 +451,7 @@ TEST(Task, Inheritance) {
   };
 
   struct Failure : public Base {
-    Task::Of<int> GetTask() override {
+    Task::Of<int>::Raises<std::runtime_error> GetTask() override {
       return Task::Failure("error");
     }
   };
@@ -443,6 +476,21 @@ TEST(Task, Inheritance) {
     return f()
         | Failure().GetTask();
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(sync())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(async())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(failure())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   EXPECT_EQ(*sync(), 10);
   EXPECT_EQ(*async(), 20);
@@ -533,4 +581,27 @@ TEST(Task, RefSuccess) {
   *e1();
 
   EXPECT_EQ(110, x);
+}
+
+TEST(Task, RaisesWith) {
+  auto e = []() {
+    return Task::Of<int>::Raises<std::runtime_error>::With<int, std::string>(
+        42,
+        "hello world",
+        [](auto i, auto s) {
+          EXPECT_EQ(s, "hello world");
+          return Eventual<int>()
+              .raises<std::runtime_error>()
+              .start([i = i](auto& k) {
+                return k.Start(i);
+              });
+        });
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
+  EXPECT_EQ(42, *e());
 }

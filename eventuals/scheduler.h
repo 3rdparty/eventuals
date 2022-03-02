@@ -469,10 +469,8 @@ struct _Preempt final {
     template <typename Arg>
     using ValueFrom = typename E_::template ValueFrom<Arg>;
 
-    // Temporary solution, until 'ErrorsFrom' isn't added to 'Task'.
     template <typename Arg, typename Errors>
-    //using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
-    using ErrorsFrom = std::tuple<>;
+    using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
     template <typename Arg, typename K>
     auto k(K k) && {

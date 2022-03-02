@@ -260,6 +260,9 @@ struct _DoAll final {
             std::monostate,
             typename Eventuals_::template ValueFrom<void>>...>;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = std::tuple<>;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, Eventuals_...>(

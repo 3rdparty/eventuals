@@ -216,6 +216,7 @@ struct _TaskFromToWith final {
       typename K_,
       typename From_,
       typename To_,
+      typename Errors_,
       typename... Args_>
   struct Continuation final {
     Continuation(
@@ -296,8 +297,8 @@ struct _TaskFromToWith final {
                 [this](auto&&... args) {
                   k_.Start(std::forward<decltype(args)>(args)...);
                 },
-                [this](std::exception_ptr e) {
-                  k_.Fail(std::move(e));
+                [this](std::exception_ptr error) {
+                  k_.Fail(std::move(error));
                 },
                 [this]() {
                   k_.Stop();
@@ -329,10 +330,14 @@ struct _TaskFromToWith final {
   template <
       typename From_,
       typename To_,
+      typename Errors_,
       typename... Args_>
   struct Composable final {
     template <typename>
     using ValueFrom = To_;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
 
     Composable(MonostateIfVoidOrReferenceWrapperOr<To_> value)
       : value_or_dispatch_(std::move(value)) {}
@@ -358,6 +363,12 @@ struct _TaskFromToWith final {
       using E = decltype(std::apply(f, args_));
 
       using Value = typename E::template ValueFrom<From_>;
+
+      using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
+
+      static_assert(
+          eventuals::tuple_types_subset_v<ErrorsFromE, Errors_>,
+          "Specified errors can't be raised within 'Task'");
 
       static_assert(
           std::disjunction_v<
@@ -418,9 +429,22 @@ struct _TaskFromToWith final {
       };
     }
 
+    Composable(
+        std::optional<
+            std::variant<
+                MonostateIfVoidOrReferenceWrapperOr<To_>,
+                DispatchCallback<From_, To_, Args_...>>>&& value_or_dispatch,
+        std::tuple<Args_...>&& args)
+      : value_or_dispatch_(std::move(value_or_dispatch)),
+        args_(std::move(args)) {}
+
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, From_, To_, Args_...>(
+      static_assert(
+          !std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
+          "'Task' 'From' or 'To' type is not specified");
+
+      return Continuation<K, From_, To_, Errors_, Args_...>(
           std::move(k),
           std::move(args_),
           std::move(value_or_dispatch_.value()));
@@ -442,34 +466,75 @@ struct _TaskFromToWith final {
 ////////////////////////////////////////////////////////////////////////
 
 // A task can act BOTH as a composable or a continuation that can be
-// started via 'TaskFromToWith::Start()'. If used as a continuation
+// started via '_Task::Start()'. If used as a continuation
 // then it can't be moved after starting, just like all other
 // continuations.
 template <
     typename From_,
     typename To_,
+    typename Errors_,
     typename... Args_>
-class TaskFromToWith {
+class _Task final {
  public:
   template <typename Arg>
   using ValueFrom = To_;
 
-  TaskFromToWith(MonostateIfVoidOrReferenceWrapperOr<To_> value)
-    : e_(std::move(value)) {}
+  template <typename Arg, typename Errors>
+  using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
+
+  template <typename T>
+  using From = std::enable_if_t<
+      IsUndefined<From_>::value,
+      _Task<T, To_, Errors_, Args_...>>;
+
+  template <typename T>
+  using To = std::enable_if_t<
+      IsUndefined<To_>::value,
+      _Task<From_, T, Errors_, Args_...>>;
+
+  template <typename... Errors>
+  using Raises = std::enable_if_t<
+      std::tuple_size_v<Errors_> == 0,
+      _Task<From_, To_, std::tuple<Errors...>, Args_...>>;
+
+  template <typename... Args>
+  using With = std::enable_if_t<
+      sizeof...(Args_) == 0,
+      _Task<From_, To_, Errors_, Args...>>;
+
+  template <typename T>
+  using Of = std::enable_if_t<
+      std::conjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
+      _Task<void, T, Errors_, Args_...>>;
 
   template <typename F>
-  TaskFromToWith(Args_... args, F f)
+  _Task(Args_... args, F f)
     : e_(std::move(args)..., std::move(f)) {}
 
-  TaskFromToWith(TaskFromToWith&& that)
+  _Task(MonostateIfVoidOrReferenceWrapperOr<To_> value)
+    : e_(std::move(value)) {}
+
+  template <
+      typename E,
+      std::enable_if_t<tuple_types_subset_v<E, Errors_>, int> = 0>
+  _Task(_Task<From_, To_, E, Args_...>&& that)
+    : e_(std::move(that.e_.value_or_dispatch_), std::move(that.e_.args_)) {
+    CHECK(!k_.has_value()) << "moving after starting";
+  }
+
+  _Task(_Task&& that)
     : e_(std::move(that.e_)) {
     CHECK(!k_.has_value()) << "moving after starting";
   }
 
-  virtual ~TaskFromToWith() = default;
+  ~_Task() = default;
 
   template <typename Arg, typename K>
   auto k(K k) && {
+    static_assert(
+        !std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
+        "'Task' 'From' or 'To' type is not specified");
+
     return std::move(e_).template k<Arg>(std::move(k));
   }
 
@@ -493,9 +558,9 @@ class TaskFromToWith {
     k_->Start();
   }
 
-  template <typename Arg>
+  template <typename Error>
   void Fail(
-      Arg&& arg,
+      Error&& error,
       Interrupt& interrupt,
       std::conditional_t<
           std::is_void_v<To_>,
@@ -503,6 +568,19 @@ class TaskFromToWith {
           Callback<To_>&&> start,
       Callback<std::exception_ptr>&& fail,
       Callback<>&& stop) {
+    static_assert(
+        std::disjunction_v<
+            std::is_same<std::exception_ptr, std::decay_t<Error>>,
+            std::is_base_of<std::exception, std::decay_t<Error>>>,
+        "Expecting a type derived from std::exception ");
+
+    static_assert(
+        std::disjunction_v<
+            std::is_same<std::exception_ptr, std::decay_t<Error>>,
+            tuple_types_contains<std::exception, Errors_>,
+            tuple_types_contains<std::decay_t<Error>, Errors_>>,
+        "Error is not specified in 'Raises'");
+
     k_.emplace(Build(
         std::move(e_)
         | Terminal()
@@ -512,7 +590,7 @@ class TaskFromToWith {
 
     k_->Register(interrupt);
 
-    k_->Fail(std::forward<Arg>(arg));
+    k_->Fail(std::forward<Error>(error));
   }
 
   void Stop(
@@ -544,83 +622,29 @@ class TaskFromToWith {
     return future.get();
   }
 
- private:
-  _TaskFromToWith::Composable<From_, To_, Args_...> e_;
-
-  // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
-  // a composable but also a continuation which has a terminal made up
-  // of the callbacks passed to 'Task::Start()'.
-  using K_ = decltype(Build(
-      std::move(e_)
-      | Terminal()
-            .start(std::declval<
-                   std::conditional_t<
-                       std::is_void_v<To_>,
-                       Callback<>&&,
-                       Callback<To_>&&>>())
-            .fail(std::declval<Callback<std::exception_ptr>&&>())
-            .stop(std::declval<Callback<>&&>())));
-
-  // NOTE: we store 'k_' as the _last_ member so it will be
-  // destructed _first_ and thus we won't have any use-after-delete
-  // issues during destruction of 'k_' if it holds any references or
-  // pointers to any (or within any) of the above members.
-  std::optional<K_> k_;
-};
-
-////////////////////////////////////////////////////////////////////////
-
-struct Task final {
-  template <typename From_>
-  struct From final : public TaskFromToWith<From_, void> {
-    template <typename To_>
-    struct To final : public TaskFromToWith<From_, To_> {
-      template <typename... Args_>
-      using With = TaskFromToWith<From_, To_, Args_...>;
-
-      To(MonostateIfVoidOr<To_> value)
-        : TaskFromToWith<From_, To_>(std::move(value)) {}
-
-      template <typename F>
-      To(F f)
-        : TaskFromToWith<From_, To_>(std::move(f)) {}
-
-      To(To&& that) = default;
-
-      ~To() override = default;
-    };
-
-    template <typename... Args_>
-    using With = TaskFromToWith<From_, void, Args_...>;
-
-    template <typename F>
-    From(F f)
-      : TaskFromToWith<From_, void>(std::move(f)) {}
-
-    From(From&& that) = default;
-
-    ~From() override = default;
-  };
-
-  template <typename To_>
-  using Of = From<void>::To<To_>;
-
-  template <typename... Args_>
-  using With = From<void>::To<void>::With<Args_...>;
-
   // Helpers for synchronous tasks.
+
   template <typename Value>
   static auto Success(Value value) {
-    return TaskFromToWith<void, Value>(std::move(value));
+    return _Task<
+        void,
+        Value,
+        std::tuple<>>(std::move(value));
   }
 
   template <typename Value>
   static auto Success(std::reference_wrapper<Value> value) {
-    return TaskFromToWith<void, Value&>(std::move(value));
+    return _Task<
+        void,
+        Value&,
+        std::tuple<>>(std::move(value));
   }
 
   static auto Success() {
-    return TaskFromToWith<void, void>(std::monostate{});
+    return _Task<
+        void,
+        void,
+        std::tuple<>>(std::monostate{});
   }
 
   template <typename Error>
@@ -653,7 +677,44 @@ struct Task final {
   static auto Failure(const char* s) {
     return Failure(std::runtime_error(s));
   }
+
+ private:
+  // To make possible constructing from another '_Task' with
+  // the different 'std::tuple' of error types.
+  template <typename, typename, typename, typename...>
+  friend class _Task;
+
+  std::conditional_t<
+      std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
+      decltype(Eventual<Undefined>()),
+      _TaskFromToWith::Composable<From_, To_, Errors_, Args_...>>
+      e_;
+
+  // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
+  // a composable but also a continuation which has a terminal made up
+  // of the callbacks passed to 'Task::Start()'.
+  using K_ = std::conditional_t<
+      std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
+      Undefined,
+      decltype(Build(
+          std::move(e_)
+          | Terminal()
+                .start(std::declval<
+                       std::conditional_t<
+                           std::is_void_v<To_>,
+                           Callback<>&&,
+                           Callback<To_>&&>>())
+                .fail(std::declval<Callback<std::exception_ptr>&&>())
+                .stop(std::declval<Callback<>&&>())))>;
+
+  // NOTE: we store 'k_' as the _last_ member so it will be
+  // destructed _first_ and thus we won't have any use-after-delete
+  // issues during destruction of 'k_' if it holds any references or
+  // pointers to any (or within any) of the above members.
+  std::optional<K_> k_;
 };
+
+using Task = _Task<Undefined, Undefined, std::tuple<>>;
 
 ////////////////////////////////////////////////////////////////////////
 
