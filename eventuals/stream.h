@@ -55,7 +55,7 @@ struct _Stream final {
     void Fail(Error&& error) {
       stream_->previous_->Continue(
           [&]() {
-            k_->Fail(std::move(error));
+            k_->Fail(std::forward<Error>(error));
           },
           [&]() {
             // TODO(benh): avoid allocating on heap by storing args in
@@ -63,7 +63,7 @@ struct _Stream final {
             using Tuple = std::tuple<decltype(k_), Error>;
             auto tuple = std::make_unique<Tuple>(
                 k_,
-                std::move(error));
+                std::forward<Error>(error));
 
             return [tuple = std::move(tuple)]() mutable {
               std::apply(
@@ -190,11 +190,11 @@ struct _Stream final {
     template <typename Error>
     void Fail(Error&& error) {
       if constexpr (IsUndefined<Fail_>::value) {
-        k_.Fail(std::move(error));
+        k_.Fail(std::forward<Error>(error));
       } else if constexpr (IsUndefined<Context_>::value) {
-        fail_(k_, std::move(error));
+        fail_(k_, std::forward<Error>(error));
       } else {
-        fail_(context_, k_, std::move(error));
+        fail_(context_, k_, std::forward<Error>(error));
       }
     }
 

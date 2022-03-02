@@ -42,7 +42,7 @@ struct HeapTransformer final {
     void Fail(Error&& error) {
       (*fail_)(
           make_exception_ptr_or_forward(
-              std::move(error)));
+              std::forward<Error>(error)));
     }
 
     void Stop() {
@@ -159,7 +159,7 @@ struct _TransformerFromTo final {
     template <typename Error>
     void Fail(Error&& error) {
       auto exception = make_exception_ptr_or_forward(
-          std::move(error));
+          std::forward<Error>(error));
 
       Dispatch(Action::Fail, std::nullopt, std::move(exception));
     }

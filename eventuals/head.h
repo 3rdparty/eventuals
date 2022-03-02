@@ -21,7 +21,7 @@ struct _Head final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      k_.Fail(std::move(error));
+      k_.Fail(std::forward<Error>(error));
     }
 
     void Stop() {

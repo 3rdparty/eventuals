@@ -45,9 +45,9 @@ struct _Terminal final {
             << " but undefined";
       } else {
         if constexpr (IsUndefined<Context_>::value) {
-          fail_(std::move(error));
+          fail_(std::forward<Error>(error));
         } else {
-          fail_(context_, std::move(error));
+          fail_(context_, std::forward<Error>(error));
         }
       }
     }

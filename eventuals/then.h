@@ -40,7 +40,7 @@ struct _Then final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      k_.Fail(std::move(error));
+      k_.Fail(std::forward<Error>(error));
     }
 
     void Stop() {
@@ -123,7 +123,7 @@ struct _Then::Continuation<K_, F_, Arg_, false> final {
 
   template <typename Error>
   void Fail(Error&& error) {
-    k_.Fail(std::move(error));
+    k_.Fail(std::forward<Error>(error));
   }
 
   void Stop() {
@@ -165,7 +165,7 @@ struct _Then::Continuation<K_, F_, Arg_, true> final {
 
   template <typename Error>
   void Fail(Error&& error) {
-    k_.Fail(std::move(error));
+    k_.Fail(std::forward<Error>(error));
   }
 
   void Stop() {

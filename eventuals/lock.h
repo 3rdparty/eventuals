@@ -204,7 +204,7 @@ struct _Acquire final {
         using Tuple = std::tuple<decltype(this), Error>;
         auto tuple = std::make_unique<Tuple>(
             this,
-            std::move(error));
+            std::forward<Error>(error));
 
         waiter_.f = [tuple = std::move(tuple)]() mutable {
           auto* acquire = std::get<0>(*tuple);
@@ -407,7 +407,7 @@ struct _Release final {
     void Fail(Error&& error) {
       CHECK(!lock_->Available());
       lock_->Release();
-      k_.Fail(std::move(error));
+      k_.Fail(std::forward<Error>(error));
     }
 
     void Stop() {
@@ -542,7 +542,7 @@ struct _Wait final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      k_.Fail(std::move(error));
+      k_.Fail(std::forward<Error>(error));
     }
 
     void Stop() {
