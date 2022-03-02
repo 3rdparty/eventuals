@@ -339,6 +339,11 @@ TEST(Generator, TaskWithGenerator) {
     };
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(task())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
   EXPECT_THAT(*task(), ElementsAre(1, 2, 3));
 }
 
