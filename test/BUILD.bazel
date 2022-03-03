@@ -49,6 +49,9 @@ cc_library(
         "//:eventuals",
         "@com_github_google_googletest//:gtest",
     ],
+    # Setting it to False or leaving it absent will prevent concurrent
+    # tests from running on Windows.
+    alwayslink = True,
 )
 
 cc_test(
