@@ -77,8 +77,8 @@ jobs:
             --spawn_strategy=local \
             -c dbg \
             --strip="never" \
-            --remote_cache=$GOOGLE_REMOTE_CACHE \
-            --google_credentials=$GOOGLE_APPLICATION_CREDENTIALS
+            --remote_cache=https://storage.googleapis.com/reboot-dev-eventuals-remote-cache \
+            --google_credentials=/tmp/service_account_credentials.json \
             :eventuals
 
       - name: Test
@@ -94,6 +94,6 @@ jobs:
             --test_arg=--gtest_shuffle \
             --test_arg=--gtest_repeat=100
 
-      - name: Debug using tmate (if failure)
-        if: ${{ failure() }}
-        uses: mxschmitt/action-tmate@v3
+#      - name: Debug using tmate (if failure)
+#        if: ${{ failure() }}
+#        uses: mxschmitt/action-tmate@v3
