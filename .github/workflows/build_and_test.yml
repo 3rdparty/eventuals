@@ -47,7 +47,7 @@ jobs:
         shell: bash
 
     env:
-      GOOGLE_APPLICATION_CREDENTIALS: /tmp/service_account_credentials.json
+      GOOGLE_APPLICATION_CREDENTIALS: service_account_credentials.json
       GOOGLE_REMOTE_CACHE: https://storage.googleapis.com/reboot-dev-eventuals-remote-cache
 
     steps:
@@ -62,8 +62,8 @@ jobs:
           name: "service_account_credentials.json"
           json: ${{ secrets.GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS }}
 
-      - name: Set up remote cache credentials (2)
-        run: mv ./service_account_credentials.json $GOOGLE_APPLICATION_CREDENTIALS
+#      - name: Set up remote cache credentials (2)
+#        run: mv ./service_account_credentials.json $GOOGLE_APPLICATION_CREDENTIALS
 
       # Install Dazel, so that we use the same build tooling in our Actions as
       # we do on our workstations.
@@ -77,8 +77,8 @@ jobs:
             --spawn_strategy=local \
             -c dbg \
             --strip="never" \
-            --remote_cache=https://storage.googleapis.com/reboot-dev-eventuals-remote-cache \
-            --google_credentials=/tmp/service_account_credentials.json \
+            --remote_cache=$GOOGLE_REMOTE_CACHE \
+            --google_credentials=$GOOGLE_APPLICATION_CREDENTIALS \
             :eventuals
 
       - name: Test
