@@ -14,17 +14,17 @@ using eventuals::Unexpected;
 TEST(Expected, Construct) {
   Expected::Of<std::string> s = "hello world";
 
-  ASSERT_TRUE(s);
+  ASSERT_TRUE(s.has_value());
   EXPECT_EQ("hello world", *s);
 
   s = Expected::Of<std::string>(s);
 
-  ASSERT_TRUE(s);
+  ASSERT_TRUE(s.has_value());
   EXPECT_EQ("hello world", *s);
 
   s = Expected::Of<std::string>(std::move(s));
 
-  ASSERT_TRUE(s);
+  ASSERT_TRUE(s.has_value());
   EXPECT_EQ("hello world", *s);
 }
 
