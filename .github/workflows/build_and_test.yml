@@ -10,6 +10,7 @@ on:
   push:
     branches:
       - "main"
+      - "bulat.add-remote-cache"
     paths-ignore:
       - "**.md"
   pull_request:
