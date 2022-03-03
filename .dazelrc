@@ -1,0 +1,7 @@
+#!/usr/bin/env python
+# This configuration file is effectively a python module loaded by dazel
+import os.path
+
+DAZEL_ENV_VARS=["GOOGLE_APPLICATION_CREDENTIALS=/tmp/service_account_credentials.json"]
+DAZEL_VOLUMES=["/tmp:/tmp"]
+
