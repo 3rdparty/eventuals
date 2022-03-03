@@ -82,7 +82,7 @@ class _Expected {
           int> = 0>
   _Expected(_Expected<T, Errors> that)
     : variant_([&]() {
-        if (that.variant_.index() == 0) {
+        if (that.has_value()) {
           return std::variant<Value_, std::exception_ptr>(
               std::get<0>(std::move(that.variant_)));
         } else {
@@ -131,12 +131,16 @@ class _Expected {
         .template k<Value_>(std::move(k));
   }
 
-  explicit operator bool() const {
+  bool has_value() const {
     return variant_.index() == 0;
   }
 
+  explicit operator bool() const {
+    return has_value();
+  }
+
   Value_* operator->() {
-    if (*this) {
+    if (has_value()) {
       return &std::get<0>(variant_);
     } else {
       std::rethrow_exception(std::get<1>(variant_));
@@ -144,7 +148,7 @@ class _Expected {
   }
 
   Value_& operator*() {
-    if (*this) {
+    if (has_value()) {
       return std::get<0>(variant_);
     } else {
       std::rethrow_exception(std::get<1>(variant_));
