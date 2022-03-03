@@ -24,23 +24,23 @@ jobs:
     strategy:
       matrix:
         include:
-#          - os: macos-latest
-#            sudo-command: "sudo"
-#            # The macos runner doesn't have `docker` installed, so can't run
-#            # `dazel`. Fall back to `bazel`.
-#            bazel-command: "bazel"
-#            bazel-config: ""
+          - os: macos-latest
+            sudo-command: "sudo"
+            # The macos runner doesn't have `docker` installed, so can't run
+            # `dazel`. Fall back to `bazel`.
+            bazel-command: "bazel"
+            bazel-config: ""
           - os: ubuntu-latest
             sudo-command: "sudo"
             bazel-command: "dazel"
             bazel-config: "--config=asan"
-#          - os: windows-2019
-#            sudo-command: "" # The Windows runner already runs as root.
-#            # Our `dazel` container is based on `ubuntu:latest`, which doesn't
-#            # support running on the `windows/amd64` platform. Fall back to
-#            # `bazel`.
-#            bazel-command: "bazel"
-#            bazel-config: ""
+          - os: windows-2019
+            sudo-command: "" # The Windows runner already runs as root.
+            # Our `dazel` container is based on `ubuntu:latest`, which doesn't
+            # support running on the `windows/amd64` platform. Fall back to
+            # `bazel`.
+            bazel-command: "bazel"
+            bazel-config: ""
 
     defaults:
       run:
@@ -59,11 +59,8 @@ jobs:
       - name: Set up remote cache credentials (1)
         uses: jsdaniell/create-json@1.1.2
         with:
-          name: "service_account_credentials.json"
+          name: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
           json: ${{ secrets.GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS }}
-
-#      - name: Set up remote cache credentials (2)
-#        run: mv ./service_account_credentials.json $GOOGLE_APPLICATION_CREDENTIALS
 
       # Install Dazel, so that we use the same build tooling in our Actions as
       # we do on our workstations.
