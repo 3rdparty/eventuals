@@ -46,7 +46,9 @@ TEST(DoAllTest, Succeed) {
 TEST(DoAllTest, Fail) {
   auto e = []() {
     return DoAll(
-        Eventual<void>([](auto& k) { k.Fail(std::runtime_error("error")); }),
+        Eventual<void>()
+            .raises<std::runtime_error>()
+            .start([](auto& k) { k.Fail(std::runtime_error("error")); }),
         Eventual<int>([](auto& k) { k.Start(42); }),
         Eventual<std::string>([](auto& k) { k.Start(std::string("hello")); }),
         Eventual<void>([](auto& k) { k.Start(); }));

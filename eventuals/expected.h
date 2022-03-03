@@ -4,6 +4,7 @@
 
 #include "eventuals/eventual.h"
 #include "eventuals/terminal.h"
+#include "eventuals/type-traits.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -26,53 +27,92 @@ Overloaded(Fs...) -> Overloaded<Fs...>;
 
 ////////////////////////////////////////////////////////////////////////
 
-// Tag type to identify the result of 'Unexpected(...)'.
+// Helper type to represent an 'Unexpected(...)'.
+template <typename Error_>
 struct _Unexpected final {
-  _Unexpected() = delete;
+  _Unexpected(Error_ error)
+    : error(std::move(error)) {}
+
+  Error_ error;
 };
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Value_>
-class _Expected final {
+template <typename Value_, typename Errors_ = std::tuple<std::exception>>
+class _Expected {
  public:
-  // Providing 'ValueFrom' in order to compose with other eventuals.
+  static_assert(
+      !tuple_types_contains_v<Value_, Errors_>,
+      "'Expected::Of' value and raised errors must be disjoint");
+
+  // Providing 'ValueFrom' and 'ErrorsFrom' to compose with eventuals.
   template <typename Arg>
   using ValueFrom = Value_;
 
-  // NOTE: providing a default constructor so this type can be used as
-  // a type parameter to 'std::promise' which fails on MSVC (see
-  // https://stackoverflow.com/questions/28991694 which also ran into
-  // this issue; very surprised this hasn't been fixed, apparently
-  // there aren't many users of 'std::promise' on Windows).
+  template <typename Arg, typename Errors>
+  using ErrorsFrom = tuple_types_union_t<Errors_, Errors>;
+
+#if _WIN32
+  // NOTE: default constructor should not exist or be used but is
+  // necessary on Windows so this type can be used as a type parameter
+  // to 'std::promise', see: https://bit.ly/VisualStudioStdPromiseBug
   _Expected() {}
+#else
+  _Expected() = delete;
+#endif
 
   template <
       typename T,
-      std::enable_if_t<
-          std::is_convertible_v<T, Value_>,
-          int> = 0>
+      std::enable_if_t<std::is_convertible_v<T, Value_>, int> = 0>
   _Expected(T&& t)
-    : variant_(std::forward<T>(t)) {}
+    : variant_(Value_(std::forward<T>(t))) {}
 
-  _Expected(std::exception_ptr exception)
-    : variant_(std::move(exception)) {}
+  _Expected(std::exception_ptr error)
+    : variant_(std::move(error)) {}
+
+  template <
+      typename T,
+      typename Errors,
+      std::enable_if_t<
+          std::conjunction_v<
+              std::is_convertible<T, Value_>,
+              std::disjunction<
+                  tuple_types_subset<Errors, Errors_>,
+                  tuple_types_contains<std::exception, Errors_>>>,
+          int> = 0>
+  _Expected(_Expected<T, Errors> that)
+    : variant_([&]() {
+        if (that.variant_.index() == 0) {
+          return std::variant<Value_, std::exception_ptr>(
+              std::get<0>(std::move(that.variant_)));
+        } else {
+          return std::variant<Value_, std::exception_ptr>(
+              std::get<1>(std::move(that.variant_)));
+        }
+      }()) {}
+
+  template <typename Error>
+  _Expected(_Unexpected<Error> unexpected)
+    : variant_([&]() {
+        static_assert(std::is_base_of_v<std::exception, Error>);
+        static_assert(
+            std::disjunction_v<
+                tuple_types_contains<std::exception, Errors_>,
+                tuple_types_contains<Error, Errors_>>,
+            "'Expected::Of::Raises' does not include 'Unexpected(...)' type");
+
+        return make_exception_ptr_or_forward(std::move(unexpected.error));
+      }()) {}
 
   _Expected(_Expected&& that) = default;
   _Expected(_Expected& that) = default;
   _Expected(const _Expected& that) = default;
 
+  virtual ~_Expected() = default;
+
   _Expected& operator=(_Expected&& that) = default;
   _Expected& operator=(_Expected& that) = default;
   _Expected& operator=(const _Expected& that) = default;
-
-  template <typename U>
-  _Expected(_Expected<U>&& that)
-    : variant_(std::move(that).template convert<Value_>()) {}
-
-  template <typename U>
-  _Expected(const _Expected<U>& that)
-    : variant_(that.template convert<Value_>()) {}
 
   // Providing 'k()' in order to compose with other eventuals.
   template <typename Arg, typename K>
@@ -91,7 +131,7 @@ class _Expected final {
         .template k<Value_>(std::move(k));
   }
 
-  operator bool() const {
+  explicit operator bool() const {
     return variant_.index() == 0;
   }
 
@@ -117,49 +157,8 @@ class _Expected final {
   }
 
  private:
-  template <typename U>
+  template <typename, typename>
   friend class _Expected;
-
-  // Helpers that converts to a 'std::variant' of the specified type.
-  template <typename To>
-  std::variant<To, std::exception_ptr> convert() && {
-    static_assert(
-        std::disjunction_v<
-            std::is_same<Value_, _Unexpected>,
-            std::is_convertible<Value_, To>>,
-        "cannot convert 'Expected<T>' to 'Expected<U>' because "
-        "'T' can not be converted to 'U'");
-    if constexpr (std::is_same_v<Value_, _Unexpected>) {
-      CHECK_EQ(1u, variant_.index());
-      return std::get<1>(std::move(variant_));
-    } else {
-      if (variant_.index() == 0) {
-        return To(std::get<0>(std::move(variant_)));
-      } else {
-        return std::get<1>(std::move(variant_));
-      }
-    }
-  }
-
-  template <typename To>
-  std::variant<To, std::exception_ptr> convert() const& {
-    static_assert(
-        std::disjunction_v<
-            std::is_same<Value_, _Unexpected>,
-            std::is_convertible<Value_, To>>,
-        "cannot convert 'Expected<T>' to 'Expected<U>' because "
-        "'T' can not be converted to 'U'");
-    if constexpr (std::is_same_v<Value_, _Unexpected>) {
-      CHECK_EQ(1u, variant_.index());
-      return std::get<1>(variant_);
-    } else {
-      if (variant_.index() == 0) {
-        return To(std::get<0>(variant_));
-      } else {
-        return std::get<1>(variant_);
-      }
-    }
-  }
 
   std::variant<Value_, std::exception_ptr> variant_;
 };
@@ -171,8 +170,17 @@ class _Expected final {
 // 'Expected()' function that can be used inside lambdas with deduced
 // return types to properly construct the correct type.
 struct Expected final {
-  template <typename T>
-  using Of = _Expected<T>;
+  template <typename Value>
+  struct Of final : public _Expected<Value> {
+    template <typename... Errors>
+    using Raises = _Expected<Value, std::tuple<Errors...>>;
+
+    using _Expected<Value>::_Expected;
+
+    ~Of() override = default;
+
+    using _Expected<Value>::operator=;
+  };
 
   // Use 'Expected::Of<T>' instead!
   Expected() = delete;
@@ -180,9 +188,9 @@ struct Expected final {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-auto Expected(T t) {
-  return _Expected<T>(std::move(t));
+template <typename Value>
+auto Expected(Value value) {
+  return _Expected<Value, std::tuple<>>(std::move(value));
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -192,8 +200,7 @@ auto Unexpected(Error error) {
   static_assert(
       std::is_base_of_v<std::exception, std::decay_t<Error>>,
       "Expecting a type derived from std::exception");
-  return _Expected<_Unexpected>(
-      make_exception_ptr_or_forward(std::move(error)));
+  return _Unexpected<Error>(std::move(error));
 }
 
 ////////////////////////////////////////////////////////////////////////

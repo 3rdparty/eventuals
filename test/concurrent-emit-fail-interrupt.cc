@@ -46,10 +46,12 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailInterrupt) {
                })
         | this->ConcurrentOrConcurrentOrdered([&]() {
             return Map(Let([&](int& i) {
-              return Eventual<std::string>([&](auto& k) {
-                k.Fail(std::runtime_error("error"));
-                interrupt.Trigger();
-              });
+              return Eventual<std::string>()
+                  .raises()
+                  .start([&](auto& k) {
+                    k.Fail(std::runtime_error("error"));
+                    interrupt.Trigger();
+                  });
             }));
           })
         | Collect<std::vector<std::string>>();

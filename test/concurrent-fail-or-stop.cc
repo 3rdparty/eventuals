@@ -31,8 +31,9 @@ TYPED_TEST(ConcurrentTypedTest, FailOrStop) {
               int i;
             };
             return Map(Let([&](int& i) {
-              return Eventual<std::string>(
-                  [&, data = Data()](auto& k) mutable {
+              return Eventual<std::string>()
+                  .raises()
+                  .start([&, data = Data()](auto& k) mutable {
                     using K = std::decay_t<decltype(k)>;
                     data.k = &k;
                     data.i = i;

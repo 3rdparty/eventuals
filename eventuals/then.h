@@ -18,6 +18,18 @@ using ValueFromMaybeComposable = typename std::conditional_t<
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename T, typename Arg, typename Errors>
+using ErrorsFromMaybeComposable = typename ErrorsFromComposed<
+    Arg,
+    std::conditional_t<
+        !HasValueFrom<T>::value,
+        decltype(Just()),
+        T>,
+    decltype(Just()),
+    Errors>::Errors;
+
+////////////////////////////////////////////////////////////////////////
+
 struct _Then final {
   template <typename K_>
   struct Adaptor final {
@@ -62,6 +74,15 @@ struct _Then final {
             std::invoke_result<F_>,
             std::invoke_result<F_, Arg>>::type,
         void>;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = ErrorsFromMaybeComposable<
+        typename std::conditional_t<
+            std::is_void_v<Arg>,
+            std::invoke_result<F_>,
+            std::invoke_result<F_, Arg>>::type,
+        void,
+        Errors>;
 
     template <typename Arg, typename K>
     auto k(K k) && {

@@ -19,6 +19,16 @@ class Key final {
  public:
   static auto Builder();
 
+#if _WIN32
+  // NOTE: default constructor should not exist or be used but is
+  // necessary on Windows so this type can be used as a type parameter
+  // to 'std::promise', see: https://bit.ly/VisualStudioStdPromiseBug
+  Key()
+    : key_(nullptr, &EVP_PKEY_free) {}
+#else
+  Key() = delete;
+#endif
+
   Key(std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> key)
     : key_(std::move(key)) {
     CHECK_EQ(CHECK_NOTNULL(key_.get())->type, EVP_PKEY_RSA);
@@ -40,7 +50,9 @@ class Key final {
   }
 
   bool operator==(const Key& that) const {
-    return EVP_PKEY_cmp(key_.get(), that.key_.get());
+    return EVP_PKEY_cmp(
+        CHECK_NOTNULL(key_.get()),
+        CHECK_NOTNULL(that.key_.get()));
   }
 
   bool operator!=(const Key& that) const {
