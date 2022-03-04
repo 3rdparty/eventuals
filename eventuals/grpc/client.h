@@ -59,18 +59,19 @@ class ClientReader {
               if (ok) {
                 EVENTUALS_GRPC_LOG(1)
                     << "Received response for call ("
-                    << data.reader->context_ << ") with "
-                    << "host = " + data.reader->host_.value_or("*") + " with "
-                    << "path = " << data.reader->path_ << " and response =\n"
+                    << data.reader->context_ << ")"
+                    << " with host = " << data.reader->host_.value_or("*")
+                    << " with path = " << data.reader->path_
+                    << " and response =\n"
                     << data.response.DebugString();
 
                 k.Emit(std::move(data.response));
               } else {
                 EVENTUALS_GRPC_LOG(1)
                     << "Received notice of last response (or error) for call ("
-                    << data.reader->context_ << ") with "
-                    << "host = " + data.reader->host_.value_or("*") + " with "
-                    << "path = " << data.reader->path_;
+                    << data.reader->context_ << ")"
+                    << " with host = " << data.reader->host_.value_or("*")
+                    << " with path = " << data.reader->path_;
 
                 // Signify end of stream (or error).
                 k.Ended();
@@ -119,28 +120,31 @@ class ClientWriter {
   auto Write(
       RequestType_ request,
       ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
-    return Eventual<void>(
-        [this,
-         callback = Callback<bool>(),
-         request = std::move(request),
-         options = std::move(options)](auto& k) mutable {
-          callback = [&k](bool ok) mutable {
-            if (ok) {
-              k.Start();
-            } else {
-              k.Fail(std::runtime_error("failed to write"));
-            }
-          };
+    return Eventual<void>()
+        .raises<std::runtime_error>()
+        .start(
+            [this,
+             callback = Callback<bool>(),
+             request = std::move(request),
+             options = std::move(options)](auto& k) mutable {
+              callback = [&k](bool ok) mutable {
+                if (ok) {
+                  k.Start();
+                } else {
+                  k.Fail(std::runtime_error("Failed to write"));
+                }
+              };
 
-          EVENTUALS_GRPC_LOG(1)
-              << "Sending " << (options.is_last_message() ? "(last)" : "")
-              << " request for call (" << context_ << ") with "
-              << "host = " + host_.value_or("*") + " with "
-              << "path = " << path_ << " and request =\n"
-              << request.DebugString();
+              EVENTUALS_GRPC_LOG(1)
+                  << "Sending " << (options.is_last_message() ? "(last)" : "")
+                  << " request for call (" << context_ << ")"
+                  << " with host = " << host_.value_or("*")
+                  << " with path = " << path_
+                  << " and request =\n"
+                  << request.DebugString();
 
-          stream_->Write(request, options, &callback);
-        });
+              stream_->Write(request, options, &callback);
+            });
   }
 
   auto WriteLast(
@@ -212,23 +216,25 @@ class ClientCall {
   // to get a '::grpc::ClientAsyncWriterInterface' from our
   // '::grpc::ClientAsyncReaderWriter'.
   auto WritesDone() {
-    return Eventual<void>(
-        [this, callback = Callback<bool>()](auto& k) mutable {
-          callback = [&k](bool ok) mutable {
-            if (ok) {
-              k.Start();
-            } else {
-              k.Fail(std::runtime_error("failed to do 'WritesDone()'"));
-            }
-          };
+    return Eventual<void>()
+        .raises<std::runtime_error>()
+        .start(
+            [this, callback = Callback<bool>()](auto& k) mutable {
+              callback = [&k](bool ok) mutable {
+                if (ok) {
+                  k.Start();
+                } else {
+                  k.Fail(std::runtime_error("Failed to do 'WritesDone()'"));
+                }
+              };
 
-          EVENTUALS_GRPC_LOG(1)
-              << "Writing done for call (" << context_ << ") with "
-              << "host = " + host_.value_or("*") + " with "
-              << "path = " << path_;
+              EVENTUALS_GRPC_LOG(1)
+                  << "Writing done for call (" << context_ << ")"
+                  << " with host = " << host_.value_or("*")
+                  << " with path = " << path_;
 
-          stream_->WritesDone(&callback);
-        });
+              stream_->WritesDone(&callback);
+            });
   }
 
   auto Finish() {
@@ -237,28 +243,30 @@ class ClientCall {
       void* k = nullptr;
     };
 
-    return Eventual<::grpc::Status>(
-        [this,
-         data = Data{},
-         callback = Callback<bool>()](auto& k, auto&&...) mutable {
-          using K = std::decay_t<decltype(k)>;
-          data.k = &k;
-          callback = [&data](bool ok) {
-            auto& k = *reinterpret_cast<K*>(data.k);
-            if (ok) {
-              k.Start(std::move(data.status));
-            } else {
-              k.Fail(std::runtime_error("failed to finish"));
-            }
-          };
+    return Eventual<::grpc::Status>()
+        .raises<std::runtime_error>()
+        .start(
+            [this,
+             data = Data{},
+             callback = Callback<bool>()](auto& k, auto&&...) mutable {
+              using K = std::decay_t<decltype(k)>;
+              data.k = &k;
+              callback = [&data](bool ok) {
+                auto& k = *reinterpret_cast<K*>(data.k);
+                if (ok) {
+                  k.Start(std::move(data.status));
+                } else {
+                  k.Fail(std::runtime_error("Failed to finish"));
+                }
+              };
 
-          EVENTUALS_GRPC_LOG(1)
-              << "Finishing call (" << context_ << ") with "
-              << "host = " + host_.value_or("*") + " with "
-              << "path = " << path_;
+              EVENTUALS_GRPC_LOG(1)
+                  << "Finishing call (" << context_ << ")"
+                  << " with host = " << host_.value_or("*")
+                  << " with path = " << path_;
 
-          stream_->Finish(&data.status, &callback);
-        });
+              stream_->Finish(&data.status, &callback);
+            });
   }
 
  private:
@@ -352,96 +360,99 @@ class Client {
       void* k = nullptr;
     };
 
-    return Eventual<ClientCall<Request, Response>>(
-        [data = Data{
-             context,
-             std::move(name),
-             std::string(),
-             std::move(host),
-             pool_->Schedule(),
-             ::grpc::TemplatedGenericStub<
-                 RequestType,
-                 ResponseType>(channel_)},
-         callback = Callback<bool>()](auto& k) mutable {
-          const auto* method =
-              google::protobuf::DescriptorPool::generated_pool()
-                  ->FindMethodByName(data.name);
+    return Eventual<ClientCall<Request, Response>>()
+        .template raises<std::runtime_error>()
+        .start(
+            [data = Data{
+                 context,
+                 std::move(name),
+                 std::string(),
+                 std::move(host),
+                 pool_->Schedule(),
+                 ::grpc::TemplatedGenericStub<
+                     RequestType,
+                     ResponseType>(channel_)},
+             callback = Callback<bool>()](auto& k) mutable {
+              const auto* method =
+                  google::protobuf::DescriptorPool::generated_pool()
+                      ->FindMethodByName(data.name);
 
-          if (method == nullptr) {
-            k.Fail(std::runtime_error("method " + data.name + " not found"));
-          } else {
-            auto error = Traits::Validate<Request, Response>(method);
-            if (error) {
-              k.Fail(std::runtime_error(error->message));
-            } else {
-              if (data.host) {
-                data.context->set_authority(data.host.value());
-              }
-
-              data.path = "/" + data.name;
-              size_t index = data.path.find_last_of(".");
-              data.path.replace(index, 1, "/");
-
-              EVENTUALS_GRPC_LOG(1)
-                  << "Preparing call (" << data.context << ") with "
-                  << "host = " + data.host.value_or("*") + " with "
-                  << "path = " << data.path;
-
-              data.stream = data.stub.PrepareCall(
-                  data.context,
-                  data.path,
-                  data.cq.get());
-
-              if (!data.stream) {
-                EVENTUALS_GRPC_LOG(1)
-                    << "Failed to prepare call (" << data.context << ") with "
-                    << "host = " + data.host.value_or("*") + " with "
-                    << "path = " << data.path;
-
-                // TODO(benh): Check status of channel, is this a
-                // redundant check because 'PrepareCall' also does
-                // this?  At the very least we'll probably give a
-                // better error message by checking.
-                k.Fail(std::runtime_error("Failed to prepare call"));
+              if (method == nullptr) {
+                k.Fail(std::runtime_error(
+                    "Method " + data.name + " not found"));
               } else {
-                using K = std::decay_t<decltype(k)>;
-                data.k = &k;
-                callback = [&data](bool ok) {
-                  auto& k = *reinterpret_cast<K*>(data.k);
-                  if (ok) {
-                    EVENTUALS_GRPC_LOG(1)
-                        << "Started call (" << data.context << ") with "
-                        << "host = " + data.host.value_or("*") + " with "
-                        << "path = " << data.path;
-
-                    k.Start(
-                        ClientCall<Request, Response>(
-                            data.path,
-                            data.host,
-                            data.context,
-                            std::move(data.cq),
-                            std::move(data.stub),
-                            std::move(data.stream)));
-                  } else {
-                    EVENTUALS_GRPC_LOG(1)
-                        << "Failed to start call (" << data.context << ") with "
-                        << "host = " + data.host.value_or("*") + " with "
-                        << "path = " << data.path;
-
-                    k.Fail(std::runtime_error("Failed to start call"));
+                auto error = Traits::Validate<Request, Response>(method);
+                if (error) {
+                  k.Fail(std::runtime_error(error->message));
+                } else {
+                  if (data.host) {
+                    data.context->set_authority(data.host.value());
                   }
-                };
 
-                EVENTUALS_GRPC_LOG(1)
-                    << "Starting call (" << data.context << ") with "
-                    << "host = " + data.host.value_or("*") + " with "
-                    << "path = " << data.path;
+                  data.path = "/" + data.name;
+                  size_t index = data.path.find_last_of(".");
+                  data.path.replace(index, 1, "/");
 
-                data.stream->StartCall(&callback);
+                  EVENTUALS_GRPC_LOG(1)
+                      << "Preparing call (" << data.context << ")"
+                      << " with host = " << data.host.value_or("*")
+                      << " with path = " << data.path;
+
+                  data.stream = data.stub.PrepareCall(
+                      data.context,
+                      data.path,
+                      data.cq.get());
+
+                  if (!data.stream) {
+                    EVENTUALS_GRPC_LOG(1)
+                        << "Failed to prepare call (" << data.context << ")"
+                        << " with host = " << data.host.value_or("*")
+                        << " with path = " << data.path;
+
+                    // TODO(benh): Check status of channel, is this a
+                    // redundant check because 'PrepareCall' also does
+                    // this?  At the very least we'll probably give a
+                    // better error message by checking.
+                    k.Fail(std::runtime_error("Failed to prepare call"));
+                  } else {
+                    using K = std::decay_t<decltype(k)>;
+                    data.k = &k;
+                    callback = [&data](bool ok) {
+                      auto& k = *reinterpret_cast<K*>(data.k);
+                      if (ok) {
+                        EVENTUALS_GRPC_LOG(1)
+                            << "Started call (" << data.context << ")"
+                            << " with host = " << data.host.value_or("*")
+                            << " with path = " << data.path;
+
+                        k.Start(
+                            ClientCall<Request, Response>(
+                                data.path,
+                                data.host,
+                                data.context,
+                                std::move(data.cq),
+                                std::move(data.stub),
+                                std::move(data.stream)));
+                      } else {
+                        EVENTUALS_GRPC_LOG(1)
+                            << "Failed to start call (" << data.context << ")"
+                            << " with host = " << data.host.value_or("*")
+                            << " with path = " << data.path;
+
+                        k.Fail(std::runtime_error("Failed to start call"));
+                      }
+                    };
+
+                    EVENTUALS_GRPC_LOG(1)
+                        << "Starting call (" << data.context << ")"
+                        << " with host = " << data.host.value_or("*")
+                        << " with path = " << data.path;
+
+                    data.stream->StartCall(&callback);
+                  }
+                }
               }
-            }
-          }
-        });
+            });
   }
 
   template <typename Service, typename Request, typename Response>

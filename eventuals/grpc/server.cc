@@ -23,6 +23,7 @@ auto Server::RequestCall(
     ServerContext* context,
     ::grpc::ServerCompletionQueue* cq) {
   return Eventual<void>()
+      .raises<std::runtime_error>()
       .context(Callback<bool>())
       // NOTE: 'context' and 'cq' are stored in a 'Closure()' so safe
       // to capture them as references here.
@@ -32,7 +33,7 @@ auto Server::RequestCall(
             if (ok) {
               k.Start();
             } else {
-              k.Fail(ServerStatus::Error("RequestCall !ok"));
+              k.Fail(std::runtime_error("RequestCall !ok"));
             }
           };
         }
@@ -181,16 +182,19 @@ Server::Server(
                                  });
                     })
                         | Loop()
-                        | Catch([this](auto&&...) {
-                            EVENTUALS_GRPC_LOG(1)
-                                << "Failed to accept a call; shutting down";
+                        | Catch()
+                              .raised<std::exception>(
+                                  [this](std::exception&& e) {
+                                    EVENTUALS_GRPC_LOG(1)
+                                        << "Failed to accept a call: "
+                                        << e.what() << "; shutting down";
 
-                            // TODO(benh): refactor so we only call
-                            // 'ShutdownEndpoints()' once on server
-                            // shutdown, not for each worker (which
-                            // should be harmless but unnecessary).
-                            return ShutdownEndpoints();
-                          }));
+                                    // TODO(benh): refactor so we only call
+                                    // 'ShutdownEndpoints()' once on server
+                                    // shutdown, not for each worker (which
+                                    // should be harmless but unnecessary).
+                                    return ShutdownEndpoints();
+                                  }));
               });
         });
 
