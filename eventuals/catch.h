@@ -17,16 +17,8 @@ namespace eventuals {
 struct _Catch final {
   template <typename K_, typename Error_, typename F_>
   struct Handler final {
-    using Error = Error_;
-
     Handler(F_ f)
       : f_(std::move(f)) {}
-
-    // Helper to convert a catch handler to a new 'K'.
-    template <typename K>
-    auto Convert() && {
-      return Handler<K, Error_, F_>{std::move(f_)};
-    }
 
     template <typename E>
     void Handle(K_&& k, Interrupt* interrupt, E&& e) {
@@ -66,7 +58,7 @@ struct _Catch final {
         // Catch by reference because if 'Error_' is a polymorphic
         // type it can't be caught by value.
         catch (Error_& error) {
-          Handle(std::move(k), interrupt, std::forward<Error>(error));
+          Handle(std::move(k), interrupt, std::move(error));
           return true;
         } catch (...) {
           return false;
@@ -84,6 +76,24 @@ struct _Catch final {
         decltype(Then(std::move(f_)).template k<Error_>(std::declval<K_>()));
 
     std::optional<Adapted_> adapted_;
+  };
+
+  // Helper used by the 'Builder' below so that the compiler doesn't
+  // try and use 'Undefined' as 'K_' for things like 'Adapted_' above
+  // which will cause compilation errors because 'Undefined' is not a
+  // valid continuation!
+  template <typename Error_, typename F_>
+  struct Handler<Undefined, Error_, F_> final {
+    Handler(F_ f)
+      : f_(std::move(f)) {}
+
+    // Helper to convert a catch handler to a new 'K'.
+    template <typename K>
+    auto Convert() && {
+      return Handler<K, Error_, F_>{std::move(f_)};
+    }
+
+    F_ f_;
   };
 
   ////////////////////////////////////////////////////////////////////////

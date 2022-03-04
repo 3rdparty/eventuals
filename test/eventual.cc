@@ -6,6 +6,7 @@
 
 #include "eventuals/catch.h"
 #include "eventuals/just.h"
+#include "eventuals/let.h"
 #include "eventuals/raise.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
@@ -18,6 +19,7 @@ using eventuals::Catch;
 using eventuals::Eventual;
 using eventuals::Interrupt;
 using eventuals::Just;
+using eventuals::Let;
 using eventuals::Raise;
 using eventuals::Terminal;
 using eventuals::Terminate;
@@ -255,6 +257,28 @@ TEST(EventualTest, Catch) {
 }
 
 
+TEST(EventualTest, CatchVoid) {
+  auto e = []() {
+    return Just()
+        | Raise("error")
+        | Catch(Let([](auto& error) {
+             return Then([&]() {
+               try {
+                 std::rethrow_exception(error);
+               } catch (const std::runtime_error& error) {
+                 EXPECT_STREQ(error.what(), "error");
+               }
+             });
+           }))
+        | Then([]() {
+             return 42;
+           });
+  };
+
+  EXPECT_EQ(42, *e());
+}
+
+
 TEST(EventualTest, Then) {
   auto e = []() {
     return Just(20)
@@ -268,6 +292,7 @@ TEST(EventualTest, Then) {
 
   EXPECT_EQ(42, *e());
 }
+
 
 TEST(EventualTest, ConstRef) {
   int x = 10;
@@ -290,6 +315,7 @@ TEST(EventualTest, ConstRef) {
   EXPECT_EQ(42, future.get());
 }
 
+
 TEST(EventualTest, Ref) {
   int x = 10;
 
@@ -307,6 +333,7 @@ TEST(EventualTest, Ref) {
   EXPECT_EQ(110, x);
 }
 
+
 TEST(EventualTest, JustRef) {
   int x = 10;
 
@@ -321,6 +348,7 @@ TEST(EventualTest, JustRef) {
 
   EXPECT_EQ(110, x);
 }
+
 
 TEST(EventualTest, JustConstRef) {
   int x = 10;
