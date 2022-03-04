@@ -75,6 +75,7 @@ jobs:
             --strip="never" \
             --remote_cache=$GOOGLE_REMOTE_CACHE \
             --google_credentials=$GOOGLE_APPLICATION_CREDENTIALS \
+            --verbose_failures \
             :eventuals
 
       - name: Test
