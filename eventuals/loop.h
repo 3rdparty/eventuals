@@ -76,11 +76,11 @@ struct _Loop final {
     template <typename Error>
     void Fail(Error&& error) {
       if constexpr (IsUndefined<Fail_>::value) {
-        k_().Fail(std::move(error));
+        k_().Fail(std::forward<Error>(error));
       } else if constexpr (IsUndefined<Context_>::value) {
-        fail_(k_(), std::move(error));
+        fail_(k_(), std::forward<Error>(error));
       } else {
-        fail_(context_, k_(), std::move(error));
+        fail_(context_, k_(), std::forward<Error>(error));
       }
     }
 

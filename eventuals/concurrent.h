@@ -621,9 +621,9 @@ struct _Concurrent final {
     void Fail(Error&& error) {
       if (!ingress_) {
         CHECK(!egress_);
-        k_.Fail(std::move(error));
+        k_.Fail(std::forward<Error>(error));
       } else {
-        ingress_->Fail(std::move(error));
+        ingress_->Fail(std::forward<Error>(error));
       }
     }
 

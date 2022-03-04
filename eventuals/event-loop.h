@@ -280,7 +280,7 @@ class EventLoop final : public Scheduler {
           using Tuple = std::tuple<decltype(this), Error>;
           auto tuple = std::make_unique<Tuple>(
               this,
-              std::move(error));
+              std::forward<Error>(error));
 
           // Submitting to event loop to avoid race with interrupt.
           loop().Submit(
@@ -571,7 +571,7 @@ class EventLoop final : public Scheduler {
         using Tuple = std::tuple<decltype(this), Error>;
         auto tuple = std::make_unique<Tuple>(
             this,
-            std::move(error));
+            std::forward<Error>(error));
 
         // Submitting to event loop to avoid race with interrupt.
         loop_.Submit(
@@ -754,7 +754,7 @@ struct _EventLoopSchedule final {
       if (loop()->InEventLoop()) {
         Adapt();
         auto* previous = Scheduler::Context::Switch(context_.get());
-        adapted_->Fail(std::move(error));
+        adapted_->Fail(std::forward<Error>(error));
         previous = Scheduler::Context::Switch(previous);
         CHECK_EQ(previous, context_.get());
       } else {
@@ -763,7 +763,7 @@ struct _EventLoopSchedule final {
         using Tuple = std::tuple<decltype(this), Error>;
         auto tuple = std::make_unique<Tuple>(
             this,
-            std::move(error));
+            std::forward<Error>(error));
 
         loop()->Submit(
             [tuple = std::move(tuple)]() mutable {

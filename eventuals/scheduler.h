@@ -178,7 +178,7 @@ struct _Reschedule final {
     void Fail(Error&& error) {
       context_->Continue(
           [&]() {
-            k_.Fail(std::move(error));
+            k_.Fail(std::forward<Error>(error));
           },
           [&]() {
             // TODO(benh): avoid allocating on heap by storing args in
@@ -186,7 +186,7 @@ struct _Reschedule final {
             using Tuple = std::tuple<decltype(&k_), Error>;
             auto tuple = std::make_unique<Tuple>(
                 &k_,
-                std::move(error));
+                std::forward<Error>(error));
 
             return [tuple = std::move(tuple)]() mutable {
               std::apply(
@@ -409,7 +409,7 @@ struct _Preempt final {
       auto* previous = Scheduler::Context::Switch(&context_);
       CHECK_EQ(previous, previous_);
 
-      adapted_->Fail(std::move(error));
+      adapted_->Fail(std::forward<Error>(error));
 
       auto* context = Scheduler::Context::Switch(previous_);
       CHECK_EQ(context, &context_);

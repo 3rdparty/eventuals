@@ -28,12 +28,12 @@ struct _Finally final {
         k_.Start(
             std::optional<std::exception_ptr>(
                 make_exception_ptr_or_forward(
-                    std::move(error))));
+                    std::forward<Error>(error))));
       } else {
         k_.Start(
             Expected::Of<Arg_>(
                 make_exception_ptr_or_forward(
-                    std::move(error))));
+                    std::forward<Error>(error))));
       }
     }
 

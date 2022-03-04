@@ -34,7 +34,7 @@ struct _TakeLastN final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      k_.Fail(std::move(error));
+      k_.Fail(std::forward<Error>(error));
     }
 
     void Stop() {
@@ -139,7 +139,7 @@ struct _TakeRange final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      k_.Fail(std::move(error));
+      k_.Fail(std::forward<Error>(error));
     }
 
     void Stop() {

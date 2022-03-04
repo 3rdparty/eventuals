@@ -56,7 +56,7 @@ struct _ReorderAdaptor final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      k_.Fail(std::move(error));
+      k_.Fail(std::forward<Error>(error));
     }
 
     void Register(Interrupt& interrupt) {
@@ -171,7 +171,7 @@ struct _ConcurrentOrderedAdaptor final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      k_.Fail(std::move(error));
+      k_.Fail(std::forward<Error>(error));
     }
 
     void Register(Interrupt& interrupt) {
