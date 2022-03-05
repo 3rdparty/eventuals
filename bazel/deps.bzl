@@ -1,11 +1,16 @@
 """Dependency specific initialization."""
 
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 load("@com_github_3rdparty_bazel_rules_asio//bazel:deps.bzl", asio_deps = "deps")
 load("@com_github_3rdparty_bazel_rules_curl//bazel:deps.bzl", curl_deps = "deps")
 load("@com_github_3rdparty_bazel_rules_jemalloc//bazel:deps.bzl", jemalloc_deps = "deps")
 load("@com_github_3rdparty_bazel_rules_libuv//bazel:deps.bzl", libuv_deps = "deps")
+load("@com_github_3rdparty_stout_borrowed_ptr//bazel:deps.bzl", stout_borrowed_ptr_deps = "deps")
+load("@com_github_3rdparty_stout_notification//bazel:deps.bzl", stout_notification_deps = "deps")
+load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
+load("@com_github_reboot_dev_pyprotoc_plugin//bazel:deps.bzl", pyprotoc_plugin_deps = "deps")
 
 def deps(repo_mapping = {}):
     """Propagate all dependencies.
@@ -26,6 +31,17 @@ def deps(repo_mapping = {}):
     )
 
     libuv_deps(
+        repo_mapping = repo_mapping,
+    )
+
+    maybe(
+        http_archive,
+        name = "platforms",
+        urls = [
+            "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.5/platforms-0.0.5.tar.gz",
+            "https://github.com/bazelbuild/platforms/releases/download/0.0.5/platforms-0.0.5.tar.gz",
+        ],
+        sha256 = "379113459b0feaf6bfbb584a91874c065078aa673222846ac765f86661c27407",
         repo_mapping = repo_mapping,
     )
 
@@ -58,3 +74,41 @@ def deps(repo_mapping = {}):
         strip_prefix = "googletest-release-1.11.0",
         repo_mapping = repo_mapping,
     )
+
+    stout_borrowed_ptr_deps(
+        repo_mapping = repo_mapping,
+    )
+
+    stout_notification_deps(
+        repo_mapping = repo_mapping,
+    )
+
+    pyprotoc_plugin_deps(
+        repo_mapping = repo_mapping,
+    )
+
+    # !!! Here be dragons !!!
+    # grpc is currently (2021/09/06) pulling in a version of absl and boringssl
+    # that does not compile on linux with neither gcc (11.1) nor clang (12.0).
+    # Here we are front running the dependency loading of grpc to pull
+    # compatible versions.
+    #
+    # First of absl:
+    if "com_google_absl" not in native.existing_rules():
+        http_archive(
+            name = "com_google_absl",
+            url = "https://github.com/abseil/abseil-cpp/archive/refs/tags/20210324.2.tar.gz",
+            strip_prefix = "abseil-cpp-20210324.2",
+            sha256 = "59b862f50e710277f8ede96f083a5bb8d7c9595376146838b9580be90374ee1f",
+        )
+
+    # and then boringssl
+    if "boringssl" not in native.existing_rules():
+        git_repository(
+            name = "boringssl",
+            commit = "fc44652a42b396e1645d5e72aba053349992136a",
+            remote = "https://boringssl.googlesource.com/boringssl",
+            shallow_since = "1627579704 +0000",
+        )
+
+    grpc_deps()

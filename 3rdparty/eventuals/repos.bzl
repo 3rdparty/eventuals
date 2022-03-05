@@ -10,15 +10,10 @@
 ########################################################################
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
-load("//3rdparty/bazel-rules-asio:repos.bzl", asio_repos = "repos")
 load("//3rdparty/bazel-rules-curl:repos.bzl", curl_repos = "repos")
 load("//3rdparty/bazel-rules-jemalloc:repos.bzl", jemalloc_repos = "repos")
 load("//3rdparty/bazel-rules-libuv:repos.bzl", libuv_repos = "repos")
-load("//3rdparty/pyprotoc-plugin:repos.bzl", pyprotoc_plugin_repos = "repos")
-load("//3rdparty/stout-borrowed-ptr:repos.bzl", stout_borrowed_ptr_repos = "repos")
-load("//3rdparty/stout-notification:repos.bzl", stout_notification_repos = "repos")
 
 def repos(external = True, repo_mapping = {}):
     """Adds repositories/archives needed by eventuals
@@ -30,7 +25,7 @@ def repos(external = True, repo_mapping = {}):
             repo_mapping, e.g., 'git_repository'
     """
 
-    asio_repos(
+    libuv_repos(
         repo_mapping = repo_mapping,
     )
 
@@ -41,30 +36,6 @@ def repos(external = True, repo_mapping = {}):
     jemalloc_repos(
         repo_mapping = repo_mapping,
     )
-
-    libuv_repos(
-        repo_mapping = repo_mapping,
-    )
-
-    stout_borrowed_ptr_repos(
-        repo_mapping = repo_mapping,
-    )
-
-    stout_notification_repos(
-        repo_mapping = repo_mapping,
-    )
-
-    pyprotoc_plugin_repos(
-        repo_mapping = repo_mapping,
-    )
-
-    if "com_github_grpc_grpc" not in native.existing_rules():
-        http_archive(
-            name = "com_github_grpc_grpc",
-            urls = ["https://github.com/grpc/grpc/archive/v1.40.0.tar.gz"],
-            strip_prefix = "grpc-1.40.0",
-            sha256 = "13e7c6460cd979726e5b3b129bb01c34532f115883ac696a75eb7f1d6a9765ed",
-        )
 
     if external:
         maybe(

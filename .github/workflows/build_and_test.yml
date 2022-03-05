@@ -1,5 +1,4 @@
-# Workflow for building and testing eventuals on macOS, Ubuntu and Windows.
-name: Build and Run all tests
+name: Build and Run All Tests
 
 # We use action's triggers 'push' and 'pull_request'.
 # The strategy is the following: this action will be
@@ -61,10 +60,17 @@ jobs:
           name: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
           json: ${{ secrets.GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS }}
 
-      # Install Dazel, so that we use the same build tooling in our Actions as
-      # we do on our workstations.
+      # Install Dazel for use on Linux so that we use the same build
+      # tooling in our Actions as we do on our workstations.
       - name: Install Dazel
+        if: ${{ matrix.bazel-command == 'dazel' }}
         run: ${{ matrix.sudo-command }} pip3 install dazel
+
+      # Install 'wheel' for Python on Windows as required for running
+      # commands like 'python setup.py bdist_wheel'.
+      - name: Install Python 'wheel'
+        if: ${{ matrix.os == 'windows-2019' }}
+        run: ${{ matrix.sudo-command }} pip3 install wheel
 
       - name: Build
         run: |
@@ -76,7 +82,7 @@ jobs:
             --remote_cache=$GOOGLE_REMOTE_CACHE \
             --google_credentials=$GOOGLE_APPLICATION_CREDENTIALS \
             --verbose_failures \
-            :eventuals
+            ...
 
       - name: Test
         run: |
@@ -87,7 +93,7 @@ jobs:
             -c dbg \
             --strip="never" \
             --test_output=errors \
-            test:eventuals \
+            test/... \
             --test_arg=--gtest_shuffle \
             --test_arg=--gtest_repeat=100
 

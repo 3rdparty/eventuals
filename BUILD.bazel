@@ -2,7 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 load("//bazel:copts.bzl", "copts")
 
 cc_library(
-    name = "eventuals-base",
+    name = "base",
     srcs = [
         "eventuals/scheduler.cc",
         "eventuals/static-thread-pool.cc",
@@ -74,7 +74,7 @@ cc_library(
 )
 
 cc_library(
-    name = "eventuals-events",
+    name = "events",
     srcs = [
         "eventuals/event-loop.cc",
     ],
@@ -87,14 +87,14 @@ cc_library(
     ],
     copts = copts(),
     deps = [
-        ":eventuals-base",
+        ":base",
         "@com_github_chriskohlhoff_asio//:asio",
         "@com_github_libuv_libuv//:libuv",
     ],
 )
 
 cc_library(
-    name = "eventuals-http",
+    name = "http",
     srcs = [
         "eventuals/http.cc",
     ],
@@ -112,8 +112,8 @@ cc_library(
     # Default is False.
     linkstatic = True,
     deps = [
-        ":eventuals-base",
-        ":eventuals-events",
+        ":base",
+        ":events",
         "@com_github_curl_curl//:libcurl_boringssl",
     ],
 )
@@ -123,8 +123,41 @@ cc_library(
     copts = copts(),
     visibility = ["//visibility:public"],
     deps = [
-        ":eventuals-base",
-        ":eventuals-events",
-        ":eventuals-http",
+        ":base",
+        ":events",
+        ":http",
+    ],
+)
+
+cc_library(
+    name = "grpc",
+    srcs = [
+        "eventuals/grpc/server.cc",
+    ],
+    hdrs = [
+        "eventuals/grpc/call-type.h",
+        "eventuals/grpc/client.h",
+        "eventuals/grpc/completion-pool.h",
+        "eventuals/grpc/logging.h",
+        "eventuals/grpc/server.h",
+        "eventuals/grpc/traits.h",
+    ],
+    copts = copts(),
+    # TODO(benh): resolve build issues on Windows and then remove
+    # these 'target_compatible_with' constraints.
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_3rdparty_eventuals//:eventuals",
+        "@com_github_3rdparty_stout_borrowed_ptr//:borrowed_ptr",
+        "@com_github_3rdparty_stout_notification//:notification",
+        "@com_github_google_glog//:glog",
+        "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
