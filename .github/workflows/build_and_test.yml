@@ -24,8 +24,8 @@ jobs:
         include:
           - os: macos-latest
             sudo-command: "sudo"
-            # The macos runner doesn't have `docker` installed, so can't run
-            # `dazel`. Fall back to `bazel`.
+            # Explicitly not using `dazel` here as we don't want to
+            # build/test on Linux but on macOS!
             bazel-command: "bazel"
             bazel-config: ""
           - os: ubuntu-latest
@@ -34,9 +34,8 @@ jobs:
             bazel-config: "--config=asan"
           - os: windows-2019
             sudo-command: "" # The Windows runner already runs as root.
-            # Our `dazel` container is based on `ubuntu:latest`, which doesn't
-            # support running on the `windows/amd64` platform. Fall back to
-            # `bazel`.
+            # Explicitly not using `dazel` here as we don't want to
+            # build/test on Linux but on Windows!
             bazel-command: "bazel"
             bazel-config: ""
 
