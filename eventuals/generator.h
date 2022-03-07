@@ -8,6 +8,8 @@
 #include "eventuals/eventual.h"
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
+#include "eventuals/then.h"
+#include "eventuals/type-traits.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -177,7 +179,7 @@ struct HeapGenerator final {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _GeneratorFromToWith final {
+struct _Generator final {
   // Since we move lambda function at 'Composable' constructor we need to
   // specify the callback that should be triggered on the produced eventual.
   // For this reason we use 'Action'.
@@ -187,7 +189,12 @@ struct _GeneratorFromToWith final {
     Fail = 2,
   };
 
-  template <typename K_, typename From_, typename To_, typename... Args_>
+  template <
+      typename K_,
+      typename From_,
+      typename To_,
+      typename Errors_,
+      typename... Args_>
   struct Continuation final {
     Continuation(
         K_ k,
@@ -234,6 +241,19 @@ struct _GeneratorFromToWith final {
 
     template <typename Error>
     void Fail(Error&& error) {
+      static_assert(
+          std::disjunction_v<
+              std::is_same<std::exception_ptr, std::decay_t<Error>>,
+              std::is_base_of<std::exception, std::decay_t<Error>>>,
+          "Expecting a type derived from std::exception ");
+
+      static_assert(
+          std::disjunction_v<
+              std::is_same<std::exception_ptr, std::decay_t<Error>>,
+              tuple_types_contains<std::exception, Errors_>,
+              tuple_types_contains<std::decay_t<Error>, Errors_>>,
+          "Error is not specified in 'Raises'");
+
       std::exception_ptr exception;
 
       exception = make_exception_ptr_or_forward(
@@ -320,10 +340,38 @@ struct _GeneratorFromToWith final {
     K_ k_;
   };
 
-  template <typename From_, typename To_, typename... Args_>
-  struct Composable {
+  template <typename From_, typename To_, typename Errors_, typename... Args_>
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = To_;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
+
+    template <typename T>
+    using From = std::enable_if_t<
+        IsUndefined<From_>::value,
+        Composable<T, To_, Errors_, Args_...>>;
+
+    template <typename T>
+    using To = std::enable_if_t<
+        IsUndefined<To_>::value,
+        Composable<From_, T, Errors_, Args_...>>;
+
+    template <typename... Errors>
+    using Raises = std::enable_if_t<
+        std::tuple_size_v<Errors_> == 0,
+        Composable<From_, To_, std::tuple<Errors...>, Args_...>>;
+
+    template <typename... Args>
+    using With = std::enable_if_t<
+        sizeof...(Args_) == 0,
+        Composable<From_, To_, Errors_, Args...>>;
+
+    template <typename T>
+    using Of = std::enable_if_t<
+        std::conjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
+        Composable<void, T, Errors_, Args_...>>;
 
     template <typename F>
     Composable(Args_... args, F f)
@@ -345,6 +393,12 @@ struct _GeneratorFromToWith final {
           "can be captured in a 'Callback'");
 
       using E = decltype(std::apply(f, args_));
+
+      using ErrorsFromE = ErrorsFromMaybeComposable<E, From_, std::tuple<>>;
+
+      static_assert(
+          eventuals::tuple_types_subset_v<ErrorsFromE, Errors_>,
+          "Specified errors can't be thrown from 'Generator'");
 
       using Value = typename E::template ValueFrom<From_>;
 
@@ -417,38 +471,46 @@ struct _GeneratorFromToWith final {
       };
     }
 
-    virtual ~Composable() = default;
+    ~Composable() = default;
 
     Composable(Composable&& that) = default;
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, From_, To_, Args_...>(
+      static_assert(
+          !std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
+          "'Task' 'From' or 'To' type is not specified");
+
+      return Continuation<K, From_, To_, Errors_, Args_...>(
           std::move(k),
           std::move(args_),
           std::move(dispatch_));
     }
 
-    Callback<
-        Action,
-        std::optional<std::exception_ptr>&&,
-        Args_&&...,
-        // Can't have a 'void' argument type so we are using 'std::monostate'.
-        std::optional<
+    std::conditional_t<
+        std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
+        Undefined,
+        Callback<
+            Action,
+            std::optional<std::exception_ptr>&&,
+            Args_&&...,
+            // Can't have a 'void' argument type
+            // so we are using 'std::monostate'.
+            std::optional<
+                std::conditional_t<
+                    std::is_void_v<From_>,
+                    std::monostate,
+                    From_>>&&,
+            std::unique_ptr<void, Callback<void*>>&,
+            Interrupt&,
+            Callback<TypeErasedStream&>&&,
+            Callback<std::exception_ptr>&&,
+            Callback<>&&,
             std::conditional_t<
-                std::is_void_v<From_>,
-                std::monostate,
-                From_>>&&,
-        std::unique_ptr<void, Callback<void*>>&,
-        Interrupt&,
-        Callback<TypeErasedStream&>&&,
-        Callback<std::exception_ptr>&&,
-        Callback<>&&,
-        std::conditional_t<
-            std::is_void_v<To_>,
-            Callback<>,
-            Callback<To_>>&&,
-        Callback<>&&>
+                std::is_void_v<To_>,
+                Callback<>,
+                Callback<To_>>&&,
+            Callback<>&&>>
         dispatch_;
 
     std::tuple<Args_...> args_;
@@ -458,37 +520,10 @@ struct _GeneratorFromToWith final {
 ////////////////////////////////////////////////////////////////////////
 
 // Creating a type alias to improve the readability.
-
-template <typename Value, typename To, typename... Args>
-using GeneratorFromToWith = _GeneratorFromToWith::Composable<
-    Value,
-    To,
-    Args...>;
-
-struct Generator final {
-  template <typename From_>
-  struct From final {
-    template <typename To_>
-    struct To final : public GeneratorFromToWith<From_, To_> {
-      template <typename... Args_>
-      using With = GeneratorFromToWith<From_, To_, Args_...>;
-
-      template <typename F>
-      To(F f)
-        : GeneratorFromToWith<From_, To_>(std::move(f)){};
-
-      To(To&& that) = default;
-
-      ~To() override = default;
-    };
-
-    template <typename F>
-    From(F f) = delete;
-  };
-
-  template <typename To_>
-  using Of = From<void>::To<To_>;
-};
+using Generator = _Generator::Composable<
+    Undefined,
+    Undefined,
+    std::tuple<>>;
 
 ////////////////////////////////////////////////////////////////////////
 
