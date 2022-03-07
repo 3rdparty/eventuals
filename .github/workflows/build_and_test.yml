@@ -53,6 +53,11 @@ jobs:
         with:
           submodules: "recursive"
 
+      - name: Enable long path
+        if: ${{ matrix.os == 'windows-2019' }}
+        shell: pwsh
+        run: .\long_path.ps1    
+
       - name: Set up remote cache credentials
         uses: jsdaniell/create-json@1.1.2
         with:
