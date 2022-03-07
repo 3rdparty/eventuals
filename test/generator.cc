@@ -193,7 +193,8 @@ TEST(Generator, FailStream) {
   EXPECT_CALL(functions.body, Call())
       .Times(0);
 
-  auto stream = [&functions]() -> Generator::Of<int> {
+  auto stream = [&functions]()
+      -> Generator::Of<int>::Raises<std::runtime_error> {
     return [&]() {
       return Stream<int>()
           .next([&](auto& k) {
@@ -203,6 +204,8 @@ TEST(Generator, FailStream) {
             functions.done.Call();
           })
           .fail([&](auto& k, auto&& error) {
+            // No need to specify 'raises' because type of error is
+            // 'std::exception_ptr', that just propagates.
             functions.fail.Call();
             k.Fail(error);
           })
@@ -227,6 +230,8 @@ TEST(Generator, FailStream) {
                 functions.ended.Call();
               })
               .fail([&](auto& k, auto&& error) {
+                // No need to specify 'raises' because type of error is
+                // 'std::exception_ptr', that just propagates.
                 functions.fail.Call();
                 k.Fail(std::forward<decltype(error)>(error));
               })
@@ -236,6 +241,11 @@ TEST(Generator, FailStream) {
   };
 
   auto [future, k] = Terminate(e());
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   k.Start();
 
@@ -463,4 +473,28 @@ TEST(Generator, FromToLValue) {
   };
 
   EXPECT_THAT(*e(), ElementsAre(1, 2, 3));
+}
+
+TEST(Generator, Raises) {
+  auto stream = [&]() -> Generator::Of<int>::Raises<std::runtime_error> {
+    return [&]() {
+      return Stream<int>()
+          .raises<std::runtime_error>()
+          .next([&](auto& k) {
+            k.Fail(std::runtime_error("error"));
+          });
+    };
+  };
+
+  auto e = [&]() {
+    return stream()
+        | Collect<std::vector<int>>();
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
+  EXPECT_THROW(*e(), std::runtime_error);
 }
