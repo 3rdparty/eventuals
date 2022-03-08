@@ -6,6 +6,7 @@
 #include "eventuals/conditional.h"
 #include "eventuals/eventual.h"
 #include "eventuals/expected.h"
+#include "eventuals/interrupt.h"
 #include "eventuals/just.h"
 #include "eventuals/raise.h"
 #include "eventuals/terminal.h"
@@ -17,8 +18,10 @@ using eventuals::Catch;
 using eventuals::Conditional;
 using eventuals::Eventual;
 using eventuals::Expected;
+using eventuals::Interrupt;
 using eventuals::Just;
 using eventuals::Raise;
+using eventuals::Terminate;
 using eventuals::Then;
 using eventuals::Unexpected;
 using testing::MockFunction;
@@ -228,4 +231,35 @@ TEST(CatchTest, VoidPropagate) {
   };
 
   EXPECT_EQ(100, *e());
+}
+
+TEST(CatchTest, Interrupt) {
+  auto e = []() {
+    return Just(1)
+        | Raise(std::runtime_error("message"))
+        | Catch()
+              .raised<std::overflow_error>([](auto&& error) {
+                ADD_FAILURE() << "Encountered unexpected matched raised";
+                return Then([]() {
+                  return 100;
+                });
+              })
+              .raised<std::runtime_error>([](auto&& error) {
+                EXPECT_STREQ(error.what(), "message");
+                return Just(100);
+              })
+        | Then([](int i) {
+             return std::to_string(i);
+           });
+  };
+
+  auto [future, k] = Terminate(e());
+
+  Interrupt interrupt;
+
+  k.Register(interrupt);
+
+  k.Start();
+
+  EXPECT_EQ(future.get(), "100");
 }
