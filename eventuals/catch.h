@@ -106,6 +106,10 @@ struct _Catch final {
 
     template <typename... Args>
     void Start(Args&&... args) {
+      if (interrupt_ != nullptr) {
+        k_.Register(*interrupt_);
+      }
+
       k_.Start(std::forward<Args>(args)...);
     }
 
@@ -134,17 +138,29 @@ struct _Catch final {
           catch_handlers_);
 
       if (!handled_) {
+        if (interrupt_ != nullptr) {
+          k_.Register(*interrupt_);
+        }
+
         k_.Fail(std::forward<Error>(error));
       }
     }
 
     void Stop() {
+      if (interrupt_ != nullptr) {
+        k_.Register(*interrupt_);
+      }
+
       k_.Stop();
     }
 
     void Register(Interrupt& interrupt) {
+      CHECK_EQ(interrupt_, nullptr);
       interrupt_ = &interrupt;
-      k_.Register(interrupt);
+
+      // NOTE: we defer registering the interrupt with 'k_' in case on
+      // of our handlers handles an error and we 'std::move(k_)' into
+      // the handler.
     }
 
     std::tuple<CatchHandlers_...> catch_handlers_;
