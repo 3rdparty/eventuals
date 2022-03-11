@@ -54,6 +54,9 @@ jobs:
           submodules: "recursive"
 
       - name: Set up remote cache credentials
+        # With the exception of GITHUB_TOKEN, secrets are not passed to the runner
+        # when a workflow is triggered from a forked repository.
+        if: github.event.pull_request.head.repo.full_name == '3rdparty/eventuals'
         uses: jsdaniell/create-json@1.1.2
         with:
           name: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
@@ -72,6 +75,9 @@ jobs:
         run: ${{ matrix.sudo-command }} pip3 install wheel
 
       - name: Build
+        # With the exception of GITHUB_TOKEN, secrets are not passed to the runner
+        # when a workflow is triggered from a forked repository.
+        if: github.event.pull_request.head.repo.full_name == '3rdparty/eventuals'
         run: |
           ${{ matrix.bazel-command }} build \
             ${{ matrix.bazel-config }} \
@@ -80,6 +86,19 @@ jobs:
             --strip="never" \
             --remote_cache=$GOOGLE_REMOTE_CACHE \
             --google_credentials=$GOOGLE_APPLICATION_CREDENTIALS \
+            --verbose_failures \
+            ...
+
+      # With the exception of GITHUB_TOKEN, secrets are not passed to the runner
+      # when a workflow is triggered from a forked repository.
+      - name: Build forked
+        if: github.event.pull_request.head.repo.full_name != '3rdparty/eventuals'
+        run: |
+          ${{ matrix.bazel-command }} build \
+            ${{ matrix.bazel-config }} \
+            --spawn_strategy=local \
+            -c dbg \
+            --strip="never" \
             --verbose_failures \
             ...
 
@@ -99,3 +118,4 @@ jobs:
       - name: Debug using tmate (if failure)
         if: ${{ failure() }}
         uses: mxschmitt/action-tmate@v3
+        
