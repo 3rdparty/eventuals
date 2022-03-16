@@ -2,6 +2,7 @@
 
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
+#include "eventuals/then.h"
 
 ////////////////////////////////////////////////////////////////////////
 

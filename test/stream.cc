@@ -137,7 +137,7 @@ TEST(StreamTest, Fail) {
   auto s = [&]() {
     return Stream<int>()
                .context("error")
-               .raises()
+               .raises<std::runtime_error>()
                .next([](auto& error, auto& k) {
                  k.Fail(std::runtime_error(error));
                })
@@ -146,6 +146,7 @@ TEST(StreamTest, Fail) {
                })
         | Loop<int>()
               .context(0)
+              .raises<std::runtime_error>()
               .body([](auto&, auto& stream, auto&&) {
                 stream.Next();
               })
@@ -159,6 +160,11 @@ TEST(StreamTest, Fail) {
                 stop.Call();
               });
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(s())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   EXPECT_THROW_WHAT(*s(), "error");
 }
@@ -262,6 +268,7 @@ TEST(StreamTest, InterruptLoop) {
         | Loop<int>()
               .context(Lazy<std::atomic<bool>>(false))
               .interruptible()
+              .raises<std::runtime_error>()
               .begin([](auto& interrupted,
                         auto& k,
                         Interrupt::Handler& handler) {
@@ -294,6 +301,11 @@ TEST(StreamTest, InterruptLoop) {
                 stop.Call();
               });
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(s())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   auto [future, k] = Terminate(s());
 
