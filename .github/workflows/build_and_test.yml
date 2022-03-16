@@ -26,7 +26,7 @@ jobs:
             sudo-command: "sudo"
             # Explicitly not using `dazel` here as we don't want to
             # build/test on Linux but on macOS!
-            bazel-command: "bazel"
+            bazel-command: "bazelisk"
             bazel-config: ""
           - os: ubuntu-latest
             sudo-command: "sudo"
@@ -36,7 +36,7 @@ jobs:
             sudo-command: "" # The Windows runner already runs as root.
             # Explicitly not using `dazel` here as we don't want to
             # build/test on Linux but on Windows!
-            bazel-command: "bazel"
+            bazel-command: "bazelisk"
             bazel-config: ""
 
     defaults:
