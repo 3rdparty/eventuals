@@ -170,6 +170,7 @@ class ServerReader {
       void* k = nullptr;
     };
     return eventuals::Stream<RequestType_>()
+        .template raises<std::runtime_error>()
         .next([this,
                data = Data{},
                callback = Callback<bool>()](auto& k) mutable {

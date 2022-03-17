@@ -6,6 +6,7 @@
 #include "eventuals/lazy.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
+#include "eventuals/raise.h"
 #include "eventuals/reduce.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
@@ -19,6 +20,7 @@ using eventuals::Interrupt;
 using eventuals::Lazy;
 using eventuals::Loop;
 using eventuals::Map;
+using eventuals::Raise;
 using eventuals::Reduce;
 using eventuals::Stream;
 using eventuals::Terminate;
@@ -135,6 +137,7 @@ TEST(StreamTest, Fail) {
   auto s = [&]() {
     return Stream<int>()
                .context("error")
+               .raises()
                .next([](auto& error, auto& k) {
                  k.Fail(std::runtime_error(error));
                })
@@ -405,4 +408,76 @@ TEST(StreamTest, Head) {
   };
 
   EXPECT_THROW_WHAT(*s2(), "empty stream");
+}
+
+TEST(StreamTest, PropagateError) {
+  auto e = []() {
+    return Raise(std::runtime_error("error"))
+        | Stream<int>()
+              .next([](auto& k) {
+                k.Ended();
+              })
+        | Head();
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
+  EXPECT_THROW_WHAT(*e(), "error");
+}
+
+TEST(StreamTest, ThrowSpecificError) {
+  auto e = []() {
+    return Raise(std::bad_alloc())
+        | Stream<int>()
+              .raises<std::runtime_error>()
+              .fail([](auto& k, auto&& error) {
+                static_assert(
+                    std::is_same_v<
+                        std::decay_t<decltype(error)>,
+                        std::bad_alloc>);
+
+                k.Fail(std::runtime_error("error"));
+              })
+              .next([](auto& k) {
+                k.Ended();
+              })
+        | Head();
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error, std::bad_alloc>>);
+
+  EXPECT_THROW_WHAT(*e(), "error");
+}
+
+TEST(StreamTest, ThrowGeneralError) {
+  auto e = []() {
+    return Raise(std::bad_alloc())
+        | Stream<int>()
+              .raises() // Same as 'raises<std::exception>'.
+              .fail([](auto& k, auto&& error) {
+                static_assert(
+                    std::is_same_v<
+                        std::decay_t<decltype(error)>,
+                        std::bad_alloc>);
+
+                k.Fail(std::runtime_error("error"));
+              })
+              .next([](auto& k) {
+                k.Ended();
+              })
+        | Head();
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::bad_alloc, std::exception>>);
+
+  EXPECT_THROW_WHAT(*e(), "error");
 }
