@@ -60,6 +60,9 @@ struct _Head final {
     template <typename Arg>
     using ValueFrom = Arg;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, Arg>(std::move(k));

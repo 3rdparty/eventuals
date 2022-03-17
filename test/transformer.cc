@@ -98,6 +98,7 @@ TEST(Transformer, Fail) {
 
   auto e = [&]() {
     return Stream<int>()
+               .raises<std::runtime_error>()
                .next([](auto& k) {
                  k.Fail(std::runtime_error("error"));
                })

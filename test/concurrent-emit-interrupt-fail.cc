@@ -20,6 +20,7 @@ using eventuals::Terminate;
 TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
   auto e = [&]() {
     return Stream<int>()
+               .raises<std::runtime_error>()
                .interruptible()
                .begin([](auto& k, Interrupt::Handler& handler) {
                  handler.Install([&k]() {
@@ -40,6 +41,11 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
           })
         | Collect<std::vector<std::string>>();
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::exception, std::runtime_error>>);
 
   auto [future, k] = Terminate(e());
 

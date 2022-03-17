@@ -46,6 +46,12 @@ TYPED_TEST(ConcurrentTypedTest, InterruptFail) {
         | Collect<std::vector<std::string>>();
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::exception>>);
+
+
   auto [future, k] = Terminate(e());
 
   Interrupt interrupt;

@@ -58,6 +58,12 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualFail) {
                });
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::exception>>);
+
+
   auto [future, k] = Terminate(e());
 
   k.Start();

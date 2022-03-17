@@ -10,9 +10,11 @@
 // TODO(benh): disallow calling 'Emit()' before call to 'Next()'.
 
 #include <memory>
+#include <tuple>
 #include <variant>
 
 #include "eventuals/eventual.h"
+#include "eventuals/type-traits.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -31,8 +33,10 @@ struct TypeErasedStream {
 struct _Stream final {
   // Helper that distinguishes when a stream's continuation needs to be
   // invoked (versus the stream being invoked as a continuation itself).
-  template <typename S_, typename K_, typename Arg_>
-  struct StreamK final {
+  // Helper struct for enforcing that values and errors are only
+  // propagated of the correct type.
+  template <typename S_, typename K_, typename Arg_, typename Errors_>
+  struct Adaptor final {
     S_* stream_ = nullptr;
     K_* k_ = nullptr;
     std::optional<
@@ -53,6 +57,19 @@ struct _Stream final {
 
     template <typename Error>
     void Fail(Error&& error) {
+      static_assert(
+          std::disjunction_v<
+              std::is_same<std::exception_ptr, std::decay_t<Error>>,
+              std::is_base_of<std::exception, std::decay_t<Error>>>,
+          "Expecting a type derived from std::exception ");
+
+      static_assert(
+          std::disjunction_v<
+              std::is_same<std::exception_ptr, std::decay_t<Error>>,
+              tuple_types_contains<std::exception, Errors_>,
+              tuple_types_contains<std::decay_t<Error>, Errors_>>,
+          "Error is not specified in 'raises<...>()'");
+
       stream_->previous_->Continue(
           [&]() {
             k_->Fail(std::forward<Error>(error));
@@ -129,7 +146,7 @@ struct _Stream final {
       typename Stop_,
       bool Interruptible_,
       typename Value_,
-      typename... Errors_>
+      typename Errors_>
   struct Continuation final : public TypeErasedStream {
     // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(
@@ -169,24 +186,19 @@ struct _Stream final {
 
     template <typename... Args>
     void Start(Args&&... args) {
-      previous_ = Scheduler::Context::Get();
-
-      streamk_.stream_ = this;
-      streamk_.k_ = &k_;
-
       if constexpr (IsUndefined<Begin_>::value) {
-        streamk_.Begin(std::forward<Args>(args)...);
+        adaptor().Begin(std::forward<Args>(args)...);
       } else {
         if constexpr (!IsUndefined<Context_>::value && Interruptible_) {
           CHECK(handler_);
-          begin_(context_, streamk_, *handler_, std::forward<Args>(args)...);
+          begin_(context_, adaptor(), *handler_, std::forward<Args>(args)...);
         } else if constexpr (!IsUndefined<Context_>::value && !Interruptible_) {
-          begin_(context_, streamk_, std::forward<Args>(args)...);
+          begin_(context_, adaptor(), std::forward<Args>(args)...);
         } else if constexpr (IsUndefined<Context_>::value && Interruptible_) {
           CHECK(handler_);
-          begin_(streamk_, *handler_, std::forward<Args>(args)...);
+          begin_(adaptor(), *handler_, std::forward<Args>(args)...);
         } else {
-          begin_(streamk_, std::forward<Args>(args)...);
+          begin_(adaptor(), std::forward<Args>(args)...);
         }
       }
     }
@@ -194,21 +206,26 @@ struct _Stream final {
     template <typename Error>
     void Fail(Error&& error) {
       if constexpr (IsUndefined<Fail_>::value) {
+        // We don't want to use 'adaptor_' here because we want to propagate
+        // what ever error is passed to us to 'k_' and 'adaptor_'
+        // expects specific errors but we do need to set 'previous_' in case
+        // a continuation calls 'Next()' or 'Done()'.
+        adaptor();
         k_.Fail(std::forward<Error>(error));
       } else if constexpr (IsUndefined<Context_>::value) {
-        fail_(k_, std::forward<Error>(error));
+        fail_(adaptor(), std::forward<Error>(error));
       } else {
-        fail_(context_, k_, std::forward<Error>(error));
+        fail_(context_, adaptor(), std::forward<Error>(error));
       }
     }
 
     void Stop() {
       if constexpr (IsUndefined<Stop_>::value) {
-        k_.Stop();
+        adaptor().Stop();
       } else if constexpr (IsUndefined<Context_>::value) {
-        stop_(k_);
+        stop_(adaptor());
       } else {
-        stop_(context_, k_);
+        stop_(context_, adaptor());
       }
     }
 
@@ -225,25 +242,38 @@ struct _Stream final {
           !IsUndefined<Next_>::value,
           "Undefined 'next' (and no default)");
 
-      previous_->Continue([this]() {
+      // 'adaptor_' and 'previous_' should be installed before in one
+      // of 'Start', 'Fail', 'Stop'.
+      CHECK_NOTNULL(previous_)->Continue([this]() {
         if constexpr (IsUndefined<Context_>::value) {
-          next_(streamk_);
+          next_(adaptor_);
         } else {
-          next_(context_, streamk_);
+          next_(context_, adaptor_);
         }
       });
     }
 
     void Done() override {
-      previous_->Continue([this]() {
+      // 'adaptor_' and 'previous_' should be installed before in one
+      // of 'Start', 'Fail', 'Stop'.
+      CHECK_NOTNULL(previous_)->Continue([this]() {
         if constexpr (IsUndefined<Done_>::value) {
           k_.Ended();
         } else if constexpr (IsUndefined<Context_>::value) {
-          done_(streamk_);
+          done_(adaptor_);
         } else {
-          done_(context_, streamk_);
+          done_(context_, adaptor_);
         }
       });
+    }
+
+    auto& adaptor() {
+      if (previous_ == nullptr) {
+        previous_ = Scheduler::Context::Get();
+        adaptor_.stream_ = this;
+        adaptor_.k_ = &k_;
+      }
+      return adaptor_;
     }
 
     Context_ context_;
@@ -255,7 +285,7 @@ struct _Stream final {
 
     Scheduler::Context* previous_ = nullptr;
 
-    StreamK<Continuation, K_, Value_> streamk_;
+    Adaptor<Continuation, K_, Value_, Errors_> adaptor_;
 
     std::optional<Interrupt::Handler> handler_;
 
@@ -275,15 +305,18 @@ struct _Stream final {
       typename Stop_,
       bool Interruptible_,
       typename Value_,
-      typename... Errors_>
+      typename Errors_>
   struct Builder final {
     template <typename Arg>
     using ValueFrom = Value_;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
+
     template <
         bool Interruptible,
         typename Value,
-        typename... Errors,
+        typename Errors,
         typename Context,
         typename Begin,
         typename Next,
@@ -306,7 +339,7 @@ struct _Stream final {
           Stop,
           Interruptible,
           Value,
-          Errors...>{
+          Errors>{
           std::move(context),
           std::move(begin),
           std::move(next),
@@ -327,7 +360,7 @@ struct _Stream final {
           Stop_,
           Interruptible_,
           Value_,
-          Errors_...>(
+          Errors_>(
           std::move(k),
           std::move(context_),
           std::move(begin_),
@@ -340,7 +373,7 @@ struct _Stream final {
     template <typename Context>
     auto context(Context context) && {
       static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
-      return create<Interruptible_, Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_>(
           std::move(context),
           std::move(begin_),
           std::move(next_),
@@ -352,7 +385,7 @@ struct _Stream final {
     template <typename Begin>
     auto begin(Begin begin) && {
       static_assert(IsUndefined<Begin_>::value, "Duplicate 'begin'");
-      return create<Interruptible_, Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_>(
           std::move(context_),
           std::move(begin),
           std::move(next_),
@@ -364,7 +397,7 @@ struct _Stream final {
     template <typename Next>
     auto next(Next next) && {
       static_assert(IsUndefined<Next_>::value, "Duplicate 'next'");
-      return create<Interruptible_, Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_>(
           std::move(context_),
           std::move(begin_),
           std::move(next),
@@ -376,7 +409,7 @@ struct _Stream final {
     template <typename Done>
     auto done(Done done) && {
       static_assert(IsUndefined<Done_>::value, "Duplicate 'done'");
-      return create<Interruptible_, Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_>(
           std::move(context_),
           std::move(begin_),
           std::move(next_),
@@ -388,7 +421,7 @@ struct _Stream final {
     template <typename Fail>
     auto fail(Fail fail) && {
       static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
-      return create<Interruptible_, Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_>(
           std::move(context_),
           std::move(begin_),
           std::move(next_),
@@ -400,7 +433,7 @@ struct _Stream final {
     template <typename Stop>
     auto stop(Stop stop) && {
       static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
-      return create<Interruptible_, Value_, Errors_...>(
+      return create<Interruptible_, Value_, Errors_>(
           std::move(context_),
           std::move(begin_),
           std::move(next_),
@@ -411,7 +444,19 @@ struct _Stream final {
 
     auto interruptible() && {
       static_assert(!Interruptible_, "Already 'interruptible'");
-      return create<true, Value_, Errors_...>(
+      return create<true, Value_, Errors_>(
+          std::move(context_),
+          std::move(begin_),
+          std::move(next_),
+          std::move(done_),
+          std::move(fail_),
+          std::move(stop_));
+    }
+
+    template <typename Error = std::exception, typename... Errors>
+    auto raises() && {
+      static_assert(std::tuple_size_v<Errors_> == 0, "Duplicate 'raises'");
+      return create<Interruptible_, Value_, std::tuple<Error, Errors...>>(
           std::move(context_),
           std::move(begin_),
           std::move(next_),
@@ -442,7 +487,7 @@ auto Stream() {
       Undefined,
       false,
       Value,
-      Errors...>{};
+      std::tuple<>>{};
 }
 
 ////////////////////////////////////////////////////////////////////////
