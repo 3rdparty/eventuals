@@ -28,16 +28,20 @@ jobs:
             # build/test on Linux but on macOS!
             bazel-command: "bazelisk"
             bazel-config: ""
+            output-user_root: ""
           - os: ubuntu-latest
             sudo-command: "sudo"
             bazel-command: "dazel"
             bazel-config: "--config=asan"
+            output-user_root: ""
           - os: windows-2019
             sudo-command: "" # The Windows runner already runs as root.
             # Explicitly not using `dazel` here as we don't want to
             # build/test on Linux but on Windows!
             bazel-command: "bazelisk"
             bazel-config: ""
+            # Fixes issue #248.
+            output-user_root: "--output_user_root=C:/bzl"
 
     defaults:
       run:
@@ -79,7 +83,9 @@ jobs:
         # when a workflow is triggered from a forked repository.
         if: github.event.pull_request.head.repo.full_name == '3rdparty/eventuals'
         run: |
-          ${{ matrix.bazel-command }} build \
+          ${{ matrix.bazel-command }} \
+            ${{ matrix.output-user_root }} \
+            build \
             ${{ matrix.bazel-config }} \
             --spawn_strategy=local \
             -c dbg \
@@ -104,7 +110,9 @@ jobs:
 
       - name: Test
         run: |
-          ${{ matrix.bazel-command }} test \
+          ${{ matrix.bazel-command }} \
+            ${{ matrix.output-user_root }} \
+            test \
             ${{ matrix.bazel-config }} \
             --experimental_ui_max_stdouterr_bytes=-1 \
             --spawn_strategy=local \
