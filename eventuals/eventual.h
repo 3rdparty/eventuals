@@ -84,6 +84,10 @@ struct _Eventual {
     Continuation(Continuation&& that) = default;
 
     Continuation& operator=(Continuation&& that) {
+      if (this == &that) {
+        return *this;
+      }
+
       // TODO(benh): lambdas don't have an 'operator=()' until C++20 so
       // we have to effectively do a "reset" and "emplace" (as though it
       // was stored in a 'std::optional' but without the overhead of

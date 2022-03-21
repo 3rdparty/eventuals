@@ -45,6 +45,10 @@ class Key final {
   }
 
   Key& operator=(Key&& that) {
+    if (this == &that) {
+      return *this;
+    }
+
     key_ = std::move(that.key_);
     return *this;
   }

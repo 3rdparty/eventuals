@@ -49,6 +49,10 @@ class Certificate final {
   }
 
   Certificate& operator=(Certificate&& that) {
+    if (this == &that) {
+      return *this;
+    }
+
     certificate_ = std::move(that.certificate_);
     return *this;
   }
