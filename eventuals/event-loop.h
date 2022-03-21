@@ -147,7 +147,7 @@ class EventLoop final : public Scheduler {
 
     std::chrono::nanoseconds Now();
 
-    auto Timer(const std::chrono::nanoseconds& nanoseconds);
+    auto Timer(std::chrono::nanoseconds&& nanoseconds);
 
     bool Paused();
 
@@ -919,7 +919,7 @@ inline std::chrono::nanoseconds EventLoop::Clock::Now() {
 ////////////////////////////////////////////////////////////////////////
 
 inline auto EventLoop::Clock::Timer(
-    const std::chrono::nanoseconds& nanoseconds) {
+    std::chrono::nanoseconds&& nanoseconds) {
   // NOTE: we use a 'RescheduleAfter()' to ensure we use current
   // scheduling context to invoke the continuation after the timer has
   // fired (or was interrupted).
