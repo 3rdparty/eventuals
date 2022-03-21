@@ -100,7 +100,9 @@ jobs:
       - name: Build forked
         if: github.event.pull_request.head.repo.full_name != '3rdparty/eventuals'
         run: |
-          ${{ matrix.bazel-command }} build \
+          ${{ matrix.bazel-command }} \
+            ${{ matrix.output-user_root }} \
+            build \
             ${{ matrix.bazel-config }} \
             --spawn_strategy=local \
             -c dbg \
