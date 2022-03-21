@@ -29,6 +29,10 @@ class Request final {
 
   Request& operator=(const Request&) = delete;
   Request& operator=(Request&& that) {
+    if (this == &that) {
+      return *this;
+    }
+
     if (request_.has_value()) {
       // libuv doesn't use loop in this call, so we don't have to be
       // within the event loop.
@@ -91,6 +95,10 @@ class File final {
   File& operator=(const File& that) = delete;
 
   File& operator=(File&& that) {
+    if (this == &that) {
+      return *this;
+    }
+
     if (descriptor_.has_value()) {
       // No callback allows us to synchronously use this function,
       // loop is not needed in this variant.

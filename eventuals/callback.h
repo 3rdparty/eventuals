@@ -34,6 +34,10 @@ struct Callback final {
   }
 
   Callback& operator=(Callback&& that) {
+    if (this == &that) {
+      return *this;
+    }
+
     if (base_ != nullptr) {
       base_->~Base();
       base_ = nullptr;

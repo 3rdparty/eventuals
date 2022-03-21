@@ -78,6 +78,10 @@ class EventLoop final : public Scheduler {
     }
 
     Buffer& operator=(Buffer&& that) {
+      if (this == &that) {
+        return *this;
+      }
+
       data_ = std::move(that.data_);
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
 
