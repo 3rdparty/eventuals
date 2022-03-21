@@ -3,7 +3,7 @@ try-import dev-tools/.bazelrc
 # Specific Bazel build/test options.
 build --enable_platform_specific_config
 
-build:windows --compiler="clang-cl" 
+build:windows --compiler="clang-cl"
 
 build:clang --action_env=CC=clang
 
