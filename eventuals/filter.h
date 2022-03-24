@@ -65,6 +65,9 @@ struct _Filter final {
     template <typename Arg>
     using ValueFrom = Arg;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, F_, Arg>(std::move(k), std::move(f_));

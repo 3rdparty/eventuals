@@ -83,6 +83,9 @@ struct _Range final {
     template <typename>
     using ValueFrom = int;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, Arg>(std::move(k), from_, to_, step_);
