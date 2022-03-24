@@ -22,31 +22,27 @@ class Scheduler {
  public:
   struct Context final {
     static void Set(Context* context) {
-      current_ = context;
+      current_ = CHECK_NOTNULL(context);
     }
 
     static Context* Get() {
-      return current_;
+      return CHECK_NOTNULL(current_);
     }
 
     static Context* Switch(Context* context) {
       Context* previous = current_;
-      current_ = context;
-      return previous;
+      current_ = CHECK_NOTNULL(context);
+      return CHECK_NOTNULL(previous);
     }
 
-    Context(
-        Scheduler* scheduler,
-        const std::string& name,
-        void* data = nullptr)
+    Context(Scheduler* scheduler, const std::string& name, void* data = nullptr)
       : data(data),
         scheduler_(CHECK_NOTNULL(scheduler)),
         name_(name) {}
 
-    Context(
-        const std::string& name)
-      : Context(CHECK_NOTNULL(Context::Get()->scheduler_), name) {
-      scheduler_->Clone(this);
+    Context(const std::string& name)
+      : Context(Context::Get()->scheduler(), name) {
+      scheduler()->Clone(this);
     }
 
     Context(const Context& that) = delete;
@@ -55,8 +51,8 @@ class Scheduler {
 
     ~Context() = default;
 
-    auto* scheduler() {
-      return scheduler_;
+    Scheduler* scheduler() {
+      return CHECK_NOTNULL(scheduler_);
     }
 
     void block() {
@@ -77,28 +73,28 @@ class Scheduler {
 
     template <typename F>
     void Unblock(F f) {
-      scheduler_->Submit(std::move(f), this);
+      scheduler()->Submit(std::move(f), this);
     }
 
     template <typename F>
     void Continue(F&& f) {
-      if (scheduler_->Continuable(this)) {
+      if (scheduler()->Continuable(this)) {
         auto* previous = Switch(this);
         f();
         Switch(previous);
       } else {
-        scheduler_->Submit(std::move(f), this);
+        scheduler()->Submit(std::move(f), this);
       }
     }
 
     template <typename F, typename G>
     void Continue(F&& f, G&& g) {
-      if (scheduler_->Continuable(this)) {
+      if (scheduler()->Continuable(this)) {
         auto* previous = Switch(this);
         f();
         Switch(previous);
       } else {
-        scheduler_->Submit(g(), this);
+        scheduler()->Submit(g(), this);
       }
     }
 
@@ -116,7 +112,7 @@ class Scheduler {
    private:
     static thread_local Context* current_;
 
-    Scheduler* scheduler_;
+    Scheduler* scheduler_ = nullptr;
 
     // There is the most common set of variables to create contexts.
     bool blocked_ = false;
