@@ -43,6 +43,11 @@ TEST(CatchTest, RaisedRuntimeError) {
               });
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
   EXPECT_EQ(*e(), 100);
 }
 
@@ -67,6 +72,11 @@ TEST(CatchTest, ChildException) {
                     return Just(100);
                   });
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
 
   EXPECT_EQ(*e(), 100);
 }
@@ -97,6 +107,11 @@ TEST(CatchTest, All) {
            });
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
   EXPECT_EQ(*e(), 100);
 }
 
@@ -125,6 +140,11 @@ TEST(CatchTest, UnexpectedRaise) {
                 return 100;
               });
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::exception>>);
 
   EXPECT_EQ(*e(), 100);
 }
@@ -164,6 +184,11 @@ TEST(CatchTest, UnexpectedAll) {
               });
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
   EXPECT_EQ(*e(), 100);
 }
 
@@ -181,6 +206,11 @@ TEST(CatchTest, NoExactHandler) {
                 return 1;
               });
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   EXPECT_THROW(*e(), std::runtime_error);
 }
@@ -211,6 +241,11 @@ TEST(CatchTest, ReRaise) {
            });
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
   EXPECT_EQ(10, *e());
 }
 
@@ -229,6 +264,11 @@ TEST(CatchTest, VoidPropagate) {
              return 100;
            });
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
 
   EXPECT_EQ(100, *e());
 }
@@ -252,6 +292,11 @@ TEST(CatchTest, Interrupt) {
              return std::to_string(i);
            });
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
 
   auto [future, k] = Terminate(e());
 

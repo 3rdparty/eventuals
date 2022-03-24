@@ -52,11 +52,8 @@ template <
     typename Right_,
     typename Errors_>
 struct ErrorsFromComposed<Arg_, Left_, Right_, Errors_, true, true> {
-  using ValueFrom_ = typename Right_::template ValueFrom<
-      typename Left_::template ValueFrom<Arg_>>;
-
   using Errors = typename Right_::template ErrorsFrom<
-      ValueFrom_,
+      typename Left_::template ValueFrom<Arg_>,
       typename Left_::template ErrorsFrom<Arg_, Errors_>>;
 };
 
@@ -77,11 +74,8 @@ template <
     typename Right_,
     typename Errors_>
 struct ErrorsFromComposed<Arg_, Left_, Right_, Errors_, false, true> {
-  using ValueFrom_ = typename Right_::template ValueFrom<
-      typename Left_::template ValueFrom<Arg_>>;
-
   using Errors = typename Right_::template ErrorsFrom<
-      ValueFrom_,
+      typename Left_::template ValueFrom<Arg_>,
       tuple_types_union_t<std::tuple<std::exception>, Errors_>>;
 };
 

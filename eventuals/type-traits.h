@@ -172,6 +172,29 @@ using tuple_types_union_t = typename tuple_types_union<Left, Right>::type;
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename...>
+struct tuple_types_subtract {
+  using type = std::tuple<>;
+};
+
+template <typename Left, typename... Lefts, typename Right>
+struct tuple_types_subtract<
+    std::tuple<Left, Lefts...>,
+    Right> {
+  using type = tuple_types_concatenate_t<
+      std::conditional_t<
+          tuple_types_contains_v<Left, Right>,
+          std::tuple<>,
+          std::tuple<Left>>,
+      typename tuple_types_subtract<std::tuple<Lefts...>, Right>::type>;
+};
+
+template <typename Types, typename ExcludeTypes>
+using tuple_types_subtract_t =
+    typename tuple_types_subtract<Types, ExcludeTypes>::type;
+
+////////////////////////////////////////////////////////////////////////
+
 } // namespace eventuals
 
 ////////////////////////////////////////////////////////////////////////

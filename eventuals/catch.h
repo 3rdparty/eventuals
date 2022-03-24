@@ -7,6 +7,7 @@
 #include "eventuals/eventual.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
+#include "eventuals/type-traits.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -17,6 +18,8 @@ namespace eventuals {
 struct _Catch final {
   template <typename K_, typename Error_, typename F_>
   struct Handler final {
+    using Error = Error_;
+
     Handler(F_ f)
       : f_(std::move(f)) {}
 
@@ -84,6 +87,8 @@ struct _Catch final {
   // valid continuation!
   template <typename Error_, typename F_>
   struct Handler<Undefined, Error_, F_> final {
+    using Error = Error_;
+
     Handler(F_ f)
       : f_(std::move(f)) {}
 
@@ -181,6 +186,20 @@ struct _Catch final {
     // NOTE: we ensure 'Arg' and 'Value_' are the same in 'k()'.
     template <typename Arg>
     using ValueFrom = Arg;
+
+    using CatchErrors_ = std::tuple<typename CatchHandlers_::Error...>;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = std::conditional_t<
+        std::disjunction_v<
+            // If 'std::exception' is caught
+            // then all exceptions will be caught.
+            tuple_types_contains<std::exception, CatchErrors_>,
+            // A 'std::exception_ptr' implies we have a '.all(...)'
+            // and all exceptions are caught.
+            tuple_types_contains<std::exception_ptr, CatchErrors_>>,
+        std::tuple<>,
+        tuple_types_subtract_t<Errors, CatchErrors_>>;
 
     template <typename Left, typename Right>
     using Unify_ = typename std::conditional_t<

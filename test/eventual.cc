@@ -245,13 +245,18 @@ TEST(EventualTest, Catch) {
   auto e = []() {
     return Just(41)
         | Raise("error")
-        | Catch([](auto&&... error) {
+        | Catch([](auto&&... error) { // The same as 'std::exception_ptr&&'.
              return 42;
            })
         | Then([](int&& value) {
              return value;
            });
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
 
   EXPECT_EQ(42, *e());
 }

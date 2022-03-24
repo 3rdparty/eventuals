@@ -3,6 +3,7 @@
 #include <string>
 
 using eventuals::tuple_types_subset_v;
+using eventuals::tuple_types_subtract_t;
 using eventuals::tuple_types_union_t;
 using eventuals::tuple_types_unordered_equals_v;
 using eventuals::types_contains_v;
@@ -106,5 +107,49 @@ static_assert(
             std::tuple<int>,
             std::tuple<int>>,
         std::tuple<int>>);
+
+////////////////////////////////////////////////////////////////////////
+
+static_assert(
+    std::is_same_v<
+        tuple_types_subtract_t<
+            std::tuple<>,
+            std::tuple<>>,
+        std::tuple<>>);
+
+static_assert(
+    std::is_same_v<
+        tuple_types_subtract_t<
+            std::tuple<>,
+            std::tuple<int>>,
+        std::tuple<>>);
+
+static_assert(
+    std::is_same_v<
+        tuple_types_subtract_t<
+            std::tuple<int>,
+            std::tuple<>>,
+        std::tuple<int>>);
+
+static_assert(
+    std::is_same_v<
+        tuple_types_subtract_t<
+            std::tuple<int>,
+            std::tuple<double, std::string>>,
+        std::tuple<int>>);
+
+static_assert(
+    std::is_same_v<
+        tuple_types_subtract_t<
+            std::tuple<int, float, double>,
+            std::tuple<float>>,
+        std::tuple<int, double>>);
+
+static_assert(
+    std::is_same_v<
+        tuple_types_subtract_t<
+            std::tuple<int, float, double>,
+            std::tuple<std::string>>,
+        std::tuple<int, float, double>>);
 
 ////////////////////////////////////////////////////////////////////////
