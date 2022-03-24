@@ -118,6 +118,9 @@ struct _TakeLastN final {
     template <typename Arg>
     using ValueFrom = Arg;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, Arg>(std::move(k), std::move(n_));
@@ -186,6 +189,9 @@ struct _TakeRange final {
   struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
 
     template <typename Arg, typename K>
     auto k(K k) && {
