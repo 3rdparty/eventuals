@@ -61,10 +61,9 @@ def repos(external = True, repo_mapping = {}):
     if "com_github_grpc_grpc" not in native.existing_rules():
         http_archive(
             name = "com_github_grpc_grpc",
-            # TODO(alexmc): Update to a non-pre-release once it's available.
-            urls = ["https://github.com/grpc/grpc/archive/refs/tags/v1.45.0-pre1.tar.gz"],
-            strip_prefix = "grpc-1.45.0-pre1",
-            sha256 = "747a2b766427c1bc2f6bf3d92d3a182879ebb835321b8e5dc3d36760304c6a8e",
+            urls = ["https://github.com/grpc/grpc/archive/refs/tags/v1.45.0.tar.gz"],
+            strip_prefix = "grpc-1.45.0",
+            sha256 = "ec19657a677d49af59aa806ec299c070c882986c9fcc022b1c22c2a3caf01bcd",
         )
 
     if external:
