@@ -120,6 +120,11 @@ TEST(ClosureTest, Fail) {
            });
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
   EXPECT_THROW_WHAT(*e(), "error");
 }
 

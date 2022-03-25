@@ -115,6 +115,14 @@ struct _Reduce final {
     template <typename Arg>
     using ValueFrom = T_;
 
+    using E_ =
+        std::invoke_result_t<
+            F_,
+            std::add_lvalue_reference_t<T_>>;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, T_, F_, Arg>(

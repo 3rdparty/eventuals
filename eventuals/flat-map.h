@@ -162,6 +162,12 @@ struct _FlatMap final {
         std::invoke_result<F_>,
         std::invoke_result<F_, Arg>>::type::template ValueFrom<void>;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = typename std::conditional_t<
+        std::is_void_v<Arg>,
+        std::invoke_result<F_>,
+        std::invoke_result<F_, Arg>>::type::template ErrorsFrom<Arg, Errors>;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, F_, Arg>(std::move(k), std::move(f_));

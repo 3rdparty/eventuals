@@ -164,7 +164,46 @@ TEST(StaticThreadPoolTest, Spawn) {
         }));
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
   *e();
+}
+
+TEST(StaticThreadPoolTest, SpawnFail) {
+  auto e = [&]() {
+    return StaticThreadPool::Spawn(
+        "spawn",
+        Closure([id = std::this_thread::get_id()]() mutable {
+          EXPECT_NE(id, std::this_thread::get_id());
+          id = std::this_thread::get_id();
+          return Eventual<void>()
+                     .raises<std::runtime_error>()
+                     .start([&id](auto& k) {
+                       EXPECT_EQ(id, std::this_thread::get_id());
+                       auto thread = std::thread(
+                           [&id, &k]() {
+                             EXPECT_NE(id, std::this_thread::get_id());
+                             k.Fail(std::runtime_error("error"));
+                           });
+                       thread.detach();
+                     })
+              | Eventual<void>()
+                    .start([&id](auto& k) {
+                      EXPECT_EQ(id, std::this_thread::get_id());
+                      k.Start();
+                    });
+        }));
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
+  EXPECT_THROW(*e(), std::runtime_error);
 }
 
 TEST(StaticThreadPoolTest, Concurrent) {

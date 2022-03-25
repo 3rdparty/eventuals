@@ -801,5 +801,10 @@ TEST(Iterate, UniquePtr) {
                });
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(s())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
   EXPECT_EQ(5, *s());
 }
