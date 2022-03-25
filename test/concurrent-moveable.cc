@@ -33,6 +33,11 @@ TYPED_TEST(ConcurrentTypedTest, Moveable) {
         | Collect<std::vector<int>>();
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
   auto [future, k] = Terminate(e());
 
   k.Start();

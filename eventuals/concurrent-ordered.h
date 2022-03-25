@@ -118,6 +118,9 @@ struct _ReorderAdaptor final {
     template <typename Arg>
     using ValueFrom = typename std::tuple_element<1, Arg>::type::value_type;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<
@@ -218,6 +221,9 @@ struct _ConcurrentOrderedAdaptor final {
     using ValueFrom = std::tuple<
         int,
         std::optional<typename std::tuple_element<1, Arg>::type>>;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
 
     template <typename Arg, typename K>
     auto k(K k) && {

@@ -32,7 +32,7 @@ TYPED_TEST(ConcurrentTypedTest, StreamFail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::exception, std::runtime_error>>);
+          std::tuple<std::runtime_error>>);
 
 
   auto [future, k] = Terminate(e());

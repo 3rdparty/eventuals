@@ -32,8 +32,8 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualFail) {
         | this->ConcurrentOrConcurrentOrdered([&]() {
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
+                  .raises<std::runtime_error>()
                   .interruptible()
-                  .raises()
                   .start([&](auto& k, Interrupt::Handler& handler) mutable {
                     if (i == 1) {
                       callbacks.emplace_back([&k]() {
@@ -61,8 +61,7 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualFail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::exception>>);
-
+          std::tuple<std::runtime_error>>);
 
   auto [future, k] = Terminate(e());
 

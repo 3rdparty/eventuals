@@ -84,9 +84,13 @@ struct _Closure final {
 
   template <typename F_>
   struct Composable final {
+    using E_ = typename std::invoke_result_t<F_>;
+
     template <typename Arg>
-    using ValueFrom =
-        typename std::invoke_result_t<F_>::template ValueFrom<Arg>;
+    using ValueFrom = typename E_::template ValueFrom<Arg>;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
     template <typename Arg, typename K>
     auto k(K k) && {

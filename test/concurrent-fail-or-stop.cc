@@ -32,7 +32,7 @@ TYPED_TEST(ConcurrentTypedTest, FailOrStop) {
             };
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
-                  .raises()
+                  .raises<std::runtime_error>()
                   .start([&, data = Data()](auto& k) mutable {
                     using K = std::decay_t<decltype(k)>;
                     data.k = &k;
@@ -54,7 +54,7 @@ TYPED_TEST(ConcurrentTypedTest, FailOrStop) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::exception>>);
+          std::tuple<std::runtime_error>>);
 
 
   auto [future, k] = Terminate(e());
