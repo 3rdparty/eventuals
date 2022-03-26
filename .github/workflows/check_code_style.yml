@@ -34,7 +34,7 @@ jobs:
       # Call the composite action to check files
       # for correct code style. This action (action.yml)
       # is in `dev-tools` submodule.
-      - uses: ./dev-tools/check-code-style
+      - uses: ./submodules/dev-tools/check-code-style
         with: 
           os: ${{matrix.os}}
 
