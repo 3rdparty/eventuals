@@ -1,1 +1,42 @@
-./dev-tools/Dockerfile.dazel
+# NOTE: THIS FILE SHOULD BE SPECIFIC TO EVENTUALS AND ONLY INCLUDE
+# DEPENDENCIES NECESSARY FOR BUILDING AND TESTING AND NOTHING MORE! DO
+# NOT SHARE THIS FILE WITH ANOTHER REPOSITORY BECAUSE THEN IT MIGHT
+# BECOME DIFFICULT TO DETERMINE ONLY THOSE DEPENDENCIES NECESSARY FOR
+# EVENTUALS.
+
+FROM ubuntu:latest
+ARG BAZEL_VERSION=5.0.0
+ARG CLANG_VERSION=14
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive \
+        apt-get install -y \
+            autoconf \
+            build-essential \
+            ca-certificates \
+            curl \
+            gnupg \
+            git \
+            lsb-release \
+            make \
+            openssh-client \
+            software-properties-common \
+            wget \
+    # Install Bazel.
+    && echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" > \
+        /etc/apt/sources.list.d/bazel.list \
+    && curl -fsSL https://bazel.build/bazel-release.pub.gpg | apt-key add - \
+    && apt-get update && apt-get install -y \
+        bazel=${BAZEL_VERSION} \
+    # Install clang.
+    && wget -O /tmp/llvm.sh "https://apt.llvm.org/llvm.sh" \
+    && chmod +x /tmp/llvm.sh \
+    && /tmp/llvm.sh ${CLANG_VERSION} \
+    && rm /tmp/llvm.sh \
+    # Cleanup.
+    && apt-get purge --auto-remove -y \
+    && rm -rf /etc/apt/sources.list.d/bazel.list \
+    && rm -rf /var/lib/apt/lists/*
+
+# Make clang mean clang-xx
+RUN ln -s /usr/bin/clang-${CLANG_VERSION} /usr/bin/clang
