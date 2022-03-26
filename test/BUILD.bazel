@@ -90,6 +90,7 @@ cc_test(
         "then.cc",
         "timer.cc",
         "transformer.cc",
+        "type-check.cc",
         "type-traits.cc",
         "unpack.cc",
     ],
