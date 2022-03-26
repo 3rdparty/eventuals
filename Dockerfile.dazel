@@ -19,6 +19,8 @@ RUN apt-get update \
             git \
             lsb-release \
             make \
+            python3-distutils \
+            python3-apt \
             openssh-client \
             software-properties-common \
             wget \
