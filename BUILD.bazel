@@ -51,6 +51,7 @@ cc_library(
         "eventuals/terminal.h",
         "eventuals/then.h",
         "eventuals/transformer.h",
+        "eventuals/type-check.h",
         "eventuals/type-traits.h",
         "eventuals/undefined.h",
         "eventuals/unpack.h",
