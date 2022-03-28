@@ -260,8 +260,11 @@ struct _DoAll final {
             std::monostate,
             typename Eventuals_::template ValueFrom<void>>...>;
 
+    using Errors_ = tuple_types_union_all_t<
+        typename Eventuals_::template ErrorsFrom<void, std::tuple<>>...>;
+
     template <typename Arg, typename Errors>
-    using ErrorsFrom = std::tuple<>;
+    using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
 
     template <typename Arg, typename K>
     auto k(K k) && {

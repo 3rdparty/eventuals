@@ -173,6 +173,31 @@ using tuple_types_union_t = typename tuple_types_union<Left, Right>::type;
 ////////////////////////////////////////////////////////////////////////
 
 template <typename...>
+struct tuple_types_union_all;
+
+template <typename Left, typename Right, typename... Tail>
+struct tuple_types_union_all<Left, Right, Tail...> {
+  using type = tuple_types_union_t<
+      tuple_types_union_t<Left, Right>,
+      typename tuple_types_union_all<Tail...>::type>;
+};
+
+template <typename Tuple>
+struct tuple_types_union_all<Tuple> {
+  using type = Tuple;
+};
+
+template <>
+struct tuple_types_union_all<> {
+  using type = std::tuple<>;
+};
+
+template <typename... Tuples>
+using tuple_types_union_all_t = typename tuple_types_union_all<Tuples...>::type;
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename...>
 struct tuple_types_subtract {
   using type = std::tuple<>;
 };
