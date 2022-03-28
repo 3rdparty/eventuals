@@ -119,14 +119,14 @@ jobs:
             ${{ env.BAZEL_REMOTE_CACHE }} \
             --verbose_failures \
             --spawn_strategy=local \
+            --runs_per_test=10 \
             -c dbg \
             --strip="never" \
             --test_output=errors \
             test/... \
             --test_arg=--gtest_shuffle \
-            --test_arg=--gtest_repeat=100
+            --test_arg=--gtest_repeat=10
 
       - name: Debug using tmate (if failure)
         if: ${{ failure() }}
         uses: mxschmitt/action-tmate@v3
-        
