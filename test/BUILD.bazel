@@ -158,6 +158,10 @@ cc_test(
     # link until https://github.com/grpc/grpc/issues/13856 gets
     # resolved.
     linkstatic = True,
+    # This test is fairly fast, but our GitHub Action Runner compiles with
+    # -c dbg --config=asan (~1s per test) and runs it 100x which often hits
+    # the default "short" timeout without sharding.
+    shard_count = 5,
     # TODO(benh): resolve build issues on Windows and then remove
     # these 'target_compatible_with' constraints.
     target_compatible_with = select({
