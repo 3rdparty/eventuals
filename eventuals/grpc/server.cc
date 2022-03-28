@@ -115,7 +115,7 @@ Server::Server(
     serve->service->Register(this);
 
     serve->task.emplace(
-        Task::Of<void>([service]() {
+        Task::Of<void>::Raises<std::runtime_error>([service]() {
           // Use a separate preemptible scheduler context to serve
           // each service so that we correctly handle any waiting
           // (e.g., on 'Lock' or 'Wait').
