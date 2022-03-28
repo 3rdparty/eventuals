@@ -110,6 +110,11 @@ TEST(ConditionalTest, Fail) {
                [&](auto&&) { return els3(); });
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(c())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
   EXPECT_THROW_WHAT(*c(), "error");
 }
 
@@ -171,6 +176,11 @@ TEST(ConditionalTest, Raise) {
                [](auto&& i) { return Just(i); },
                [](auto&& i) { return Raise("raise"); });
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(c())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   EXPECT_EQ(2, *c());
 }

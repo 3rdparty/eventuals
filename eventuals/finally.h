@@ -66,6 +66,9 @@ struct _Finally final {
             std::optional<std::exception_ptr>,
             Expected::Of<Arg>>;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, Arg>{std::move(k)};

@@ -110,6 +110,11 @@ TEST(Transformer, Fail) {
         | Collect<std::vector<std::string>>();
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
   EXPECT_THROW_WHAT(*e(), "error");
 }
 
@@ -207,15 +212,16 @@ TEST(Transformer, PropagateFail) {
       .Times(0);
 
   auto transformer = []() {
-    return Transformer::From<int>::To<std::string>([]() {
-      return Map(Let([](auto& i) {
-        return Eventual<std::string>()
-            .raises<std::runtime_error>()
-            .start([](auto& k) {
-              k.Fail(std::runtime_error("error"));
-            });
-      }));
-    });
+    return Transformer::From<int>::To<std::string>::Raises<std::runtime_error>(
+        []() {
+          return Map(Let([](auto& i) {
+            return Eventual<std::string>()
+                .raises<std::runtime_error>()
+                .start([](auto& k) {
+                  k.Fail(std::runtime_error("error"));
+                });
+          }));
+        });
   };
 
   auto e = [&]() {
@@ -227,6 +233,11 @@ TEST(Transformer, PropagateFail) {
            })
         | Collect<std::vector<std::string>>();
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   EXPECT_THROW_WHAT(*e(), "error");
 }

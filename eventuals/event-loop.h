@@ -16,6 +16,7 @@
 #include "eventuals/eventual.h"
 #include "eventuals/lazy.h"
 #include "eventuals/then.h"
+#include "eventuals/type-traits.h"
 #include "stout/borrowed_ptr.h"
 #include "uv.h"
 
@@ -398,6 +399,11 @@ class EventLoop final : public Scheduler {
         template <typename Arg>
         using ValueFrom = void;
 
+        template <typename Arg, typename Errors>
+        using ErrorsFrom = tuple_types_union_t<
+            Errors,
+            std::tuple<std::runtime_error>>;
+
         template <typename Arg, typename K>
         auto k(K k) && {
           return Continuation<K>(
@@ -685,6 +691,11 @@ class EventLoop final : public Scheduler {
       template <typename Arg>
       using ValueFrom = void;
 
+      template <typename Arg, typename Errors>
+      using ErrorsFrom = tuple_types_union_t<
+          Errors,
+          std::tuple<std::runtime_error>>;
+
       template <typename Arg, typename K>
       auto k(K k) && {
         return Continuation<K>(std::move(k), loop_, signum_);
@@ -880,6 +891,11 @@ struct _EventLoopSchedule final {
   struct Composable final {
     template <typename Arg>
     using ValueFrom = typename E_::template ValueFrom<Arg>;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = tuple_types_union_t<
+        Errors,
+        typename E_::template ErrorsFrom<Arg, Errors>>;
 
     template <typename Arg, typename K>
     auto k(K k) && {

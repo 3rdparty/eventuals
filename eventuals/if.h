@@ -2,7 +2,7 @@
 
 #include "eventuals/eventual.h"
 #include "eventuals/then.h" // For '_Then::Adaptor'.
-#include "eventuals/type-traits.h" // For 'type_identity'.
+#include "eventuals/type-traits.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -117,6 +117,18 @@ struct _If final {
             IsUndefined<NoE_>::value,
             decltype(Eventual<void>()),
             NoE_>::template ValueFrom<void>>;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = tuple_types_union_all_t<
+        Errors,
+        typename std::conditional_t<
+            IsUndefined<YesE_>::value,
+            decltype(Eventual<void>()),
+            YesE_>::template ErrorsFrom<Arg, Errors>,
+        typename std::conditional_t<
+            IsUndefined<NoE_>::value,
+            decltype(Eventual<void>()),
+            NoE_>::template ErrorsFrom<Arg, Errors>>;
 
     template <typename YesE, typename NoE>
     static auto create(bool condition, YesE yes, NoE no) {

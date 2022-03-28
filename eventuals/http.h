@@ -1208,6 +1208,11 @@ struct _HTTP final {
     template <typename Arg>
     using ValueFrom = Response;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = tuple_types_union_t<
+        Errors,
+        std::tuple<std::runtime_error>>;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K>(std::move(k), loop_, std::move(request_));

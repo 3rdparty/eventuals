@@ -84,6 +84,9 @@ struct _Terminal final {
     template <typename...>
     using ValueFrom = void;
 
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
+
     template <
         typename Context,
         typename Start,
