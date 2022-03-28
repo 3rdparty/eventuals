@@ -133,16 +133,28 @@ struct _Conditional {
             type_identity<ElseValue>,
             std::enable_if<std::is_void_v<ElseValue>, ThenValue>>>::type;
 
+    template <typename F, typename Arg>
+    using EventualFrom =
+        typename std::conditional_t<
+            std::is_void_v<Arg>,
+            std::invoke_result<F>,
+            std::invoke_result<F, Arg>>::type;
+
     template <typename Arg>
     using ValueFrom = Unify_<
-        typename std::conditional_t<
-            std::is_void_v<Arg>,
-            std::invoke_result<Then_>,
-            std::invoke_result<Then_, Arg>>::type::template ValueFrom<void>,
-        typename std::conditional_t<
-            std::is_void_v<Arg>,
-            std::invoke_result<Else_>,
-            std::invoke_result<Else_, Arg>>::type::template ValueFrom<void>>;
+        typename EventualFrom<Then_, Arg>::template ValueFrom<void>,
+        typename EventualFrom<Else_, Arg>::template ValueFrom<void>>;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = tuple_types_union_t<
+        Errors,
+        tuple_types_union_t<
+            typename EventualFrom<
+                Then_,
+                Arg>::template ErrorsFrom<void, std::tuple<>>,
+            typename EventualFrom<
+                Else_,
+                Arg>::template ErrorsFrom<void, std::tuple<>>>>;
 
     template <typename Arg, typename K>
     auto k(K k) && {

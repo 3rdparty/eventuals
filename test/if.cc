@@ -32,6 +32,11 @@ TEST(IfTest, Yes) {
            });
   };
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
   EXPECT_EQ("yes", *e());
 }
 
@@ -60,6 +65,11 @@ TEST(IfTest, Fail) {
                  .no(Just("no"));
            });
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   EXPECT_THROW_WHAT(*e(), "error");
 }
@@ -111,6 +121,11 @@ TEST(IfTest, Raise) {
                  .no(Raise("raise"));
            });
   };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
   EXPECT_EQ(1, *e());
 }

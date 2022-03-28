@@ -138,14 +138,14 @@ struct HeapTransformer final {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _TransformerFromTo final {
+struct _Transformer final {
   enum class Action {
     Body = 0,
     Fail = 1,
     Stop = 2,
   };
 
-  template <typename K_, typename From_, typename To_>
+  template <typename K_, typename From_, typename To_, typename Errors_>
   struct Continuation final {
     template <typename Dispatch>
     Continuation(K_ k, Dispatch dispatch)
@@ -232,10 +232,28 @@ struct _TransformerFromTo final {
     K_ k_;
   };
 
-  template <typename From_, typename To_>
+  template <typename From_, typename To_, typename Errors_>
   struct Composable final {
     template <typename>
     using ValueFrom = To_;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
+
+    template <typename T>
+    using From = std::enable_if_t<
+        IsUndefined<From_>::value,
+        Composable<T, To_, Errors_>>;
+
+    template <typename T>
+    using To = std::enable_if_t<
+        !IsUndefined<From_>::value && IsUndefined<To_>::value,
+        Composable<From_, T, Errors_>>;
+
+    template <typename... Errors>
+    using Raises = std::enable_if_t<
+        std::tuple_size_v<Errors_> == 0,
+        Composable<From_, To_, std::tuple<Errors...>>>;
 
     template <typename F>
     Composable(F f) {
@@ -250,6 +268,16 @@ struct _TransformerFromTo final {
           "can be captured in a 'Callback'");
 
       using E = decltype(f());
+
+      static_assert(
+          HasValueFrom<E>::value,
+          "'Transformer' expects a callable that returns an eventual");
+
+      using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
+
+      static_assert(
+          eventuals::tuple_types_subset_subtype_v<ErrorsFromE, Errors_>,
+          "Specified errors can't be thrown from 'Transformer'");
 
       using Value = typename E::template ValueFrom<From_>;
 
@@ -319,7 +347,7 @@ struct _TransformerFromTo final {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, From_, To_>(
+      return Continuation<K, From_, To_, Errors_>(
           std::move(k),
           std::move(dispatch_));
     }
@@ -341,53 +369,10 @@ struct _TransformerFromTo final {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename From_, typename To_>
-class TransformerFromTo {
- public:
-  template <typename>
-  using ValueFrom = To_;
-
-  template <typename F>
-  TransformerFromTo(F f)
-    : e_(std::move(f)) {}
-
-  TransformerFromTo(TransformerFromTo&& that) = default;
-
-  virtual ~TransformerFromTo() = default;
-
-  template <typename Arg, typename K>
-  auto k(K k) && {
-    return std::move(e_).template k<Arg>(std::move(k));
-  }
-
-  // NOTE: should only be used in tests!
-  auto operator*() && {
-    auto [future, k] = Terminate(std::move(e_));
-    k.Start();
-    return future.get();
-  }
-
- private:
-  _TransformerFromTo::Composable<From_, To_> e_;
-};
-
-struct Transformer final {
-  template <typename From_>
-  struct From final {
-    template <typename To_>
-    struct To final : public TransformerFromTo<From_, To_> {
-      template <typename F>
-      To(F f)
-        : TransformerFromTo<From_, To_>(std::move(f)) {}
-
-      To(To&& that) = default;
-
-      ~To() override = default;
-    };
-    template <typename F>
-    From(F f) = delete;
-  };
-};
+using Transformer = _Transformer::Composable<
+    Undefined,
+    Undefined,
+    std::tuple<>>;
 
 ////////////////////////////////////////////////////////////////////////
 

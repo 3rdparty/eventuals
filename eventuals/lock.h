@@ -374,9 +374,12 @@ struct _Acquire final {
     K_ k_;
   };
 
-  struct Composable {
+  struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
 
     template <typename Arg, typename K>
     auto k(K k) && {
@@ -451,6 +454,9 @@ struct _Release final {
   struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
 
     template <typename Arg, typename K>
     auto k(K k) && {
@@ -654,6 +660,9 @@ struct _Wait final {
   struct Composable final {
     template <typename Arg>
     using ValueFrom = Arg;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
 
     template <typename Arg, typename K>
     auto k(K k) && {

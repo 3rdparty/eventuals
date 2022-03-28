@@ -7,6 +7,7 @@
 #include "eventuals/scheduler.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
+#include "eventuals/type-traits.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/http-mock-server.h"
@@ -50,6 +51,12 @@ TEST_P(HttpTest, Get) {
       });
 
   auto e = client.Get(server.uri());
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 
@@ -106,6 +113,11 @@ TEST_P(HttpTest, GetGet) {
                     });
            }));
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
   auto [future, k] = Terminate(std::move(e));
 
   k.Start();
@@ -132,6 +144,12 @@ TEST_P(HttpTest, GetFailTimeout) {
   std::string scheme = GetParam();
 
   auto e = http::Get(scheme + "example.com", std::chrono::milliseconds(1));
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
   auto [future, k] = Terminate(std::move(e));
   k.Start();
 

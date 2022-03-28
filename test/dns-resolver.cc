@@ -5,6 +5,7 @@
 #include "eventuals/event-loop.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
+#include "eventuals/type-traits.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/event-loop-test.h"
@@ -25,6 +26,11 @@ TEST_F(DomainNameResolveTest, Succeed) {
 
   auto e = DomainNameResolve(address, port);
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
   auto [future, k] = Terminate(std::move(e));
 
   k.Start();
@@ -43,6 +49,11 @@ TEST_F(DomainNameResolveTest, Fail) {
 
   auto e = DomainNameResolve(address, port);
 
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
   auto [future, k] = Terminate(std::move(e));
 
   k.Start();
@@ -60,7 +71,7 @@ TEST_F(DomainNameResolveTest, Stop) {
             .start([](auto& k, auto&& ip) {
               // Imagine that we got ip, and we try to connect
               // in order to get some data (int) from db for example,
-              // but there was an error and we stop our continuation
+              // but there was an error and we stop our continuation.
               bool error = true;
               if (error) {
                 k.Stop();
@@ -78,4 +89,37 @@ TEST_F(DomainNameResolveTest, Stop) {
   EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
+}
+
+TEST_F(DomainNameResolveTest, Raises) {
+  std::string address = "localhost", port = "6667";
+  auto e = DomainNameResolve(address, port)
+      | Eventual<int>()
+            .raises<std::overflow_error>()
+            .start([](auto& k, auto&& ip) {
+              // Imagine that we got ip, and we try to connect
+              // in order to get some data (int) from db for example,
+              // but there was an error and we stop our continuation.
+              bool error = true;
+              if (error) {
+                k.Fail(std::overflow_error("error"));
+              } else
+                k.Start(13);
+            })
+      | Then([](int data) {
+             return std::to_string(data);
+           });
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error, std::overflow_error>>);
+
+  auto [future, k] = Terminate(std::move(e));
+
+  k.Start();
+
+  EventLoop::Default().RunUntil(future);
+
+  EXPECT_THROW_WHAT(future.get(), "error");
 }

@@ -491,7 +491,7 @@ class _Task final {
 
   template <
       typename E,
-      std::enable_if_t<tuple_types_subset_v<E, Errors_>, int> = 0>
+      std::enable_if_t<tuple_types_subset_subtype_v<E, Errors_>, int> = 0>
   _Task(_Task<From_, To_, E, Args_...>&& that)
     : e_(std::move(that.e_.value_or_dispatch_), std::move(that.e_.args_)) {
     CHECK(!k_.has_value()) << "moving after starting";
