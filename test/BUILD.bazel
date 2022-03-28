@@ -129,7 +129,12 @@ cc_binary(
 
 cc_test(
     name = "grpc",
-    timeout = "short",
+    # Our GitHub workflows run this test 100x: this test takes about 1s to run
+    # when compiled with -c dbg (which the workflow does), and 100x 1s = 100s
+    # which requires a moderate timeout.
+    # TODO(alexmc): Parallelize this test or speed it up to shorten this
+    # timeout.
+    timeout = "moderate",
     srcs = [
         "accept.cc",
         "build-and-start.cc",
