@@ -367,7 +367,9 @@ struct _TaskFromToWith final {
       using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
 
       static_assert(
-          eventuals::tuple_types_subset_v<ErrorsFromE, Errors_>,
+          std::disjunction_v<
+              eventuals::tuple_types_contains<std::exception, Errors_>,
+              eventuals::tuple_types_subset<ErrorsFromE, Errors_>>,
           "Specified errors can't be raised within 'Task'");
 
       static_assert(
