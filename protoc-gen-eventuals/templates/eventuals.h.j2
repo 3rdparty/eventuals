@@ -20,7 +20,7 @@ struct {{ service.name }} {
 
   class TypeErasedService : public ::eventuals::grpc::Service {
    public:
-    ::eventuals::Task::Of<void>::Raises<std::exception> Serve() override;
+    ::eventuals::Task::Of<void>::Raises<std::runtime_error> Serve() override;
 
     char const* name() override {
       return {{ service.name }}::service_full_name();
