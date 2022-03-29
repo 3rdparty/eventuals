@@ -10,10 +10,18 @@ on:
     branches:
       - "main"
     paths-ignore:
-      - "**.md" 
+      - "**.md"
   pull_request:
     paths-ignore:
-      - "**.md"       
+      - "**.md"
+  # Optionally use tmate to live debug failures:
+  # https://github.com/mxschmitt/action-tmate#manually-triggered-debug
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
+        required: false
+        default: false
 
 jobs:
   check_code_style:
@@ -24,20 +32,22 @@ jobs:
 
     steps:
       # We should checkout the repo with submodules
-      # cause we need to have symlink to 
+      # cause we need to have symlink to
       # dev-tools/.clang-format file for all code
       # style checks.
       - uses: actions/checkout@v2
-        with: 
+        with:
           submodules: 'recursive'
 
       # Call the composite action to check files
       # for correct code style. This action (action.yml)
       # is in `dev-tools` submodule.
       - uses: ./submodules/dev-tools/check-code-style
-        with: 
+        with:
           os: ${{matrix.os}}
 
       - name: Debug using tmate (if failure)
-        if: ${{ failure() }}
         uses: mxschmitt/action-tmate@v3
+        # Optionally enable tmate debugging of manually-triggered workflows.
+        # https://github.com/mxschmitt/action-tmate#manually-triggered-debug
+        if: ${{ failure() && github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled }}
