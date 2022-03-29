@@ -2,6 +2,21 @@ workspace(name = "com_github_3rdparty_eventuals")
 
 ########################################################################
 
+# NOTE: we pull in 'pyprotoc-plugin' as a local repository pointing to the
+# git submodule that we have so that we can do do more efficient
+# development between the two repositories. We'll remove this for
+# releases!
+local_repository(
+    name = "com_github_reboot_dev_pyprotoc_plugin",
+    path = "submodules/pyprotoc-plugin",
+)
+
+load("@com_github_reboot_dev_pyprotoc_plugin//bazel:repos.bzl", pyprotoc_plugin_repos = "repos")
+
+pyprotoc_plugin_repos(external = False)
+
+########################################################################
+
 load("//bazel:repos.bzl", "repos")
 
 repos(external = False)
