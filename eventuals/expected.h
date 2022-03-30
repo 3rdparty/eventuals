@@ -76,9 +76,7 @@ class _Expected {
       std::enable_if_t<
           std::conjunction_v<
               std::is_convertible<T, Value_>,
-              std::disjunction<
-                  tuple_types_subset<Errors, Errors_>,
-                  tuple_types_contains<std::exception, Errors_>>>,
+              tuple_types_subset_subtype<Errors, Errors_>>,
           int> = 0>
   _Expected(_Expected<T, Errors> that)
     : variant_([&]() {
@@ -96,9 +94,7 @@ class _Expected {
     : variant_([&]() {
         static_assert(std::is_base_of_v<std::exception, Error>);
         static_assert(
-            std::disjunction_v<
-                tuple_types_contains<std::exception, Errors_>,
-                tuple_types_contains<Error, Errors_>>,
+            tuple_types_contains_subtype_v<Error, Errors_>,
             "'Expected::Of::Raises' does not include 'Unexpected(...)' type");
 
         return make_exception_ptr_or_forward(std::move(unexpected.error));
