@@ -37,59 +37,6 @@ struct HasErrorsFrom<T, std::void_t<void_template<T::template ErrorsFrom>>>
 
 ////////////////////////////////////////////////////////////////////////
 
-template <
-    typename Arg_,
-    typename Left_,
-    typename Right_,
-    typename Errors_,
-    bool = HasErrorsFrom<Left_>::value,
-    bool = HasErrorsFrom<Right_>::value>
-struct ErrorsFromComposed;
-
-template <
-    typename Arg_,
-    typename Left_,
-    typename Right_,
-    typename Errors_>
-struct ErrorsFromComposed<Arg_, Left_, Right_, Errors_, true, true> {
-  using Errors = typename Right_::template ErrorsFrom<
-      typename Left_::template ValueFrom<Arg_>,
-      typename Left_::template ErrorsFrom<Arg_, Errors_>>;
-};
-
-template <
-    typename Arg_,
-    typename Left_,
-    typename Right_,
-    typename Errors_>
-struct ErrorsFromComposed<Arg_, Left_, Right_, Errors_, true, false> {
-  using Errors = typename Left_::template ErrorsFrom<
-      Arg_,
-      tuple_types_union_t<std::tuple<std::exception>, Errors_>>;
-};
-
-template <
-    typename Arg_,
-    typename Left_,
-    typename Right_,
-    typename Errors_>
-struct ErrorsFromComposed<Arg_, Left_, Right_, Errors_, false, true> {
-  using Errors = typename Right_::template ErrorsFrom<
-      typename Left_::template ValueFrom<Arg_>,
-      tuple_types_union_t<std::tuple<std::exception>, Errors_>>;
-};
-
-template <
-    typename Arg_,
-    typename Left_,
-    typename Right_,
-    typename Errors_>
-struct ErrorsFromComposed<Arg_, Left_, Right_, Errors_, false, false> {
-  using Errors = tuple_types_union_t<std::tuple<std::exception>, Errors_>;
-};
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename Left_, typename Right_>
 struct Composed final {
   Left_ left_;
@@ -100,11 +47,9 @@ struct Composed final {
       typename Left_::template ValueFrom<Arg>>;
 
   template <typename Arg, typename Errors>
-  using ErrorsFrom = typename ErrorsFromComposed<
-      Arg,
-      Left_,
-      Right_,
-      Errors>::Errors;
+  using ErrorsFrom = typename Right_::template ErrorsFrom<
+      typename Left_::template ValueFrom<Arg>,
+      typename Left_::template ErrorsFrom<Arg, Errors>>;
 
   template <typename Arg>
   auto k() && {
