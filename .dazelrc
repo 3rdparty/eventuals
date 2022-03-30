@@ -1,4 +1,0 @@
-# Use a unique Dazel image and instance name so it doesn't conflict with other
-# Dazel instances (e.g. ones in other repos).
-DAZEL_IMAGE_NAME = "dazel-eventuals"
-DAZEL_INSTANCE_NAME = "dazel-eventuals"
