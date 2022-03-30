@@ -18,6 +18,17 @@ using ValueFromMaybeComposable = typename std::conditional_t<
 
 ////////////////////////////////////////////////////////////////////////
 
+template <
+    typename Arg_,
+    typename Left_,
+    typename Right_,
+    typename Errors_>
+struct ErrorsFromComposed {
+  using Errors = typename Right_::template ErrorsFrom<
+      typename Left_::template ValueFrom<Arg_>,
+      typename Left_::template ErrorsFrom<Arg_, Errors_>>;
+};
+
 template <typename T, typename Arg, typename Errors>
 using ErrorsFromMaybeComposable = typename ErrorsFromComposed<
     Arg,
