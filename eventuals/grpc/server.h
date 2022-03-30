@@ -51,7 +51,7 @@ class Service {
  public:
   virtual ~Service() = default;
 
-  virtual Task::Of<void>::Raises<std::runtime_error> Serve() = 0;
+  virtual Task::Of<void>::Raises<std::exception> Serve() = 0;
 
   virtual char const* name() = 0;
 
@@ -550,7 +550,7 @@ class Server : public Synchronizable {
   struct Serve {
     Service* service;
     Interrupt interrupt;
-    std::optional<Task::Of<void>::Raises<std::runtime_error>> task;
+    std::optional<Task::Of<void>::Raises<std::exception>> task;
     std::atomic<bool> done = false;
   };
 

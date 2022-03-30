@@ -26,7 +26,7 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-Task::Of<void>::Raises<std::runtime_error> Greeter::TypeErasedService::Serve() {
+Task::Of<void>::Raises<std::exception> Greeter::TypeErasedService::Serve() {
   return [this]() {
     return DoAll(
                // SayHello

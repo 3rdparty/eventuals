@@ -18,7 +18,7 @@ class Greeter {
 
   class TypeErasedService : public ::eventuals::grpc::Service {
    public:
-    ::eventuals::Task::Of<void>::Raises<std::runtime_error> Serve() override;
+    ::eventuals::Task::Of<void>::Raises<std::exception> Serve() override;
 
     char const* name() override {
       return Greeter::service_full_name();
