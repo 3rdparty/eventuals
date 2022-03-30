@@ -367,9 +367,7 @@ struct _TaskFromToWith final {
       using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
 
       static_assert(
-          std::disjunction_v<
-              eventuals::tuple_types_contains<std::exception, Errors_>,
-              eventuals::tuple_types_subset<ErrorsFromE, Errors_>>,
+          tuple_types_subset_subtype_v<ErrorsFromE, Errors_>,
           "Specified errors can't be raised within 'Task'");
 
       static_assert(
@@ -579,8 +577,7 @@ class _Task final {
     static_assert(
         std::disjunction_v<
             std::is_same<std::exception_ptr, std::decay_t<Error>>,
-            tuple_types_contains<std::exception, Errors_>,
-            tuple_types_contains<std::decay_t<Error>, Errors_>>,
+            tuple_types_contains_subtype<std::decay_t<Error>, Errors_>>,
         "Error is not specified in 'Raises'");
 
     k_.emplace(Build(

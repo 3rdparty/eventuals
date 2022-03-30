@@ -250,8 +250,7 @@ struct _Generator final {
       static_assert(
           std::disjunction_v<
               std::is_same<std::exception_ptr, std::decay_t<Error>>,
-              tuple_types_contains<std::exception, Errors_>,
-              tuple_types_contains<std::decay_t<Error>, Errors_>>,
+              tuple_types_contains_subtype<std::decay_t<Error>, Errors_>>,
           "Error is not specified in 'Raises'");
 
       std::exception_ptr exception;
@@ -397,7 +396,7 @@ struct _Generator final {
       using ErrorsFromE = ErrorsFromMaybeComposable<E, From_, std::tuple<>>;
 
       static_assert(
-          eventuals::tuple_types_subset_v<ErrorsFromE, Errors_>,
+          tuple_types_subset_subtype_v<ErrorsFromE, Errors_>,
           "Specified errors can't be thrown from 'Generator'");
 
       using Value = typename E::template ValueFrom<From_>;

@@ -40,8 +40,7 @@ struct _Loop final {
       static_assert(
           std::disjunction_v<
               std::is_same<std::exception_ptr, std::decay_t<Error>>,
-              tuple_types_contains<std::exception, Errors_>,
-              tuple_types_contains<std::decay_t<Error>, Errors_>>,
+              tuple_types_contains_subtype<std::decay_t<Error>, Errors_>>,
           "Error is not specified in 'raises<...>()'");
 
       (*k_)().Fail(std::forward<Error>(error));

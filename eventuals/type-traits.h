@@ -78,10 +78,39 @@ inline constexpr bool tuple_types_contains_v =
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename T, typename Tuple>
+struct tuple_types_contains_subtype : std::false_type {};
+
+template <typename T, typename... Ts>
+struct tuple_types_contains_subtype<T, std::tuple<Ts...>> {
+  static constexpr bool value = std::disjunction_v<std::is_base_of<Ts, T>...>;
+};
+
+template <typename T, typename Tuple>
+static constexpr bool tuple_types_contains_subtype_v =
+    tuple_types_contains_subtype<T, Tuple>::value;
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Left, typename Right>
+struct tuple_types_subset_subtype : std::false_type {};
+
+template <typename... Lefts, typename Right>
+struct tuple_types_subset_subtype<std::tuple<Lefts...>, Right> {
+  static constexpr bool value = std::conjunction_v<
+      tuple_types_contains_subtype<Lefts, Right>...>;
+};
+
+template <typename Left, typename Right>
+static constexpr bool tuple_types_subset_subtype_v =
+    tuple_types_subset_subtype<Left, Right>::value;
+
+////////////////////////////////////////////////////////////////////////
+
 template <typename Left, typename Right>
 struct tuple_types_subset : std::false_type {};
 
-template <typename Right, typename... Lefts>
+template <typename... Lefts, typename Right>
 struct tuple_types_subset<std::tuple<Lefts...>, Right> {
   static constexpr bool value =
       std::conjunction_v<tuple_types_contains<Lefts, Right>...>;

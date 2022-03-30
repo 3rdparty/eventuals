@@ -2,6 +2,8 @@
 
 #include <string>
 
+using eventuals::tuple_types_contains_subtype_v;
+using eventuals::tuple_types_subset_subtype_v;
 using eventuals::tuple_types_subset_v;
 using eventuals::tuple_types_subtract_t;
 using eventuals::tuple_types_union_all_t;
@@ -194,5 +196,62 @@ static_assert(
             std::tuple<int, float, double>,
             std::tuple<std::string>>,
         std::tuple<int, float, double>>);
+
+////////////////////////////////////////////////////////////////////////
+
+struct A {};
+
+struct B : public A {};
+
+struct C : public B {};
+
+struct D;
+
+static_assert(
+    tuple_types_contains_subtype_v<
+        A,
+        std::tuple<A, C>>);
+
+static_assert(
+    tuple_types_contains_subtype_v<
+        B,
+        std::tuple<D, A>>);
+
+static_assert(
+    !tuple_types_contains_subtype_v<
+        A,
+        std::tuple<B>>);
+
+static_assert(
+    !tuple_types_contains_subtype_v<
+        A,
+        std::tuple<D>>);
+
+static_assert(
+    tuple_types_contains_subtype_v<
+        C,
+        std::tuple<A>>);
+
+////////////////////////////////////////////////////////////////////////
+
+static_assert(
+    tuple_types_subset_subtype_v<
+        std::tuple<B>,
+        std::tuple<B>>);
+
+static_assert(
+    tuple_types_subset_subtype_v<
+        std::tuple<B, C>,
+        std::tuple<A>>);
+
+static_assert(
+    tuple_types_subset_subtype_v<
+        std::tuple<B, C>,
+        std::tuple<A, B, D>>);
+
+static_assert(
+    !tuple_types_subset_subtype_v<
+        std::tuple<B, A>,
+        std::tuple<B, D>>);
 
 ////////////////////////////////////////////////////////////////////////
