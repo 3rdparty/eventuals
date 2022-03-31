@@ -107,7 +107,7 @@ class Scheduler {
 
     // Schedulers can use 'callback' to store the function that "starts" or
     // "unblocks"/"resumes" the context.
-    Callback<> callback;
+    Callback<void()> callback;
 
    private:
     static thread_local Context* current_;
@@ -126,7 +126,7 @@ class Scheduler {
 
   virtual bool Continuable(Context* context) = 0;
 
-  virtual void Submit(Callback<> callback, Context* context) = 0;
+  virtual void Submit(Callback<void()> callback, Context* context) = 0;
 
   virtual void Clone(Context* child) = 0;
 };

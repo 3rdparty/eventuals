@@ -14,7 +14,7 @@ namespace eventuals {
 class Interrupt final {
  public:
   struct Handler final {
-    Handler(Interrupt* interrupt, Callback<>&& callback)
+    Handler(Interrupt* interrupt, Callback<void()>&& callback)
       : interrupt_(CHECK_NOTNULL(interrupt)),
         callback_(std::move(callback)) {}
 
@@ -33,7 +33,7 @@ class Interrupt final {
       return *CHECK_NOTNULL(interrupt_);
     }
 
-    bool Install(Callback<>&& callback) {
+    bool Install(Callback<void()>&& callback) {
       callback_ = std::move(callback);
       return CHECK_NOTNULL(interrupt_)->Install(this);
     }
@@ -49,7 +49,7 @@ class Interrupt final {
     }
 
     Interrupt* interrupt_ = nullptr;
-    Callback<> callback_;
+    Callback<void()> callback_;
     Handler* next_ = nullptr;
   };
 

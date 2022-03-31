@@ -111,7 +111,7 @@ StaticThreadPool::~StaticThreadPool() {
 
 ////////////////////////////////////////////////////////////////////////
 
-void StaticThreadPool::Submit(Callback<> callback, Context* context) {
+void StaticThreadPool::Submit(Callback<void()> callback, Context* context) {
   CHECK(!context->blocked()) << context->name();
   CHECK(context->next == nullptr) << context->name();
 

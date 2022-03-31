@@ -160,7 +160,7 @@ TEST(LockTest, Stop) {
 TEST(LockTest, Wait) {
   Lock lock;
 
-  Callback<> callback;
+  Callback<void()> callback;
 
   auto e1 = [&]() {
     return Eventual<std::string>()

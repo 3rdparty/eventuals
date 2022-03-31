@@ -27,7 +27,7 @@ using eventuals::Terminate;
 // eventuals will stop and one will fail so the result will be either
 // a fail or stop. 'Fail' for 'ConcurrentOrdered()'.
 TYPED_TEST(ConcurrentTypedTest, InterruptFailOrStop) {
-  std::deque<Callback<>> callbacks;
+  std::deque<Callback<void()>> callbacks;
 
   auto e = [&]() {
     return Iterate({1, 2})

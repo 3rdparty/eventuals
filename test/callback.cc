@@ -1,6 +1,7 @@
 #include "eventuals/callback.h"
 
 #include "gtest/gtest.h"
+#include "stout/borrowed_ptr.h"
 
 using eventuals::Callback;
 
@@ -25,11 +26,41 @@ TEST(Callback, Destructor) {
   bool destructed = false;
 
   {
-    Callback<> callback = [foo = Foo{&destructed}]() {
-    };
+    Callback<void()> callback = [foo = Foo{&destructed}]() {};
     callback();
     EXPECT_FALSE(destructed);
   }
 
   EXPECT_TRUE(destructed);
+}
+
+TEST(Callback, BorrowedCallable) {
+  class Foo : public stout::enable_borrowable_from_this<Foo> {
+   public:
+    Foo(int i)
+      : i_(i) {}
+
+    auto Function() {
+      return Borrow([this]() {
+        return i_;
+      });
+    }
+
+   private:
+    int i_ = 0;
+  };
+
+  Foo foo(42);
+
+  {
+    Callback<int()> callback = foo.Function();
+
+    EXPECT_EQ(foo.borrows(), 1);
+
+    EXPECT_EQ(42, callback());
+
+    EXPECT_EQ(foo.borrows(), 1);
+  }
+
+  EXPECT_EQ(foo.borrows(), 0);
 }

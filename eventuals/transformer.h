@@ -17,11 +17,11 @@ template <typename E_, typename From_, typename To_>
 struct HeapTransformer final {
   struct Adaptor final {
     Adaptor(
-        Callback<TypeErasedStream&>* begin,
-        Callback<std::exception_ptr>* fail,
-        Callback<>* stop,
-        Callback<To_>* body,
-        Callback<>* ended)
+        Callback<void(TypeErasedStream&)>* begin,
+        Callback<void(std::exception_ptr)>* fail,
+        Callback<void()>* stop,
+        Callback<void(To_)>* body,
+        Callback<void()>* ended)
       : begin_(begin),
         fail_(fail),
         stop_(stop),
@@ -56,11 +56,11 @@ struct HeapTransformer final {
     // Already registered in 'adapted_'
     void Register(Interrupt&) {}
 
-    Callback<TypeErasedStream&>* begin_;
-    Callback<std::exception_ptr>* fail_;
-    Callback<>* stop_;
-    Callback<To_>* body_;
-    Callback<>* ended_;
+    Callback<void(TypeErasedStream&)>* begin_;
+    Callback<void(std::exception_ptr)>* fail_;
+    Callback<void()>* stop_;
+    Callback<void(To_)>* body_;
+    Callback<void()>* ended_;
   };
 
   HeapTransformer(E_ e)
@@ -71,11 +71,11 @@ struct HeapTransformer final {
   void Body(
       From_&& arg,
       Interrupt& interrupt,
-      Callback<TypeErasedStream&>&& begin,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop,
-      Callback<To_>&& body,
-      Callback<>&& ended) {
+      Callback<void(TypeErasedStream&)>&& begin,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop,
+      Callback<void(To_)>&& body,
+      Callback<void()>&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -90,11 +90,11 @@ struct HeapTransformer final {
   void Fail(
       Interrupt& interrupt,
       std::exception_ptr&& exception,
-      Callback<TypeErasedStream&>&& begin,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop,
-      Callback<To_>&& body,
-      Callback<>&& ended) {
+      Callback<void(TypeErasedStream&)>&& begin,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop,
+      Callback<void(To_)>&& body,
+      Callback<void()>&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -108,11 +108,11 @@ struct HeapTransformer final {
 
   void Stop(
       Interrupt& interrupt,
-      Callback<TypeErasedStream&>&& begin,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop,
-      Callback<To_>&& body,
-      Callback<>&& ended) {
+      Callback<void(TypeErasedStream&)>&& begin,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop,
+      Callback<void(To_)>&& body,
+      Callback<void()>&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -124,11 +124,11 @@ struct HeapTransformer final {
     adapted_.Stop();
   }
 
-  Callback<TypeErasedStream&> begin_;
-  Callback<std::exception_ptr> fail_;
-  Callback<> stop_;
-  Callback<To_> body_;
-  Callback<> ended_;
+  Callback<void(TypeErasedStream&)> begin_;
+  Callback<void(std::exception_ptr)> fail_;
+  Callback<void()> stop_;
+  Callback<void(To_)> body_;
+  Callback<void()> ended_;
 
   using Adapted_ = decltype(std::declval<E_>().template k<From_>(
       std::declval<Adaptor>()));
@@ -209,20 +209,20 @@ struct _TransformerFromTo final {
           });
     }
 
-    Callback<
+    Callback<void(
         Action,
         std::optional<std::exception_ptr>&&,
         std::optional<From_>&&,
-        std::unique_ptr<void, Callback<void*>>&,
+        std::unique_ptr<void, Callback<void(void*)>>&,
         Interrupt&,
-        Callback<TypeErasedStream&>&&,
-        Callback<To_>&&,
-        Callback<std::exception_ptr>&&,
-        Callback<>&&,
-        Callback<>&&>
+        Callback<void(TypeErasedStream&)>&&,
+        Callback<void(To_)>&&,
+        Callback<void(std::exception_ptr)>&&,
+        Callback<void()>&&,
+        Callback<void()>&&)>
         dispatch_;
 
-    std::unique_ptr<void, Callback<void*>> e_;
+    std::unique_ptr<void, Callback<void(void*)>> e_;
     Interrupt* interrupt_ = nullptr;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
@@ -262,15 +262,15 @@ struct _TransformerFromTo final {
                       Action action,
                       std::optional<std::exception_ptr>&& exception,
                       std::optional<From_>&& from,
-                      std::unique_ptr<void, Callback<void*>>& e_,
+                      std::unique_ptr<void, Callback<void(void*)>>& e_,
                       Interrupt& interrupt,
-                      Callback<TypeErasedStream&>&& begin,
-                      Callback<To_>&& body,
-                      Callback<std::exception_ptr>&& fail,
-                      Callback<>&& stop,
-                      Callback<>&& ended) {
+                      Callback<void(TypeErasedStream&)>&& begin,
+                      Callback<void(To_)>&& body,
+                      Callback<void(std::exception_ptr)>&& fail,
+                      Callback<void()>&& stop,
+                      Callback<void()>&& ended) {
         if (!e_) {
-          e_ = std::unique_ptr<void, Callback<void*>>(
+          e_ = std::unique_ptr<void, Callback<void(void*)>>(
               new HeapTransformer<E, From_, To_>(f()),
               [](void* e) {
                 delete static_cast<HeapTransformer<E, From_, To_>*>(e);
@@ -324,17 +324,17 @@ struct _TransformerFromTo final {
           std::move(dispatch_));
     }
 
-    Callback<
+    Callback<void(
         Action,
         std::optional<std::exception_ptr>&&,
         std::optional<From_>&&,
-        std::unique_ptr<void, Callback<void*>>&,
+        std::unique_ptr<void, Callback<void(void*)>>&,
         Interrupt&,
-        Callback<TypeErasedStream&>&&,
-        Callback<To_>&&,
-        Callback<std::exception_ptr>&&,
-        Callback<>&&,
-        Callback<>&&>
+        Callback<void(TypeErasedStream&)>&&,
+        Callback<void(To_)>&&,
+        Callback<void(std::exception_ptr)>&&,
+        Callback<void()>&&,
+        Callback<void()>&&)>
         dispatch_;
   };
 };

@@ -141,8 +141,8 @@ struct ServerContext {
   ::grpc::GenericServerContext context_;
   ::grpc::GenericServerAsyncReaderWriter stream_;
 
-  Callback<bool> done_callback_;
-  Callback<bool> finish_callback_;
+  Callback<void(bool)> done_callback_;
+  Callback<void(bool)> finish_callback_;
 
   std::function<void(bool)> finish_on_done_;
 
@@ -173,7 +173,7 @@ class ServerReader {
         .template raises<std::runtime_error>()
         .next([this,
                data = Data{},
-               callback = Callback<bool>()](auto& k) mutable {
+               callback = Callback<void(bool)>()](auto& k) mutable {
           using K = std::decay_t<decltype(k)>;
 
           if (!callback) {
@@ -256,7 +256,7 @@ class ServerWriter {
         .raises<std::runtime_error>()
         .start(
             [this,
-             callback = Callback<bool>(),
+             callback = Callback<void(bool)>(),
              response = std::move(response),
              options = std::move(options)](auto& k) mutable {
               ::grpc::ByteBuffer buffer;
@@ -290,7 +290,7 @@ class ServerWriter {
         .raises<std::runtime_error>()
         .start(
             [this,
-             callback = Callback<bool>(),
+             callback = Callback<void(bool)>(),
              response = std::move(response),
              options = std::move(options)](auto& k) mutable {
               ::grpc::ByteBuffer buffer;
@@ -392,7 +392,7 @@ class ServerCall {
         .raises<std::runtime_error>()
         .start(
             [this,
-             callback = Callback<bool>(),
+             callback = Callback<void(bool)>(),
              status](auto& k, auto&&...) mutable {
               callback = [&k](bool ok) {
                 if (ok) {

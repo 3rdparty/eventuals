@@ -161,7 +161,7 @@ class EventLoop final : public Scheduler {
     // paused or the specified number of nanoseconds have been
     // advanced from the paused time.
     void Submit(
-        Callback<const std::chrono::nanoseconds&> callback,
+        Callback<void(const std::chrono::nanoseconds&)> callback,
         const std::chrono::nanoseconds& nanoseconds) {
       if (!Paused()) { // TODO(benh): add 'unlikely()'.
         callback(nanoseconds);
@@ -411,7 +411,7 @@ class EventLoop final : public Scheduler {
 
     struct Pending {
       std::chrono::nanoseconds nanoseconds;
-      Callback<const std::chrono::nanoseconds&> callback;
+      Callback<void(const std::chrono::nanoseconds&)> callback;
     };
 
     // NOTE: using "blocking" synchronization here as pausing the
@@ -458,7 +458,7 @@ class EventLoop final : public Scheduler {
 
   bool Continuable(Scheduler::Context* context) override;
 
-  void Submit(Callback<> callback, Scheduler::Context* context) override;
+  void Submit(Callback<void()> callback, Scheduler::Context* context) override;
 
   void Clone(Context* child) override {}
 

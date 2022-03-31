@@ -25,7 +25,7 @@ using eventuals::Terminate;
 // eventuals on how to handle interrupts and in this case each eventual
 // ignores interrupts so we'll successfully collect all the values.
 TYPED_TEST(ConcurrentTypedTest, InterruptSuccess) {
-  std::deque<Callback<>> callbacks;
+  std::deque<Callback<void()>> callbacks;
 
   auto e = [&]() {
     return Iterate({1, 2})

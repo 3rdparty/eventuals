@@ -49,7 +49,7 @@ class ClientReader {
     return eventuals::Stream<ResponseType_>()
         .next([this,
                data = Data{},
-               callback = Callback<bool>()](auto& k) mutable {
+               callback = Callback<void(bool)>()](auto& k) mutable {
           using K = std::decay_t<decltype(k)>;
           if (!callback) {
             data.reader = this;
@@ -124,7 +124,7 @@ class ClientWriter {
         .raises<std::runtime_error>()
         .start(
             [this,
-             callback = Callback<bool>(),
+             callback = Callback<void(bool)>(),
              request = std::move(request),
              options = std::move(options)](auto& k) mutable {
               callback = [&k](bool ok) mutable {
@@ -219,7 +219,7 @@ class ClientCall {
     return Eventual<void>()
         .raises<std::runtime_error>()
         .start(
-            [this, callback = Callback<bool>()](auto& k) mutable {
+            [this, callback = Callback<void(bool)>()](auto& k) mutable {
               callback = [&k](bool ok) mutable {
                 if (ok) {
                   k.Start();
@@ -248,7 +248,7 @@ class ClientCall {
         .start(
             [this,
              data = Data{},
-             callback = Callback<bool>()](auto& k, auto&&...) mutable {
+             callback = Callback<void(bool)>()](auto& k, auto&&...) mutable {
               using K = std::decay_t<decltype(k)>;
               data.k = &k;
               callback = [&data](bool ok) {
@@ -372,7 +372,7 @@ class Client {
                  ::grpc::TemplatedGenericStub<
                      RequestType,
                      ResponseType>(channel_)},
-             callback = Callback<bool>()](auto& k) mutable {
+             callback = Callback<void(bool)>()](auto& k) mutable {
               const auto* method =
                   google::protobuf::DescriptorPool::generated_pool()
                       ->FindMethodByName(data.name);

@@ -22,7 +22,7 @@ using eventuals::Terminate;
 
 // Tests when at least one of the eventuals fails.
 TYPED_TEST(ConcurrentTypedTest, Fail) {
-  std::deque<Callback<>> callbacks;
+  std::deque<Callback<void()>> callbacks;
 
   auto e = [&]() {
     return Iterate({1, 2})

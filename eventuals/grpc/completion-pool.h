@@ -27,7 +27,7 @@ class CompletionPool {
             void* tag = nullptr;
             bool ok = false;
             while (cq->Next(&tag, &ok)) {
-              (*static_cast<Callback<bool>*>(tag))(ok);
+              (*static_cast<Callback<void(bool)>*>(tag))(ok);
             }
           });
     }

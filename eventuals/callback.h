@@ -16,8 +16,11 @@ namespace eventuals {
 // is not required to avoid heap allocation even if most
 // implementations do for small lambdas).
 
-template <typename... Args>
-struct Callback final {
+template <typename>
+struct Callback;
+
+template <typename R, typename... Args>
+struct Callback<R(Args...)> final {
   // TODO(benh): Delete default constructor and force a usage pattern
   // where a delayed initialization requires std::optional so that a
   // user doesn't run into issues where they try and invoke a callback
@@ -88,9 +91,9 @@ struct Callback final {
     }
   }
 
-  void operator()(Args... args) {
+  R operator()(Args... args) {
     assert(base_ != nullptr);
-    base_->Invoke(std::forward<Args>(args)...);
+    return base_->Invoke(std::forward<Args>(args)...);
   }
 
   operator bool() const {
@@ -100,7 +103,7 @@ struct Callback final {
   struct Base {
     virtual ~Base() = default;
 
-    virtual void Invoke(Args... args) = 0;
+    virtual R Invoke(Args... args) = 0;
 
     virtual Base* Move(void* storage) = 0;
   };
@@ -112,8 +115,8 @@ struct Callback final {
 
     ~Handler() override = default;
 
-    void Invoke(Args... args) override {
-      f_(std::forward<Args>(args)...);
+    R Invoke(Args... args) override {
+      return f_(std::forward<Args>(args)...);
     }
 
     // TODO(benh): better way to do this?

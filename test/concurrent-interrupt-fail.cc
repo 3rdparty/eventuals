@@ -26,7 +26,7 @@ using eventuals::Terminate;
 // eventuals on how to handle interrupts and in this case both of the
 // eventuals will fail so the result will be a fail.
 TYPED_TEST(ConcurrentTypedTest, InterruptFail) {
-  std::deque<Callback<>> callbacks;
+  std::deque<Callback<void()>> callbacks;
 
   auto e = [&]() {
     return Iterate({1, 2})
