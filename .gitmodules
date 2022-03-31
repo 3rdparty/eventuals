@@ -6,3 +6,7 @@
 	path = submodules/pyprotoc-plugin
 	url = https://github.com/reboot-dev/pyprotoc-plugin
 	branch = main
+[submodule "submodules/stout"]
+	path = submodules/stout
+	url = https://github.com/3rdparty/stout.git
+	branch = master
