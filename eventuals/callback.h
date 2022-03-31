@@ -61,11 +61,15 @@ struct Callback final {
         "Not to be used as a *copy* assignment operator!");
 
     static_assert(sizeof(Handler<F>) <= SIZE);
+
     if (base_ != nullptr) {
       base_->~Base();
     }
+
     new (&storage_) Handler<F>(std::move(f));
+
     base_ = reinterpret_cast<Handler<F>*>(&storage_);
+
     return *this;
   }
 
@@ -121,7 +125,9 @@ struct Callback final {
     F f_;
   };
 
-  static constexpr std::size_t SIZE = sizeof(void*) + sizeof(Base);
+  // NOTE: we allow up to 2 * sizeof(void*) to accomodate storing a
+  // 'stout::borrowed_callable'.
+  static constexpr std::size_t SIZE = (2 * sizeof(void*)) + sizeof(Base);
 
   std::aligned_storage_t<SIZE> storage_;
 
