@@ -15,7 +15,9 @@ ARG CLANG_VERSION=14
 
 # Install generic dependencies.
 #
-# TODO(benh): are 'ca-certificates', 'gnupg', or 'ssh-client' necessary?
+# curl and gnupg are needed to install bazel.
+#
+# TODO(benh): are 'ca-certificates' or 'ssh-client' necessary?
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     gnupg \
@@ -25,12 +27,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget
 
 # Install build tools for some of the 3rdparty dependencies that are
-# outside/foreign to Bazel. 
+# outside/foreign to Bazel.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     autoconf \
     make
 
-# Install Bazel.
+# Install Bazel:
+# https://docs.bazel.build/versions/main/install-ubuntu.html#install-on-ubuntu
 RUN echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" > \
     /etc/apt/sources.list.d/bazel.list \
     && curl -fsSL https://bazel.build/bazel-release.pub.gpg | apt-key add - \
