@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+# This configuration file is effectively a python module loaded by dazel.
+# Source: https://github.com/nadirizr/dazel/blob/master/dazel.py#L600-L601
+
+import os.path
+
+# Instead of using the host's Bazel cache (at ~/.cache/bazel), use a directory
+# that Dazel has to itself. This is essential to avoid a recurring problem with
+# compilation failures due to corrupt caches. Even Dazel's maintainers think
+# using the same cache is a mistake:
+#   https://github.com/nadirizr/dazel/issues/43
+DAZEL_BAZEL_USER_OUTPUT_ROOT = os.path.expanduser("~/.cache/dazel/tests")
+
+DAZEL_DOCKERFILE = "Dockerfile.dazel"
+DAZEL_VOLUMES = ["/var/run/docker.sock:/var/run/docker.sock"]
+
+# Use a unique Dazel image and instance name so it doesn't conflict with other
+# Dazel instances in other repos.
+DAZEL_IMAGE_NAME = "dazel-eventuals"
+DAZEL_INSTANCE_NAME = "dazel-eventuals"
