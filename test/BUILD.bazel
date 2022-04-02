@@ -34,6 +34,7 @@ cc_grpc_library(
 cc_eventuals_library(
     name = "sample_service_eventuals_generated",
     testonly = True,
+    srcs = [":sample_service.proto"],
     deps = [":sample_service_proto"],
 )
 
