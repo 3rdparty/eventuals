@@ -1,5 +1,6 @@
 """Dependency specific initialization."""
 
+load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 load("@com_github_3rdparty_bazel_rules_asio//bazel:deps.bzl", asio_deps = "deps")
@@ -20,6 +21,8 @@ def deps(repo_mapping = {}):
     asio_deps(
         repo_mapping = repo_mapping,
     )
+
+    bazel_skylib_workspace()
 
     curl_deps(
         repo_mapping = repo_mapping,
