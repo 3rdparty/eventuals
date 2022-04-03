@@ -79,9 +79,12 @@ class Request final {
 // Moveable, not Copyable.
 class File final {
  public:
-  // Removing default constructor breaks Windows build
-  // due to how std::future is implemented.
+#if _WIN32
+  // NOTE: default constructor should not exist or be used but is
+  // necessary on Windows so this type can be used as a type parameter
+  // to 'std::promise', see: https://bit.ly/VisualStudioStdPromiseBug
   File() {}
+#endif
 
   File(const File& that) = delete;
 
