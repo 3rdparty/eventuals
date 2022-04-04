@@ -127,6 +127,7 @@ cc_library(
         ":base",
         ":events",
         ":http",
+        "@com_github_3rdparty_stout_borrowed_ptr//:borrowed_ptr",
     ],
 )
 

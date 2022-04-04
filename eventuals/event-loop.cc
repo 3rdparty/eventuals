@@ -291,7 +291,7 @@ bool EventLoop::Continuable(Scheduler::Context* context) {
 
 ////////////////////////////////////////////////////////////////////////
 
-void EventLoop::Submit(Callback<> callback, Scheduler::Context* context) {
+void EventLoop::Submit(Callback<void()> callback, Scheduler::Context* context) {
   CHECK(!context->blocked()) << context->name();
   CHECK(context->next == nullptr) << context->name();
 

@@ -20,7 +20,7 @@ namespace eventuals {
 class Lock final {
  public:
   struct Waiter final {
-    Callback<> f;
+    Callback<void()> f;
     Waiter* next = nullptr;
     bool acquired = false;
     Scheduler::Context* context = nullptr;
@@ -479,7 +479,7 @@ struct _Wait final {
 
       if (!condition_) {
         condition_.emplace(
-            f_(Callback<>([this]() {
+            f_(Callback<void()>([this]() {
               // NOTE: we ignore notifications unless we're notifiable
               // and we make sure we're not notifiable after the first
               // notification so we don't try and add ourselves to the
@@ -561,7 +561,7 @@ struct _Wait final {
 
       if (!condition_) {
         condition_.emplace(
-            f_(Callback<>([this]() {
+            f_(Callback<void()>([this]() {
               // NOTE: we ignore notifications unless we're notifiable
               // and we make sure we're not notifiable after the first
               // notification so we don't try and add ourselves to the
@@ -636,7 +636,7 @@ struct _Wait final {
     Lock* lock_;
     F_ f_;
 
-    std::optional<decltype(f_(std::declval<Callback<>>()))> condition_;
+    std::optional<decltype(f_(std::declval<Callback<void()>>()))> condition_;
     Lock::Waiter waiter_;
     std::optional<
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
@@ -796,7 +796,7 @@ class ConditionVariable final {
   // in order for 'Wait()' to return and thus there are no races with
   // accessing any of the linked list 'next' pointers.
   struct Waiter {
-    Callback<> notify;
+    Callback<void()> notify;
     bool notified = false;
     Waiter* next = nullptr;
   };

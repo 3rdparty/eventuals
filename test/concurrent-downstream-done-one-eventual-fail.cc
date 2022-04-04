@@ -25,7 +25,7 @@ using eventuals::Then;
 // Tests what happens when downstream is done before 'Concurrent()' is
 // done and one eventual fails.
 TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualFail) {
-  std::deque<Callback<>> callbacks;
+  std::deque<Callback<void()>> callbacks;
 
   auto e = [&]() {
     return Iterate({1, 2})

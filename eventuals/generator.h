@@ -21,14 +21,11 @@ template <typename E_, typename From_, typename To_>
 struct HeapGenerator final {
   struct Adaptor final {
     Adaptor(
-        Callback<TypeErasedStream&>* begin,
-        Callback<std::exception_ptr>* fail,
-        Callback<>* stop,
-        std::conditional_t<
-            std::is_void_v<To_>,
-            Callback<>,
-            Callback<To_>>* body,
-        Callback<>* ended)
+        Callback<void(TypeErasedStream&)>* begin,
+        Callback<void(std::exception_ptr)>* fail,
+        Callback<void()>* stop,
+        Callback<function_type_t<void, To_>>* body,
+        Callback<void()>* ended)
       : begin_(begin),
         fail_(fail),
         stop_(stop),
@@ -68,14 +65,11 @@ struct HeapGenerator final {
     // Already registered in 'adapted_'
     void Register(Interrupt&) {}
 
-    Callback<TypeErasedStream&>* begin_;
-    Callback<std::exception_ptr>* fail_;
-    Callback<>* stop_;
-    std::conditional_t<
-        std::is_void_v<To_>,
-        Callback<>,
-        Callback<To_>>* body_;
-    Callback<>* ended_;
+    Callback<void(TypeErasedStream&)>* begin_;
+    Callback<void(std::exception_ptr)>* fail_;
+    Callback<void()>* stop_;
+    Callback<function_type_t<void, To_>>* body_;
+    Callback<void()>* ended_;
   };
 
   HeapGenerator(E_ e)
@@ -89,14 +83,11 @@ struct HeapGenerator final {
           std::is_void_v<From_>,
           std::monostate,
           From_>&& arg,
-      Callback<TypeErasedStream&>&& begin,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop,
-      std::conditional_t<
-          std::is_void_v<To_>,
-          Callback<>,
-          Callback<To_>>&& body,
-      Callback<>&& ended) {
+      Callback<void(TypeErasedStream&)>&& begin,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop,
+      Callback<function_type_t<void, To_>>&& body,
+      Callback<void()>&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -117,14 +108,11 @@ struct HeapGenerator final {
   void Fail(
       Interrupt& interrupt,
       std::exception_ptr&& fail_exception,
-      Callback<TypeErasedStream&>&& begin,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop,
-      std::conditional_t<
-          std::is_void_v<To_>,
-          Callback<>,
-          Callback<To_>>&& body,
-      Callback<>&& ended) {
+      Callback<void(TypeErasedStream&)>&& begin,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop,
+      Callback<function_type_t<void, To_>>&& body,
+      Callback<void()>&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -140,14 +128,11 @@ struct HeapGenerator final {
 
   void Stop(
       Interrupt& interrupt,
-      Callback<TypeErasedStream&>&& begin,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop,
-      std::conditional_t<
-          std::is_void_v<To_>,
-          Callback<>,
-          Callback<To_>>&& body,
-      Callback<>&& ended) {
+      Callback<void(TypeErasedStream&)>&& begin,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop,
+      Callback<function_type_t<void, To_>>&& body,
+      Callback<void()>&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -161,15 +146,11 @@ struct HeapGenerator final {
     adapted_.Stop();
   }
 
-  Callback<TypeErasedStream&> begin_;
-  Callback<std::exception_ptr> fail_;
-  Callback<> stop_;
-  std::conditional_t<
-      std::is_void_v<To_>,
-      Callback<>,
-      Callback<To_>>
-      body_;
-  Callback<> ended_;
+  Callback<void(TypeErasedStream&)> begin_;
+  Callback<void(std::exception_ptr)> fail_;
+  Callback<void()> stop_;
+  Callback<function_type_t<void, To_>> body_;
+  Callback<void()> ended_;
 
   using Adapted_ = decltype(std::declval<E_>().template k<From_>(
       std::declval<Adaptor>()));
@@ -199,7 +180,7 @@ struct _Generator final {
     Continuation(
         K_ k,
         std::tuple<Args_...>&& args,
-        Callback<
+        Callback<void(
             Action,
             std::optional<std::exception_ptr>&&,
             Args_&&...,
@@ -208,16 +189,13 @@ struct _Generator final {
                     std::is_void_v<From_>,
                     std::monostate,
                     From_>>&&,
-            std::unique_ptr<void, Callback<void*>>&,
+            std::unique_ptr<void, Callback<void(void*)>>&,
             Interrupt&,
-            Callback<TypeErasedStream&>&&,
-            Callback<std::exception_ptr>&&,
-            Callback<>&&,
-            std::conditional_t<
-                std::is_void_v<To_>,
-                Callback<>,
-                Callback<To_>>&&,
-            Callback<>&&>&& dispatch)
+            Callback<void(TypeErasedStream&)>&&,
+            Callback<void(std::exception_ptr)>&&,
+            Callback<void()>&&,
+            Callback<function_type_t<void, To_>>&&,
+            Callback<void()>&&)>&& dispatch)
       : args_(std::move(args)),
         dispatch_(std::move(dispatch)),
         k_(std::move(k)) {}
@@ -308,7 +286,7 @@ struct _Generator final {
 
     std::tuple<Args_...> args_;
 
-    Callback<
+    Callback<void(
         Action,
         std::optional<std::exception_ptr>&&,
         Args_&&...,
@@ -317,19 +295,16 @@ struct _Generator final {
                 std::is_void_v<From_>,
                 std::monostate,
                 From_>>&&,
-        std::unique_ptr<void, Callback<void*>>&,
+        std::unique_ptr<void, Callback<void(void*)>>&,
         Interrupt&,
-        Callback<TypeErasedStream&>&&,
-        Callback<std::exception_ptr>&&,
-        Callback<>&&,
-        std::conditional_t<
-            std::is_void_v<To_>,
-            Callback<>,
-            Callback<To_>>&&,
-        Callback<>&&>
+        Callback<void(TypeErasedStream&)>&&,
+        Callback<void(std::exception_ptr)>&&,
+        Callback<void()>&&,
+        Callback<function_type_t<void, To_>>&&,
+        Callback<void()>&&)>
         dispatch_;
 
-    std::unique_ptr<void, Callback<void*>> e_;
+    std::unique_ptr<void, Callback<void(void*)>> e_;
     Interrupt* interrupt_ = nullptr;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
@@ -414,18 +389,15 @@ struct _Generator final {
                               std::is_void_v<From_>,
                               std::monostate,
                               From_>>&& arg,
-                      std::unique_ptr<void, Callback<void*>>& e_,
+                      std::unique_ptr<void, Callback<void(void*)>>& e_,
                       Interrupt& interrupt,
-                      Callback<TypeErasedStream&>&& begin,
-                      Callback<std::exception_ptr>&& fail,
-                      Callback<>&& stop,
-                      std::conditional_t<
-                          std::is_void_v<To_>,
-                          Callback<>,
-                          Callback<To_>>&& body,
-                      Callback<>&& ended) mutable {
+                      Callback<void(TypeErasedStream&)>&& begin,
+                      Callback<void(std::exception_ptr)>&& fail,
+                      Callback<void()>&& stop,
+                      Callback<function_type_t<void, To_>>&& body,
+                      Callback<void()>&& ended) mutable {
         if (!e_) {
-          e_ = std::unique_ptr<void, Callback<void*>>(
+          e_ = std::unique_ptr<void, Callback<void(void*)>>(
               new HeapGenerator<E, From_, To_>(f(std::move(args)...)),
               [](void* e) {
                 delete static_cast<HeapGenerator<E, From_, To_>*>(e);
@@ -489,7 +461,7 @@ struct _Generator final {
     std::conditional_t<
         std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
         Undefined,
-        Callback<
+        Callback<void(
             Action,
             std::optional<std::exception_ptr>&&,
             Args_&&...,
@@ -500,16 +472,13 @@ struct _Generator final {
                     std::is_void_v<From_>,
                     std::monostate,
                     From_>>&&,
-            std::unique_ptr<void, Callback<void*>>&,
+            std::unique_ptr<void, Callback<void(void*)>>&,
             Interrupt&,
-            Callback<TypeErasedStream&>&&,
-            Callback<std::exception_ptr>&&,
-            Callback<>&&,
-            std::conditional_t<
-                std::is_void_v<To_>,
-                Callback<>,
-                Callback<To_>>&&,
-            Callback<>&&>>
+            Callback<void(TypeErasedStream&)>&&,
+            Callback<void(std::exception_ptr)>&&,
+            Callback<void()>&&,
+            Callback<function_type_t<void, To_>>&&,
+            Callback<void()>&&)>>
         dispatch_;
 
     std::tuple<Args_...> args_;

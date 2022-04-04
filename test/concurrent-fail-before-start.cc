@@ -21,8 +21,8 @@ using eventuals::Terminate;
 
 // Tests when an eventuals fails before an eventual succeeds.
 TYPED_TEST(ConcurrentTypedTest, FailBeforeStart) {
-  Callback<> start;
-  Callback<> fail;
+  Callback<void()> start;
+  Callback<void()> fail;
 
   auto e = [&]() {
     return Iterate({1, 2})

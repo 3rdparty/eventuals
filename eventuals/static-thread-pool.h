@@ -108,7 +108,7 @@ class StaticThreadPool final : public Scheduler {
 
   bool Continuable(Context* context) override;
 
-  void Submit(Callback<> callback, Context* context) override;
+  void Submit(Callback<void()> callback, Context* context) override;
 
   void Clone(Context* child) override;
 

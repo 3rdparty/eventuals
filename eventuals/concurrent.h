@@ -348,7 +348,7 @@ struct _Concurrent final {
     // NOTE: this could also be moved to a .cc file but see the
     // comments above 'CreateOrReuseFiber()' above for what's
     // preventing us from doing so.
-    auto WaitForDone(Callback<>&& callback) {
+    auto WaitForDone(Callback<void()>&& callback) {
       return Synchronized(
                  Wait([this](auto notify) {
                    notify_done_ = std::move(notify);
@@ -406,7 +406,7 @@ struct _Concurrent final {
 
     // Callback associated with waiting for "egress", i.e., values
     // from each fiber.
-    Callback<> notify_egress_;
+    Callback<void()> notify_egress_;
 
     bool upstream_done_ = false;
     bool downstream_done_ = false;
@@ -414,7 +414,7 @@ struct _Concurrent final {
 
     // Callback associated with waiting for everything to be done,
     // i.e., upstream done, downstream done, and fibers done.
-    Callback<> notify_done_;
+    Callback<void()> notify_done_;
 
     // Indicates whether or not we've received an interrupt and we
     // should stop requesting the next upstream value.
@@ -697,7 +697,7 @@ struct _Concurrent final {
     std::optional<Egress_> egress_;
 
     using WaitForDone_ = decltype(Build(
-        adaptor_.WaitForDone(std::declval<Callback<>>())));
+        adaptor_.WaitForDone(std::declval<Callback<void()>>())));
     std::optional<WaitForDone_> wait_for_done_;
 
     using Done_ = decltype(Build(adaptor_.Done()));

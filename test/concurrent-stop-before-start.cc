@@ -20,8 +20,8 @@ using eventuals::Terminate;
 
 // Tests when an eventuals stops before an eventual succeeds.
 TYPED_TEST(ConcurrentTypedTest, StopBeforeStart) {
-  Callback<> start;
-  Callback<> stop;
+  Callback<void()> start;
+  Callback<void()> stop;
 
   auto e = [&]() {
     return Iterate({1, 2})

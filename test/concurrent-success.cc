@@ -21,7 +21,7 @@ using eventuals::Terminate;
 
 // Tests when all eventuals are successful.
 TYPED_TEST(ConcurrentTypedTest, Success) {
-  std::deque<Callback<>> callbacks;
+  std::deque<Callback<void()>> callbacks;
 
   auto e = [&]() {
     return Iterate({1, 2})

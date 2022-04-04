@@ -33,6 +33,23 @@ struct type_identity {
 
 ////////////////////////////////////////////////////////////////////////
 
+// Helper for getting a C/C++ "function type" which properly handles
+// singular 'void' function arguments.
+template <typename R, typename... Args>
+struct function_type {
+  using type = R(Args...);
+};
+
+template <typename R>
+struct function_type<R, void> {
+  using type = R();
+};
+
+template <typename R, typename... Args>
+using function_type_t = typename function_type<R, Args...>::type;
+
+////////////////////////////////////////////////////////////////////////
+
 template <typename, typename = void>
 struct HasEmplaceBack : std::false_type {
 };

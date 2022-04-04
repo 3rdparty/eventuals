@@ -22,12 +22,9 @@ template <typename E_, typename From_, typename To_>
 struct HeapTask final {
   struct Adaptor final {
     Adaptor(
-        std::conditional_t<
-            std::is_void_v<To_>,
-            Callback<>,
-            Callback<To_>>* start,
-        Callback<std::exception_ptr>* fail,
-        Callback<>* stop)
+        Callback<function_type_t<void, To_>>* start,
+        Callback<void(std::exception_ptr)>* fail,
+        Callback<void()>* stop)
       : start_(start),
         fail_(fail),
         stop_(stop) {}
@@ -55,12 +52,9 @@ struct HeapTask final {
 
     void Register(Interrupt&) {}
 
-    std::conditional_t<
-        std::is_void_v<To_>,
-        Callback<>,
-        Callback<To_>>* start_;
-    Callback<std::exception_ptr>* fail_;
-    Callback<>* stop_;
+    Callback<function_type_t<void, To_>>* start_;
+    Callback<void(std::exception_ptr)>* fail_;
+    Callback<void()>* stop_;
   };
 
   HeapTask(E_ e)
@@ -74,12 +68,9 @@ struct HeapTask final {
           std::monostate,
           From_>&& arg,
       Interrupt& interrupt,
-      std::conditional_t<
-          std::is_void_v<To_>,
-          Callback<>,
-          Callback<To_>>&& start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
+      Callback<function_type_t<void, To_>>&& start,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -98,12 +89,9 @@ struct HeapTask final {
   void Fail(
       Interrupt& interrupt,
       std::exception_ptr&& exception,
-      std::conditional_t<
-          std::is_void_v<To_>,
-          Callback<>,
-          Callback<To_>>&& start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
+      Callback<function_type_t<void, To_>>&& start,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -117,12 +105,9 @@ struct HeapTask final {
 
   void Stop(
       Interrupt& interrupt,
-      std::conditional_t<
-          std::is_void_v<To_>,
-          Callback<>,
-          Callback<To_>>&& start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
+      Callback<function_type_t<void, To_>>&& start,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -134,13 +119,9 @@ struct HeapTask final {
     adapted_.Stop();
   }
 
-  std::conditional_t<
-      std::is_void_v<To_>,
-      Callback<>,
-      Callback<To_>>
-      start_;
-  Callback<std::exception_ptr> fail_;
-  Callback<> stop_;
+  Callback<function_type_t<void, To_>> start_;
+  Callback<void(std::exception_ptr)> fail_;
+  Callback<void()> stop_;
 
   using Adapted_ = decltype(std::declval<E_>().template k<From_>(
       std::declval<Adaptor>()));
@@ -192,7 +173,7 @@ struct _TaskFromToWith final {
   // in 'Composable' and 'Continuation'.
   template <typename From, typename To, typename... Args>
   using DispatchCallback =
-      Callback<
+      Callback<void(
           Action,
           std::optional<std::exception_ptr>&&,
           Args&&...,
@@ -203,14 +184,11 @@ struct _TaskFromToWith final {
                   std::is_void_v<From>,
                   std::monostate,
                   From>>&&,
-          std::unique_ptr<void, Callback<void*>>&,
+          std::unique_ptr<void, Callback<void(void*)>>&,
           Interrupt&,
-          std::conditional_t<
-              std::is_void_v<To>,
-              Callback<>&&,
-              Callback<To>&&>,
-          Callback<std::exception_ptr>&&,
-          Callback<>&&>;
+          Callback<function_type_t<void, To>>&&,
+          Callback<void(std::exception_ptr)>&&,
+          Callback<void()>&&)>;
 
   template <
       typename K_,
@@ -317,7 +295,7 @@ struct _TaskFromToWith final {
         DispatchCallback<From_, To_, Args_...>>
         value_or_dispatch_;
 
-    std::unique_ptr<void, Callback<void*>> e_;
+    std::unique_ptr<void, Callback<void(void*)>> e_;
     Interrupt* interrupt_ = nullptr;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
@@ -381,16 +359,13 @@ struct _TaskFromToWith final {
                                std::optional<std::exception_ptr>&& exception,
                                Args_&&... args,
                                std::optional<MonostateIfVoidOr<From_>>&& arg,
-                               std::unique_ptr<void, Callback<void*>>& e_,
+                               std::unique_ptr<void, Callback<void(void*)>>& e_,
                                Interrupt& interrupt,
-                               std::conditional_t<
-                                   std::is_void_v<To_>,
-                                   Callback<>&&,
-                                   Callback<To_>&&> start,
-                               Callback<std::exception_ptr>&& fail,
-                               Callback<>&& stop) mutable {
+                               Callback<function_type_t<void, To_>>&& start,
+                               Callback<void(std::exception_ptr)>&& fail,
+                               Callback<void()>&& stop) mutable {
         if (!e_) {
-          e_ = std::unique_ptr<void, Callback<void*>>(
+          e_ = std::unique_ptr<void, Callback<void(void*)>>(
               new HeapTask<E, From_, To_>(f(std::move(args)...)),
               [](void* e) {
                 delete static_cast<HeapTask<E, From_, To_>*>(e);
@@ -540,12 +515,9 @@ class _Task final {
 
   void Start(
       Interrupt& interrupt,
-      std::conditional_t<
-          std::is_void_v<To_>,
-          Callback<>&&,
-          Callback<To_>&&> start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
+      Callback<function_type_t<void, To_>>&& start,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop) {
     k_.emplace(Build(
         std::move(e_)
         | Terminal()
@@ -562,12 +534,9 @@ class _Task final {
   void Fail(
       Error&& error,
       Interrupt& interrupt,
-      std::conditional_t<
-          std::is_void_v<To_>,
-          Callback<>&&,
-          Callback<To_>&&> start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
+      Callback<function_type_t<void, To_>>&& start,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop) {
     static_assert(
         std::disjunction_v<
             std::is_same<std::exception_ptr, std::decay_t<Error>>,
@@ -594,12 +563,9 @@ class _Task final {
 
   void Stop(
       Interrupt& interrupt,
-      std::conditional_t<
-          std::is_void_v<To_>,
-          Callback<>&&,
-          Callback<To_>&&> start,
-      Callback<std::exception_ptr>&& fail,
-      Callback<>&& stop) {
+      Callback<function_type_t<void, To_>>&& start,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop) {
     k_.emplace(Build(
         std::move(e_)
         | Terminal()
@@ -698,13 +664,9 @@ class _Task final {
       decltype(Build(
           std::move(e_)
           | Terminal()
-                .start(std::declval<
-                       std::conditional_t<
-                           std::is_void_v<To_>,
-                           Callback<>&&,
-                           Callback<To_>&&>>())
-                .fail(std::declval<Callback<std::exception_ptr>&&>())
-                .stop(std::declval<Callback<>&&>())))>;
+                .start(std::declval<Callback<function_type_t<void, To_>>&&>())
+                .fail(std::declval<Callback<void(std::exception_ptr)>&&>())
+                .stop(std::declval<Callback<void()>&&>())))>;
 
   // NOTE: we store 'k_' as the _last_ member so it will be
   // destructed _first_ and thus we won't have any use-after-delete

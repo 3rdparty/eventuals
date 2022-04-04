@@ -24,7 +24,7 @@ auto Server::RequestCall(
     ::grpc::ServerCompletionQueue* cq) {
   return Eventual<void>()
       .raises<std::runtime_error>()
-      .context(Callback<bool>())
+      .context(Callback<void(bool)>())
       // NOTE: 'context' and 'cq' are stored in a 'Closure()' so safe
       // to capture them as references here.
       .start([this, context, cq](auto& callback, auto& k) {
@@ -406,7 +406,7 @@ ServerStatusOrServer ServerBuilder::BuildAndStart() {
                   void* tag = nullptr;
                   bool ok = false;
                   while (cq->Next(&tag, &ok)) {
-                    (*static_cast<Callback<bool>*>(tag))(ok);
+                    (*static_cast<Callback<void(bool)>*>(tag))(ok);
                   }
                 }));
       }
