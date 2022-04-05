@@ -89,6 +89,7 @@ cc_library(
     copts = copts(),
     deps = [
         ":base",
+        "@com_github_3rdparty_stout_borrowed_ptr//:borrowed_ptr",
         "@com_github_chriskohlhoff_asio//:asio",
         "@com_github_libuv_libuv//:libuv",
     ],
