@@ -16,6 +16,7 @@
 #include "eventuals/eventual.h"
 #include "eventuals/lazy.h"
 #include "eventuals/then.h"
+#include "stout/borrowed_ptr.h"
 #include "uv.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -177,9 +178,15 @@ class EventLoop final : public Scheduler {
     }
 
    private:
-    struct _Timer {
+    struct _Timer final {
       template <typename K_>
-      struct Continuation {
+      struct Continuation final
+        : public stout::enable_borrowable_from_this<Continuation<K_>> {
+        // Help the compiler lookup 'Borrow()' given it's from a
+        // dependent base class instead of having to do explicit
+        // qualification via 'this->' everywhere.
+        using stout::enable_borrowable_from_this<Continuation<K_>>::Borrow;
+
         Continuation(K_ k, Clock& clock, std::chrono::nanoseconds&& nanoseconds)
           : clock_(clock),
             nanoseconds_(std::move(nanoseconds)),
@@ -210,13 +217,13 @@ class EventLoop final : public Scheduler {
           // some later timer after a paused clock has been advanced
           // or unpaused.
           clock_.Submit(
-              [this](const auto& nanoseconds) {
+              Borrow([this](const auto& nanoseconds) {
                 // NOTE: need to update nanoseconds in the event the clock
                 // was paused/advanced and the nanosecond count differs.
                 nanoseconds_ = nanoseconds;
 
                 loop().Submit(
-                    [this]() {
+                    Borrow([this]() {
                       if (!completed_) {
                         started_ = true;
 
@@ -271,9 +278,9 @@ class EventLoop final : public Scheduler {
                           });
                         }
                       }
-                    },
+                    }),
                     &context_);
-              },
+              }),
               nanoseconds_);
         }
 
@@ -302,22 +309,22 @@ class EventLoop final : public Scheduler {
         void Stop() {
           // Submitting to event loop to avoid race with interrupt.
           loop().Submit(
-              [this]() {
+              Borrow([this]() {
                 k_.Stop();
-              },
+              }),
               &context_);
         }
 
         void Register(Interrupt& interrupt) {
           k_.Register(interrupt);
 
-          handler_.emplace(&interrupt, [this]() {
+          handler_.emplace(&interrupt, Borrow([this]() {
             // NOTE: even though we execute the interrupt handler on
             // the event loop we will properly context switch to the
             // scheduling context that first created the timer because
             // we used 'RescheduleAfter()' in 'EventLoop::Close::Timer()'.
             loop().Submit(
-                [this]() {
+                Borrow([this]() {
                   if (!started_) {
                     CHECK(!completed_);
                     completed_ = true;
@@ -341,9 +348,9 @@ class EventLoop final : public Scheduler {
                       }
                     });
                   }
-                },
+                }),
                 &interrupt_context_);
-          });
+          }));
 
           // NOTE: we always install the handler in case 'Start()'
           // never gets called i.e., due to a paused clock.
@@ -389,7 +396,7 @@ class EventLoop final : public Scheduler {
         K_ k_;
       };
 
-      struct Composable {
+      struct Composable final {
         template <typename Arg>
         using ValueFrom = void;
 
@@ -409,7 +416,7 @@ class EventLoop final : public Scheduler {
     std::optional<std::chrono::nanoseconds> paused_;
     std::chrono::nanoseconds advanced_;
 
-    struct Pending {
+    struct Pending final {
       std::chrono::nanoseconds nanoseconds;
       Callback<void(const std::chrono::nanoseconds&)> callback;
     };

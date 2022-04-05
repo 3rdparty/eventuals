@@ -144,6 +144,12 @@ TEST_F(EventLoopTest, PauseClockInterruptTimer) {
   EventLoop::Default().RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
+
+  // Advance the clock so that we relinquish the borrow on the timer
+  // and it can be destructed.
+  Clock().Advance(std::chrono::seconds(100));
+
+  Clock().Resume();
 }
 
 
