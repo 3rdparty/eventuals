@@ -2,8 +2,68 @@ workspace(name = "com_github_3rdparty_eventuals")
 
 ########################################################################
 
+# NOTE: we pull in all stout-* repos as a local repositories pointing
+# to the git submodules that we have so that we can do more efficient
+# development between the repositories. We'll remove this for releases!
+
+local_repository(
+    name = "com_github_3rdparty_stout_atomic_backoff",
+    path = "submodules/stout/stout-atomic-backoff",
+)
+
+load("@com_github_3rdparty_stout_atomic_backoff//bazel:repos.bzl", stout_atomic_backoff_repos = "repos")
+
+stout_atomic_backoff_repos(external = False)
+
+local_repository(
+    name = "com_github_3rdparty_stout_stateful_tally",
+    path = "submodules/stout/stout-stateful-tally",
+)
+
+load("@com_github_3rdparty_stout_stateful_tally//bazel:repos.bzl", stout_stateful_tally = "repos")
+
+stout_stateful_tally(external = False)
+
+local_repository(
+    name = "com_github_3rdparty_stout_borrowed_ptr",
+    path = "submodules/stout/stout-borrowed-ptr",
+)
+
+load("@com_github_3rdparty_stout_borrowed_ptr//bazel:repos.bzl", stout_borrowed_ptr_repos = "repos")
+
+stout_borrowed_ptr_repos(external = False)
+
+local_repository(
+    name = "com_github_3rdparty_stout_flags",
+    path = "submodules/stout/stout-flags",
+)
+
+load("@com_github_3rdparty_stout_flags//bazel:repos.bzl", stout_flags_repos = "repos")
+
+stout_flags_repos(external = False)
+
+local_repository(
+    name = "com_github_3rdparty_stout_notification",
+    path = "submodules/stout/stout-notification",
+)
+
+load("@com_github_3rdparty_stout_notification//bazel:repos.bzl", stout_notification_repos = "repos")
+
+stout_notification_repos(external = False)
+
+local_repository(
+    name = "com_github_3rdparty_stout",
+    path = "submodules/stout",
+)
+
+load("@com_github_3rdparty_stout//bazel:repos.bzl", stout_repos = "repos")
+
+stout_repos(external = False)
+
+########################################################################
+
 # NOTE: we pull in 'pyprotoc-plugin' as a local repository pointing to the
-# git submodule that we have so that we can do do more efficient
+# git submodule that we have so that we can do more efficient
 # development between the two repositories. We'll remove this for
 # releases!
 local_repository(
