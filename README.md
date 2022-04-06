@@ -155,7 +155,7 @@ A terminated eventual can then be "built" into what we call an eventual's _conti
 auto k = Build(std::move(e));
 ```
 
-You'll often see the variable `k` to refer to an eventual in it's continuation form. Finally you can start it with: 
+You'll often see the variable `k` to refer to an eventual in it's continuation form. Finally you can start it with:
 
 ```cpp
 k.Start();
