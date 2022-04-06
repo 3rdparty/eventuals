@@ -295,14 +295,14 @@ class EventLoop final : public Scheduler {
 
           // Submitting to event loop to avoid race with interrupt.
           loop().Submit(
-              [tuple = std::move(tuple)]() mutable {
+              Borrow([tuple = std::move(tuple)]() mutable {
                 std::apply(
                     [](auto* continuation, auto&&... args) {
                       auto& k_ = continuation->k_;
                       k_.Fail(std::forward<decltype(args)>(args)...);
                     },
                     std::move(*tuple));
-              },
+              }),
               &context_);
         }
 
