@@ -139,7 +139,7 @@ class EventLoop final : public Scheduler {
     uv_buf_t buffer_ = {};
   };
 
-  class Clock final {
+  class Clock final : public stout::enable_borrowable_from_this<Clock> {
    public:
     Clock(const Clock&) = delete;
 
@@ -182,18 +182,21 @@ class EventLoop final : public Scheduler {
       template <typename K_>
       struct Continuation final
         : public stout::enable_borrowable_from_this<Continuation<K_>> {
-        Continuation(K_ k, Clock& clock, std::chrono::nanoseconds&& nanoseconds)
-          : clock_(clock),
+        Continuation(
+            K_ k,
+            stout::borrowed_ref<Clock> clock,
+            std::chrono::nanoseconds&& nanoseconds)
+          : clock_(std::move(clock)),
             nanoseconds_(std::move(nanoseconds)),
-            context_(&clock.loop(), "Timer (start/fail/stop)"),
-            interrupt_context_(&clock.loop(), "Timer (interrupt)"),
+            context_(&clock_->loop(), "Timer (start/fail/stop)"),
+            interrupt_context_(&clock_->loop(), "Timer (interrupt)"),
             k_(std::move(k)) {}
 
         Continuation(Continuation&& that)
-          : clock_(that.clock_),
+          : clock_(std::move(that.clock_)),
             nanoseconds_(std::move(that.nanoseconds_)),
-            context_(&that.clock_.loop(), "Timer (start/fail/stop)"),
-            interrupt_context_(&that.clock_.loop(), "Timer (interrupt)"),
+            context_(&clock_->loop(), "Timer (start/fail/stop)"),
+            interrupt_context_(&clock_->loop(), "Timer (interrupt)"),
             k_(std::move(that.k_)) {
           CHECK(!that.started_ || !that.completed_) << "moving after starting";
           CHECK(!handler_);
@@ -211,7 +214,7 @@ class EventLoop final : public Scheduler {
           // paused which might be right away but might also be at
           // some later timer after a paused clock has been advanced
           // or unpaused.
-          clock_.Submit(
+          clock_->Submit(
               this->Borrow([this](const auto& nanoseconds) {
                 // NOTE: need to update nanoseconds in the event the clock
                 // was paused/advanced and the nanosecond count differs.
@@ -354,7 +357,7 @@ class EventLoop final : public Scheduler {
 
        private:
         EventLoop& loop() {
-          return clock_.loop();
+          return clock_->loop();
         }
 
         // Adaptors to libuv functions.
@@ -366,7 +369,7 @@ class EventLoop final : public Scheduler {
           return reinterpret_cast<uv_handle_t*>(&timer_);
         }
 
-        Clock& clock_;
+        stout::borrowed_ref<Clock> clock_;
         std::chrono::nanoseconds nanoseconds_;
 
         uv_timer_t timer_;
@@ -397,10 +400,13 @@ class EventLoop final : public Scheduler {
 
         template <typename Arg, typename K>
         auto k(K k) && {
-          return Continuation<K>(std::move(k), clock_, std::move(nanoseconds_));
+          return Continuation<K>(
+              std::move(k),
+              std::move(clock_),
+              std::move(nanoseconds_));
         }
 
-        Clock& clock_;
+        stout::borrowed_ref<Clock> clock_;
         std::chrono::nanoseconds nanoseconds_;
       };
     };
@@ -928,8 +934,7 @@ inline auto EventLoop::Clock::Timer(
   // scheduling context to invoke the continuation after the timer has
   // fired (or was interrupted).
   return RescheduleAfter(
-      // TODO(benh): borrow 'this' so timers can't outlive a clock.
-      _Timer::Composable{*this, std::move(nanoseconds)});
+      _Timer::Composable{Borrow(), std::move(nanoseconds)});
 }
 
 ////////////////////////////////////////////////////////////////////////
