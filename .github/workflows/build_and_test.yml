@@ -53,6 +53,10 @@ jobs:
             bazel-config: ""
             # Fixes issue #248.
             output-user_root: "--output_user_root=C:/bzl"
+      # Don't fail all workflows if one fails as we're still getting
+      # to a stable build right now and when one fails it doesn't mean
+      # they all will fail.
+      fail-fast: false
 
     defaults:
       run:
