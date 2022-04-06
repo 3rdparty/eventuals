@@ -11,6 +11,7 @@
 #include "eventuals/lazy.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/semaphore.h"
+#include "stout/borrowed_ptr.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -136,7 +137,8 @@ class StaticThreadPool final : public Scheduler {
 
 struct _StaticThreadPoolSchedule final {
   template <typename K_, typename E_, typename Arg_>
-  struct Continuation final {
+  struct Continuation final
+    : stout::enable_borrowable_from_this<Continuation<K_, E_, Arg_>> {
     Continuation(
         K_ k,
         StaticThreadPool* pool,
@@ -199,14 +201,14 @@ struct _StaticThreadPoolSchedule final {
             << "Schedule submitting '" << context_->name() << "'";
 
         pool()->Submit(
-            [this]() {
+            this->Borrow([this]() {
               Adapt();
               if constexpr (sizeof...(args) > 0) {
                 adapted_->Start(std::move(*arg_));
               } else {
                 adapted_->Start();
               }
-            },
+            }),
             context_.get());
       }
     }
@@ -250,7 +252,7 @@ struct _StaticThreadPoolSchedule final {
             << "Schedule submitting '" << context_->name() << "'";
 
         pool()->Submit(
-            [tuple = std::move(tuple)]() mutable {
+            this->Borrow([tuple = std::move(tuple)]() mutable {
               std::apply(
                   [](auto* schedule, auto&&... args) {
                     schedule->Adapt();
@@ -258,7 +260,7 @@ struct _StaticThreadPoolSchedule final {
                         std::forward<decltype(args)>(args)...);
                   },
                   std::move(*tuple));
-            },
+            }),
             context_.get());
       }
     }
@@ -294,10 +296,10 @@ struct _StaticThreadPoolSchedule final {
             << "Schedule submitting '" << context_->name() << "'";
 
         pool()->Submit(
-            [this]() {
+            this->Borrow([this]() {
               Adapt();
               adapted_->Stop();
-            },
+            }),
             context_.get());
       }
     }
@@ -331,10 +333,10 @@ struct _StaticThreadPoolSchedule final {
             << "Schedule submitting '" << context_->name() << "'";
 
         pool()->Submit(
-            [this]() {
+            this->Borrow([this]() {
               Adapt();
               adapted_->Begin(*CHECK_NOTNULL(stream_));
-            },
+            }),
             context_.get());
       }
     }
@@ -374,14 +376,14 @@ struct _StaticThreadPoolSchedule final {
             << "Schedule submitting '" << context_->name() << "'";
 
         pool()->Submit(
-            [this]() {
+            this->Borrow([this]() {
               Adapt();
               if constexpr (sizeof...(args) > 0) {
                 adapted_->Body(std::move(*arg_));
               } else {
                 adapted_->Body();
               }
-            },
+            }),
             context_.get());
       }
     }
@@ -417,10 +419,10 @@ struct _StaticThreadPoolSchedule final {
             << "Schedule submitting '" << context_->name() << "'";
 
         pool()->Submit(
-            [this]() {
+            this->Borrow([this]() {
               Adapt();
               adapted_->Ended();
-            },
+            }),
             context_.get());
       }
     }
