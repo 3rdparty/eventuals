@@ -290,7 +290,7 @@ class EventLoop final : public Scheduler {
 
           // Submitting to event loop to avoid race with interrupt.
           loop().Submit(
-              Borrow([tuple = std::move(tuple)]() mutable {
+              this->Borrow([tuple = std::move(tuple)]() mutable {
                 std::apply(
                     [](auto* continuation, auto&&... args) {
                       auto& k_ = continuation->k_;
@@ -496,7 +496,8 @@ class EventLoop final : public Scheduler {
  private:
   struct _WaitForSignal final {
     template <typename K_>
-    struct Continuation final {
+    struct Continuation final
+      : public stout::enable_borrowable_from_this<Continuation<K_>> {
       Continuation(K_ k, EventLoop& loop, const int signum)
         : loop_(loop),
           signum_(signum),
@@ -522,7 +523,7 @@ class EventLoop final : public Scheduler {
         CHECK(!started_ && !completed_);
 
         loop_.Submit(
-            [this]() {
+            this->Borrow([this]() {
               if (!completed_) {
                 started_ = true;
 
@@ -566,7 +567,7 @@ class EventLoop final : public Scheduler {
                   });
                 }
               }
-            },
+            }),
             &context_);
       }
 
@@ -581,23 +582,23 @@ class EventLoop final : public Scheduler {
 
         // Submitting to event loop to avoid race with interrupt.
         loop_.Submit(
-            [tuple = std::move(tuple)]() {
+            this->Borrow([tuple = std::move(tuple)]() {
               std::apply(
                   [](auto* continuation, auto&&... args) {
                     auto& k_ = continuation->k_;
                     k_.Fail(std::forward<decltype(args)>(args)...);
                   },
                   std::move(*tuple));
-            },
+            }),
             &context_);
       }
 
       void Stop() {
         // Submitting to event loop to avoid race with interrupt.
         loop_.Submit(
-            [this]() {
+            this->Borrow([this]() {
               k_.Stop();
-            },
+            }),
             &context_);
       }
 
@@ -606,7 +607,7 @@ class EventLoop final : public Scheduler {
 
         handler_.emplace(&interrupt, [this]() {
           loop_.Submit(
-              [this]() {
+              this->Borrow([this]() {
                 if (!started_) {
                   CHECK(!completed_);
                   completed_ = true;
@@ -630,7 +631,7 @@ class EventLoop final : public Scheduler {
                     }
                   });
                 }
-              },
+              }),
               &interrupt_context_);
         });
 
@@ -707,7 +708,8 @@ class EventLoop final : public Scheduler {
 
 struct _EventLoopSchedule final {
   template <typename K_, typename E_, typename Arg_>
-  struct Continuation final {
+  struct Continuation final
+    : public stout::enable_borrowable_from_this<Continuation<K_, E_, Arg_>> {
     Continuation(K_ k, E_ e, EventLoop* loop, std::string&& name)
       : e_(std::move(e)),
         context_(
@@ -739,14 +741,14 @@ struct _EventLoopSchedule final {
         }
 
         loop()->Submit(
-            [this]() {
+            this->Borrow([this]() {
               Adapt();
               if constexpr (sizeof...(args) > 0) {
                 adapted_->Start(std::move(*arg_));
               } else {
                 adapted_->Start();
               }
-            },
+            }),
             context_.get());
       }
     }
@@ -772,7 +774,7 @@ struct _EventLoopSchedule final {
             std::forward<Error>(error));
 
         loop()->Submit(
-            [tuple = std::move(tuple)]() mutable {
+            this->Borrow([tuple = std::move(tuple)]() mutable {
               std::apply(
                   [](auto* schedule, auto&&... args) {
                     schedule->Adapt();
@@ -780,7 +782,7 @@ struct _EventLoopSchedule final {
                         std::forward<decltype(args)>(args)...);
                   },
                   std::move(*tuple));
-            },
+            }),
             context_.get());
       }
     }
@@ -799,10 +801,10 @@ struct _EventLoopSchedule final {
         CHECK_EQ(previous, context_.get());
       } else {
         loop()->Submit(
-            [this]() {
+            this->Borrow([this]() {
               Adapt();
               adapted_->Stop();
-            },
+            }),
             context_.get());
       }
     }
