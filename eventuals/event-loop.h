@@ -182,11 +182,6 @@ class EventLoop final : public Scheduler {
       template <typename K_>
       struct Continuation final
         : public stout::enable_borrowable_from_this<Continuation<K_>> {
-        // Help the compiler lookup 'Borrow()' given it's from a
-        // dependent base class instead of having to do explicit
-        // qualification via 'this->' everywhere.
-        using stout::enable_borrowable_from_this<Continuation<K_>>::Borrow;
-
         Continuation(K_ k, Clock& clock, std::chrono::nanoseconds&& nanoseconds)
           : clock_(clock),
             nanoseconds_(std::move(nanoseconds)),
@@ -217,13 +212,13 @@ class EventLoop final : public Scheduler {
           // some later timer after a paused clock has been advanced
           // or unpaused.
           clock_.Submit(
-              Borrow([this](const auto& nanoseconds) {
+              this->Borrow([this](const auto& nanoseconds) {
                 // NOTE: need to update nanoseconds in the event the clock
                 // was paused/advanced and the nanosecond count differs.
                 nanoseconds_ = nanoseconds;
 
                 loop().Submit(
-                    Borrow([this]() {
+                    this->Borrow([this]() {
                       if (!completed_) {
                         started_ = true;
 
@@ -309,7 +304,7 @@ class EventLoop final : public Scheduler {
         void Stop() {
           // Submitting to event loop to avoid race with interrupt.
           loop().Submit(
-              Borrow([this]() {
+              this->Borrow([this]() {
                 k_.Stop();
               }),
               &context_);
@@ -318,13 +313,13 @@ class EventLoop final : public Scheduler {
         void Register(Interrupt& interrupt) {
           k_.Register(interrupt);
 
-          handler_.emplace(&interrupt, Borrow([this]() {
+          handler_.emplace(&interrupt, this->Borrow([this]() {
             // NOTE: even though we execute the interrupt handler on
             // the event loop we will properly context switch to the
             // scheduling context that first created the timer because
             // we used 'RescheduleAfter()' in 'EventLoop::Close::Timer()'.
             loop().Submit(
-                Borrow([this]() {
+                this->Borrow([this]() {
                   if (!started_) {
                     CHECK(!completed_);
                     completed_ = true;
