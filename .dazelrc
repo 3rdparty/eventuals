@@ -7,9 +7,13 @@ import os.path
 # Instead of using the host's Bazel cache (at ~/.cache/bazel), use a directory
 # that Dazel has to itself. This is essential to avoid a recurring problem with
 # compilation failures due to corrupt caches. Even Dazel's maintainers think
-# using the same cache is a mistake:
-#   https://github.com/nadirizr/dazel/issues/43
-DAZEL_BAZEL_USER_OUTPUT_ROOT = os.path.expanduser("~/.cache/dazel/tests")
+# using the same cache is a mistake: https://github.com/nadirizr/dazel/issues/43
+#
+# We specify a path to an arbitrary 'eventuals' directory to hopefully avoid 
+# cache pollution/conflict from other uses of dazel in other repositories
+# but this is just best effort because multiple clones of eventuals will still
+# use the same directory.
+DAZEL_BAZEL_USER_OUTPUT_ROOT = os.path.expanduser("~/.cache/dazel/eventuals")
 
 DAZEL_DOCKERFILE = "Dockerfile.dazel"
 
