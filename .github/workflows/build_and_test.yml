@@ -20,7 +20,7 @@ on:
       # When manually running this workflow:
       # https://docs.github.com/en/actions/managing-workflow-runs/manually-running-a-workflow
       debug_enabled:
-        description: 'Enable tmate debugging:'
+        description: 'Enable tmate debugging'
         type: boolean
         default: false
 
