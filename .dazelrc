@@ -12,7 +12,6 @@ import os.path
 DAZEL_BAZEL_USER_OUTPUT_ROOT = os.path.expanduser("~/.cache/dazel/tests")
 
 DAZEL_DOCKERFILE = "Dockerfile.dazel"
-DAZEL_VOLUMES = ["/var/run/docker.sock:/var/run/docker.sock"]
 
 # Use a unique Dazel image and instance name so it doesn't conflict with other
 # Dazel instances in other repos.
