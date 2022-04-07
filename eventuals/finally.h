@@ -67,7 +67,7 @@ struct _Finally final {
             Expected::Of<Arg>>;
 
     template <typename Arg, typename Errors>
-    using ErrorsFrom = Errors;
+    using ErrorsFrom = std::tuple<>;
 
     template <typename Arg, typename K>
     auto k(K k) && {
