@@ -20,7 +20,7 @@ struct {{ service.name }} {
 
   class TypeErasedService : public ::eventuals::grpc::Service {
    public:
-    ::eventuals::Task::Of<void>::Raises<std::exception> Serve() override;
+    ::eventuals::Task::Of<void> Serve() override;
 
     char const* name() override {
       return {{ service.name }}::service_full_name();
@@ -36,7 +36,7 @@ struct {{ service.name }} {
     {%- else -%}
         Task::Of
     {%- endif -%}
-    {#...#}<const {{ method.output_type.split('.') | join('::') }}&>::Raises<std::exception>
+    {#...#}<const {{ method.output_type.split('.') | join('::') }}&>
 {%- endset %}
 {%- set input_type -%}
 {# Input type does not include pointer #}
@@ -65,7 +65,7 @@ struct {{ service.name }} {
     {%- else -%}
         Task::Of
     {%- endif -%}
-    {#...#}<const {{ method.output_type.split('.') | join('::') }}&>::Raises<std::exception>
+    {#...#}<const {{ method.output_type.split('.') | join('::') }}&>
 {%- endset %}
 {%- set input_type -%}
 {# Input type does not include pointer #}

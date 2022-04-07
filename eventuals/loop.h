@@ -35,7 +35,7 @@ struct _Loop final {
           std::disjunction_v<
               std::is_same<std::exception_ptr, std::decay_t<Error>>,
               std::is_base_of<std::exception, std::decay_t<Error>>>,
-          "Expecting a type derived from std::exception ");
+          "Expecting a type derived from std::exception");
 
       static_assert(
           std::disjunction_v<
