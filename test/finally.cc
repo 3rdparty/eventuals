@@ -1,17 +1,24 @@
 #include "eventuals/finally.h"
 
+#include "eventuals/catch.h"
 #include "eventuals/eventual.h"
+#include "eventuals/finally.h"
+#include "eventuals/if.h"
 #include "eventuals/just.h"
 #include "eventuals/raise.h"
 #include "eventuals/terminal.h"
+#include "eventuals/then.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
+using eventuals::Catch;
 using eventuals::Eventual;
 using eventuals::Expected;
 using eventuals::Finally;
+using eventuals::If;
 using eventuals::Just;
 using eventuals::Raise;
+using eventuals::Then;
 
 TEST(Finally, Succeed) {
   auto e = []() {
@@ -126,4 +133,35 @@ TEST(Finally, VoidStop) {
   EXPECT_THROW(
       std::rethrow_exception(exception.value()),
       eventuals::StoppedException);
+}
+
+TEST(Finally, FinallyInsideThen) {
+  auto e = [&]() {
+    return Just(1)
+        | Then([](int status) {
+             return Eventual<void>()
+                        .raises<std::runtime_error>()
+                        .start([](auto& k) {
+                          k.Fail(std::runtime_error("error"));
+                        })
+                 | Finally([](std::optional<std::exception_ptr>&& error) {
+                      return If(error.has_value())
+                          .yes([error = std::move(error)]() {
+                            return Raise(std::move(error.value()))
+                                | Catch()
+                                      .raised<std::exception>(
+                                          [](std::exception&& error) {
+                                            EXPECT_STREQ(
+                                                error.what(),
+                                                "error");
+                                          });
+                          })
+                          .no([]() {
+                            return Raise("another error");
+                          });
+                    });
+           });
+  };
+
+  EXPECT_NO_THROW(*e());
 }

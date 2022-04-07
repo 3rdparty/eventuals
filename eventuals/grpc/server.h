@@ -7,10 +7,12 @@
 #include "absl/container/flat_hash_map.h"
 #include "eventuals/catch.h"
 #include "eventuals/eventual.h"
+#include "eventuals/finally.h"
 #include "eventuals/grpc/logging.h"
 #include "eventuals/grpc/server.h"
 #include "eventuals/grpc/traits.h"
 #include "eventuals/head.h"
+#include "eventuals/if.h"
 #include "eventuals/iterate.h"
 #include "eventuals/just.h"
 #include "eventuals/lock.h"
@@ -51,7 +53,7 @@ class Service {
  public:
   virtual ~Service() = default;
 
-  virtual Task::Of<void>::Raises<std::exception> Serve() = 0;
+  virtual Task::Of<void> Serve() = 0;
 
   virtual char const* name() = 0;
 
@@ -745,9 +747,30 @@ auto UnaryEpilogue(ServerCall<Request, Response>& call) {
             .raised<std::exception>([](std::exception&& e) {
               return ::grpc::Status(::grpc::UNKNOWN, e.what());
             })
-      | Then([&](auto&& status) {
+      | Then([&](::grpc::Status status) {
            return call.Finish(status)
-               | call.WaitForDone();
+               | Finally([&](std::optional<std::exception_ptr>&& e) {
+                    return If(e.has_value())
+                               .yes([e = std::move(e), &call]() {
+                                 return Raise(std::move(e.value()))
+                                     | Catch()
+                                           .raised<std::exception>(
+                                               [&call](std::exception&& e) {
+                                                 EVENTUALS_GRPC_LOG(1)
+                                                     << "Finishing call ("
+                                                     << call.context() << ")"
+                                                     << " for host = "
+                                                     << call.context()->host()
+                                                     << " and path = "
+                                                     << call.context()
+                                                            ->method()
+                                                     << " failed: "
+                                                     << e.what();
+                                               });
+                               })
+                               .no([]() { return Just(); })
+                        | call.WaitForDone();
+                  });
          });
 }
 
@@ -766,9 +789,30 @@ auto StreamingEpilogue(ServerCall<Request, Response>& call) {
             .raised<std::exception>([](std::exception&& e) {
               return ::grpc::Status(::grpc::UNKNOWN, e.what());
             })
-      | Then([&](auto&& status) {
+      | Then([&](::grpc::Status status) {
            return call.Finish(status)
-               | call.WaitForDone();
+               | Finally([&](std::optional<std::exception_ptr>&& e) {
+                    return If(e.has_value())
+                               .yes([e = std::move(e), &call]() {
+                                 return Raise(std::move(e.value()))
+                                     | Catch()
+                                           .raised<std::exception>(
+                                               [&call](std::exception&& e) {
+                                                 EVENTUALS_GRPC_LOG(1)
+                                                     << "Finishing call ("
+                                                     << call.context() << ")"
+                                                     << " for host = "
+                                                     << call.context()->host()
+                                                     << " and path = "
+                                                     << call.context()
+                                                            ->method()
+                                                     << " failed: "
+                                                     << e.what();
+                                               });
+                               })
+                               .no([]() { return Just(); })
+                        | call.WaitForDone();
+                  });
          });
 }
 

@@ -26,7 +26,7 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-Task::Of<void>::Raises<std::exception> Greeter::TypeErasedService::Serve() {
+Task::Of<void> Greeter::TypeErasedService::Serve() {
   return [this]() {
     return DoAll(
                // SayHello
@@ -40,7 +40,7 @@ Task::Of<void>::Raises<std::exception> Greeter::TypeErasedService::Serve() {
                      return UnaryPrologue(call)
                          | Then(Let([&](auto& request) {
                               return Then(
-                                  [this,
+                                  [&,
                                    // NOTE: using a tuple because need
                                    // to pass more than one
                                    // argument. Also 'this' will be
@@ -50,10 +50,10 @@ Task::Of<void>::Raises<std::exception> Greeter::TypeErasedService::Serve() {
                                        this,
                                        call.context(),
                                        &request}]() mutable {
-                                    return TypeErasedSayHello(&args);
+                                    return TypeErasedSayHello(&args)
+                                        | UnaryEpilogue(call);
                                   });
-                            }))
-                         | UnaryEpilogue(call);
+                            }));
                    }));
                  })
                | Loop())
