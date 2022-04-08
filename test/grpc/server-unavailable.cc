@@ -4,7 +4,7 @@
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
-#include "test/test.h"
+#include "test/grpc/test.h"
 
 using helloworld::Greeter;
 using helloworld::HelloReply;
