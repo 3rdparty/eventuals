@@ -215,15 +215,6 @@ TEST(EventualTest, Reuse) {
 }
 
 
-TEST(EventualTest, Just) {
-  auto e = []() {
-    return Just(42);
-  };
-
-  EXPECT_EQ(42, *e());
-}
-
-
 TEST(EventualTest, Raise) {
   auto e = []() {
     return Just(42)
@@ -336,40 +327,4 @@ TEST(EventualTest, Ref) {
   *e();
 
   EXPECT_EQ(110, x);
-}
-
-
-TEST(EventualTest, JustRef) {
-  int x = 10;
-
-  auto e = [&]() {
-    return Just(std::ref(x))
-        | Then([](int& x) {
-             x += 100;
-           });
-  };
-
-  *e();
-
-  EXPECT_EQ(110, x);
-}
-
-
-TEST(EventualTest, JustConstRef) {
-  int x = 10;
-
-  auto e = [&]() {
-    return Just(std::cref(x))
-        | Then([](const int& x) {
-             return std::cref(x);
-           });
-  };
-
-  auto [future, k] = Terminate(e());
-
-  k.Start();
-
-  x = 42;
-
-  EXPECT_EQ(42, future.get());
 }
