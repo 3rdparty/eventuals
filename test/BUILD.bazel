@@ -132,6 +132,7 @@ cc_test(
         "http-mock-server.h",
         "if.cc",
         "iterate.cc",
+        "just.cc",
         "let.cc",
         "lock.cc",
         "pipe.cc",
