@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "test/test.h"
+#include "test/grpc/test.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
 ////////////////////////////////////////////////////////////////////////

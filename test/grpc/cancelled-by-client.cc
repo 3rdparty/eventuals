@@ -5,7 +5,7 @@
 #include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "test/test.h"
+#include "test/grpc/test.h"
 
 using helloworld::Greeter;
 using helloworld::HelloReply;
@@ -23,7 +23,7 @@ using eventuals::grpc::CompletionPool;
 using eventuals::grpc::Server;
 using eventuals::grpc::ServerBuilder;
 
-TEST_F(EventualsGrpcTest, CancelledByServer) {
+TEST_F(EventualsGrpcTest, CancelledByClient) {
   ServerBuilder builder;
 
   int port = 0;
@@ -45,7 +45,6 @@ TEST_F(EventualsGrpcTest, CancelledByServer) {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
         | Head()
         | Then(Let([](auto& call) {
-             call.context()->TryCancel();
              return call.WaitForDone();
            }));
   };
@@ -61,13 +60,11 @@ TEST_F(EventualsGrpcTest, CancelledByServer) {
       grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
-  ::grpc::ClientContext context;
-
   auto call = [&]() {
-    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", &context)
-        | Then(Let([](auto& call) {
-             return call.WritesDone()
-                 | call.Finish();
+    return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
+        | Then(Let([&](auto& call) {
+             call.context()->TryCancel();
+             return call.Finish();
            }));
   };
 

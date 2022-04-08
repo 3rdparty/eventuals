@@ -1,4 +1,4 @@
-#include "test/helloworld.eventuals.h"
+#include "test/grpc/helloworld.eventuals.h"
 
 #include "eventuals/concurrent.h"
 #include "eventuals/do-all.h"
