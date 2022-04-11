@@ -1,0 +1,132 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("//bazel:copts.bzl", "copts")
+
+cc_library(
+    name = "base",
+    srcs = [
+        "scheduler.cc",
+        "static-thread-pool.cc",
+    ],
+    hdrs = [
+        "builder.h",
+        "callback.h",
+        "catch.h",
+        "closure.h",
+        "collect.h",
+        "compose.h",
+        "concurrent.h",
+        "concurrent-ordered.h",
+        "conditional.h",
+        "do-all.h",
+        "eventual.h",
+        "expected.h",
+        "filter.h",
+        "finally.h",
+        "flat-map.h",
+        "foreach.h",
+        "generator.h",
+        "head.h",
+        "if.h",
+        "interrupt.h",
+        "iterate.h",
+        "just.h",
+        "lazy.h",
+        "let.h",
+        "lock.h",
+        "loop.h",
+        "map.h",
+        "os.h",
+        "pipe.h",
+        "raise.h",
+        "range.h",
+        "reduce.h",
+        "repeat.h",
+        "scheduler.h",
+        "semaphore.h",
+        "sequence.h",
+        "static-thread-pool.h",
+        "stream.h",
+        "take.h",
+        "task.h",
+        "terminal.h",
+        "then.h",
+        "transformer.h",
+        "type-check.h",
+        "type-traits.h",
+        "undefined.h",
+        "unpack.h",
+        "until.h",
+    ],
+    copts = copts(),
+    deps = [
+        "@com_github_3rdparty_stout_borrowed_ptr//:borrowed_ptr",
+        "@com_github_google_glog//:glog",
+    ] + select({
+        # NOTE!
+        # For now we build jemalloc on macOS and Linux.
+        # The way how to build jemalloc on Windows is more
+        # complicated. In future we are going to make this
+        # lib build on Windows too.
+        # https://github.com/3rdparty/bazel-rules-jemalloc/tree/ArthurBandaryk.jemalloc-windows
+        "@bazel_tools//src/conditions:windows": [],
+        "//conditions:default": [
+            "@com_github_jemalloc_jemalloc//:jemalloc",
+        ],
+    }),
+)
+
+cc_library(
+    name = "events",
+    srcs = [
+        "event-loop.cc",
+    ],
+    hdrs = [
+        "dns-resolver.h",
+        "event-loop.h",
+        "filesystem.h",
+        "signal.h",
+        "timer.h",
+    ],
+    copts = copts(),
+    deps = [
+        ":base",
+        "@com_github_chriskohlhoff_asio//:asio",
+        "@com_github_libuv_libuv//:libuv",
+    ],
+)
+
+cc_library(
+    name = "http",
+    srcs = [
+        "http.cc",
+    ],
+    hdrs = [
+        "http.h",
+        "rsa.h",
+        "x509.h",
+    ],
+    copts = copts(),
+    defines = [
+        # Windows build fails without this define.
+        "GLOG_NO_ABBREVIATED_SEVERITIES",
+    ],
+    # Gives the error "undefined symbol: curl_global_init" if False.
+    # Default is False.
+    linkstatic = True,
+    deps = [
+        ":base",
+        ":events",
+        "@com_github_curl_curl//:libcurl_boringssl",
+    ],
+)
+
+cc_library(
+    name = "eventuals",
+    copts = copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":base",
+        ":events",
+        ":http",
+    ],
+)

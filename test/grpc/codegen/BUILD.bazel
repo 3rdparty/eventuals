@@ -45,7 +45,7 @@ cc_library(
     copts = copts(),
     deps = [
         ":sample_service_grpc",
-        "//:grpc",
+        "//eventuals/grpc",
     ],
 )
 
