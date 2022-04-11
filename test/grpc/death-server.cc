@@ -1,5 +1,12 @@
+// A dummy server used in tests.
+// Successfully responds to the 1st RPC then exits with an error on the 2nd.
+
+#include <iostream>
+
 #include "eventuals/grpc/server.h"
 #include "eventuals/head.h"
+#include "eventuals/let.h"
+#include "eventuals/loop.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
@@ -9,6 +16,8 @@ using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
 using eventuals::Head;
+using eventuals::Let;
+using eventuals::Loop;
 using eventuals::Terminate;
 using eventuals::Then;
 
@@ -53,14 +62,28 @@ int main(int argc, char** argv) {
 
   auto serve = [&]() {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
-        | Head()
-        | Then([](auto&& call) {
-             // NOTE: to avoid false positives with, for example, one
-             // of the 'CHECK()'s failing above, the 'ServerDeathTest'
-             // expects the string 'accepted' to be written to stderr.
-             std::cerr << "accepted" << std::endl;
-             exit(1);
-           });
+        | Map(Let([call_count = 0](auto& call) mutable {
+             return call.Reader().Read()
+                 | Head() // Only get the first element.
+                 | Then([&](auto&& request) {
+                      ++call_count;
+                      std::cout << "Got call " << call_count << std::endl;
+                      // Respond to the first call, exit on the second.
+                      if (call_count == 1) {
+                        std::cout << "Responding to call " << call_count
+                                  << std::endl;
+                        HelloReply reply;
+                        std::string prefix("Hello ");
+                        reply.set_message(prefix + request.name());
+                        return reply;
+                      } else {
+                        std::cout << "Server terminating" << std::endl;
+                        exit(1);
+                      }
+                    })
+                 | UnaryEpilogue(call);
+           }))
+        | Loop();
   };
 
   auto [future, k] = Terminate(serve());
@@ -69,6 +92,7 @@ int main(int argc, char** argv) {
 
   // NOTE: sending this _after_ we start the eventual so that we're
   // ready to accept clients!
+  std::cout << "Server serving on port " << port << std::endl;
   SendPort(port);
 
   future.get();
