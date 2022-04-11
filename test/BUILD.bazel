@@ -46,7 +46,7 @@ cc_library(
     copts = copts(),
     deps = [
         ":expect-throw-what",
-        "//:eventuals",
+        "//eventuals",
         "@com_github_google_googletest//:gtest",
     ],
     # Setting it to False or leaving it absent will prevent concurrent
@@ -99,7 +99,7 @@ cc_test(
     deps = [
         ":concurrent-tests",
         ":expect-throw-what",
-        "//:eventuals",
+        "//eventuals",
         "@com_github_google_googletest//:gtest_main",
     ],
 )
