@@ -83,7 +83,7 @@ template <typename F>
 auto Repeat(F f) {
   static_assert(
       !HasValueFrom<F>::value,
-      "'Repeat' expects a callable not an eventual");
+      "'Repeat' expects a callable (e.g., a lambda) not an eventual");
 
   return _Repeat::Composable{} | Map(std::move(f));
 }

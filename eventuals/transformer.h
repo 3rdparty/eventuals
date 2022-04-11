@@ -259,19 +259,20 @@ struct _Transformer final {
     Composable(F f) {
       static_assert(
           std::is_invocable_v<F>,
-          "'Transformer' expects a callable that "
+          "'Transformer' expects a callable (e.g., a lambda) that "
           "takes no arguments");
 
       static_assert(
           sizeof(f) <= sizeof(void*),
-          "'Transformer' expects a callable that "
+          "'Transformer' expects a callable (e.g., a lambda) that "
           "can be captured in a 'Callback'");
 
       using E = decltype(f());
 
       static_assert(
           HasValueFrom<E>::value,
-          "'Transformer' expects a callable that returns an eventual");
+          "'Transformer' expects a callable (e.g., a lambda) that "
+          "returns an eventual");
 
       using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
 

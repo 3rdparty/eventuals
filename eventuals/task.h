@@ -325,17 +325,17 @@ struct _TaskFromToWith final {
       : args_(std::tuple<Args_...>(std::move(args)...)) {
       static_assert(
           std::tuple_size<decltype(args_)>{} > 0 || std::is_invocable_v<F>,
-          "'Task' expects a callable that takes no arguments");
+          "'Task' expects a callable (e.g., a lambda) that takes no arguments");
 
       static_assert(
           std::tuple_size<decltype(args_)>{}
               || std::is_invocable_v<F, Args_...>,
-          "'Task' expects a callable that "
+          "'Task' expects a callable (e.g., a lambda) that "
           "takes the arguments specified");
 
       static_assert(
           sizeof(f) <= sizeof(void*),
-          "'Task' expects a callable that "
+          "'Task' expects a callable (e.g., a lambda) that "
           "can be captured in a 'Callback'");
 
       using E = decltype(std::apply(f, args_));

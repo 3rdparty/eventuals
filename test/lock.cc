@@ -314,12 +314,14 @@ TEST(LockTest, ConditionVariable) {
       return Synchronized(Then([this, id]() {
         auto iterator = condition_variables_.find(id);
         return If(iterator == condition_variables_.end())
-            .yes(Just(false))
-            .no(Then([iterator]() {
+            .yes([]() {
+              return false;
+            })
+            .no([iterator]() {
               auto& condition_variable = iterator->second;
               condition_variable.Notify();
               return true;
-            }));
+            });
       }));
     }
 
@@ -327,12 +329,14 @@ TEST(LockTest, ConditionVariable) {
       return Synchronized(Then([this, id]() {
         auto iterator = condition_variables_.find(id);
         return If(iterator == condition_variables_.end())
-            .yes(Just(false))
-            .no(Then([iterator]() {
+            .yes([]() {
+              return false;
+            })
+            .no([iterator]() {
               auto& condition_variable = iterator->second;
               condition_variable.NotifyAll();
               return true;
-            }));
+            });
       }));
     }
 

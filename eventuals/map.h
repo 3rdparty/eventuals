@@ -143,7 +143,7 @@ template <typename F>
 auto Map(F f) {
   static_assert(
       !HasValueFrom<F>::value,
-      "'Map' expects a callable not an eventual");
+      "'Map' expects a callable (e.g., a lambda) not an eventual");
 
   auto e = Then(std::move(f));
 
