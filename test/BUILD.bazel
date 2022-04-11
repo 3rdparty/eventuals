@@ -209,10 +209,6 @@ cc_test(
         ":death-client",
         ":death-server",
     ],
-    # NOTE: need to add 'linkstatic = True' in order to get this to
-    # link until https://github.com/grpc/grpc/issues/13856 gets
-    # resolved.
-    linkstatic = True,
     # This test is fairly fast, but our GitHub Action Runner compiles with
     # -c dbg --config=asan (~1s per test) and runs it 100x which often hits
     # the default "short" timeout without sharding.
