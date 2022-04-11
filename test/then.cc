@@ -2,6 +2,7 @@
 
 #include <thread>
 
+#include "eventuals/just.h"
 #include "eventuals/terminal.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -9,6 +10,7 @@
 
 using eventuals::Eventual;
 using eventuals::Interrupt;
+using eventuals::Just;
 using eventuals::Terminate;
 using eventuals::Then;
 
@@ -42,6 +44,21 @@ TEST(ThenTest, Succeed) {
   EXPECT_EQ("then", *c());
 }
 
+TEST(ThenTest, SucceedVoid) {
+  bool ran = false;
+  auto e = [&]() {
+    return Just()
+        | Then([&]() {
+             ran = true;
+           });
+  };
+
+  // Then() doesn't return anything when its callable (in this case, its
+  // lambda) doesn't return anything.
+  static_assert(std::is_void_v<decltype(*e())>);
+  *e();
+  EXPECT_TRUE(ran);
+}
 
 TEST(ThenTest, Fail) {
   auto e = [](auto s) {
