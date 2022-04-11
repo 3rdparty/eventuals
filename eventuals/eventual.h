@@ -181,7 +181,7 @@ struct _Eventual {
       typename Value_,
       typename Errors_ = std::tuple<>>
   struct Builder final {
-    template <typename>
+    template <typename Arg>
     using ValueFrom = Value_;
 
     template <typename Arg, typename Errors>
