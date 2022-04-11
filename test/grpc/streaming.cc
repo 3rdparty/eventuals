@@ -9,7 +9,7 @@
 #include "eventuals/then.h"
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "test/test.h"
+#include "test/grpc/test.h"
 
 using stout::Borrowable;
 

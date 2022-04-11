@@ -1,0 +1,72 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
+load("//bazel:copts.bzl", "copts")
+
+cc_binary(
+    name = "death-client",
+    srcs = [
+        "death-client.cc",
+    ],
+    copts = copts(),
+    deps = [
+        "//:grpc",
+        "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
+    ],
+)
+
+cc_binary(
+    name = "death-server",
+    srcs = [
+        "death-server.cc",
+    ],
+    copts = copts(),
+    deps = [
+        "//:grpc",
+        "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
+    ],
+)
+
+cc_test(
+    name = "grpc",
+    timeout = "short",
+    srcs = glob(
+        # Include all test sources...
+        [
+            "*.cc",
+            "*.h",
+        ],
+        # Except files that implement the death-client and death-server
+        # binaries.
+        exclude = [
+            "death-client.cc",
+            "death-server.cc",
+        ],
+    ),
+    copts = copts(),
+    data = [
+        ":death-client",
+        ":death-server",
+    ],
+    # NOTE: need to add 'linkstatic = True' in order to get this to
+    # link until https://github.com/grpc/grpc/issues/13856 gets
+    # resolved.
+    linkstatic = True,
+    # This test is fairly fast, but our GitHub Action Runner compiles with
+    # -c dbg --config=asan (~1s per test) and runs it 100x which often hits
+    # the default "short" timeout without sharding.
+    shard_count = 5,
+    # TODO(benh): resolve build issues on Windows and then remove
+    # these 'target_compatible_with' constraints.
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        "//:grpc",
+        "//test:expect-throw-what",
+        "@bazel_tools//tools/cpp/runfiles",
+        "@com_github_google_googletest//:gtest",
+        "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
+        "@com_github_grpc_grpc//examples/protos:keyvaluestore",
+    ],
+)

@@ -1,43 +1,34 @@
 #include "eventuals/grpc/client.h"
 #include "eventuals/grpc/server.h"
+#include "eventuals/head.h"
 #include "eventuals/let.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
 #include "eventuals/then.h"
+#include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "test/helloworld.eventuals.h"
-#include "test/test.h"
+#include "test/grpc/test.h"
+
+using helloworld::Greeter;
+using helloworld::HelloReply;
+using helloworld::HelloRequest;
 
 using stout::Borrowable;
 
+using eventuals::Head;
 using eventuals::Let;
 using eventuals::Loop;
 using eventuals::Map;
+using eventuals::Terminate;
 using eventuals::Then;
 
 using eventuals::grpc::Client;
 using eventuals::grpc::CompletionPool;
+using eventuals::grpc::Server;
 using eventuals::grpc::ServerBuilder;
+using eventuals::grpc::ServerCall;
 
-using helloworld::HelloReply;
-using helloworld::HelloRequest;
-
-using helloworld::eventuals::Greeter;
-
-class GreeterServiceImpl final : public Greeter::Service<GreeterServiceImpl> {
- public:
-  auto SayHello(::grpc::ServerContext* context, HelloRequest&& request) {
-    std::string prefix("Hello ");
-    HelloReply reply;
-    reply.set_message(prefix + request.name());
-    return reply;
-  }
-};
-
-TEST_F(EventualsGrpcTest, Greeter) {
-  std::string server_address("0.0.0.0:50051");
-  GreeterServiceImpl service;
-
+TEST_F(EventualsGrpcTest, Unary) {
   ServerBuilder builder;
 
   int port = 0;
@@ -47,8 +38,6 @@ TEST_F(EventualsGrpcTest, Greeter) {
       grpc::InsecureServerCredentials(),
       &port);
 
-  builder.RegisterService(&service);
-
   auto build = builder.BuildAndStart();
 
   ASSERT_TRUE(build.status.ok());
@@ -56,6 +45,26 @@ TEST_F(EventualsGrpcTest, Greeter) {
   auto server = std::move(build.server);
 
   ASSERT_TRUE(server);
+
+  auto serve = [&]() {
+    return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
+        | Head()
+        | Then(Let([](auto& call) {
+             return call.Reader().Read()
+                 | Head() // Only get the first element.
+                 | Then([](auto&& request) {
+                      HelloReply reply;
+                      std::string prefix("Hello ");
+                      reply.set_message(prefix + request.name());
+                      return reply;
+                    })
+                 | UnaryEpilogue(call);
+           }));
+  };
+
+  auto [cancelled, k] = Terminate(serve());
+
+  k.Start();
 
   Borrowable<CompletionPool> pool;
 
@@ -82,4 +91,12 @@ TEST_F(EventualsGrpcTest, Greeter) {
   auto status = *call();
 
   EXPECT_TRUE(status.ok());
+
+  EXPECT_FALSE(cancelled.get());
+
+  // NOTE: explicitly calling 'Shutdown()' and 'Wait()' to test that
+  // they can be called safely since the destructor for a server
+  // _also_ trys to call them .
+  server->Shutdown();
+  server->Wait();
 }
