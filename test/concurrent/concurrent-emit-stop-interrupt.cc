@@ -8,7 +8,7 @@
 #include "eventuals/map.h"
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
-#include "test/concurrent.h"
+#include "test/concurrent/concurrent.h"
 
 using eventuals::Collect;
 using eventuals::Eventual;

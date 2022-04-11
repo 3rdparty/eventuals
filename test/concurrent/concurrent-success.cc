@@ -9,19 +9,18 @@
 #include "eventuals/let.h"
 #include "eventuals/map.h"
 #include "eventuals/terminal.h"
-#include "test/concurrent.h"
+#include "test/concurrent/concurrent.h"
 
 using eventuals::Callback;
 using eventuals::Collect;
 using eventuals::Eventual;
-using eventuals::Interrupt;
 using eventuals::Iterate;
 using eventuals::Let;
 using eventuals::Map;
 using eventuals::Terminate;
 
-// Tests when at least one of the eventuals stops.
-TYPED_TEST(ConcurrentTypedTest, Stop) {
+// Tests when all eventuals are successful.
+TYPED_TEST(ConcurrentTypedTest, Success) {
   std::deque<Callback<void()>> callbacks;
 
   auto e = [&]() {
@@ -38,11 +37,7 @@ TYPED_TEST(ConcurrentTypedTest, Stop) {
                     data.k = &k;
                     data.i = i;
                     callbacks.emplace_back([&data]() {
-                      if (data.i == 1) {
-                        static_cast<K*>(data.k)->Start(std::to_string(data.i));
-                      } else {
-                        static_cast<K*>(data.k)->Stop();
-                      }
+                      static_cast<K*>(data.k)->Start(std::to_string(data.i));
                     });
                   });
             }));
@@ -69,5 +64,5 @@ TYPED_TEST(ConcurrentTypedTest, Stop) {
     callback();
   }
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THAT(future.get(), this->OrderedOrUnorderedElementsAre("1", "2"));
 }

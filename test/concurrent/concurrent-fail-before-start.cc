@@ -1,4 +1,3 @@
-#include <deque>
 #include <string>
 #include <vector>
 
@@ -9,7 +8,8 @@
 #include "eventuals/let.h"
 #include "eventuals/map.h"
 #include "eventuals/terminal.h"
-#include "test/concurrent.h"
+#include "test/concurrent/concurrent.h"
+#include "test/expect-throw-what.h"
 
 using eventuals::Callback;
 using eventuals::Collect;
@@ -19,9 +19,10 @@ using eventuals::Let;
 using eventuals::Map;
 using eventuals::Terminate;
 
-// Tests when every eventual either stops or fails.
-TYPED_TEST(ConcurrentTypedTest, FailOrStop) {
-  std::deque<Callback<void()>> callbacks;
+// Tests when an eventuals fails before an eventual succeeds.
+TYPED_TEST(ConcurrentTypedTest, FailBeforeStart) {
+  Callback<void()> start;
+  Callback<void()> fail;
 
   auto e = [&]() {
     return Iterate({1, 2})
@@ -37,14 +38,16 @@ TYPED_TEST(ConcurrentTypedTest, FailOrStop) {
                     using K = std::decay_t<decltype(k)>;
                     data.k = &k;
                     data.i = i;
-                    callbacks.emplace_back([&data]() {
-                      if (data.i == 1) {
-                        static_cast<K*>(data.k)->Stop();
-                      } else {
+                    if (data.i == 1) {
+                      start = [&data]() {
+                        static_cast<K*>(data.k)->Start(std::to_string(data.i));
+                      };
+                    } else {
+                      fail = [&data]() {
                         static_cast<K*>(data.k)->Fail(
                             std::runtime_error("error"));
-                      }
-                    });
+                      };
+                    }
                   });
             }));
           })
@@ -61,22 +64,16 @@ TYPED_TEST(ConcurrentTypedTest, FailOrStop) {
 
   k.Start();
 
-  ASSERT_EQ(2, callbacks.size());
+  EXPECT_TRUE(start);
+  EXPECT_TRUE(fail);
 
   EXPECT_EQ(
       std::future_status::timeout,
       future.wait_for(std::chrono::seconds(0)));
 
-  for (auto& callback : callbacks) {
-    callback();
-  }
+  // NOTE: executing 'fail' before 'start'.
+  fail();
+  start();
 
-  // NOTE: expecting "any" throwable here depending on whether the
-  // eventual that stopped or failed was completed first.
-  // Expecting 'StoppedException' for 'ConcurrentOrdered'.
-  if constexpr (std::is_same_v<TypeParam, ConcurrentType>) {
-    EXPECT_ANY_THROW(future.get());
-  } else {
-    EXPECT_THROW(future.get(), eventuals::StoppedException);
-  }
+  EXPECT_THROW_WHAT(future.get(), "error");
 }

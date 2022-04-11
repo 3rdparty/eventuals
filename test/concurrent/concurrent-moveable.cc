@@ -6,7 +6,7 @@
 #include "eventuals/let.h"
 #include "eventuals/map.h"
 #include "eventuals/terminal.h"
-#include "test/concurrent.h"
+#include "test/concurrent/concurrent.h"
 
 using eventuals::Collect;
 using eventuals::Interrupt;

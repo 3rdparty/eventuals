@@ -1,0 +1,23 @@
+# We build "concurrent" tests in a separate target to significantly speed up
+# linking on platforms which prefer shared libraries (e.g., macos).
+
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("//bazel:copts.bzl", "copts")
+
+cc_test(
+    name = "test_concurrent",
+    # We've split all of the tests into separate files so they can be
+    # compiled in parallel which is significantly faster than having
+    # all of the tests in a single file.
+    srcs = glob([
+        "*.cc",
+        "*.h",
+    ]),
+    copts = copts(),
+    deps = [
+        "//:eventuals",
+        "//test:expect-throw-what",
+        "@com_github_google_googletest//:gtest",
+        "@com_github_google_googletest//:gtest_main",
+    ],
+)

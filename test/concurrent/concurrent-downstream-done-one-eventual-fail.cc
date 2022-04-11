@@ -10,7 +10,7 @@
 #include "eventuals/reduce.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
-#include "test/concurrent.h"
+#include "test/concurrent/concurrent.h"
 
 using eventuals::Callback;
 using eventuals::Eventual;

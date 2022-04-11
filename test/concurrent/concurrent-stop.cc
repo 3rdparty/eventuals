@@ -5,12 +5,11 @@
 #include "eventuals/callback.h"
 #include "eventuals/collect.h"
 #include "eventuals/eventual.h"
-#include "eventuals/interrupt.h"
 #include "eventuals/iterate.h"
 #include "eventuals/let.h"
 #include "eventuals/map.h"
 #include "eventuals/terminal.h"
-#include "test/concurrent.h"
+#include "test/concurrent/concurrent.h"
 
 using eventuals::Callback;
 using eventuals::Collect;
@@ -21,10 +20,8 @@ using eventuals::Let;
 using eventuals::Map;
 using eventuals::Terminate;
 
-// Tests that 'Concurrent()' and 'ConcurrentOrdered()' defers to the
-// eventuals on how to handle interrupts and in this case each eventual
-// ignores interrupts so we'll successfully collect all the values.
-TYPED_TEST(ConcurrentTypedTest, InterruptSuccess) {
+// Tests when at least one of the eventuals stops.
+TYPED_TEST(ConcurrentTypedTest, Stop) {
   std::deque<Callback<void()>> callbacks;
 
   auto e = [&]() {
@@ -41,7 +38,11 @@ TYPED_TEST(ConcurrentTypedTest, InterruptSuccess) {
                     data.k = &k;
                     data.i = i;
                     callbacks.emplace_back([&data]() {
-                      static_cast<K*>(data.k)->Start(std::to_string(data.i));
+                      if (data.i == 1) {
+                        static_cast<K*>(data.k)->Start(std::to_string(data.i));
+                      } else {
+                        static_cast<K*>(data.k)->Stop();
+                      }
                     });
                   });
             }));
@@ -56,19 +57,9 @@ TYPED_TEST(ConcurrentTypedTest, InterruptSuccess) {
 
   auto [future, k] = Terminate(e());
 
-  Interrupt interrupt;
-
-  k.Register(interrupt);
-
   k.Start();
 
   ASSERT_EQ(2, callbacks.size());
-
-  EXPECT_EQ(
-      std::future_status::timeout,
-      future.wait_for(std::chrono::seconds(0)));
-
-  interrupt.Trigger();
 
   EXPECT_EQ(
       std::future_status::timeout,
@@ -78,5 +69,5 @@ TYPED_TEST(ConcurrentTypedTest, InterruptSuccess) {
     callback();
   }
 
-  EXPECT_THAT(future.get(), this->OrderedOrUnorderedElementsAre("1", "2"));
+  EXPECT_THROW(future.get(), eventuals::StoppedException);
 }

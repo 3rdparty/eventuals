@@ -64,51 +64,6 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-# NOTE: we build "concurrent" tests in a separate library to
-# significantly speed up linking on platforms which prefer shared
-# libraries (e.g., macos).
-cc_library(
-    name = "concurrent-tests",
-    # We've split all of the tests into separate files so they can be
-    # compiled in parallel which is significantly faster than having
-    # all of the tests in a single file.
-    srcs = [
-        "concurrent-downstream-done-both-eventuals-success.cc",
-        "concurrent-downstream-done-one-eventual-fail.cc",
-        "concurrent-downstream-done-one-eventual-stop.cc",
-        "concurrent-emit-fail-interrupt.cc",
-        "concurrent-emit-interrupt-fail.cc",
-        "concurrent-emit-interrupt-stop.cc",
-        "concurrent-emit-stop-interrupt.cc",
-        "concurrent-fail.cc",
-        "concurrent-fail-before-start.cc",
-        "concurrent-fail-or-stop.cc",
-        "concurrent-flat-map.cc",
-        "concurrent-interrupt-fail.cc",
-        "concurrent-interrupt-fail-or-stop.cc",
-        "concurrent-interrupt-stop.cc",
-        "concurrent-interrupt-success.cc",
-        "concurrent-moveable.cc",
-        "concurrent-stop.cc",
-        "concurrent-stop-before-start.cc",
-        "concurrent-stream-fail.cc",
-        "concurrent-stream-stop.cc",
-        "concurrent-success.cc",
-    ],
-    hdrs = [
-        "concurrent.h",
-    ],
-    copts = copts(),
-    deps = [
-        ":expect-throw-what",
-        "//:eventuals",
-        "@com_github_google_googletest//:gtest",
-    ],
-    # Setting it to False or leaving it absent will prevent concurrent
-    # tests from running on Windows.
-    alwayslink = True,
-)
-
 cc_test(
     name = "eventuals",
     srcs = [
@@ -151,7 +106,6 @@ cc_test(
     ],
     copts = copts(),
     deps = [
-        ":concurrent-tests",
         ":expect-throw-what",
         "//:eventuals",
         "@com_github_google_googletest//:gtest_main",

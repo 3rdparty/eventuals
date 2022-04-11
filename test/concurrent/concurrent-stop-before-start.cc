@@ -1,4 +1,3 @@
-#include <deque>
 #include <string>
 #include <vector>
 
@@ -9,7 +8,7 @@
 #include "eventuals/let.h"
 #include "eventuals/map.h"
 #include "eventuals/terminal.h"
-#include "test/concurrent.h"
+#include "test/concurrent/concurrent.h"
 
 using eventuals::Callback;
 using eventuals::Collect;
@@ -19,9 +18,10 @@ using eventuals::Let;
 using eventuals::Map;
 using eventuals::Terminate;
 
-// Tests when all eventuals are successful.
-TYPED_TEST(ConcurrentTypedTest, Success) {
-  std::deque<Callback<void()>> callbacks;
+// Tests when an eventuals stops before an eventual succeeds.
+TYPED_TEST(ConcurrentTypedTest, StopBeforeStart) {
+  Callback<void()> start;
+  Callback<void()> stop;
 
   auto e = [&]() {
     return Iterate({1, 2})
@@ -36,9 +36,15 @@ TYPED_TEST(ConcurrentTypedTest, Success) {
                     using K = std::decay_t<decltype(k)>;
                     data.k = &k;
                     data.i = i;
-                    callbacks.emplace_back([&data]() {
-                      static_cast<K*>(data.k)->Start(std::to_string(data.i));
-                    });
+                    if (data.i == 1) {
+                      start = [&data]() {
+                        static_cast<K*>(data.k)->Start(std::to_string(data.i));
+                      };
+                    } else {
+                      stop = [&data]() {
+                        static_cast<K*>(data.k)->Stop();
+                      };
+                    }
                   });
             }));
           })
@@ -54,15 +60,16 @@ TYPED_TEST(ConcurrentTypedTest, Success) {
 
   k.Start();
 
-  ASSERT_EQ(2, callbacks.size());
+  EXPECT_TRUE(start);
+  EXPECT_TRUE(stop);
 
   EXPECT_EQ(
       std::future_status::timeout,
       future.wait_for(std::chrono::seconds(0)));
 
-  for (auto& callback : callbacks) {
-    callback();
-  }
+  // NOTE: executing 'stop' before 'start'.
+  stop();
+  start();
 
-  EXPECT_THAT(future.get(), this->OrderedOrUnorderedElementsAre("1", "2"));
+  EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
