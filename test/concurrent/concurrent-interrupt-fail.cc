@@ -10,7 +10,7 @@
 #include "eventuals/let.h"
 #include "eventuals/map.h"
 #include "eventuals/terminal.h"
-#include "test/concurrent.h"
+#include "test/concurrent/concurrent.h"
 #include "test/expect-throw-what.h"
 
 using eventuals::Callback;

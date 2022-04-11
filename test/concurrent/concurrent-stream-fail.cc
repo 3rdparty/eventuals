@@ -5,7 +5,7 @@
 #include "eventuals/map.h"
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
-#include "test/concurrent.h"
+#include "test/concurrent/concurrent.h"
 #include "test/expect-throw-what.h"
 
 using eventuals::Collect;
