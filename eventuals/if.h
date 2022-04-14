@@ -144,14 +144,6 @@ struct _If final {
       static_assert(!IsUndefined<YesE_>::value, "Missing 'yes'");
       static_assert(!IsUndefined<NoE_>::value, "Missing 'no'");
 
-      static_assert(
-          HasValueFrom<YesE_>::value,
-          "'If' expects an eventual for 'yes'");
-
-      static_assert(
-          HasValueFrom<NoE_>::value,
-          "'If' expects an eventual for 'no'");
-
       return Continuation<K, YesE_, NoE_>(
           std::move(k),
           condition_,
@@ -159,16 +151,26 @@ struct _If final {
           std::move(no_));
     }
 
-    template <typename YesE>
-    auto yes(YesE yes) && {
+    template <typename YesF>
+    auto yes(YesF yes) && {
       static_assert(IsUndefined<YesE_>::value, "Duplicate 'yes'");
-      return create(condition_, std::move(yes), std::move(no_));
+
+      static_assert(
+          !HasValueFrom<YesF>::value,
+          "'If().yes()' expects a callable (e.g., a lambda) not an eventual");
+
+      return create(condition_, Then(std::move(yes)), std::move(no_));
     }
 
-    template <typename NoE>
-    auto no(NoE no) && {
+    template <typename NoF>
+    auto no(NoF no) && {
       static_assert(IsUndefined<NoE_>::value, "Duplicate 'no'");
-      return create(condition_, std::move(yes_), std::move(no));
+
+      static_assert(
+          !HasValueFrom<NoF>::value,
+          "'If().no()' expects a callable (e.g., a lambda) not an eventual");
+
+      return create(condition_, std::move(yes_), Then(std::move(no)));
     }
 
     bool condition_;

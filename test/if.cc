@@ -27,8 +27,8 @@ TEST(IfTest, Yes) {
     return Just(1)
         | Then([](int i) {
              return If(i == 1)
-                 .yes(Just("yes"))
-                 .no(Just("no"));
+                 .yes([]() { return Just("yes"); })
+                 .no([]() { return Just("no"); });
            });
   };
 
@@ -46,8 +46,8 @@ TEST(IfTest, No) {
     return Just(0)
         | Then([](int i) {
              return If(i == 1)
-                 .yes(Just("yes"))
-                 .no(Just("no"));
+                 .yes([]() { return Just("yes"); })
+                 .no([]() { return Just("no"); });
            });
   };
 
@@ -61,8 +61,8 @@ TEST(IfTest, Fail) {
         | Raise("error")
         | Then([](int i) {
              return If(i == 1)
-                 .yes(Just("yes"))
-                 .no(Just("no"));
+                 .yes([]() { return Just("yes"); })
+                 .no([]() { return Just("no"); });
            });
   };
 
@@ -83,15 +83,17 @@ TEST(IfTest, Interrupt) {
     return Just(1)
         | Then([&](int i) {
              return If(i == 1)
-                 .yes(Eventual<const char*>()
-                          .interruptible()
-                          .start([&](auto& k, Interrupt::Handler& handler) {
-                            handler.Install([&k]() {
-                              k.Stop();
-                            });
-                            start.Call();
-                          }))
-                 .no(Just("no"));
+                 .yes([&]() {
+                   return Eventual<const char*>()
+                       .interruptible()
+                       .start([&](auto& k, Interrupt::Handler& handler) {
+                         handler.Install([&k]() {
+                           k.Stop();
+                         });
+                         start.Call();
+                       });
+                 })
+                 .no([]() { return Just("no"); });
            });
   };
 
@@ -117,8 +119,8 @@ TEST(IfTest, Raise) {
     return Just(1)
         | Then([](int i) {
              return If(i == 1)
-                 .yes(Just(i))
-                 .no(Raise("raise"));
+                 .yes([]() { return 42; })
+                 .no([]() { return Raise("raise"); });
            });
   };
 
@@ -127,5 +129,5 @@ TEST(IfTest, Raise) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  EXPECT_EQ(1, *e());
+  EXPECT_EQ(42, *e());
 }
