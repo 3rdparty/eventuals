@@ -8,7 +8,7 @@ cc_binary(
     ],
     copts = copts(),
     deps = [
-        "//:grpc",
+        "//eventuals/grpc",
         "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
     ],
 )
@@ -20,7 +20,7 @@ cc_binary(
     ],
     copts = copts(),
     deps = [
-        "//:grpc",
+        "//eventuals/grpc",
         "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
     ],
 )
@@ -58,7 +58,7 @@ cc_test(
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = [
-        "//:grpc",
+        "//eventuals/grpc",
         "//test:expect-throw-what",
         "@bazel_tools//tools/cpp/runfiles",
         "@com_github_google_googletest//:gtest",

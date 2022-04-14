@@ -843,7 +843,7 @@ load("@com_github_3rdparty_eventuals//bazel:deps.bzl", eventuals_deps="deps")
 eventuals_deps()
 ```
 
-You can then depend on `@eventuals//:eventuals` in your Bazel targets.
+You can then depend on `@eventuals//eventuals` in your Bazel targets.
 
 ## Contributing
 
