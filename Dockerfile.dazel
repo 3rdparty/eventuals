@@ -10,7 +10,7 @@
 # TODO(benh): update to Python 3.10.
 FROM python:3.9-slim-bullseye
 
-ARG BAZEL_VERSION=5.1.0
+ARG BAZEL_VERSION=5.1.1
 ARG CLANG_VERSION=14
 
 # Install generic dependencies.
