@@ -15,7 +15,6 @@ namespace eventuals {
 // allocation or use std::function (which increases compile times and
 // is not required to avoid heap allocation even if most
 // implementations do for small lambdas).
-
 template <typename>
 struct Callback;
 
@@ -56,14 +55,16 @@ struct Callback<R(Args...)> final {
     return *this;
   }
 
-
   template <typename F>
   Callback& operator=(F f) {
     static_assert(
         !std::is_same_v<Callback, std::decay_t<F>>,
         "Not to be used as a *copy* assignment operator!");
 
-    static_assert(sizeof(Handler<F>) <= SIZE);
+    static_assert(
+        sizeof(Handler<F>) <= SIZE,
+        "Your callable (e.g., a lambda) is too big for 'Callback' "
+        "(do you have too many captures in your lambda?)");
 
     if (base_ != nullptr) {
       base_->~Base();
@@ -136,6 +137,10 @@ struct Callback<R(Args...)> final {
 
   Base* base_ = nullptr;
 };
+
+////////////////////////////////////////////////////////////////////////
+
+inline constexpr std::size_t SIZEOF_CALLBACK = Callback<void()>::SIZE;
 
 ////////////////////////////////////////////////////////////////////////
 
