@@ -81,6 +81,7 @@ cc_test(
         "let.cc",
         "lock.cc",
         "pipe.cc",
+        "poll.cc",
         "range.cc",
         "repeat.cc",
         "signal.cc",

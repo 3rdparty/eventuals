@@ -102,7 +102,7 @@ EventLoop& EventLoop::Default() {
         << "*  If you're seeing this message coming from a test it means   *\n"
         << "*  you forgot to inherit from 'EventLoopTest'.                 *\n"
         << "*                                                              *\n"
-        << "*  And don't forgeet that you not only need to construct the   *\n"
+        << "*  And don't forget that you not only need to construct the    *\n"
         << "*  event loop but you also need to run it!                     *\n"
         << "****************************************************************\n"
         << "\n";
@@ -339,6 +339,8 @@ void EventLoop::Check() {
       }
 
       CHECK_NOTNULL(context);
+
+      context->unblock();
 
       context->callback();
     }

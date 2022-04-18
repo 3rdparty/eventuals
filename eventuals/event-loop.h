@@ -15,6 +15,7 @@
 #include "eventuals/closure.h"
 #include "eventuals/eventual.h"
 #include "eventuals/lazy.h"
+#include "eventuals/stream.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
 #include "stout/borrowed_ptr.h"
@@ -23,6 +24,17 @@
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
+
+////////////////////////////////////////////////////////////////////////
+
+// Possible events to poll on; see 'operator|' defined below for the
+// ability to combine events together.
+enum class PollEvents {
+  Readable = 1,
+  Writable = 2,
+  Disconnect = 4,
+  Prioritized = 8,
+};
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -208,8 +220,6 @@ class EventLoop final : public Scheduler {
         }
 
         void Start() {
-          CHECK(!started_ && !completed_);
-
           // Clock is basically a "scheduler" for timers so we need to
           // "submit" a callback to be executed when the clock is not
           // paused which might be right away but might also be at
@@ -224,6 +234,7 @@ class EventLoop final : public Scheduler {
                 loop().Submit(
                     this->Borrow([this]() {
                       if (!completed_) {
+                        CHECK(!started_);
                         started_ = true;
 
                         CHECK_EQ(0, uv_timer_init(loop(), timer()));
@@ -297,8 +308,12 @@ class EventLoop final : public Scheduler {
               this->Borrow([tuple = std::move(tuple)]() mutable {
                 std::apply(
                     [](auto* continuation, auto&&... args) {
-                      auto& k_ = continuation->k_;
-                      k_.Fail(std::forward<decltype(args)>(args)...);
+                      if (!continuation->completed_) {
+                        CHECK(!continuation->started_);
+                        continuation->completed_ = true;
+                        auto& k_ = continuation->k_;
+                        k_.Fail(std::forward<decltype(args)>(args)...);
+                      }
                     },
                     std::move(*tuple));
               }),
@@ -309,7 +324,11 @@ class EventLoop final : public Scheduler {
           // Submitting to event loop to avoid race with interrupt.
           loop().Submit(
               this->Borrow([this]() {
-                k_.Stop();
+                if (!completed_) {
+                  CHECK(!started_);
+                  completed_ = true;
+                  k_.Stop();
+                }
               }),
               &context_);
         }
@@ -505,6 +524,10 @@ class EventLoop final : public Scheduler {
 
   auto WaitForSignal(int signum);
 
+  // Returns a stream of 'PollEvents' for each invocation of stream
+  // 'Next()' until requested to stop via 'Done()'.
+  auto Poll(int fd, PollEvents events);
+
  private:
   struct _WaitForSignal final {
     template <typename K_>
@@ -532,11 +555,10 @@ class EventLoop final : public Scheduler {
       }
 
       void Start() {
-        CHECK(!started_ && !completed_);
-
         loop_.Submit(
             this->Borrow([this]() {
               if (!completed_) {
+                CHECK(!started_);
                 started_ = true;
 
                 CHECK_EQ(0, uv_signal_init(loop_, signal()));
@@ -597,8 +619,12 @@ class EventLoop final : public Scheduler {
             this->Borrow([tuple = std::move(tuple)]() {
               std::apply(
                   [](auto* continuation, auto&&... args) {
-                    auto& k_ = continuation->k_;
-                    k_.Fail(std::forward<decltype(args)>(args)...);
+                    if (!continuation->completed_) {
+                      CHECK(!continuation->started_);
+                      continuation->completed_ = true;
+                      auto& k_ = continuation->k_;
+                      k_.Fail(std::forward<decltype(args)>(args)...);
+                    }
                   },
                   std::move(*tuple));
             }),
@@ -609,7 +635,11 @@ class EventLoop final : public Scheduler {
         // Submitting to event loop to avoid race with interrupt.
         loop_.Submit(
             this->Borrow([this]() {
-              k_.Stop();
+              if (!completed_) {
+                CHECK(!started_);
+                completed_ = true;
+                k_.Stop();
+              }
             }),
             &context_);
       }
@@ -703,6 +733,286 @@ class EventLoop final : public Scheduler {
 
       EventLoop& loop_;
       const int signum_;
+    };
+  };
+
+  struct _Poll final {
+    // Ensure that we're using the same enum values as libuv so we can
+    // pass it on unchanged.
+    static_assert(
+        PollEvents::Readable == static_cast<PollEvents>(UV_READABLE));
+    static_assert(
+        PollEvents::Writable == static_cast<PollEvents>(UV_WRITABLE));
+    static_assert(
+        PollEvents::Disconnect == static_cast<PollEvents>(UV_DISCONNECT));
+    static_assert(
+        PollEvents::Prioritized == static_cast<PollEvents>(UV_PRIORITIZED));
+
+    template <typename K_>
+    struct Continuation final
+      : public TypeErasedStream,
+        public stout::enable_borrowable_from_this<Continuation<K_>> {
+      Continuation(K_ k, EventLoop& loop, int fd, PollEvents events)
+        : loop_(loop),
+          fd_(fd),
+          events_(events),
+          context_(&loop, "Poll (start/fail/stop)"),
+          interrupt_context_(&loop, "Poll (interrupt)"),
+          k_(std::move(k)) {}
+
+      Continuation(Continuation&& that)
+        : loop_(that.loop_),
+          fd_(that.fd_),
+          events_(that.events_),
+          context_(&that.loop_, "Poll (start/fail/stop)"),
+          interrupt_context_(&that.loop_, "Poll (interrupt)"),
+          k_(std::move(that.k_)) {
+        CHECK(!that.started_ || !that.completed_) << "moving after starting";
+        CHECK(!handler_);
+      }
+
+      ~Continuation() {
+        CHECK(!started_ || closed_);
+      }
+
+      void Start() {
+        loop_.Submit(
+            this->Borrow([this]() {
+              if (!completed_) {
+                CHECK(!started_);
+                started_ = true;
+
+                error_ = uv_poll_init(loop_, poll(), fd_);
+
+                if (!error_) {
+                  uv_handle_set_data(handle(), this);
+                  k_.Begin(*this);
+                } else {
+                  completed_ = true;
+                  closed_ = true;
+                  k_.Fail(std::runtime_error(uv_strerror(error_)));
+                }
+              }
+            }),
+            &context_);
+      }
+
+      void Next() override {
+        loop_.Submit(
+            this->Borrow([this]() {
+              if (!completed_) {
+                CHECK(started_);
+                CHECK_EQ(this, handle()->data);
+                error_ = uv_poll_start(
+                    poll(),
+                    static_cast<int>(events_),
+                    [](uv_poll_t* poll, int status, int events) {
+                      auto& continuation = *(Continuation*) poll->data;
+                      CHECK_EQ(poll, continuation.poll());
+                      CHECK_EQ(
+                          &continuation,
+                          continuation.handle()->data);
+                      if (!continuation.completed_) {
+                        // NOTE: we stop the callback each time so
+                        // that an explicit call to 'Next()' must be
+                        // called to get the next event otherwise
+                        // libuv would just keep firing our callback
+                        // as long as any of the events are still
+                        // valid.
+                        CHECK(!continuation.error_);
+                        continuation.error_ = uv_poll_stop(poll);
+                        if (status == 0 && !continuation.error_) {
+                          continuation.k_.Body(static_cast<PollEvents>(events));
+                        } else {
+                          continuation.completed_ = true;
+                          if (!continuation.error_) {
+                            continuation.error_ = status;
+                          }
+                          uv_close(
+                              continuation.handle(),
+                              [](uv_handle_t* handle) {
+                                auto& continuation =
+                                    *(Continuation*) handle->data;
+                                continuation.closed_ = true;
+                                CHECK(continuation.error_);
+                                continuation.k_.Fail(std::runtime_error(
+                                    uv_strerror(continuation.error_)));
+                              });
+                        }
+                      }
+                    });
+
+                if (error_) {
+                  completed_ = true;
+                  CHECK_EQ(this, handle()->data);
+                  uv_close(handle(), [](uv_handle_t* handle) {
+                    auto& continuation = *(Continuation*) handle->data;
+                    continuation.closed_ = true;
+                    CHECK(continuation.error_);
+                    continuation.k_.Fail(std::runtime_error(
+                        uv_strerror(continuation.error_)));
+                  });
+                }
+              }
+            }),
+            &context_);
+      }
+
+      void Done() override {
+        loop_.Submit(
+            this->Borrow([this]() {
+              if (!completed_) {
+                CHECK(started_);
+                completed_ = true;
+                if (uv_is_active(handle())) {
+                  error_ = uv_poll_stop(poll());
+                }
+                CHECK_EQ(this, handle()->data);
+                uv_close(handle(), [](uv_handle_t* handle) {
+                  auto& continuation = *(Continuation*) handle->data;
+                  continuation.closed_ = true;
+                  if (!continuation.error_) {
+                    continuation.k_.Ended();
+                  } else {
+                    continuation.k_.Fail(std::runtime_error(
+                        uv_strerror(continuation.error_)));
+                  }
+                });
+              }
+            }),
+            &context_);
+      }
+
+      template <typename Error>
+      void Fail(Error&& error) {
+        // TODO(benh): avoid allocating on heap by storing args in
+        // pre-allocated buffer based on composing with Errors.
+        using Tuple = std::tuple<decltype(this), Error>;
+        auto tuple = std::make_unique<Tuple>(
+            this,
+            std::forward<Error>(error));
+
+        // Submitting to event loop to avoid race with interrupt.
+        loop_.Submit(
+            this->Borrow([tuple = std::move(tuple)]() {
+              std::apply(
+                  [](auto* continuation, auto&&... args) {
+                    if (!continuation->completed_) {
+                      CHECK(!continuation->started_);
+                      continuation->completed_ = true;
+                      auto& k_ = continuation->k_;
+                      k_.Fail(std::forward<decltype(args)>(args)...);
+                    }
+                  },
+                  std::move(*tuple));
+            }),
+            &context_);
+      }
+
+      void Stop() {
+        // Submitting to event loop to avoid race with interrupt.
+        loop_.Submit(
+            this->Borrow([this]() {
+              if (!completed_) {
+                CHECK(!started_);
+                completed_ = true;
+                k_.Stop();
+              }
+            }),
+            &context_);
+      }
+
+      void Register(class Interrupt& interrupt) {
+        k_.Register(interrupt);
+
+        handler_.emplace(&interrupt, [this]() {
+          loop_.Submit(
+              this->Borrow([this]() {
+                if (!started_) {
+                  CHECK(!completed_);
+                  completed_ = true;
+                  k_.Stop();
+                } else if (!completed_) {
+                  CHECK(started_);
+                  completed_ = true;
+                  CHECK(!error_);
+                  if (uv_is_active(handle())) {
+                    error_ = uv_poll_stop(poll());
+                  }
+                  CHECK_EQ(this, handle()->data);
+                  uv_close(handle(), [](uv_handle_t* handle) {
+                    auto& continuation = *(Continuation*) handle->data;
+                    continuation.closed_ = true;
+                    if (!continuation.error_) {
+                      continuation.k_.Stop();
+                    } else {
+                      continuation.k_.Fail(std::runtime_error(
+                          uv_strerror(continuation.error_)));
+                    }
+                  });
+                }
+              }),
+              &interrupt_context_);
+        });
+
+        // NOTE: we always install the handler in case 'Start()'
+        // never gets called.
+        handler_->Install();
+      }
+
+     private:
+      // Adaptors to libuv functions.
+      uv_poll_t* poll() {
+        return &poll_;
+      }
+
+      uv_handle_t* handle() {
+        return reinterpret_cast<uv_handle_t*>(&poll_);
+      }
+
+      EventLoop& loop_;
+      int fd_;
+      PollEvents events_;
+
+      uv_poll_t poll_;
+
+      bool started_ = false;
+      bool completed_ = false;
+      bool closed_ = false;
+
+      int error_ = 0;
+
+      // NOTE: we use 'context_' in each of 'Start()', 'Fail()', and
+      // 'Stop()' because only one of them will called at runtime.
+      Scheduler::Context context_;
+      Scheduler::Context interrupt_context_;
+
+      std::optional<Interrupt::Handler> handler_;
+
+      // NOTE: we store 'k_' as the _last_ member so it will be
+      // destructed _first_ and thus we won't have any use-after-delete
+      // issues during destruction of 'k_' if it holds any references or
+      // pointers to any (or within any) of the above members.
+      K_ k_;
+    };
+
+    struct Composable final {
+      template <typename Arg>
+      using ValueFrom = PollEvents;
+
+      template <typename Arg, typename Errors>
+      using ErrorsFrom = tuple_types_union_t<
+          Errors,
+          std::tuple<std::runtime_error>>;
+
+      template <typename Arg, typename K>
+      auto k(K k) && {
+        return Continuation<K>(std::move(k), loop_, fd_, events_);
+      }
+
+      EventLoop& loop_;
+      int fd_;
+      PollEvents events_;
     };
   };
 
@@ -962,6 +1272,33 @@ inline auto EventLoop::WaitForSignal(int signum) {
   return RescheduleAfter(
       // TODO(benh): borrow 'this' so signal can't outlive a loop.
       _WaitForSignal::Composable{*this, signum});
+}
+
+////////////////////////////////////////////////////////////////////////
+
+// Helpers for using bitmasks of 'PollEvents', e.g.,
+// 'PollEvents::Readable | PollEvents::Writeable'.
+inline PollEvents operator|(PollEvents left, PollEvents right) {
+  return static_cast<PollEvents>(
+      static_cast<std::underlying_type<PollEvents>::type>(left)
+      | static_cast<std::underlying_type<PollEvents>::type>(right));
+}
+
+inline PollEvents operator&(PollEvents left, PollEvents right) {
+  return static_cast<PollEvents>(
+      static_cast<std::underlying_type<PollEvents>::type>(left)
+      & static_cast<std::underlying_type<PollEvents>::type>(right));
+}
+
+////////////////////////////////////////////////////////////////////////
+
+inline auto EventLoop::Poll(int fd, PollEvents events) {
+  // NOTE: we use a 'RescheduleAfter()' to ensure we use current
+  // scheduling context to invoke the continuation after the poll has
+  // fired (or was interrupted).
+  return RescheduleAfter(
+      // TODO(benh): borrow 'this' so poll can't outlive a loop.
+      _Poll::Composable{*this, fd, events});
 }
 
 ////////////////////////////////////////////////////////////////////////
