@@ -3,17 +3,56 @@
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
+#include "test/grpc/death-constants.h"
 
+namespace eventuals::grpc {
+namespace {
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
-using eventuals::Head;
-using eventuals::Terminate;
-using eventuals::Then;
+void RunServer(const int pipe) {
+  auto SendPort = [&](int port) {
+    CHECK_GT(write(pipe, &port, sizeof(port)), 0);
+  };
 
-using eventuals::grpc::Server;
-using eventuals::grpc::ServerBuilder;
+  ServerBuilder builder;
+
+  int port = 0;
+
+  builder.AddListeningPort(
+      "0.0.0.0:0",
+      ::grpc::InsecureServerCredentials(),
+      &port);
+
+  auto build = builder.BuildAndStart();
+
+  CHECK(build.status.ok());
+
+  auto server = std::move(build.server);
+
+  CHECK(server);
+
+  auto serve = [&]() {
+    return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
+        | Head()
+        | Then([](auto&& call) {
+             exit(kProcessIntentionalExitCode);
+           });
+  };
+
+  auto [future, k] = Terminate(serve());
+
+  k.Start();
+
+  // NOTE: sending this _after_ we start the eventual so that we're
+  // ready to accept clients!
+  SendPort(port);
+
+  future.get();
+}
+} // namespace
+} // namespace eventuals::grpc
 
 // Should only be run from tests!
 //
@@ -30,46 +69,6 @@ int main(int argc, char** argv) {
 
   int pipe = atoi(argv[1]);
 
-  auto SendPort = [&](int port) {
-    CHECK_GT(write(pipe, &port, sizeof(port)), 0);
-  };
-
-  ServerBuilder builder;
-
-  int port = 0;
-
-  builder.AddListeningPort(
-      "0.0.0.0:0",
-      grpc::InsecureServerCredentials(),
-      &port);
-
-  auto build = builder.BuildAndStart();
-
-  CHECK(build.status.ok());
-
-  auto server = std::move(build.server);
-
-  CHECK(server);
-
-  auto serve = [&]() {
-    return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
-        | Head()
-        | Then([](auto&& call) {
-             // NOTE: to avoid false positives with, for example, one
-             // of the 'CHECK()'s failing above, the 'ServerDeathTest'
-             // expects the string 'accepted' to be written to stderr.
-             std::cerr << "accepted" << std::endl;
-             exit(1);
-           });
-  };
-
-  auto [future, k] = Terminate(serve());
-
-  k.Start();
-
-  // NOTE: sending this _after_ we start the eventual so that we're
-  // ready to accept clients!
-  SendPort(port);
-
-  future.get();
+  ::eventuals::grpc::RunServer(pipe);
+  return 0;
 }

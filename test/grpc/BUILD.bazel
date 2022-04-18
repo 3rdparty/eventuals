@@ -1,6 +1,11 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
 load("//bazel:copts.bzl", "copts")
 
+cc_library(
+    name = "death-constants",
+    hdrs = ["death-constants.h"],
+)
+
 cc_binary(
     name = "death-client",
     srcs = [
@@ -8,6 +13,7 @@ cc_binary(
     ],
     copts = copts(),
     deps = [
+        ":death-constants",
         "//eventuals/grpc",
         "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
     ],
@@ -20,6 +26,7 @@ cc_binary(
     ],
     copts = copts(),
     deps = [
+        ":death-constants",
         "//eventuals/grpc",
         "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
     ],
@@ -37,8 +44,7 @@ cc_test(
         # Except files that implement the death-client and death-server
         # binaries.
         exclude = [
-            "death-client.cc",
-            "death-server.cc",
+            "death-*.*",
         ],
     ),
     copts = copts(),
@@ -58,6 +64,7 @@ cc_test(
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = [
+        ":death-constants",
         "//eventuals/grpc",
         "//test:expect-throw-what",
         "@bazel_tools//tools/cpp/runfiles",
