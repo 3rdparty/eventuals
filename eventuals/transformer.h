@@ -263,7 +263,7 @@ struct _Transformer final {
           "takes no arguments");
 
       static_assert(
-          sizeof(f) <= sizeof(void*),
+          sizeof(f) <= SIZEOF_CALLBACK,
           "'Transformer' expects a callable (e.g., a lambda) that "
           "can be captured in a 'Callback'");
 

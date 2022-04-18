@@ -323,18 +323,31 @@ struct _TaskFromToWith final {
     template <typename F>
     Composable(Args_... args, F f)
       : args_(std::tuple<Args_...>(std::move(args)...)) {
+      constexpr bool HAS_ARGS = sizeof...(Args_) > 0;
+
       static_assert(
-          std::tuple_size<decltype(args_)>{} > 0 || std::is_invocable_v<F>,
+          // NOTE: need to use 'std::conditional_t' here because we
+          // need to defer evaluation of 'std::is_invocable' unless
+          // necessary.
+          std::conditional_t<
+              HAS_ARGS,
+              std::true_type,
+              std::is_invocable<F>>::value,
           "'Task' expects a callable (e.g., a lambda) that takes no arguments");
 
       static_assert(
-          std::tuple_size<decltype(args_)>{}
-              || std::is_invocable_v<F, Args_...>,
+          // NOTE: need to use 'std::conditional_t' here because we
+          // need to defer evaluation of 'std::is_invocable' unless
+          // necessary.
+          std::conditional_t<
+              !HAS_ARGS,
+              std::true_type,
+              std::is_invocable<F, Args_...>>::value,
           "'Task' expects a callable (e.g., a lambda) that "
           "takes the arguments specified");
 
       static_assert(
-          sizeof(f) <= sizeof(void*),
+          sizeof(f) <= SIZEOF_CALLBACK,
           "'Task' expects a callable (e.g., a lambda) that "
           "can be captured in a 'Callback'");
 

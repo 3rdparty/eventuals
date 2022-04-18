@@ -362,7 +362,7 @@ struct _Generator final {
           "takes the arguments specified");
 
       static_assert(
-          sizeof(f) <= sizeof(void*),
+          sizeof(f) <= SIZEOF_CALLBACK,
           "'Generator' expects a callable (e.g., a lambda) that "
           "can be captured in a 'Callback'");
 
