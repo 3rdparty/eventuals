@@ -3,6 +3,7 @@
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
+#include "test/grpc/death-constants.h"
 
 using helloworld::Greeter;
 using helloworld::HelloReply;
@@ -15,21 +16,7 @@ using eventuals::Then;
 using eventuals::grpc::Server;
 using eventuals::grpc::ServerBuilder;
 
-// Should only be run from tests!
-//
-// Expects one argument.
-//
-// Expects as 'argv[1]' a string representing the file descriptor that
-// this process has inherited from its parent (the test) that can be
-// used to send the bound port of the gRPC server.
-//
-// See 'server-death-test.cc' for more details.
-int main(int argc, char** argv) {
-  // TODO(benh): use stout-flags!
-  CHECK_EQ(argc, 2) << "expecting 'pipe' to be passed as an argument";
-
-  int pipe = atoi(argv[1]);
-
+void RunServer(const int pipe) {
   auto SendPort = [&](int port) {
     CHECK_GT(write(pipe, &port, sizeof(port)), 0);
   };
@@ -55,11 +42,7 @@ int main(int argc, char** argv) {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
         | Head()
         | Then([](auto&& call) {
-             // NOTE: to avoid false positives with, for example, one
-             // of the 'CHECK()'s failing above, the 'ServerDeathTest'
-             // expects the string 'accepted' to be written to stderr.
-             std::cerr << "accepted" << std::endl;
-             exit(1);
+             exit(eventuals::grpc::kProcessIntentionalExitCode);
            });
   };
 
@@ -72,4 +55,23 @@ int main(int argc, char** argv) {
   SendPort(port);
 
   future.get();
+}
+
+// Should only be run from tests!
+//
+// Expects one argument.
+//
+// Expects as 'argv[1]' a string representing the file descriptor that
+// this process has inherited from its parent (the test) that can be
+// used to send the bound port of the gRPC server.
+//
+// See 'server-death-test.cc' for more details.
+int main(int argc, char** argv) {
+  // TODO(benh): use stout-flags!
+  CHECK_EQ(argc, 2) << "expecting 'pipe' to be passed as an argument";
+
+  int pipe = atoi(argv[1]);
+
+  RunServer(pipe);
+  return 0;
 }
