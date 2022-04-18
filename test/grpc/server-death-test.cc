@@ -1,8 +1,8 @@
 #include <filesystem>
 
+#include "eventuals/finally.h"
 #include "eventuals/grpc/client.h"
 #include "eventuals/grpc/server.h"
-#include "eventuals/head.h"
 #include "eventuals/let.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
@@ -16,10 +16,10 @@ using helloworld::HelloRequest;
 
 using stout::Borrowable;
 
-using eventuals::Head;
+using eventuals::Finally;
 using eventuals::Let;
-using eventuals::Terminate;
 using eventuals::Then;
+using eventuals::grpc::ClientCall;
 
 using eventuals::grpc::Client;
 using eventuals::grpc::CompletionPool;
@@ -90,15 +90,18 @@ TEST_F(EventualsGrpcTest, ServerDeathTest) {
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-        | Then(Let([](auto& call) {
+        | Then(Let([](ClientCall<HelloRequest, HelloReply>& call) {
              HelloRequest request;
              request.set_name("emily");
              return call.Writer().WriteLast(request)
-                 | call.Finish();
+                 | Finally(
+                        [&](std::optional<std::exception_ptr>&&) {
+                          return call.Finish();
+                        });
            }));
   };
 
-  auto status = *call();
+  const ::grpc::Status status = *call();
 
   EXPECT_EQ(grpc::UNAVAILABLE, status.error_code());
 
