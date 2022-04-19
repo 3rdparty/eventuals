@@ -353,6 +353,16 @@ struct _TaskFromToWith final {
 
       using E = decltype(std::apply(f, args_));
 
+      static_assert(
+          std::is_void_v<E> || HasValueFrom<E>::value,
+          "'Task' expects a callable (e.g., a lambda) that "
+          "returns an eventual but you're returning a value");
+
+      static_assert(
+          !std::is_void_v<E>,
+          "'Task' expects a callable (e.g., a lambda) that "
+          "returns an eventual but you're not returning anything");
+
       using Value = typename E::template ValueFrom<From_>;
 
       using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
