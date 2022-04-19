@@ -10,7 +10,7 @@ namespace eventuals {
 
 template <typename T>
 auto Just(T t) {
-  return Eventual<T>([t = std::move(t)](auto& k, auto&&...) {
+  return Eventual<T>([t = std::move(t)](auto& k, auto&&...) mutable {
     k.Start(std::move(t));
   });
 }
