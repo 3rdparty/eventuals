@@ -781,9 +781,15 @@ class EventLoop final : public Scheduler {
               if (!completed_) {
                 CHECK(!started_);
                 started_ = true;
-
+#if !defined(_WIN32)
                 error_ = uv_poll_init(loop_, poll(), fd_);
-
+#else
+                if (GetFileType(fd_) == FILE_TYPE_PIPE) {
+                  error_ = uv_poll_init_socket(loop_, poll(), fd_);
+                } else {
+                  error_ = uv_poll_init(loop_, poll(), fd_);
+                }
+#endif
                 if (!error_) {
                   uv_handle_set_data(handle(), this);
                   k_.Begin(*this);
