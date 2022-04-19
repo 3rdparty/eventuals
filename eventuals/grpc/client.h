@@ -46,6 +46,7 @@ class ClientReader {
       ResponseType_ response;
       void* k = nullptr;
     };
+
     return eventuals::Stream<ResponseType_>()
         .next([this,
                data = Data{},

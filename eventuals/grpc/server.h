@@ -172,6 +172,7 @@ class ServerReader {
       ::grpc::ByteBuffer buffer;
       void* k = nullptr;
     };
+
     return eventuals::Stream<RequestType_>()
         .template raises<std::runtime_error>()
         .next([this,
