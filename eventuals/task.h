@@ -176,7 +176,7 @@ struct _TaskFromToWith final {
       Callback<void(
           Action,
           std::optional<std::exception_ptr>&&,
-          Args&&...,
+          Args&...,
           // Can't have a 'void' argument type
           // so we are using 'std::monostate'.
           std::optional<
@@ -199,10 +199,10 @@ struct _TaskFromToWith final {
   struct Continuation final {
     Continuation(
         K_ k,
-        std::tuple<Args_...> args,
+        std::tuple<Args_...>&& args,
         std::variant<
             MonostateIfVoidOrReferenceWrapperOr<To_>,
-            DispatchCallback<From_, To_, Args_...>>
+            DispatchCallback<From_, To_, Args_...>>&&
             value_or_dispatch)
       : args_(std::move(args)),
         value_or_dispatch_(std::move(value_or_dispatch)),
@@ -264,11 +264,11 @@ struct _TaskFromToWith final {
       CHECK_EQ(value_or_dispatch_.index(), 1u);
 
       std::apply(
-          [&](auto&&... args) {
+          [&](auto&... args) {
             std::get<1>(value_or_dispatch_)(
                 action,
                 std::move(exception),
-                std::forward<decltype(args)>(args)...,
+                args...,
                 std::forward<decltype(from)>(from),
                 e_,
                 *interrupt_,
@@ -282,7 +282,7 @@ struct _TaskFromToWith final {
                   k_.Stop();
                 });
           },
-          std::move(args_));
+          args_);
     }
 
     std::tuple<Args_...> args_;
@@ -342,7 +342,7 @@ struct _TaskFromToWith final {
           std::conditional_t<
               !HAS_ARGS,
               std::true_type,
-              std::is_invocable<F, Args_...>>::value,
+              std::is_invocable<F, Args_&...>>::value,
           "'Task' expects a callable (e.g., a lambda) that "
           "takes the arguments specified");
 
@@ -380,7 +380,7 @@ struct _TaskFromToWith final {
       value_or_dispatch_ = [f = std::move(f)](
                                Action action,
                                std::optional<std::exception_ptr>&& exception,
-                               Args_&&... args,
+                               Args_&... args,
                                std::optional<MonostateIfVoidOr<From_>>&& arg,
                                std::unique_ptr<void, Callback<void(void*)>>& e_,
                                Interrupt& interrupt,
@@ -389,7 +389,7 @@ struct _TaskFromToWith final {
                                Callback<void()>&& stop) mutable {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapTask<E, From_, To_>(f(std::move(args)...)),
+              new HeapTask<E, From_, To_>(f(args...)),
               [](void* e) {
                 delete static_cast<HeapTask<E, From_, To_>*>(e);
               });
