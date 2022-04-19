@@ -19,6 +19,7 @@ cc_library(
         "conditional.h",
         "do-all.h",
         "eventual.h",
+        "executor.h",
         "expected.h",
         "filter.h",
         "finally.h",

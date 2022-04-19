@@ -66,6 +66,7 @@ cc_test(
         "do-all.cc",
         "event-loop-test.h",
         "eventual.cc",
+        "executor.cc",
         "expected.cc",
         "filesystem.cc",
         "filter.cc",
