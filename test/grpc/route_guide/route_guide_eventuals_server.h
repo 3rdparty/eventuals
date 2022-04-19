@@ -21,12 +21,24 @@
 #include <string>
 #include <vector>
 
+#include "eventuals/closure.h"
+#include "eventuals/flat-map.h"
+#include "eventuals/iterate.h"
+#include "eventuals/let.h"
+#include "eventuals/map.h"
+#include "eventuals/then.h"
 #include "test/grpc/route_guide/helper.h"
 #include "test/grpc/route_guide/route_guide.eventuals.h"
 #include "test/grpc/route_guide/route_guide.grpc.pb.h"
 #include "test/grpc/route_guide/route_guide_utilities.h"
 
+using eventuals::Closure;
+using eventuals::FlatMap;
+using eventuals::Iterate;
+using eventuals::Let;
+using eventuals::Map;
 using eventuals::Synchronizable;
+using eventuals::Then;
 using eventuals::grpc::ServerReader;
 using routeguide::Feature;
 using routeguide::Point;
@@ -71,37 +83,6 @@ class RouteGuideImpl final
   //     ...] -> ...]
   //   }
 
-<<<<<<< Updated upstream
-  // auto RouteChat(grpc::ServerContext* context,
-  // ServerReader<RouteNote>& reader) {
-  // return reader.Read()
-  //     | FlatMap(Let(
-  //         [this, notes = std::vector<RouteNote>()]
-  //(RouteNote& note) mutable {
-  //           return Synchronized(Then([&]() {
-  //                    for (const RouteNote& n : received_notes_) {
-  //                      if (n.location().latitude()
-  //                              == note.location().latitude()
-  //                          && n.location().longitude()
-  //                              == note.location().longitude()) {
-  //                        notes.push_back(n);
-  //                      }
-  //                    }
-  //                    received_notes_.push_back(note);
-  //                  }))
-  //               | Closure([&]() {
-  //                    return Iterate(std::move(notes));
-  //                  });
-  //         }))
-  //     | Map([](auto) {
-  //          return eventuals::Catch()
-  //              .raised<std::exception>([](std::exception&& e) {
-  //                // return RequestType_();
-  //                // return RouteSummary();
-  //              });
-  //        });
-  // }
-=======
   auto RouteChat(
       grpc::ServerContext* context,
       ServerReader<RouteNote>& reader) {
@@ -121,12 +102,10 @@ class RouteGuideImpl final
                            received_notes_.push_back(note);
                          }))
                   | Closure([&]() {
-                       CHECK(false);
                        return Iterate(std::move(notes));
                      });
             }));
   }
->>>>>>> Stashed changes
 
  private:
   std::vector<Feature> feature_list_;
