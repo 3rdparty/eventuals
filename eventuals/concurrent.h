@@ -727,6 +727,10 @@ struct _Concurrent final {
 
     template <typename Arg, typename K>
     auto k(K k) && {
+      static_assert(
+          !std::is_void_v<ValueFrom<Arg>>,
+          "'Concurrent' does not (yet) support 'void' eventual values");
+
       return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
     }
 
