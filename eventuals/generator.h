@@ -350,14 +350,27 @@ struct _Generator final {
     template <typename F>
     Composable(Args_... args, F f)
       : args_(std::tuple<Args_...>(std::move(args)...)) {
-      static_assert(
-          std::tuple_size<decltype(args_)>{} > 0 || std::is_invocable_v<F>,
-          "'Generator' expects a callable (e.g., a lambda) that "
-          "takes no arguments");
+      constexpr bool HAS_ARGS = sizeof...(Args_) > 0;
 
       static_assert(
-          std::tuple_size<decltype(args_)>{}
-              || std::is_invocable_v<F, Args_...>,
+          // NOTE: need to use 'std::conditional_t' here because we
+          // need to defer evaluation of 'std::is_invocable' unless
+          // necessary.
+          std::conditional_t<
+              HAS_ARGS,
+              std::true_type,
+              std::is_invocable<F>>::value,
+          "'Generator' expects a callable (e.g., a lambda) "
+          "that takes no arguments");
+
+      static_assert(
+          // NOTE: need to use 'std::conditional_t' here because we
+          // need to defer evaluation of 'std::is_invocable' unless
+          // necessary.
+          std::conditional_t<
+              !HAS_ARGS,
+              std::true_type,
+              std::is_invocable<F, Args_...>>::value,
           "'Generator' expects a callable (e.g., a lambda) that "
           "takes the arguments specified");
 
@@ -367,6 +380,16 @@ struct _Generator final {
           "can be captured in a 'Callback'");
 
       using E = decltype(std::apply(f, args_));
+
+      static_assert(
+          std::is_void_v<E> || HasValueFrom<E>::value,
+          "'Generator' expects a callable (e.g., a lambda) that "
+          "returns an eventual but you're returning a value");
+
+      static_assert(
+          !std::is_void_v<E>,
+          "'Generator' expects a callable (e.g., a lambda) that "
+          "returns an eventual but you're not returning anything");
 
       using ErrorsFromE = ErrorsFromMaybeComposable<E, From_, std::tuple<>>;
 
