@@ -1,6 +1,5 @@
 #include "eventuals/catch.h"
 
-#include <iostream>
 #include <string>
 
 #include "eventuals/conditional.h"

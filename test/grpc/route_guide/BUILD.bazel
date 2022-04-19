@@ -48,6 +48,7 @@ cc_library(
     ],
     deps = [
         ":route-guide-eventuals",
+        "@com_github_google_googletest//:gtest",
     ],
 )
 
