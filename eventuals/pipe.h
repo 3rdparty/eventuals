@@ -3,6 +3,7 @@
 #include <deque>
 
 #include "eventuals/callback.h"
+#include "eventuals/just.h"
 #include "eventuals/lock.h"
 #include "eventuals/map.h"
 #include "eventuals/repeat.h"
@@ -55,7 +56,9 @@ class Pipe final : public Synchronizable {
            })
         | Map([](auto&& value) {
              CHECK(value);
-             return std::move(*value);
+             // NOTE: need to use 'Just' here in case 'T' is an
+             // eventual otherwise we'll try and compose with it here!
+             return Just(std::move(*value));
            });
   }
 
