@@ -37,6 +37,7 @@ cc_library(
         "map.h",
         "os.h",
         "pipe.h",
+        "poll.h",
         "raise.h",
         "range.h",
         "reduce.h",
