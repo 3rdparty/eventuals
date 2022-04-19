@@ -1,0 +1,81 @@
+# NOTE: instead of 'cc_grpc_library' from '@com_github_grpc_grpc'
+# could also use 'cpp_grpc_library' from 'rules_proto_grpc' (by first
+# bringing in 'rules_proto_grpc' in WORKSPACE.bazel).
+load("@com_github_grpc_grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library", "cc_test")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("//bazel:cc_eventuals_library.bzl", "cc_eventuals_library")
+
+proto_library(
+    name = "route-guide",
+    srcs = ["route_guide.proto"],
+)
+
+cc_proto_library(
+    name = "route-guide-proto",
+    deps = [":route-guide"],
+)
+
+cc_grpc_library(
+    name = "route-guide-grpc",
+    srcs = [":route-guide"],
+    grpc_only = True,
+    deps = [":route-guide-proto"],
+)
+
+cc_eventuals_library(
+    name = "route-guide-eventuals-generated",
+    srcs = ["route_guide.proto"],
+    deps = [":route-guide"],
+)
+
+cc_library(
+    name = "route-guide-eventuals",
+    srcs = ["route-guide-eventuals-generated"],
+    deps = [
+        ":route-guide-grpc",
+        "//eventuals/grpc",
+    ],
+)
+
+cc_library(
+    name = "helper",
+    srcs = [
+        "helper.cc",
+    ],
+    hdrs = [
+        "helper.h",
+    ],
+    deps = [
+        ":route-guide-eventuals",
+    ],
+)
+
+cc_library(
+    name = "route-guide-eventuals-server",
+    hdrs = [
+        "route-guide-eventuals-server.h",
+        "route-guide-utilities.h",
+    ],
+    deps = [
+        ":helper",
+        ":route-guide-eventuals",
+    ],
+)
+
+cc_test(
+    name = "route-guide-test",
+    srcs = [
+        "get-feature.cc",
+        "list-features.cc",
+        "record-route.cc",
+        "route-chat.cc",
+        "route-guide-eventuals-client.h",
+    ],
+    data = ["route_guide_db.json"],
+    deps = [
+        ":route-guide-eventuals-server",
+        "@com_github_google_googletest//:gtest",
+        "@com_github_google_googletest//:gtest_main",
+    ],
+)
