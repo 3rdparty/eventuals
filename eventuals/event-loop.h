@@ -784,7 +784,8 @@ class EventLoop final : public Scheduler {
 #if !defined(_WIN32)
                 error_ = uv_poll_init(loop_, poll(), fd_);
 #else
-                if (GetFileType(fd_) == FILE_TYPE_PIPE) {
+                if (GetFileType(reinterpret_cast<HANDLE>(fd_))
+                    == FILE_TYPE_PIPE) {
                   error_ = uv_poll_init_socket(loop_, poll(), fd_);
                 } else {
                   error_ = uv_poll_init(loop_, poll(), fd_);
