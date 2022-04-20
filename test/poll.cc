@@ -60,7 +60,7 @@ TEST_F(PollTest, Succeed) {
                            events & PollEvents::Readable,
                            PollEvents::Readable);
                        char buffer[1024];
-                       int size = read(server, buffer, 1024);
+                       int size = recv(server, buffer, 1024, 0);
                        if (size > 0) {
                          data += std::string(buffer, size);
                          return /* continue = */ true;
@@ -78,13 +78,13 @@ TEST_F(PollTest, Succeed) {
                          EXPECT_EQ(PollEvents::Writable, events);
                          EXPECT_EQ(
                              data1.size(),
-                             write(client, data1.data(), data1.size()));
+                             send(client, data1.data(), data1.size(), 0));
                          return /* done = */ false;
                        } else {
                          EXPECT_EQ(PollEvents::Writable, events);
                          EXPECT_EQ(
                              data2.size(),
-                             write(client, data2.data(), data2.size()));
+                             send(client, data2.data(), data2.size(), 0));
                          return /* done = */ true;
                        }
                      })
