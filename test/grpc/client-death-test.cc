@@ -26,7 +26,7 @@ using eventuals::grpc::ServerBuilder;
 
 // Tests that servers correctly handle clients that disconnect before sending a
 // request.
-TEST_F(EventualsGrpcTest, ClientDeathTest) {
+TEST(ClientDeathTest, ServerHandlesClientDisconnect) {
   // Start a server that will handle requests.
   ServerBuilder builder;
 

@@ -24,7 +24,7 @@ using eventuals::grpc::CompletionPool;
 using eventuals::grpc::Server;
 using eventuals::grpc::ServerBuilder;
 
-TEST_F(EventualsGrpcTest, MultipleHosts) {
+TEST(MultipleHostsTests, Success) {
   ServerBuilder builder;
 
   int port = 0;

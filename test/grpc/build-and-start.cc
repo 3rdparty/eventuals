@@ -4,7 +4,7 @@
 
 using eventuals::grpc::ServerBuilder;
 
-TEST_F(EventualsGrpcTest, BuildAndStart) {
+TEST(BuildAndStartTest, Success) {
   ServerBuilder builder;
 
   builder.AddListeningPort("0.0.0.0:0", grpc::InsecureServerCredentials());

@@ -120,7 +120,7 @@ void test_client_behavior(Handler handler) {
   EXPECT_FALSE(cancelled.get());
 }
 
-TEST_F(EventualsGrpcTest, Streaming_WriteLast_AfterReply_TwoRequests) {
+TEST(StreamingTest, WriteLast_AfterReply_TwoRequests) {
   test_client_behavior(
       Then(Let([](auto& call) {
         keyvaluestore::Request request;
@@ -158,7 +158,7 @@ TEST_F(EventualsGrpcTest, Streaming_WriteLast_AfterReply_TwoRequests) {
       })));
 }
 
-TEST_F(EventualsGrpcTest, Streaming_WriteLast_BeforeReply_OneRequest) {
+TEST(StreamingTest, WriteLast_BeforeReply_OneRequest) {
   test_client_behavior(
       Then(Let([](auto& call) {
         keyvaluestore::Request request;
@@ -188,7 +188,7 @@ TEST_F(EventualsGrpcTest, Streaming_WriteLast_BeforeReply_OneRequest) {
       })));
 }
 
-TEST_F(EventualsGrpcTest, Streaming_WriteLast_BeforeReply_TwoRequests) {
+TEST(StreamingTest, WriteLast_BeforeReply_TwoRequests) {
   test_client_behavior(
       Then(Let([](auto& call) {
         keyvaluestore::Request request1;
@@ -228,7 +228,7 @@ TEST_F(EventualsGrpcTest, Streaming_WriteLast_BeforeReply_TwoRequests) {
       })));
 }
 
-TEST_F(EventualsGrpcTest, Streaming_WritesDone_AfterReply_OneRequest) {
+TEST(StreamingTest, WritesDone_AfterReply_OneRequest) {
   test_client_behavior(
       Then(Let([](auto& call) {
         keyvaluestore::Request request;
@@ -259,7 +259,7 @@ TEST_F(EventualsGrpcTest, Streaming_WritesDone_AfterReply_OneRequest) {
       })));
 }
 
-TEST_F(EventualsGrpcTest, Streaming_WritesDone_AfterReply_TwoRequests) {
+TEST(StreamingTest, WritesDone_AfterReply_TwoRequests) {
   test_client_behavior(
       Then(Let([](auto& call) {
         keyvaluestore::Request request;
@@ -298,7 +298,7 @@ TEST_F(EventualsGrpcTest, Streaming_WritesDone_AfterReply_TwoRequests) {
       })));
 }
 
-TEST_F(EventualsGrpcTest, Streaming_WritesDone_BeforeReply_OneRequest) {
+TEST(StreamingTest, WritesDone_BeforeReply_OneRequest) {
   test_client_behavior(
       Then(Let([](auto& call) {
         keyvaluestore::Request request1;
@@ -329,7 +329,7 @@ TEST_F(EventualsGrpcTest, Streaming_WritesDone_BeforeReply_OneRequest) {
       })));
 }
 
-TEST_F(EventualsGrpcTest, Streaming_WritesDone_BeforeReply_TwoRequests) {
+TEST(StreamingTest, WritesDone_BeforeReply_TwoRequests) {
   test_client_behavior(
       Then(Let([](auto& call) {
         keyvaluestore::Request request1;
