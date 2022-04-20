@@ -17,7 +17,7 @@ using eventuals::grpc::Client;
 using eventuals::grpc::CompletionPool;
 using eventuals::grpc::ServerBuilder;
 
-TEST_F(EventualsGrpcTest, Unimplemented) {
+TEST(UnimplementedTest, ClientCallsUnimplementedServerMethod) {
   ServerBuilder builder;
 
   int port = 0;

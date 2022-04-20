@@ -23,7 +23,7 @@ using eventuals::grpc::CompletionPool;
 using eventuals::grpc::Server;
 using eventuals::grpc::ServerBuilder;
 
-TEST_F(EventualsGrpcTest, CancelledByClient) {
+TEST(CancelledByClientTest, Cancelled) {
   ServerBuilder builder;
 
   int port = 0;

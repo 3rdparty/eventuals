@@ -33,7 +33,7 @@ using eventuals::grpc::ServerBuilder;
 
 // Tests that the client receives a ::grpc::UNAVAILABLE status if the server
 // dies without cleanly calling call.Finish().
-TEST_F(EventualsGrpcTest, ServerDeathTest) {
+TEST(ServerDeathTest, ClientReceivesUnavailable) {
   // NOTE: need pipes to get the server's port, this also helps
   // synchronize when the server is ready to have the client connect.
   int pipefds[2]; // 'port[0]' is for reading, 'port[1]' for writing.
