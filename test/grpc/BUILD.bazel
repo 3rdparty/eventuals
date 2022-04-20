@@ -1,5 +1,10 @@
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("//bazel:copts.bzl", "copts")
+
+cc_library(
+    name = "death-constants",
+    hdrs = ["death-constants.h"],
+)
 
 cc_binary(
     name = "death-client",
@@ -8,6 +13,7 @@ cc_binary(
     ],
     copts = copts(),
     deps = [
+        ":death-constants",
         "//eventuals/grpc",
         "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
     ],
@@ -20,6 +26,7 @@ cc_binary(
     ],
     copts = copts(),
     deps = [
+        ":death-constants",
         "//eventuals/grpc",
         "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
     ],
@@ -28,19 +35,27 @@ cc_binary(
 cc_test(
     name = "grpc",
     timeout = "short",
-    srcs = glob(
-        # Include all test sources...
-        [
-            "*.cc",
-            "*.h",
-        ],
-        # Except files that implement the death-client and death-server
-        # binaries.
-        exclude = [
-            "death-client.cc",
-            "death-server.cc",
-        ],
-    ),
+    # TODO(alexmc): Some of these filenames end with "-test" and others don't.
+    # Rename things for consistency.
+    srcs = [
+        "accept.cc",
+        "build-and-start.cc",
+        "cancelled-by-client.cc",
+        "cancelled-by-server.cc",
+        "client-death-test.cc",
+        "deadline.cc",
+        "greeter-server.cc",
+        "helloworld.eventuals.cc",
+        "helloworld.eventuals.h",
+        "main.cc",
+        "multiple-hosts.cc",
+        "server-death-test.cc",
+        "server-unavailable.cc",
+        "streaming.cc",
+        "test.h",
+        "unary.cc",
+        "unimplemented.cc",
+    ],
     copts = copts(),
     data = [
         ":death-client",
@@ -58,6 +73,7 @@ cc_test(
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = [
+        ":death-constants",
         "//eventuals/grpc",
         "//test:expect-throw-what",
         "@bazel_tools//tools/cpp/runfiles",
