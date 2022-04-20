@@ -9,4 +9,4 @@
 [submodule "submodules/stout"]
 	path = submodules/stout
 	url = https://github.com/3rdparty/stout.git
-	branch = master
+	branch = main

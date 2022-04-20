@@ -4,16 +4,6 @@ alias(
     actual = "//eventuals",
     deprecation = "Prefer //eventuals",
     visibility = ["//visibility:public"],
-<<<<<<< HEAD
-=======
-    deps = [
-        ":base",
-        ":events",
-        ":http",
-        "@com_github_3rdparty_stout_borrowed_ptr//:borrowed_ptr",
-        "@com_github_3rdparty_stout//:stout",
-    ],
->>>>>>> Add 'stout' repo as a submodule
 )
 
 # TODO(alexmc): Remove this alias.
