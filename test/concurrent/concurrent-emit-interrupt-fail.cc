@@ -2,39 +2,29 @@
 #include <vector>
 
 #include "eventuals/collect.h"
-#include "eventuals/eventual.h"
 #include "eventuals/interrupt.h"
-#include "eventuals/let.h"
 #include "eventuals/map.h"
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
-#include "test/concurrent.h"
+#include "test/concurrent/concurrent.h"
 #include "test/expect-throw-what.h"
 
 using eventuals::Collect;
-using eventuals::Eventual;
 using eventuals::Interrupt;
-using eventuals::Let;
 using eventuals::Map;
 using eventuals::Stream;
 using eventuals::Terminate;
 
-// Tests that when one of the 'Concurrent()' eventuals fails it can
-// ensure that everything correctly fails by "interrupting"
-// upstream. In this case we interrupt upstream by using an
-// 'Interrupt' but there may diffrent ways of doing it depending on
-// what you're building. See the TODO in
-// '_Concurrent::TypeErasedAdaptor::Done()' for more details on the
-// semantics of 'Concurrent()' that are important to consider here.
-TYPED_TEST(ConcurrentTypedTest, EmitFailInterrupt) {
-  Interrupt interrupt;
-
+// Tests when when upstream fails after an interrupt the result will
+// be fail.
+TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
   auto e = [&]() {
     return Stream<int>()
+               .raises<std::runtime_error>()
                .interruptible()
                .begin([](auto& k, Interrupt::Handler& handler) {
                  handler.Install([&k]() {
-                   k.Stop();
+                   k.Fail(std::runtime_error("error"));
                  });
                  k.Begin();
                })
@@ -44,15 +34,10 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailInterrupt) {
                    k.Emit(i);
                  }
                })
-        | this->ConcurrentOrConcurrentOrdered([&]() {
-            return Map(Let([&](int& i) {
-              return Eventual<std::string>()
-                  .raises<std::runtime_error>()
-                  .start([&](auto& k) {
-                    k.Fail(std::runtime_error("error"));
-                    interrupt.Trigger();
-                  });
-            }));
+        | this->ConcurrentOrConcurrentOrdered([]() {
+            return Map([](int i) {
+              return std::to_string(i);
+            });
           })
         | Collect<std::vector<std::string>>();
   };
@@ -62,12 +47,19 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailInterrupt) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-
   auto [future, k] = Terminate(e());
+
+  Interrupt interrupt;
 
   k.Register(interrupt);
 
   k.Start();
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future.wait_for(std::chrono::seconds(0)));
+
+  interrupt.Trigger();
 
   EXPECT_THROW_WHAT(future.get(), "error");
 }

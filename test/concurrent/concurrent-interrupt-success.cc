@@ -5,23 +5,26 @@
 #include "eventuals/callback.h"
 #include "eventuals/collect.h"
 #include "eventuals/eventual.h"
+#include "eventuals/interrupt.h"
 #include "eventuals/iterate.h"
 #include "eventuals/let.h"
 #include "eventuals/map.h"
 #include "eventuals/terminal.h"
-#include "test/concurrent.h"
-#include "test/expect-throw-what.h"
+#include "test/concurrent/concurrent.h"
 
 using eventuals::Callback;
 using eventuals::Collect;
 using eventuals::Eventual;
+using eventuals::Interrupt;
 using eventuals::Iterate;
 using eventuals::Let;
 using eventuals::Map;
 using eventuals::Terminate;
 
-// Tests when at least one of the eventuals fails.
-TYPED_TEST(ConcurrentTypedTest, Fail) {
+// Tests that 'Concurrent()' and 'ConcurrentOrdered()' defers to the
+// eventuals on how to handle interrupts and in this case each eventual
+// ignores interrupts so we'll successfully collect all the values.
+TYPED_TEST(ConcurrentTypedTest, InterruptSuccess) {
   std::deque<Callback<void()>> callbacks;
 
   auto e = [&]() {
@@ -32,19 +35,13 @@ TYPED_TEST(ConcurrentTypedTest, Fail) {
               int i;
             };
             return Map(Let([&](int& i) {
-              return Eventual<std::string>()
-                  .raises()
-                  .start([&, data = Data()](auto& k) mutable {
+              return Eventual<std::string>(
+                  [&, data = Data()](auto& k) mutable {
                     using K = std::decay_t<decltype(k)>;
                     data.k = &k;
                     data.i = i;
                     callbacks.emplace_back([&data]() {
-                      if (data.i == 1) {
-                        static_cast<K*>(data.k)->Start(std::to_string(data.i));
-                      } else {
-                        static_cast<K*>(data.k)->Fail(
-                            std::runtime_error("error"));
-                      }
+                      static_cast<K*>(data.k)->Start(std::to_string(data.i));
                     });
                   });
             }));
@@ -55,9 +52,13 @@ TYPED_TEST(ConcurrentTypedTest, Fail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::exception>>);
+          std::tuple<>>);
 
   auto [future, k] = Terminate(e());
+
+  Interrupt interrupt;
+
+  k.Register(interrupt);
 
   k.Start();
 
@@ -67,9 +68,15 @@ TYPED_TEST(ConcurrentTypedTest, Fail) {
       std::future_status::timeout,
       future.wait_for(std::chrono::seconds(0)));
 
+  interrupt.Trigger();
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future.wait_for(std::chrono::seconds(0)));
+
   for (auto& callback : callbacks) {
     callback();
   }
 
-  EXPECT_THROW_WHAT(future.get(), "error");
+  EXPECT_THAT(future.get(), this->OrderedOrUnorderedElementsAre("1", "2"));
 }
