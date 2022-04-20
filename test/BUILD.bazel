@@ -9,6 +9,19 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
+cc_library(
+    name = "http-mock-server",
+    testonly = True,
+    srcs = ["http-mock-server.cc"],
+    hdrs = ["http-mock-server.h"],
+    copts = copts(),
+    deps = [
+        "//eventuals",
+        "@com_github_chriskohlhoff_asio//:asio",
+        "@com_github_google_googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "eventuals",
     srcs = [
@@ -30,7 +43,6 @@ cc_test(
         "foreach.cc",
         "generator.cc",
         "http.cc",
-        "http-mock-server.h",
         "if.cc",
         "iterate.cc",
         "just.cc",
@@ -55,6 +67,7 @@ cc_test(
     copts = copts(),
     deps = [
         ":expect-throw-what",
+        ":http-mock-server",
         "//eventuals",
         "//test/concurrent",
         "@com_github_google_googletest//:gtest_main",
