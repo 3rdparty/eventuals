@@ -12,6 +12,7 @@
 #include "eventuals/x509.h"
 #include "gtest/gtest.h"
 
+namespace eventuals::http::test {
 namespace {
 
 constexpr static size_t kBufferSize = 4096;
@@ -274,3 +275,5 @@ void HttpMockServer::Accept() {
         }
       });
 }
+
+} // namespace eventuals::http::test

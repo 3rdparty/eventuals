@@ -18,20 +18,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using eventuals::Closure;
-using eventuals::Collect;
-using eventuals::Concurrent;
-using eventuals::Eventual;
-using eventuals::Iterate;
-using eventuals::Let;
-using eventuals::Loop;
-using eventuals::Map;
-using eventuals::Pinned;
-using eventuals::Repeat;
-using eventuals::Scheduler;
-using eventuals::StaticThreadPool;
-using eventuals::Then;
-using eventuals::Until;
+namespace eventuals::test {
+namespace {
 
 using testing::UnorderedElementsAre;
 
@@ -234,3 +222,6 @@ TEST(StaticThreadPoolTest, Concurrent) {
 
   EXPECT_THAT(*e(), UnorderedElementsAre(1, 2, 3));
 }
+
+} // namespace
+} // namespace eventuals::test

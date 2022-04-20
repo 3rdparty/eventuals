@@ -7,8 +7,8 @@
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
 
-using eventuals::Just;
-using eventuals::Then;
+namespace eventuals::test {
+namespace {
 
 TEST(JustTest, Value) {
   auto e = []() {
@@ -65,3 +65,6 @@ TEST(JustTest, ConstRef) {
 
   EXPECT_EQ(42, future.get());
 }
+
+} // namespace
+} // namespace eventuals::test

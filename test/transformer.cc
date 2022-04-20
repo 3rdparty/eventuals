@@ -14,14 +14,8 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Collect;
-using eventuals::Eventual;
-using eventuals::Interrupt;
-using eventuals::Iterate;
-using eventuals::Let;
-using eventuals::Map;
-using eventuals::Stream;
-using eventuals::Transformer;
+namespace eventuals::test {
+namespace {
 
 using testing::ElementsAre;
 using testing::MockFunction;
@@ -241,3 +235,6 @@ TEST(Transformer, PropagateFail) {
 
   EXPECT_THROW_WHAT(*e(), "error");
 }
+
+} // namespace
+} // namespace eventuals::test

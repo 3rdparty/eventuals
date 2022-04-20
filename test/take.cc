@@ -9,12 +9,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using eventuals::Collect;
-using eventuals::Filter;
-using eventuals::Iterate;
-using eventuals::TakeFirstN;
-using eventuals::TakeLastN;
-using eventuals::TakeRange;
+namespace eventuals::test {
+namespace {
 
 using testing::ElementsAre;
 
@@ -162,3 +158,6 @@ TEST(Take, UniquePtr) {
   EXPECT_EQ(1, *result[0]);
   EXPECT_EQ(2, *result[1]);
 }
+
+} // namespace
+} // namespace eventuals::test

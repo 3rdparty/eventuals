@@ -5,6 +5,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+namespace eventuals::test {
+
 struct ConcurrentType {};
 struct ConcurrentOrderedType {};
 
@@ -33,3 +35,5 @@ class ConcurrentTypedTest : public testing::Test {
 using ConcurrentTypes = testing::Types<ConcurrentType, ConcurrentOrderedType>;
 
 TYPED_TEST_SUITE(ConcurrentTypedTest, ConcurrentTypes);
+
+} // namespace eventuals::test

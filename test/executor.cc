@@ -8,12 +8,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using eventuals::Eventual;
-using eventuals::Executor;
-using eventuals::Interrupt;
-using eventuals::Just;
-using eventuals::Task;
-using eventuals::Then;
+namespace eventuals::test {
+namespace {
 
 TEST(ExecutorTest, Succeed) {
   bool executed = false;
@@ -71,3 +67,6 @@ TEST(ExecutorTest, Interrupt) {
 
   EXPECT_TRUE(interrupted);
 }
+
+} // namespace
+} // namespace eventuals::test

@@ -23,22 +23,8 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Closure;
-using eventuals::Collect;
-using eventuals::Eventual;
-using eventuals::FlatMap;
-using eventuals::Generator;
-using eventuals::Interrupt;
-using eventuals::Iterate;
-using eventuals::Just;
-using eventuals::Lazy;
-using eventuals::Loop;
-using eventuals::Map;
-using eventuals::Range;
-using eventuals::Stream;
-using eventuals::Task;
-using eventuals::Terminate;
-using eventuals::Then;
+namespace eventuals::test {
+namespace {
 
 using testing::ElementsAre;
 using testing::MockFunction;
@@ -565,3 +551,6 @@ TEST(Generator, Raises) {
 
   EXPECT_THROW(*e(), std::runtime_error);
 }
+
+} // namespace
+} // namespace eventuals::test

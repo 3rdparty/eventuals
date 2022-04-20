@@ -11,13 +11,8 @@
 #include "test/concurrent/concurrent.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Collect;
-using eventuals::Eventual;
-using eventuals::Interrupt;
-using eventuals::Let;
-using eventuals::Map;
-using eventuals::Stream;
-using eventuals::Terminate;
+namespace eventuals::test {
+namespace {
 
 // Tests that when one of the 'Concurrent()' eventuals fails it can
 // ensure that everything correctly fails by "interrupting"
@@ -71,3 +66,6 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailInterrupt) {
 
   EXPECT_THROW_WHAT(future.get(), "error");
 }
+
+} // namespace
+} // namespace eventuals::test

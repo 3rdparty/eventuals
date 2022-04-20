@@ -18,11 +18,8 @@
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
 
-using eventuals::Iterate;
-using eventuals::Loop;
-using eventuals::Map;
-using eventuals::Reduce;
-using eventuals::Then;
+namespace eventuals::test {
+namespace {
 
 TEST(Iterate, VectorLvalue) {
   std::vector<int> v = {5, 12};
@@ -808,3 +805,6 @@ TEST(Iterate, UniquePtr) {
 
   EXPECT_EQ(5, *s());
 }
+
+} // namespace
+} // namespace eventuals::test

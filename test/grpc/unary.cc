@@ -9,24 +9,14 @@
 #include "gtest/gtest.h"
 #include "test/grpc/test.h"
 
+namespace eventuals::grpc::test {
+namespace {
+
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
 using stout::Borrowable;
-
-using eventuals::Head;
-using eventuals::Let;
-using eventuals::Loop;
-using eventuals::Map;
-using eventuals::Terminate;
-using eventuals::Then;
-
-using eventuals::grpc::Client;
-using eventuals::grpc::CompletionPool;
-using eventuals::grpc::Server;
-using eventuals::grpc::ServerBuilder;
-using eventuals::grpc::ServerCall;
 
 TEST(UnaryTest, Success) {
   ServerBuilder builder;
@@ -35,7 +25,7 @@ TEST(UnaryTest, Success) {
 
   builder.AddListeningPort(
       "0.0.0.0:0",
-      grpc::InsecureServerCredentials(),
+      ::grpc::InsecureServerCredentials(),
       &port);
 
   auto build = builder.BuildAndStart();
@@ -70,7 +60,7 @@ TEST(UnaryTest, Success) {
 
   Client client(
       "0.0.0.0:" + std::to_string(port),
-      grpc::InsecureChannelCredentials(),
+      ::grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
   auto call = [&]() {
@@ -100,3 +90,6 @@ TEST(UnaryTest, Success) {
   server->Shutdown();
   server->Wait();
 }
+
+} // namespace
+} // namespace eventuals::grpc::test

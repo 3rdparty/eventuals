@@ -3,14 +3,16 @@
 #include "test/grpc/test.h"
 #include "tools/cpp/runfiles/runfiles.h"
 
-////////////////////////////////////////////////////////////////////////
+namespace {
 
 // NOTE: using a raw pointer here as per Google C++ Style Guide
 // because 'bazel::tools::cpp::runfiles::Runfiles' is not trivially
 // destructible.
 static bazel::tools::cpp::runfiles::Runfiles* runfiles = nullptr;
 
-////////////////////////////////////////////////////////////////////////
+} // namespace
+
+namespace eventuals::grpc::test {
 
 // Declared in test.h.
 std::filesystem::path GetRunfilePathFor(const std::filesystem::path& runfile) {
@@ -21,7 +23,7 @@ std::filesystem::path GetRunfilePathFor(const std::filesystem::path& runfile) {
   return path;
 }
 
-////////////////////////////////////////////////////////////////////////
+} // namespace eventuals::grpc::test
 
 int main(int argc, char** argv) {
   std::string error;
@@ -47,5 +49,3 @@ int main(int argc, char** argv) {
 
   return RUN_ALL_TESTS();
 }
-
-////////////////////////////////////////////////////////////////////////

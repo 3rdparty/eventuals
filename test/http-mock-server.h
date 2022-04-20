@@ -11,7 +11,7 @@
 #include "eventuals/x509.h"
 #include "gmock/gmock.h"
 
-////////////////////////////////////////////////////////////////////////
+namespace eventuals::http::test {
 
 // Provides an HTTP mock server. See existing tests for examples of
 // how you can use 'EXPECT_CALL()' on methods like 'ReceivedHeaders()'
@@ -21,6 +21,7 @@
 //
 // NOTE: this class is only expected to be used in tests so it
 // generously uses macros like 'EXPECT_*' and 'ADD_FAILURE'.
+// TODO(alexmc): Move all method definitions into a separate .cc file.
 class HttpMockServer final {
  public:
   // Abstracts whether or not we have a secure, i.e., TLS/SSL, socket
@@ -94,4 +95,4 @@ class HttpMockServer final {
   std::thread thread_;
 };
 
-////////////////////////////////////////////////////////////////////////
+} // namespace eventuals::http::test

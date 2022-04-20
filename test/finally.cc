@@ -11,14 +11,8 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Catch;
-using eventuals::Eventual;
-using eventuals::Expected;
-using eventuals::Finally;
-using eventuals::If;
-using eventuals::Just;
-using eventuals::Raise;
-using eventuals::Then;
+namespace eventuals::test {
+namespace {
 
 TEST(Finally, Succeed) {
   auto e = []() {
@@ -165,3 +159,6 @@ TEST(Finally, FinallyInsideThen) {
 
   EXPECT_NO_THROW(*e());
 }
+
+} // namespace
+} // namespace eventuals::test

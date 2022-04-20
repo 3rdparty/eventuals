@@ -3,7 +3,8 @@
 #include "gtest/gtest.h"
 #include "stout/borrowed_ptr.h"
 
-using eventuals::Callback;
+namespace eventuals::test {
+namespace {
 
 TEST(Callback, Destructor) {
   struct Foo {
@@ -64,3 +65,6 @@ TEST(Callback, BorrowedCallable) {
 
   EXPECT_EQ(foo.borrows(), 0);
 }
+
+} // namespace
+} // namespace eventuals::test

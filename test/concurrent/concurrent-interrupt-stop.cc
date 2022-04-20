@@ -12,14 +12,8 @@
 #include "eventuals/terminal.h"
 #include "test/concurrent/concurrent.h"
 
-using eventuals::Callback;
-using eventuals::Collect;
-using eventuals::Eventual;
-using eventuals::Interrupt;
-using eventuals::Iterate;
-using eventuals::Let;
-using eventuals::Map;
-using eventuals::Terminate;
+namespace eventuals::test {
+namespace {
 
 // Tests that 'Concurrent()' and 'ConcurrentOrdered()' defers to the
 // eventuals on how to handle interrupts and in this case one all of
@@ -67,3 +61,6 @@ TYPED_TEST(ConcurrentTypedTest, InterruptStop) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
+
+} // namespace
+} // namespace eventuals::test

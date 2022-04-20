@@ -13,15 +13,8 @@ using helloworld::HelloRequest;
 
 using stout::Borrowable;
 
-using eventuals::Head;
-using eventuals::Let;
-using eventuals::Terminate;
-using eventuals::Then;
-
-using eventuals::grpc::Client;
-using eventuals::grpc::CompletionPool;
-using eventuals::grpc::Server;
-using eventuals::grpc::ServerBuilder;
+namespace eventuals::grpc::test {
+namespace {
 
 TEST(CancelledByServerTest, Cancelled) {
   ServerBuilder builder;
@@ -30,7 +23,7 @@ TEST(CancelledByServerTest, Cancelled) {
 
   builder.AddListeningPort(
       "0.0.0.0:0",
-      grpc::InsecureServerCredentials(),
+      ::grpc::InsecureServerCredentials(),
       &port);
 
   auto build = builder.BuildAndStart();
@@ -58,7 +51,7 @@ TEST(CancelledByServerTest, Cancelled) {
 
   Client client(
       "0.0.0.0:" + std::to_string(port),
-      grpc::InsecureChannelCredentials(),
+      ::grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
   ::grpc::ClientContext context;
@@ -73,7 +66,10 @@ TEST(CancelledByServerTest, Cancelled) {
 
   auto status = *call();
 
-  EXPECT_EQ(grpc::CANCELLED, status.error_code());
+  EXPECT_EQ(::grpc::CANCELLED, status.error_code());
 
   EXPECT_TRUE(cancelled.get());
 }
+
+} // namespace
+} // namespace eventuals::grpc::test
