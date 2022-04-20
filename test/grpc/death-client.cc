@@ -4,34 +4,33 @@
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "test/grpc/death-constants.h"
 
+namespace eventuals::grpc {
+namespace {
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
 using stout::Borrowable;
 
-using eventuals::Then;
-
-using eventuals::grpc::Client;
-using eventuals::grpc::CompletionPool;
-
 void RunClient(const int port) {
   Borrowable<CompletionPool> pool;
 
   Client client(
       "0.0.0.0:" + std::to_string(port),
-      grpc::InsecureChannelCredentials(),
+      ::grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
         | Then([](auto&& call) {
-             exit(eventuals::grpc::kProcessIntentionalExitCode);
+             exit(kProcessIntentionalExitCode);
            });
   };
 
   *call();
 }
+} // namespace
+} // namespace eventuals::grpc
 
 // Should only be run from tests!
 //
@@ -46,6 +45,6 @@ int main(int argc, char** argv) {
 
   int port = atoi(argv[1]);
 
-  RunClient(port);
+  ::eventuals::grpc::RunClient(port);
   return 0;
 }

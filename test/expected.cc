@@ -7,10 +7,8 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Expected;
-using eventuals::Then;
-using eventuals::Unexpected;
-
+namespace eventuals {
+namespace {
 TEST(Expected, Construct) {
   Expected::Of<std::string> s = "hello world";
 
@@ -172,3 +170,5 @@ TEST(Expected, ExpectedNoErrors) {
 
   EXPECT_EQ(42, *e());
 }
+} // namespace
+} // namespace eventuals

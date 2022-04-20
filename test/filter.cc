@@ -12,12 +12,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using eventuals::Collect;
-using eventuals::Filter;
-using eventuals::Iterate;
-using eventuals::Loop;
-using eventuals::Map;
-
+namespace eventuals {
+namespace {
 using testing::ElementsAre;
 using testing::UnorderedElementsAre;
 
@@ -92,3 +88,5 @@ TEST(Filter, OddMapCollectFlow) {
 
   EXPECT_THAT(*s(), UnorderedElementsAre(6, 18));
 }
+} // namespace
+} // namespace eventuals

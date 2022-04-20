@@ -8,9 +8,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using eventuals::Collect;
-using eventuals::Pipe;
-
+namespace eventuals {
+namespace {
 using testing::ElementsAre;
 
 TEST(Pipe, UniqueValue) {
@@ -84,3 +83,5 @@ TEST(Pipe, Size) {
       *e(),
       ElementsAre(std::string{"Hello"}, std::string{" world!"}));
 }
+} // namespace
+} // namespace eventuals

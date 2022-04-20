@@ -12,15 +12,8 @@
 #include "gtest/gtest.h"
 #include "test/http-mock-server.h"
 
-namespace http = eventuals::http;
-
-using eventuals::EventLoop;
-using eventuals::Interrupt;
-using eventuals::Let;
-using eventuals::Scheduler;
-using eventuals::Terminate;
-using eventuals::Then;
-
+namespace eventuals::http {
+namespace {
 class HttpTest
   : public EventLoopTest,
     public ::testing::WithParamInterface<const char*> {};
@@ -35,7 +28,7 @@ TEST_P(HttpTest, Get) {
   HttpMockServer server(scheme);
 
   // NOTE: using an 'http::Client' configured to work for the server.
-  http::Client client = server.Client();
+  Client client = server.Client();
 
   EXPECT_CALL(server, ReceivedHeaders)
       .WillOnce([](auto socket, const std::string& data) {
@@ -67,10 +60,10 @@ TEST_P(HttpTest, Get) {
   EXPECT_EQ(200, response.code());
   EXPECT_THAT(
       response.headers(),
-      testing::Contains(http::Header("Foo", "Bar")));
+      testing::Contains(Header("Foo", "Bar")));
   EXPECT_THAT(
       response.headers(),
-      testing::Contains(http::Header("Content-Length", "25")));
+      testing::Contains(Header("Content-Length", "25")));
   EXPECT_EQ("<html>Hello World!</html>", response.body());
 }
 
@@ -81,7 +74,7 @@ TEST_P(HttpTest, GetGet) {
   HttpMockServer server(scheme);
 
   // NOTE: using an 'http::Client' configured to work for the server.
-  http::Client client = server.Client();
+  Client client = server.Client();
 
   EXPECT_CALL(server, ReceivedHeaders)
       .WillOnce([](auto socket, const std::string& data) {
@@ -129,13 +122,13 @@ TEST_P(HttpTest, GetGet) {
   EXPECT_EQ(200, response1.code());
   EXPECT_THAT(
       response1.headers(),
-      testing::Contains(http::Header("Content-Length", "26")));
+      testing::Contains(Header("Content-Length", "26")));
   EXPECT_EQ("<html>Hello Nikita!</html>", response1.body());
 
   EXPECT_EQ(200, response2.code());
   EXPECT_THAT(
       response2.headers(),
-      testing::Contains(http::Header("Content-Length", "23")));
+      testing::Contains(Header("Content-Length", "23")));
   EXPECT_EQ("<html>Hello Ben!</html>", response2.body());
 }
 
@@ -143,7 +136,7 @@ TEST_P(HttpTest, GetGet) {
 TEST_P(HttpTest, GetFailTimeout) {
   std::string scheme = GetParam();
 
-  auto e = http::Get(scheme + "example.com", std::chrono::milliseconds(1));
+  auto e = Get(scheme + "example.com", std::chrono::milliseconds(1));
 
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
@@ -164,7 +157,7 @@ TEST_P(HttpTest, GetFailTimeout) {
 TEST_P(HttpTest, PostFailTimeout) {
   std::string scheme = GetParam();
 
-  auto e = http::Post(
+  auto e = Post(
       scheme + "jsonplaceholder.typicode.com/posts",
       {{"title", "test"},
        {"body", "message"}},
@@ -183,7 +176,7 @@ TEST_P(HttpTest, PostFailTimeout) {
 TEST_P(HttpTest, GetInterrupt) {
   std::string scheme = GetParam();
 
-  auto e = http::Get(scheme + "example.com");
+  auto e = Get(scheme + "example.com");
   auto [future, k] = Terminate(std::move(e));
 
   Interrupt interrupt;
@@ -203,7 +196,7 @@ TEST_P(HttpTest, GetInterrupt) {
 TEST_P(HttpTest, PostInterrupt) {
   std::string scheme = GetParam();
 
-  auto e = http::Post(
+  auto e = Post(
       scheme + "jsonplaceholder.typicode.com/posts",
       {{"title", "test"},
        {"body", "message"}});
@@ -226,7 +219,7 @@ TEST_P(HttpTest, PostInterrupt) {
 TEST_P(HttpTest, GetInterruptAfterStart) {
   std::string scheme = GetParam();
 
-  auto e = http::Get(scheme + "example.com");
+  auto e = Get(scheme + "example.com");
   auto [future, k] = Terminate(std::move(e));
 
   Interrupt interrupt;
@@ -257,7 +250,7 @@ TEST_P(HttpTest, GetInterruptAfterStart) {
 TEST_P(HttpTest, PostInterruptAfterStart) {
   std::string scheme = GetParam();
 
-  auto e = http::Post(
+  auto e = Post(
       scheme + "jsonplaceholder.typicode.com/posts",
       {{"title", "test"},
        {"body", "message"}});
@@ -294,7 +287,7 @@ TEST_P(HttpTest, GetHeaders) {
   HttpMockServer server(scheme);
 
   // NOTE: using an 'http::Client' configured to work for the server.
-  http::Client client = server.Client();
+  Client client = server.Client();
 
   EXPECT_CALL(server, ReceivedHeaders)
       .WillOnce([](auto socket, const std::string& data) {
@@ -312,9 +305,9 @@ TEST_P(HttpTest, GetHeaders) {
       });
 
   auto e = client.Do(
-      http::Request::Builder()
+      Request::Builder()
           .uri(server.uri())
-          .method(http::GET)
+          .method(GET)
           .header("foo", "bar")
           .Build());
   auto [future, k] = Terminate(std::move(e));
@@ -327,10 +320,10 @@ TEST_P(HttpTest, GetHeaders) {
   EXPECT_EQ(200, response.code());
   EXPECT_THAT(
       response.headers(),
-      testing::Contains(http::Header("Foo", "Bar")));
+      testing::Contains(Header("Foo", "Bar")));
   EXPECT_THAT(
       response.headers(),
-      testing::Contains(http::Header("Content-Length", "25")));
+      testing::Contains(Header("Content-Length", "25")));
   EXPECT_EQ("<html>Hello World!</html>", response.body());
 }
 
@@ -341,7 +334,7 @@ TEST_P(HttpTest, GetDuplicateHeaders) {
   HttpMockServer server(scheme);
 
   // NOTE: using an 'http::Client' configured to work for the server.
-  http::Client client = server.Client();
+  Client client = server.Client();
 
   EXPECT_CALL(server, ReceivedHeaders)
       .WillOnce([](auto socket, const std::string& data) {
@@ -360,9 +353,9 @@ TEST_P(HttpTest, GetDuplicateHeaders) {
       });
 
   auto e = client.Do(
-      http::Request::Builder()
+      Request::Builder()
           .uri(server.uri())
-          .method(http::GET)
+          .method(GET)
           .header("foo", "bar1")
           .header("foo", "bar2")
           .Build());
@@ -376,9 +369,11 @@ TEST_P(HttpTest, GetDuplicateHeaders) {
   EXPECT_EQ(200, response.code());
   EXPECT_THAT(
       response.headers(),
-      testing::Contains(http::Header("Foo", "Bar1, Bar2")));
+      testing::Contains(Header("Foo", "Bar1, Bar2")));
   EXPECT_THAT(
       response.headers(),
-      testing::Contains(http::Header("Content-Length", "25")));
+      testing::Contains(Header("Content-Length", "25")));
   EXPECT_EQ("<html>Hello World!</html>", response.body());
 }
+} // namespace
+} // namespace eventuals::http

@@ -8,12 +8,8 @@
 #include "eventuals/terminal.h"
 #include "test/concurrent/concurrent.h"
 
-using eventuals::Collect;
-using eventuals::Interrupt;
-using eventuals::Map;
-using eventuals::Stream;
-using eventuals::Terminate;
-
+namespace eventuals {
+namespace {
 // Tests when when upstream stops after an interrupt the result will
 // be stop.
 TYPED_TEST(ConcurrentTypedTest, EmitInterruptStop) {
@@ -61,3 +57,5 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptStop) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
+} // namespace
+} // namespace eventuals

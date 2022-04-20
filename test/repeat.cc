@@ -11,19 +11,8 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Acquire;
-using eventuals::Eventual;
-using eventuals::Interrupt;
-using eventuals::Lock;
-using eventuals::Loop;
-using eventuals::Map;
-using eventuals::Reduce;
-using eventuals::Release;
-using eventuals::Repeat;
-using eventuals::Terminate;
-using eventuals::Then;
-using eventuals::Until;
-
+namespace eventuals {
+namespace {
 using testing::MockFunction;
 
 TEST(RepeatTest, Succeed) {
@@ -198,3 +187,5 @@ TEST(RepeatTest, MapAcquire) {
 
   EXPECT_EQ(5, *r());
 }
+} // namespace
+} // namespace eventuals

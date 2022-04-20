@@ -14,18 +14,8 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Eventual;
-using eventuals::Head;
-using eventuals::Interrupt;
-using eventuals::Lazy;
-using eventuals::Loop;
-using eventuals::Map;
-using eventuals::Raise;
-using eventuals::Reduce;
-using eventuals::Stream;
-using eventuals::Terminate;
-using eventuals::Then;
-
+namespace eventuals {
+namespace {
 using testing::MockFunction;
 
 TEST(StreamTest, Succeed) {
@@ -493,3 +483,5 @@ TEST(StreamTest, ThrowGeneralError) {
 
   EXPECT_THROW_WHAT(*e(), "error");
 }
+} // namespace
+} // namespace eventuals

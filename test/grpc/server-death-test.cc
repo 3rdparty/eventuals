@@ -15,21 +15,13 @@
 #include "test/grpc/death-constants.h"
 #include "test/grpc/test.h"
 
+namespace eventuals::grpc {
+namespace {
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
 using stout::Borrowable;
-
-using eventuals::Finally;
-using eventuals::Let;
-using eventuals::Then;
-using eventuals::grpc::ClientCall;
-
-using eventuals::grpc::Client;
-using eventuals::grpc::CompletionPool;
-using eventuals::grpc::Server;
-using eventuals::grpc::ServerBuilder;
 
 // Tests that the client receives a ::grpc::UNAVAILABLE status if the server
 // dies without cleanly calling call.Finish().
@@ -56,9 +48,7 @@ TEST_F(EventualsGrpcTest, ServerDeathTest) {
     const int result = std::system(command.c_str());
     // Issue(#329): WEXITSTATUS is Posix-specific. Figure out the correct way
     // to get the application's return code on windows.
-    EXPECT_EQ(
-        eventuals::grpc::kProcessIntentionalExitCode,
-        WEXITSTATUS(result));
+    EXPECT_EQ(kProcessIntentionalExitCode, WEXITSTATUS(result));
   });
 
   int port = WaitForPort();
@@ -67,7 +57,7 @@ TEST_F(EventualsGrpcTest, ServerDeathTest) {
 
   Client client(
       "0.0.0.0:" + std::to_string(port),
-      grpc::InsecureChannelCredentials(),
+      ::grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
   auto call = [&]() {
@@ -91,3 +81,5 @@ TEST_F(EventualsGrpcTest, ServerDeathTest) {
   close(pipefds[0]);
   close(pipefds[1]);
 }
+} // namespace
+} // namespace eventuals::grpc

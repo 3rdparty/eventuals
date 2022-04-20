@@ -8,13 +8,8 @@
 #include "eventuals/terminal.h"
 #include "test/concurrent/concurrent.h"
 
-using eventuals::Collect;
-using eventuals::Interrupt;
-using eventuals::Iterate;
-using eventuals::Let;
-using eventuals::Map;
-using eventuals::Terminate;
-
+namespace eventuals {
+namespace {
 // Tests that only moveable values will be moved into
 // 'Concurrent()' and 'ConcurrentOrdered()'.
 TYPED_TEST(ConcurrentTypedTest, Moveable) {
@@ -44,3 +39,5 @@ TYPED_TEST(ConcurrentTypedTest, Moveable) {
 
   EXPECT_THAT(future.get(), this->OrderedOrUnorderedElementsAre(42));
 }
+} // namespace
+} // namespace eventuals

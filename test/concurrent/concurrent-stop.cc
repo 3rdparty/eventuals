@@ -11,15 +11,8 @@
 #include "eventuals/terminal.h"
 #include "test/concurrent/concurrent.h"
 
-using eventuals::Callback;
-using eventuals::Collect;
-using eventuals::Eventual;
-using eventuals::Interrupt;
-using eventuals::Iterate;
-using eventuals::Let;
-using eventuals::Map;
-using eventuals::Terminate;
-
+namespace eventuals {
+namespace {
 // Tests when at least one of the eventuals stops.
 TYPED_TEST(ConcurrentTypedTest, Stop) {
   std::deque<Callback<void()>> callbacks;
@@ -71,3 +64,5 @@ TYPED_TEST(ConcurrentTypedTest, Stop) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
+} // namespace
+} // namespace eventuals

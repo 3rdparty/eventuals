@@ -7,9 +7,8 @@
 #include "eventuals/terminal.h"
 #include "gtest/gtest.h"
 
-using eventuals::Collect;
-using eventuals::Iterate;
-
+namespace eventuals {
+namespace {
 TEST(Collect, CommonVectorPass) {
   std::vector<int> v = {5, 12};
 
@@ -39,3 +38,5 @@ TEST(Collect, CommonSetPass) {
   EXPECT_EQ(5, *result.begin());
   EXPECT_EQ(12, *++result.begin());
 }
+} // namespace
+} // namespace eventuals

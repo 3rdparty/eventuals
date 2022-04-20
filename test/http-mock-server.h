@@ -5,8 +5,7 @@
 #include "eventuals/rsa.h"
 #include "eventuals/x509.h"
 
-////////////////////////////////////////////////////////////////////////
-
+namespace eventuals {
 // Provides an HTTP mock server. See existing tests for examples of
 // how you can use 'EXPECT_CALL()' on methods like 'ReceivedHeaders()'
 // in your tests to handle each accepted socket.
@@ -15,6 +14,7 @@
 //
 // NOTE: this class is only expected to be used in tests so it
 // generously uses macros like 'EXPECT_*' and 'ADD_FAILURE'.
+// TODO(alexmc): Move all method definitions into a separate .cc file.
 class HttpMockServer final {
  public:
   // Abstracts whether or not we have a secure, i.e., TLS/SSL, socket
@@ -340,5 +340,4 @@ class HttpMockServer final {
   std::optional<x509::Certificate> certificate_;
   std::thread thread_;
 };
-
-////////////////////////////////////////////////////////////////////////
+} // namespace eventuals

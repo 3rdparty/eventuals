@@ -10,14 +10,8 @@
 #include "eventuals/terminal.h"
 #include "test/concurrent/concurrent.h"
 
-using eventuals::Collect;
-using eventuals::Eventual;
-using eventuals::Interrupt;
-using eventuals::Let;
-using eventuals::Map;
-using eventuals::Stream;
-using eventuals::Terminate;
-
+namespace eventuals {
+namespace {
 // Same as 'EmitFailInterrupt' except each eventual stops not fails.
 TYPED_TEST(ConcurrentTypedTest, EmitStopInterrupt) {
   Interrupt interrupt;
@@ -61,3 +55,5 @@ TYPED_TEST(ConcurrentTypedTest, EmitStopInterrupt) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
+} // namespace
+} // namespace eventuals

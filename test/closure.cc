@@ -16,20 +16,10 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
+namespace eventuals {
+namespace {
 using std::deque;
 using std::string;
-
-using eventuals::Closure;
-using eventuals::Eventual;
-using eventuals::Interrupt;
-using eventuals::Just;
-using eventuals::Map;
-using eventuals::Raise;
-using eventuals::Reduce;
-using eventuals::Repeat;
-using eventuals::Terminate;
-using eventuals::Then;
-using eventuals::Until;
 
 using testing::ElementsAre;
 using testing::MockFunction;
@@ -162,3 +152,5 @@ TEST(ClosureTest, Interrupt) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
+} // namespace
+} // namespace eventuals

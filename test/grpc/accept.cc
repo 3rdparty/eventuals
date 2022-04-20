@@ -10,15 +10,12 @@ using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
-using eventuals::Head;
-
-using eventuals::grpc::ServerBuilder;
-using eventuals::grpc::Stream;
-
+namespace eventuals::grpc {
+namespace {
 TEST_F(EventualsGrpcTest, ServeValidate) {
   ServerBuilder builder;
 
-  builder.AddListeningPort("0.0.0.0:0", grpc::InsecureServerCredentials());
+  builder.AddListeningPort("0.0.0.0:0", ::grpc::InsecureServerCredentials());
 
   auto build = builder.BuildAndStart();
 
@@ -100,3 +97,5 @@ TEST_F(EventualsGrpcTest, ServeValidate) {
         "Method does not have responses of type helloworld.HelloReply");
   }
 }
+} // namespace
+} // namespace eventuals::grpc

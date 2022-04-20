@@ -9,12 +9,8 @@
 #include "test/concurrent/concurrent.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Collect;
-using eventuals::Interrupt;
-using eventuals::Map;
-using eventuals::Stream;
-using eventuals::Terminate;
-
+namespace eventuals {
+namespace {
 // Tests when when upstream fails after an interrupt the result will
 // be fail.
 TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
@@ -63,3 +59,5 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
 
   EXPECT_THROW_WHAT(future.get(), "error");
 }
+} // namespace
+} // namespace eventuals

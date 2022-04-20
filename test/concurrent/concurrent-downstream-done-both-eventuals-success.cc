@@ -12,15 +12,8 @@
 #include "eventuals/then.h"
 #include "test/concurrent/concurrent.h"
 
-using eventuals::Callback;
-using eventuals::Eventual;
-using eventuals::Iterate;
-using eventuals::Let;
-using eventuals::Map;
-using eventuals::Reduce;
-using eventuals::Terminate;
-using eventuals::Then;
-
+namespace eventuals {
+namespace {
 // Tests what happens when downstream is done before 'Concurrent()' is
 // done and each eventual succeeds.
 TYPED_TEST(ConcurrentTypedTest, DownstreamDoneBothEventualsSuccess) {
@@ -81,3 +74,5 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneBothEventualsSuccess) {
     EXPECT_EQ(values[0], future.get());
   }
 }
+} // namespace
+} // namespace eventuals

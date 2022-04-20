@@ -8,12 +8,8 @@
 #include "eventuals/timer.h"
 #include "gtest/gtest.h"
 
-using eventuals::EventLoop;
-using eventuals::Just;
-using eventuals::Let;
-using eventuals::Then;
-using eventuals::Timer;
-
+namespace eventuals {
+namespace {
 class LetTest : public EventLoopTest {};
 
 TEST_F(LetTest, Let) {
@@ -42,3 +38,5 @@ TEST_F(LetTest, Let) {
 
   EXPECT_EQ(42, future.get());
 }
+} // namespace
+} // namespace eventuals

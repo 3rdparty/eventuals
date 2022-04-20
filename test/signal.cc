@@ -11,15 +11,10 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using eventuals::EventLoop;
-using eventuals::Eventual;
-using eventuals::Interrupt;
-using eventuals::Scheduler;
-using eventuals::Terminate;
-using eventuals::Then;
-using eventuals::WaitForOneOfSignals;
-using eventuals::WaitForSignal;
-
+namespace eventuals {
+namespace {
+// TODO(alexmc): Remove this using-directive in order to comply with
+// https://google.github.io/styleguide/cppguide.html#Namespaces.
 using namespace std::chrono_literals;
 
 // Windows notes!
@@ -111,3 +106,5 @@ TEST_F(SignalTest, SignalInterrupt) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
+} // namespace
+} // namespace eventuals

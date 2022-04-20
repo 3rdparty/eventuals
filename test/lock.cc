@@ -13,24 +13,8 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Acquire;
-using eventuals::Callback;
-using eventuals::ConditionVariable;
-using eventuals::Eventual;
-using eventuals::If;
-using eventuals::Interrupt;
-using eventuals::Iterate;
-using eventuals::Just;
-using eventuals::Lock;
-using eventuals::Map;
-using eventuals::Reduce;
-using eventuals::Release;
-using eventuals::Scheduler;
-using eventuals::Synchronizable;
-using eventuals::Terminate;
-using eventuals::Then;
-using eventuals::Wait;
-
+namespace eventuals {
+namespace {
 using testing::MockFunction;
 
 TEST(LockTest, Succeed) {
@@ -423,3 +407,5 @@ TEST(LockTest, ConditionVariable_UseAfterFree) {
   // eventual to be queued up, this will blow up.
   *foo.NotifyAll();
 }
+} // namespace
+} // namespace eventuals

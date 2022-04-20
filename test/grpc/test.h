@@ -5,8 +5,7 @@
 #include "eventuals/grpc/server.h"
 #include "gtest/gtest.h"
 
-////////////////////////////////////////////////////////////////////////
-
+namespace eventuals::grpc {
 class EventualsGrpcTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -33,5 +32,4 @@ class EventualsGrpcTest : public ::testing::Test {
 // amongst other things uses 'std::filesystem::path' instead of just
 // 'std::string'.
 std::filesystem::path GetRunfilePathFor(const std::filesystem::path& runfile);
-
-////////////////////////////////////////////////////////////////////////
+} // namespace eventuals::grpc

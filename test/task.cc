@@ -12,13 +12,8 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Eventual;
-using eventuals::Interrupt;
-using eventuals::Just;
-using eventuals::Map;
-using eventuals::Task;
-using eventuals::Then;
-
+namespace eventuals {
+namespace {
 using testing::MockFunction;
 
 TEST(Task, Succeed) {
@@ -605,3 +600,5 @@ TEST(Task, RaisesWith) {
 
   EXPECT_EQ(42, *e());
 }
+} // namespace
+} // namespace eventuals

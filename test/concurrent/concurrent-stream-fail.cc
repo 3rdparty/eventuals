@@ -8,11 +8,8 @@
 #include "test/concurrent/concurrent.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Collect;
-using eventuals::Map;
-using eventuals::Stream;
-using eventuals::Terminate;
-
+namespace eventuals {
+namespace {
 // Tests when when upstream fails the result will be fail.
 TYPED_TEST(ConcurrentTypedTest, StreamFail) {
   auto e = [&]() {
@@ -41,3 +38,5 @@ TYPED_TEST(ConcurrentTypedTest, StreamFail) {
 
   EXPECT_THROW_WHAT(future.get(), "error");
 }
+} // namespace
+} // namespace eventuals

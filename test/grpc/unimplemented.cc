@@ -5,17 +5,13 @@
 #include "gtest/gtest.h"
 #include "test/grpc/test.h"
 
+namespace eventuals::grpc {
+namespace {
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
 using stout::Borrowable;
-
-using eventuals::Let;
-
-using eventuals::grpc::Client;
-using eventuals::grpc::CompletionPool;
-using eventuals::grpc::ServerBuilder;
 
 TEST_F(EventualsGrpcTest, Unimplemented) {
   ServerBuilder builder;
@@ -24,7 +20,7 @@ TEST_F(EventualsGrpcTest, Unimplemented) {
 
   builder.AddListeningPort(
       "0.0.0.0:0",
-      grpc::InsecureServerCredentials(),
+      ::grpc::InsecureServerCredentials(),
       &port);
 
   auto build = builder.BuildAndStart();
@@ -39,7 +35,7 @@ TEST_F(EventualsGrpcTest, Unimplemented) {
 
   Client client(
       "0.0.0.0:" + std::to_string(port),
-      grpc::InsecureChannelCredentials(),
+      ::grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
   auto call = [&]() {
@@ -51,5 +47,7 @@ TEST_F(EventualsGrpcTest, Unimplemented) {
 
   auto status = *call();
 
-  ASSERT_EQ(grpc::UNIMPLEMENTED, status.error_code());
+  ASSERT_EQ(::grpc::UNIMPLEMENTED, status.error_code());
 }
+} // namespace
+} // namespace eventuals::grpc

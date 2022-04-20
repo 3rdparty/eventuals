@@ -11,22 +11,8 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Closure;
-using eventuals::EventLoop;
-using eventuals::Terminate;
-using eventuals::Then;
-
-using eventuals::filesystem::CloseFile;
-using eventuals::filesystem::CopyFile;
-using eventuals::filesystem::File;
-using eventuals::filesystem::MakeDirectory;
-using eventuals::filesystem::OpenFile;
-using eventuals::filesystem::ReadFile;
-using eventuals::filesystem::RemoveDirectory;
-using eventuals::filesystem::RenameFile;
-using eventuals::filesystem::UnlinkFile;
-using eventuals::filesystem::WriteFile;
-
+namespace eventuals::filesystem {
+namespace {
 class FilesystemTest : public EventLoopTest {};
 
 
@@ -428,3 +414,6 @@ TEST_F(FilesystemTest, RenameFileFail) {
 
   EXPECT_THROW_WHAT(future.get(), "no such file or directory");
 }
+
+} // namespace
+} // namespace eventuals::filesystem

@@ -2,15 +2,8 @@
 
 #include <string>
 
-using eventuals::tuple_types_contains_subtype_v;
-using eventuals::tuple_types_subset_subtype_v;
-using eventuals::tuple_types_subset_v;
-using eventuals::tuple_types_subtract_t;
-using eventuals::tuple_types_union_all_t;
-using eventuals::tuple_types_union_t;
-using eventuals::tuple_types_unordered_equals_v;
-using eventuals::types_contains_v;
-
+namespace eventuals {
+namespace {
 ////////////////////////////////////////////////////////////////////////
 
 static_assert(types_contains_v<int, double, int>);
@@ -255,3 +248,5 @@ static_assert(
         std::tuple<B, D>>);
 
 ////////////////////////////////////////////////////////////////////////
+} // namespace
+} // namespace eventuals

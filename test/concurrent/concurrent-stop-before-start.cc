@@ -10,14 +10,8 @@
 #include "eventuals/terminal.h"
 #include "test/concurrent/concurrent.h"
 
-using eventuals::Callback;
-using eventuals::Collect;
-using eventuals::Eventual;
-using eventuals::Iterate;
-using eventuals::Let;
-using eventuals::Map;
-using eventuals::Terminate;
-
+namespace eventuals {
+namespace {
 // Tests when an eventuals stops before an eventual succeeds.
 TYPED_TEST(ConcurrentTypedTest, StopBeforeStart) {
   Callback<void()> start;
@@ -73,3 +67,5 @@ TYPED_TEST(ConcurrentTypedTest, StopBeforeStart) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
+} // namespace
+} // namespace eventuals

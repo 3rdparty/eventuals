@@ -14,18 +14,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using eventuals::DoAll;
-using eventuals::EventLoop;
-using eventuals::Interrupt;
-using eventuals::Loop;
-using eventuals::Map;
-using eventuals::Poll;
-using eventuals::PollEvents;
-using eventuals::Reduce;
-using eventuals::Then;
-using eventuals::Unpack;
-using eventuals::Until;
-
+namespace eventuals {
+namespace {
 class PollTest : public EventLoopTest {};
 
 TEST_F(PollTest, Succeed) {
@@ -108,3 +98,5 @@ TEST_F(PollTest, Succeed) {
 
   EXPECT_EQ(data1 + data2, future.get());
 }
+} // namespace
+} // namespace eventuals

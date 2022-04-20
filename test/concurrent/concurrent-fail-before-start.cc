@@ -11,14 +11,8 @@
 #include "test/concurrent/concurrent.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Callback;
-using eventuals::Collect;
-using eventuals::Eventual;
-using eventuals::Iterate;
-using eventuals::Let;
-using eventuals::Map;
-using eventuals::Terminate;
-
+namespace eventuals {
+namespace {
 // Tests when an eventuals fails before an eventual succeeds.
 TYPED_TEST(ConcurrentTypedTest, FailBeforeStart) {
   Callback<void()> start;
@@ -77,3 +71,5 @@ TYPED_TEST(ConcurrentTypedTest, FailBeforeStart) {
 
   EXPECT_THROW_WHAT(future.get(), "error");
 }
+} // namespace
+} // namespace eventuals
