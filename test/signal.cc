@@ -20,8 +20,6 @@ using eventuals::Then;
 using eventuals::WaitForOneOfSignals;
 using eventuals::WaitForSignal;
 
-using namespace std::chrono_literals;
-
 // Windows notes!
 //
 // On Windows calls to raise() or abort() to programmatically
