@@ -96,8 +96,6 @@ TEST(StaticThreadPoolTest, PingPong) {
       : StaticThreadPool::Schedulable(pinned) {}
 
     auto Stream() {
-      using namespace eventuals;
-
       return Repeat()
           | Until([this]() {
                return Schedule(Then([this]() {
@@ -117,8 +115,6 @@ TEST(StaticThreadPoolTest, PingPong) {
       : StaticThreadPool::Schedulable(pinned) {}
 
     auto Listen() {
-      using namespace eventuals;
-
       return Schedule(Map([this](int i) {
                count++;
                return i;
