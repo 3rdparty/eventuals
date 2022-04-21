@@ -78,6 +78,45 @@ TEST(Task, Void) {
   EXPECT_EQ(100, x);
 }
 
+TEST(Task, TaskWithNonCopyable) {
+  struct NonCopyable {
+    NonCopyable(NonCopyable&&) = default;
+    NonCopyable(const NonCopyable&) = delete;
+
+    int x;
+  };
+
+  auto e = []() {
+    return Task::Of<int>::With<NonCopyable>(
+        NonCopyable{100},
+        [](auto& non_copyable) {
+          return Just(non_copyable.x);
+        });
+  };
+
+  EXPECT_EQ(*e(), 100);
+}
+
+TEST(Task, TaskWithPtr) {
+  int* x = new int(100);
+
+  auto e = [&]() {
+    return Task::Of<int>::With<int*>(
+        x,
+        [](int* non_copyable) {
+          int value = *non_copyable;
+
+          delete non_copyable;
+          non_copyable = nullptr;
+
+          return Just(value);
+        });
+  };
+
+  EXPECT_EQ(*e(), 100);
+  EXPECT_NE(x, nullptr);
+}
+
 TEST(Task, FailOnCallback) {
   struct Functions {
     MockFunction<void()> fail, stop, start;

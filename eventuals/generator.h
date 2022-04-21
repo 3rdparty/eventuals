@@ -170,6 +170,29 @@ struct _Generator final {
     Fail = 2,
   };
 
+  // Using templated type name to allow using both
+  // in 'Composable' and 'Continuation'.
+  template <typename From, typename To, typename... Args>
+  using DispatchCallback =
+      Callback<void(
+          Action,
+          std::optional<std::exception_ptr>&&,
+          Args&...,
+          // Can't have a 'void' argument type
+          // so we are using 'std::monostate'.
+          std::optional<
+              std::conditional_t<
+                  std::is_void_v<From>,
+                  std::monostate,
+                  From>>&&,
+          std::unique_ptr<void, Callback<void(void*)>>&,
+          Interrupt&,
+          Callback<void(TypeErasedStream&)>&&,
+          Callback<void(std::exception_ptr)>&&,
+          Callback<void()>&&,
+          Callback<function_type_t<void, To>>&&,
+          Callback<void()>&&)>;
+
   template <
       typename K_,
       typename From_,
@@ -180,22 +203,7 @@ struct _Generator final {
     Continuation(
         K_ k,
         std::tuple<Args_...>&& args,
-        Callback<void(
-            Action,
-            std::optional<std::exception_ptr>&&,
-            Args_&&...,
-            std::optional<
-                std::conditional_t<
-                    std::is_void_v<From_>,
-                    std::monostate,
-                    From_>>&&,
-            std::unique_ptr<void, Callback<void(void*)>>&,
-            Interrupt&,
-            Callback<void(TypeErasedStream&)>&&,
-            Callback<void(std::exception_ptr)>&&,
-            Callback<void()>&&,
-            Callback<function_type_t<void, To_>>&&,
-            Callback<void()>&&)>&& dispatch)
+        DispatchCallback<From_, To_, Args_...>&& dispatch)
       : args_(std::move(args)),
         dispatch_(std::move(dispatch)),
         k_(std::move(k)) {}
@@ -257,11 +265,11 @@ struct _Generator final {
                 From_>>&& from = std::nullopt,
         std::optional<std::exception_ptr>&& exception = std::nullopt) {
       std::apply(
-          [&](auto&&... args) {
+          [&](auto&... args) {
             dispatch_(
                 action,
                 std::move(exception),
-                std::forward<decltype(args)>(args)...,
+                args...,
                 std::forward<decltype(from)>(from),
                 e_,
                 *interrupt_,
@@ -281,28 +289,12 @@ struct _Generator final {
                   k_.Ended();
                 });
           },
-          std::move(args_));
+          args_);
     }
 
     std::tuple<Args_...> args_;
 
-    Callback<void(
-        Action,
-        std::optional<std::exception_ptr>&&,
-        Args_&&...,
-        std::optional<
-            std::conditional_t<
-                std::is_void_v<From_>,
-                std::monostate,
-                From_>>&&,
-        std::unique_ptr<void, Callback<void(void*)>>&,
-        Interrupt&,
-        Callback<void(TypeErasedStream&)>&&,
-        Callback<void(std::exception_ptr)>&&,
-        Callback<void()>&&,
-        Callback<function_type_t<void, To_>>&&,
-        Callback<void()>&&)>
-        dispatch_;
+    DispatchCallback<From_, To_, Args_...> dispatch_;
 
     std::unique_ptr<void, Callback<void(void*)>> e_;
     Interrupt* interrupt_ = nullptr;
@@ -370,7 +362,7 @@ struct _Generator final {
           std::conditional_t<
               !HAS_ARGS,
               std::true_type,
-              std::is_invocable<F, Args_...>>::value,
+              std::is_invocable<F, Args_&...>>::value,
           "'Generator' expects a callable (e.g., a lambda) that "
           "takes the arguments specified");
 
@@ -406,7 +398,7 @@ struct _Generator final {
       dispatch_ = [f = std::move(f)](
                       Action action,
                       std::optional<std::exception_ptr>&& exception,
-                      Args_&&... args,
+                      Args_&... args,
                       std::optional<
                           std::conditional_t<
                               std::is_void_v<From_>,
@@ -421,7 +413,7 @@ struct _Generator final {
                       Callback<void()>&& ended) mutable {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapGenerator<E, From_, To_>(f(std::move(args)...)),
+              new HeapGenerator<E, From_, To_>(f(args...)),
               [](void* e) {
                 delete static_cast<HeapGenerator<E, From_, To_>*>(e);
               });
@@ -484,24 +476,7 @@ struct _Generator final {
     std::conditional_t<
         std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
         Undefined,
-        Callback<void(
-            Action,
-            std::optional<std::exception_ptr>&&,
-            Args_&&...,
-            // Can't have a 'void' argument type
-            // so we are using 'std::monostate'.
-            std::optional<
-                std::conditional_t<
-                    std::is_void_v<From_>,
-                    std::monostate,
-                    From_>>&&,
-            std::unique_ptr<void, Callback<void(void*)>>&,
-            Interrupt&,
-            Callback<void(TypeErasedStream&)>&&,
-            Callback<void(std::exception_ptr)>&&,
-            Callback<void()>&&,
-            Callback<function_type_t<void, To_>>&&,
-            Callback<void()>&&)>>
+        DispatchCallback<From_, To_, Args_...>>
         dispatch_;
 
     std::tuple<Args_...> args_;

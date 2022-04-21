@@ -96,6 +96,68 @@ TEST(Generator, Succeed) {
   EXPECT_THAT(*e4(), ElementsAre(1, 2, 3));
 }
 
+TEST(Generator, GeneratorWithNonCopyable) {
+  struct NonCopyable {
+    NonCopyable(NonCopyable&&) = default;
+    NonCopyable(const NonCopyable&) = delete;
+
+    int x;
+  };
+
+  auto generator = []() {
+    return Generator::Of<int>::With<NonCopyable>(
+        NonCopyable{100},
+        [](auto& non_copyable) {
+          return Iterate({non_copyable.x});
+        });
+  };
+
+  auto e = [&]() {
+    return generator()
+        | Loop<int>()
+              .context(0)
+              .body([](auto& sum, auto& stream, auto&& value) {
+                sum += value;
+                stream.Next();
+              })
+              .ended([](auto& sum, auto& k) {
+                k.Start(sum);
+              });
+  };
+
+  EXPECT_EQ(*e(), 100);
+}
+
+TEST(Generator, GeneratorWithPtr) {
+  auto generator = []() {
+    return Generator::Of<int>::With<int*>(
+        new int(100),
+        [](auto ptr) {
+          static_assert(std::is_same_v<decltype(ptr), int*>);
+
+          int value = *ptr;
+          delete ptr;
+
+          return Iterate({value});
+        });
+  };
+
+  auto e = [&]() {
+    return generator()
+        | Loop<int>()
+              .context(0)
+              .body([](auto& sum, auto& stream, auto&& value) {
+                sum += value;
+                stream.Next();
+              })
+              .ended([](auto& sum, auto& k) {
+                k.Start(sum);
+              });
+  };
+
+  EXPECT_EQ(*e(), 100);
+}
+
 TEST(Generator, InterruptStream) {
   struct Functions {
     MockFunction<void()> next, done, ended, fail, stop;
