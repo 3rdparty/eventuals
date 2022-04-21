@@ -3,6 +3,8 @@
 #include "eventuals/event-loop.h"
 #include "gtest/gtest.h"
 
+namespace eventuals::test {
+
 class EventLoopTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -13,3 +15,5 @@ class EventLoopTest : public ::testing::Test {
     eventuals::EventLoop::DestructDefault();
   }
 };
+
+} // namespace eventuals::test

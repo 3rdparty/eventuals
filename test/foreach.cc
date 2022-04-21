@@ -7,10 +7,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using eventuals::Closure;
-using eventuals::Foreach;
-using eventuals::Range;
-using eventuals::Then;
+namespace eventuals::test {
+namespace {
 
 using testing::ElementsAre;
 
@@ -30,3 +28,6 @@ TEST(Foreach, Test) {
 
   EXPECT_THAT(*e(), ElementsAre(0, 1, 2, 3, 4));
 }
+
+} // namespace
+} // namespace eventuals::test

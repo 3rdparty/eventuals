@@ -9,22 +9,14 @@
 #include "gtest/gtest.h"
 #include "test/grpc/test.h"
 
+namespace eventuals::grpc::test {
+namespace {
+
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
 using stout::Borrowable;
-
-using eventuals::Closure;
-using eventuals::Head;
-using eventuals::Let;
-using eventuals::Terminate;
-using eventuals::Then;
-
-using eventuals::grpc::Client;
-using eventuals::grpc::CompletionPool;
-using eventuals::grpc::Server;
-using eventuals::grpc::ServerBuilder;
 
 TEST(DeadlineTest, DeadlineExceeded) {
   ServerBuilder builder;
@@ -33,7 +25,7 @@ TEST(DeadlineTest, DeadlineExceeded) {
 
   builder.AddListeningPort(
       "0.0.0.0:0",
-      grpc::InsecureServerCredentials(),
+      ::grpc::InsecureServerCredentials(),
       &port);
 
   auto build = builder.BuildAndStart();
@@ -60,7 +52,7 @@ TEST(DeadlineTest, DeadlineExceeded) {
 
   Client client(
       "0.0.0.0:" + std::to_string(port),
-      grpc::InsecureChannelCredentials(),
+      ::grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
   auto call = [&]() {
@@ -83,7 +75,10 @@ TEST(DeadlineTest, DeadlineExceeded) {
 
   auto status = *call();
 
-  ASSERT_EQ(grpc::DEADLINE_EXCEEDED, status.error_code());
+  ASSERT_EQ(::grpc::DEADLINE_EXCEEDED, status.error_code());
 
   ASSERT_TRUE(cancelled.get());
 }
+
+} // namespace
+} // namespace eventuals::grpc::test

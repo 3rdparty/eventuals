@@ -7,13 +7,8 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Build;
-using eventuals::DoAll;
-using eventuals::Eventual;
-using eventuals::Interrupt;
-using eventuals::Terminal;
-using eventuals::Terminate;
-using eventuals::Then;
+namespace eventuals::test {
+namespace {
 
 using testing::MockFunction;
 
@@ -96,3 +91,6 @@ TEST(DoAllTest, Interrupt) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
+
+} // namespace
+} // namespace eventuals::test

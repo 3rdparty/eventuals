@@ -10,15 +10,10 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 
-using std::string;
+namespace eventuals::test {
+namespace {
 
-using eventuals::Conditional;
-using eventuals::Eventual;
-using eventuals::Interrupt;
-using eventuals::Just;
-using eventuals::Raise;
-using eventuals::Terminate;
-using eventuals::Then;
+using std::string;
 
 using testing::MockFunction;
 
@@ -184,3 +179,6 @@ TEST(ConditionalTest, Raise) {
 
   EXPECT_EQ(2, *c());
 }
+
+} // namespace
+} // namespace eventuals::test

@@ -7,9 +7,8 @@
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
 
-using eventuals::Just;
-using eventuals::Then;
-using eventuals::Unpack;
+namespace eventuals::test {
+namespace {
 
 TEST(Unpack, Unpack) {
   auto e = []() {
@@ -21,3 +20,6 @@ TEST(Unpack, Unpack) {
 
   EXPECT_EQ("42", *e());
 }
+
+} // namespace
+} // namespace eventuals::test

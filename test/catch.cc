@@ -14,16 +14,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using eventuals::Catch;
-using eventuals::Conditional;
-using eventuals::Eventual;
-using eventuals::Expected;
-using eventuals::Interrupt;
-using eventuals::Just;
-using eventuals::Raise;
-using eventuals::Terminate;
-using eventuals::Then;
-using eventuals::Unexpected;
+namespace eventuals::test {
+namespace {
+
 using testing::MockFunction;
 
 TEST(CatchTest, RaisedRuntimeError) {
@@ -308,3 +301,6 @@ TEST(CatchTest, Interrupt) {
 
   EXPECT_EQ(future.get(), "100");
 }
+
+} // namespace
+} // namespace eventuals::test

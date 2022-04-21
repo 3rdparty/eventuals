@@ -11,11 +11,8 @@
 #include "test/event-loop-test.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::DomainNameResolve;
-using eventuals::EventLoop;
-using eventuals::Eventual;
-using eventuals::Terminate;
-using eventuals::Then;
+namespace eventuals::test {
+namespace {
 
 using testing::MockFunction;
 
@@ -123,3 +120,6 @@ TEST_F(DomainNameResolveTest, Raises) {
 
   EXPECT_THROW_WHAT(future.get(), "error");
 }
+
+} // namespace
+} // namespace eventuals::test

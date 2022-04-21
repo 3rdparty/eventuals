@@ -8,14 +8,8 @@
 #include "eventuals/terminal.h"
 #include "gtest/gtest.h"
 
-using eventuals::Clock;
-using eventuals::EventLoop;
-using eventuals::Foreach;
-using eventuals::Interrupt;
-using eventuals::Just;
-using eventuals::Range;
-using eventuals::Terminate;
-using eventuals::Timer;
+namespace eventuals::test {
+namespace {
 
 TEST_F(EventLoopTest, Timer) {
   auto e = []() {
@@ -190,3 +184,6 @@ TEST_F(EventLoopTest, MapTimer) {
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);
 }
+
+} // namespace
+} // namespace eventuals::test

@@ -11,13 +11,8 @@
 #include "eventuals/terminal.h"
 #include "test/concurrent/concurrent.h"
 
-using eventuals::Callback;
-using eventuals::Collect;
-using eventuals::Eventual;
-using eventuals::Iterate;
-using eventuals::Let;
-using eventuals::Map;
-using eventuals::Terminate;
+namespace eventuals::test {
+namespace {
 
 // Tests when all eventuals are successful.
 TYPED_TEST(ConcurrentTypedTest, Success) {
@@ -66,3 +61,6 @@ TYPED_TEST(ConcurrentTypedTest, Success) {
 
   EXPECT_THAT(future.get(), this->OrderedOrUnorderedElementsAre("1", "2"));
 }
+
+} // namespace
+} // namespace eventuals::test

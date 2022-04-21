@@ -21,17 +21,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using eventuals::Collect;
-using eventuals::EventLoop;
-using eventuals::FlatMap;
-using eventuals::Interrupt;
-using eventuals::Iterate;
-using eventuals::Just;
-using eventuals::Let;
-using eventuals::Map;
-using eventuals::Range;
-using eventuals::Stream;
-using eventuals::Timer;
+namespace eventuals::test {
+namespace {
 
 using testing::ElementsAre;
 
@@ -274,3 +265,6 @@ TEST(FlatMap, InterruptReturn) {
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
+
+} // namespace
+} // namespace eventuals::test

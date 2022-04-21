@@ -8,11 +8,8 @@
 #include "eventuals/terminal.h"
 #include "test/concurrent/concurrent.h"
 
-using eventuals::Collect;
-using eventuals::FlatMap;
-using eventuals::Iterate;
-using eventuals::Range;
-using eventuals::Terminate;
+namespace eventuals::test {
+namespace {
 
 // Tests that one can nest 'FlatMap()' within a
 // 'Concurrent()' or 'ConcurrentOrdered()'.
@@ -38,3 +35,6 @@ TYPED_TEST(ConcurrentTypedTest, FlatMap) {
 
   EXPECT_THAT(future.get(), this->OrderedOrUnorderedElementsAre(0, 0, 1));
 }
+
+} // namespace
+} // namespace eventuals::test

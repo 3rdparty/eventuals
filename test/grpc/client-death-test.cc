@@ -12,17 +12,12 @@
 #include "test/grpc/death-constants.h"
 #include "test/grpc/test.h"
 
+namespace eventuals::grpc::test {
+namespace {
+
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
-
-using eventuals::Head;
-using eventuals::Let;
-using eventuals::Terminate;
-using eventuals::Then;
-
-using eventuals::grpc::Server;
-using eventuals::grpc::ServerBuilder;
 
 // Tests that servers correctly handle clients that disconnect before sending a
 // request.
@@ -34,7 +29,7 @@ TEST(ClientDeathTest, ServerHandlesClientDisconnect) {
 
   builder.AddListeningPort(
       "0.0.0.0:0",
-      grpc::InsecureServerCredentials(),
+      ::grpc::InsecureServerCredentials(),
       &port);
 
   auto build = builder.BuildAndStart();
@@ -66,7 +61,10 @@ TEST(ClientDeathTest, ServerHandlesClientDisconnect) {
   const int result = std::system(command.c_str());
   // Issue(#329): WEXITSTATUS is Posix-specific. Figure out the correct way
   // to get the application's return code on windows.
-  EXPECT_EQ(eventuals::grpc::kProcessIntentionalExitCode, WEXITSTATUS(result));
+  EXPECT_EQ(kProcessIntentionalExitCode, WEXITSTATUS(result));
 
   EXPECT_TRUE(cancelled.get());
 }
+
+} // namespace
+} // namespace eventuals::grpc::test

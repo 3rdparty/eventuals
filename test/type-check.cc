@@ -7,9 +7,8 @@
 #include "eventuals/terminal.h"
 #include "gtest/gtest.h"
 
-using eventuals::Collect;
-using eventuals::Iterate;
-using eventuals::TypeCheck;
+namespace eventuals::test {
+namespace {
 
 TEST(TypeCheck, Lvalue) {
   std::vector<int> v = {5, 12};
@@ -31,3 +30,6 @@ TEST(TypeCheck, Rvalue) {
 
   EXPECT_EQ(std::vector<int>({5, 12}), *s());
 }
+
+} // namespace
+} // namespace eventuals::test

@@ -8,21 +8,15 @@
 #include "test/grpc/helloworld.eventuals.h"
 #include "test/grpc/test.h"
 
-using stout::Borrowable;
-
-using eventuals::Let;
-using eventuals::Loop;
-using eventuals::Map;
-using eventuals::Then;
-
-using eventuals::grpc::Client;
-using eventuals::grpc::CompletionPool;
-using eventuals::grpc::ServerBuilder;
+namespace eventuals::grpc::test {
+namespace {
 
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
 using helloworld::eventuals::Greeter;
+
+using stout::Borrowable;
 
 class GreeterServiceImpl final : public Greeter::Service<GreeterServiceImpl> {
  public:
@@ -44,7 +38,7 @@ TEST(GreeterServerTest, SayHello) {
 
   builder.AddListeningPort(
       "0.0.0.0:0",
-      grpc::InsecureServerCredentials(),
+      ::grpc::InsecureServerCredentials(),
       &port);
 
   builder.RegisterService(&service);
@@ -61,7 +55,7 @@ TEST(GreeterServerTest, SayHello) {
 
   Client client(
       "0.0.0.0:" + std::to_string(port),
-      grpc::InsecureChannelCredentials(),
+      ::grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
   auto call = [&]() {
@@ -83,3 +77,6 @@ TEST(GreeterServerTest, SayHello) {
 
   EXPECT_TRUE(status.ok());
 }
+
+} // namespace
+} // namespace eventuals::grpc::test

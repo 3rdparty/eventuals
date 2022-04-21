@@ -13,14 +13,8 @@
 #include "test/concurrent/concurrent.h"
 #include "test/expect-throw-what.h"
 
-using eventuals::Callback;
-using eventuals::Collect;
-using eventuals::Eventual;
-using eventuals::Interrupt;
-using eventuals::Iterate;
-using eventuals::Let;
-using eventuals::Map;
-using eventuals::Terminate;
+namespace eventuals::test {
+namespace {
 
 // Tests that 'Concurrent()' and 'ConcurrentOrdered()' defers to the
 // eventuals on how to handle interrupts and in this case both of the
@@ -70,3 +64,6 @@ TYPED_TEST(ConcurrentTypedTest, InterruptFail) {
 
   EXPECT_THROW_WHAT(future.get(), "error");
 }
+
+} // namespace
+} // namespace eventuals::test

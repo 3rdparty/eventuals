@@ -7,8 +7,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-using eventuals::Collect;
-using eventuals::Range;
+namespace eventuals::test {
+namespace {
 
 using testing::ElementsAre;
 
@@ -88,3 +88,6 @@ TEST(Range, SpecifiedStepNegative) {
 
   EXPECT_THAT(*s, ElementsAre(0, -2, -4, -6, -8));
 }
+
+} // namespace
+} // namespace eventuals::test

@@ -5,16 +5,12 @@
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "test/grpc/death-constants.h"
 
+namespace eventuals::grpc::test {
+namespace {
+
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
-
-using eventuals::Head;
-using eventuals::Terminate;
-using eventuals::Then;
-
-using eventuals::grpc::Server;
-using eventuals::grpc::ServerBuilder;
 
 void RunServer(const int pipe) {
   auto SendPort = [&](int port) {
@@ -27,7 +23,7 @@ void RunServer(const int pipe) {
 
   builder.AddListeningPort(
       "0.0.0.0:0",
-      grpc::InsecureServerCredentials(),
+      ::grpc::InsecureServerCredentials(),
       &port);
 
   auto build = builder.BuildAndStart();
@@ -42,7 +38,7 @@ void RunServer(const int pipe) {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
         | Head()
         | Then([](auto&& call) {
-             exit(eventuals::grpc::kProcessIntentionalExitCode);
+             exit(kProcessIntentionalExitCode);
            });
   };
 
@@ -56,6 +52,9 @@ void RunServer(const int pipe) {
 
   future.get();
 }
+
+} // namespace
+} // namespace eventuals::grpc::test
 
 // Should only be run from tests!
 //
@@ -72,6 +71,6 @@ int main(int argc, char** argv) {
 
   int pipe = atoi(argv[1]);
 
-  RunServer(pipe);
+  ::eventuals::grpc::test::RunServer(pipe);
   return 0;
 }

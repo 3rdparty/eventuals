@@ -11,22 +11,10 @@
 #include "gtest/gtest.h"
 #include "test/grpc/test.h"
 
+namespace eventuals::grpc::test {
+namespace {
+
 using stout::Borrowable;
-
-using eventuals::Closure;
-using eventuals::Head;
-using eventuals::Iterate;
-using eventuals::Let;
-using eventuals::Loop;
-using eventuals::Map;
-using eventuals::Terminate;
-using eventuals::Then;
-
-using eventuals::grpc::Client;
-using eventuals::grpc::CompletionPool;
-using eventuals::grpc::Server;
-using eventuals::grpc::ServerBuilder;
-using eventuals::grpc::Stream;
 
 // We can vary the usage of the streaming API on three dimensions, each of which
 // leads to different concurrency situations in `client.h`:
@@ -56,7 +44,7 @@ void test_client_behavior(Handler handler) {
 
   builder.AddListeningPort(
       "0.0.0.0:0",
-      grpc::InsecureServerCredentials(),
+      ::grpc::InsecureServerCredentials(),
       &port);
 
   auto build = builder.BuildAndStart();
@@ -102,7 +90,7 @@ void test_client_behavior(Handler handler) {
 
   Client client(
       "0.0.0.0:" + std::to_string(port),
-      grpc::InsecureChannelCredentials(),
+      ::grpc::InsecureChannelCredentials(),
       pool.Borrow());
 
   auto call = [&]() {
@@ -369,3 +357,6 @@ TEST(StreamingTest, WritesDone_BeforeReply_TwoRequests) {
             | call.Finish();
       })));
 }
+
+} // namespace
+} // namespace eventuals::grpc::test
