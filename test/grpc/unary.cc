@@ -28,7 +28,7 @@ using eventuals::grpc::Server;
 using eventuals::grpc::ServerBuilder;
 using eventuals::grpc::ServerCall;
 
-TEST_F(EventualsGrpcTest, Unary) {
+TEST(UnaryTest, Success) {
   ServerBuilder builder;
 
   int port = 0;

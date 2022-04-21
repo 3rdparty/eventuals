@@ -26,7 +26,7 @@ using eventuals::grpc::CompletionPool;
 using eventuals::grpc::Server;
 using eventuals::grpc::ServerBuilder;
 
-TEST_F(EventualsGrpcTest, Deadline) {
+TEST(DeadlineTest, DeadlineExceeded) {
   ServerBuilder builder;
 
   int port = 0;

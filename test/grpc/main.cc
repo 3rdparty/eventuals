@@ -1,3 +1,4 @@
+#include "glog/logging.h"
 #include "gtest/gtest.h"
 #include "test/grpc/test.h"
 #include "tools/cpp/runfiles/runfiles.h"

@@ -18,7 +18,7 @@ using eventuals::grpc::Client;
 using eventuals::grpc::CompletionPool;
 using eventuals::grpc::Stream;
 
-TEST_F(EventualsGrpcTest, ServerUnavailable) {
+TEST(ServerUnavailableTest, NonexistantServer) {
   Borrowable<CompletionPool> pool;
 
   // NOTE: we use 'getpid()' to create a _unique_ UNIX domain socket

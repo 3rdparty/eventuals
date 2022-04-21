@@ -15,7 +15,7 @@ using eventuals::Head;
 using eventuals::grpc::ServerBuilder;
 using eventuals::grpc::Stream;
 
-TEST_F(EventualsGrpcTest, ServeValidate) {
+TEST(AcceptTest, ServeValidate) {
   ServerBuilder builder;
 
   builder.AddListeningPort("0.0.0.0:0", grpc::InsecureServerCredentials());

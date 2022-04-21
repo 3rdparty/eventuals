@@ -34,7 +34,7 @@ class GreeterServiceImpl final : public Greeter::Service<GreeterServiceImpl> {
   }
 };
 
-TEST_F(EventualsGrpcTest, Greeter) {
+TEST(GreeterServerTest, SayHello) {
   std::string server_address("0.0.0.0:50051");
   GreeterServiceImpl service;
 
