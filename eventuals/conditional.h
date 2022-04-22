@@ -174,7 +174,7 @@ struct _Conditional {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Condition, typename Then, typename Else>
-auto Conditional(Condition condition, Then then, Else els3) {
+[[nodiscard]] auto Conditional(Condition condition, Then then, Else els3) {
   return _Conditional::Composable<Condition, Then, Else>{
       std::move(condition),
       std::move(then),

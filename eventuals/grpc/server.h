@@ -165,7 +165,7 @@ class ServerReader {
   ServerReader(ServerContext* context)
     : context_(context) {}
 
-  auto Read() {
+  [[nodiscard]] auto Read() {
     struct Data {
       ServerReader* reader = nullptr;
       ::grpc::ByteBuffer buffer;
@@ -251,7 +251,7 @@ class ServerWriter {
   ServerWriter(ServerContext* context)
     : context_(context) {}
 
-  auto Write(
+  [[nodiscard]] auto Write(
       ResponseType_ response,
       ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
     return Eventual<void>()
@@ -285,7 +285,7 @@ class ServerWriter {
             });
   }
 
-  auto WriteLast(
+  [[nodiscard]] auto WriteLast(
       ResponseType_ response,
       ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
     return Eventual<void>()
@@ -389,7 +389,7 @@ class ServerCall {
     return writer_;
   }
 
-  auto Finish(const ::grpc::Status& status) {
+  [[nodiscard]] auto Finish(const ::grpc::Status& status) {
     return Eventual<void>()
         .raises<std::runtime_error>()
         .start(
@@ -416,7 +416,7 @@ class ServerCall {
             });
   }
 
-  auto WaitForDone() {
+  [[nodiscard]] auto WaitForDone() {
     return Eventual<bool>(
         [this](auto& k, auto&&...) mutable {
           EVENTUALS_GRPC_LOG(1)
@@ -444,7 +444,7 @@ class Endpoint : public Synchronizable {
     : path_(std::move(path)),
       host_(std::move(host)) {}
 
-  auto Enqueue(std::unique_ptr<ServerContext>&& context) {
+  [[nodiscard]] auto Enqueue(std::unique_ptr<ServerContext>&& context) {
     EVENTUALS_GRPC_LOG(1)
         << "Accepted call (" << context.get() << ")"
         << " for host = " << host_
@@ -454,11 +454,11 @@ class Endpoint : public Synchronizable {
   }
 
   // NOTE: returns a stream rather than a single eventual context.
-  auto Dequeue() {
+  [[nodiscard]] auto Dequeue() {
     return pipe_.Read();
   }
 
-  auto Shutdown() {
+  [[nodiscard]] auto Shutdown() {
     return pipe_.Close();
   }
 
@@ -516,10 +516,10 @@ class Server : public Synchronizable {
   void Wait();
 
   template <typename Service, typename Request, typename Response>
-  auto Accept(std::string name, std::string host = "*");
+  [[nodiscard]] auto Accept(std::string name, std::string host = "*");
 
   template <typename Request, typename Response>
-  auto Accept(std::string name, std::string host = "*");
+  [[nodiscard]] auto Accept(std::string name, std::string host = "*");
 
  private:
   friend class ServerBuilder;
@@ -532,17 +532,19 @@ class Server : public Synchronizable {
       std::vector<std::thread>&& threads);
 
   template <typename Request, typename Response>
-  auto Validate(const std::string& name);
+  [[nodiscard]] auto Validate(const std::string& name);
 
-  auto Insert(std::unique_ptr<Endpoint>&& endpoint);
+  [[nodiscard]] auto Insert(std::unique_ptr<Endpoint>&& endpoint);
 
-  auto ShutdownEndpoints();
+  [[nodiscard]] auto ShutdownEndpoints();
 
-  auto RequestCall(ServerContext* context, ::grpc::ServerCompletionQueue* cq);
+  [[nodiscard]] auto RequestCall(
+      ServerContext* context,
+      ::grpc::ServerCompletionQueue* cq);
 
-  auto Lookup(ServerContext* context);
+  [[nodiscard]] auto Lookup(ServerContext* context);
 
-  auto Unimplemented(ServerContext* context);
+  [[nodiscard]] auto Unimplemented(ServerContext* context);
 
   std::unique_ptr<::grpc::AsyncGenericService> service_;
   std::unique_ptr<::grpc::Server> server_;
@@ -727,7 +729,7 @@ auto Server::Accept(std::string name, std::string host) {
 
 // Helper that reads only a single request for a unary call
 template <typename Request, typename Response>
-auto UnaryPrologue(ServerCall<Request, Response>& call) {
+[[nodiscard]] auto UnaryPrologue(ServerCall<Request, Response>& call) {
   return call.Reader().Read()
       | Head(); // Only get the first request.
 }
@@ -737,7 +739,7 @@ auto UnaryPrologue(ServerCall<Request, Response>& call) {
 // Helper that does the writing and finishing for a unary call as well
 // as catching failures and handling appropriately.
 template <typename Request, typename Response>
-auto UnaryEpilogue(ServerCall<Request, Response>& call) {
+[[nodiscard]] auto UnaryEpilogue(ServerCall<Request, Response>& call) {
   return Then([&](auto&& response) {
            return call.Writer().WriteLast(
                std::forward<decltype(response)>(response));
@@ -779,7 +781,7 @@ auto UnaryEpilogue(ServerCall<Request, Response>& call) {
 // Helper that does the writing and finishing for a server streaming
 // call as well as catching failures and handling appropriately.
 template <typename Request, typename Response>
-auto StreamingEpilogue(ServerCall<Request, Response>& call) {
+[[nodiscard]] auto StreamingEpilogue(ServerCall<Request, Response>& call) {
   return Map([&](auto&& response) {
            return call.Writer().Write(response);
          })

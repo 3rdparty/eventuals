@@ -301,7 +301,7 @@ struct _Eventual {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Value>
-auto Eventual() {
+[[nodiscard]] auto Eventual() {
   return _Eventual::Builder<
       Undefined,
       Undefined,
@@ -314,7 +314,7 @@ auto Eventual() {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Value, typename Start>
-auto Eventual(Start start) {
+[[nodiscard]] auto Eventual(Start start) {
   return _Eventual::Builder<
       Undefined,
       Start,

@@ -80,7 +80,7 @@ struct _Filter final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
-auto Filter(F f) {
+[[nodiscard]] auto Filter(F f) {
   return _Filter::Composable<F>{std::move(f)};
 }
 

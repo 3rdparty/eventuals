@@ -114,13 +114,16 @@ class StaticThreadPool final : public Scheduler {
   void Clone(Context* child) override;
 
   template <typename E>
-  auto Schedule(Requirements* requirements, E e);
+  [[nodiscard]] auto Schedule(Requirements* requirements, E e);
 
   template <typename E>
-  auto Schedule(std::string&& name, Requirements* requirements, E e);
+  [[nodiscard]] auto Schedule(
+      std::string&& name,
+      Requirements* requirements,
+      E e);
 
   template <typename E>
-  static auto Spawn(Requirements&& requirements, E e);
+  [[nodiscard]] static auto Spawn(Requirements&& requirements, E e);
 
  private:
   // NOTE: we use a semaphore instead of something like eventfd for
@@ -521,7 +524,7 @@ struct _StaticThreadPoolSchedule final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E>
-auto StaticThreadPool::Schedule(Requirements* requirements, E e) {
+[[nodiscard]] auto StaticThreadPool::Schedule(Requirements* requirements, E e) {
   return _StaticThreadPoolSchedule::Composable<E>{
       this,
       requirements,
@@ -529,7 +532,7 @@ auto StaticThreadPool::Schedule(Requirements* requirements, E e) {
 }
 
 template <typename E>
-auto StaticThreadPool::Schedule(
+[[nodiscard]] auto StaticThreadPool::Schedule(
     std::string&& name,
     Requirements* requirements,
     E e) {
@@ -543,14 +546,16 @@ auto StaticThreadPool::Schedule(
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E>
-auto StaticThreadPool::Schedulable::Schedule(E e) {
+[[nodiscard]] auto StaticThreadPool::Schedulable::Schedule(E e) {
   return StaticThreadPool::Scheduler().Schedule(
       &requirements_,
       std::move(e));
 }
 
 template <typename E>
-auto StaticThreadPool::Schedulable::Schedule(std::string&& name, E e) {
+[[nodiscard]] auto StaticThreadPool::Schedulable::Schedule(
+    std::string&& name,
+    E e) {
   return StaticThreadPool::Scheduler().Schedule(
       std::move(name),
       &requirements_,
@@ -560,7 +565,7 @@ auto StaticThreadPool::Schedulable::Schedule(std::string&& name, E e) {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E>
-auto StaticThreadPool::Spawn(Requirements&& requirements, E e) {
+[[nodiscard]] auto StaticThreadPool::Spawn(Requirements&& requirements, E e) {
   return Closure([requirements = std::move(requirements),
                   e = std::move(e)]() mutable {
     return StaticThreadPool::Scheduler().Schedule(

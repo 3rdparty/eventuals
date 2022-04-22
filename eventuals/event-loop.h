@@ -497,10 +497,10 @@ class EventLoop final : public Scheduler {
 
   // Schedules the eventual for execution on the event loop thread.
   template <typename E>
-  auto Schedule(E e);
+  [[nodiscard]] auto Schedule(E e);
 
   template <typename E>
-  auto Schedule(std::string&& name, E e);
+  [[nodiscard]] auto Schedule(std::string&& name, E e);
 
   bool Alive() {
     return uv_loop_alive(&loop_);
@@ -526,7 +526,7 @@ class EventLoop final : public Scheduler {
 
   // Returns a stream of 'PollEvents' for each invocation of stream
   // 'Next()' until requested to stop via 'Done()'.
-  auto Poll(int fd, PollEvents events);
+  [[nodiscard]] auto Poll(int fd, PollEvents events);
 
  private:
   struct _WaitForSignal final {
@@ -1225,20 +1225,20 @@ struct _EventLoopSchedule final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E>
-auto EventLoop::Schedule(E e) {
+[[nodiscard]] auto EventLoop::Schedule(E e) {
   return _EventLoopSchedule::Composable<E>{std::move(e), this};
 }
 
 ////////////////////////////////////////////////////////////////////////
 template <typename E>
-auto EventLoop::Schedule(std::string&& name, E e) {
+[[nodiscard]] auto EventLoop::Schedule(std::string&& name, E e) {
   return _EventLoopSchedule::Composable<E>{std::move(e), this, std::move(name)};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 // Returns the default event loop's clock.
-inline auto& Clock() {
+[[nodiscard]] inline auto& Clock() {
   return EventLoop::Default().clock();
 }
 
@@ -1254,7 +1254,7 @@ inline std::chrono::nanoseconds EventLoop::Clock::Now() {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto EventLoop::Clock::Timer(
+[[nodiscard]] inline auto EventLoop::Clock::Timer(
     std::chrono::nanoseconds&& nanoseconds) {
   // NOTE: we use a 'RescheduleAfter()' to ensure we use current
   // scheduling context to invoke the continuation after the timer has
@@ -1265,7 +1265,7 @@ inline auto EventLoop::Clock::Timer(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto EventLoop::WaitForSignal(int signum) {
+[[nodiscard]] inline auto EventLoop::WaitForSignal(int signum) {
   // NOTE: we use a 'RescheduleAfter()' to ensure we use current
   // scheduling context to invoke the continuation after the signal has
   // fired (or was interrupted).
@@ -1278,13 +1278,13 @@ inline auto EventLoop::WaitForSignal(int signum) {
 
 // Helpers for using bitmasks of 'PollEvents', e.g.,
 // 'PollEvents::Readable | PollEvents::Writeable'.
-inline PollEvents operator|(PollEvents left, PollEvents right) {
+[[nodiscard]] inline PollEvents operator|(PollEvents left, PollEvents right) {
   return static_cast<PollEvents>(
       static_cast<std::underlying_type<PollEvents>::type>(left)
       | static_cast<std::underlying_type<PollEvents>::type>(right));
 }
 
-inline PollEvents operator&(PollEvents left, PollEvents right) {
+[[nodiscard]] inline PollEvents operator&(PollEvents left, PollEvents right) {
   return static_cast<PollEvents>(
       static_cast<std::underlying_type<PollEvents>::type>(left)
       & static_cast<std::underlying_type<PollEvents>::type>(right));
@@ -1292,7 +1292,7 @@ inline PollEvents operator&(PollEvents left, PollEvents right) {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto EventLoop::Poll(int fd, PollEvents events) {
+[[nodiscard]] inline auto EventLoop::Poll(int fd, PollEvents events) {
   // NOTE: we use a 'RescheduleAfter()' to ensure we use current
   // scheduling context to invoke the continuation after the poll has
   // fired (or was interrupted).

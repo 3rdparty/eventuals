@@ -301,12 +301,12 @@ struct _Catch final {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Catch() {
+[[nodiscard]] inline auto Catch() {
   return _Catch::Builder<void, false>{};
 }
 
 template <typename F>
-auto Catch(F f) {
+[[nodiscard]] auto Catch(F f) {
   return Catch().all(std::move(f));
 }
 

@@ -19,7 +19,7 @@ class Field<Value_, false> {
   virtual ~Field() = default;
 
   template <typename Value>
-  auto Set(Value&& value) {
+  [[nodiscard]] auto Set(Value&& value) {
     static_assert(std::is_convertible_v<Value, Value_>);
     return Field<Value_, true>{std::forward<Value>(value)};
   }
@@ -80,7 +80,7 @@ class FieldWithDefault<Value_, false> final : public Field<Value_, false> {
   ~FieldWithDefault() override = default;
 
   template <typename Value>
-  auto Set(Value&& value) {
+  [[nodiscard]] auto Set(Value&& value) {
     static_assert(std::is_convertible_v<Value, Value_>);
     return FieldWithDefault<Value_, true>{std::forward<Value>(value)};
   }
@@ -146,7 +146,7 @@ class RepeatedField<Value_, false> final : public Field<Value_, false> {
   ~RepeatedField() override = default;
 
   template <typename Value>
-  auto Set(Value&& value) {
+  [[nodiscard]] auto Set(Value&& value) {
     static_assert(std::is_convertible_v<Value, Value_>);
     return RepeatedField<Value_, true>{std::forward<Value>(value)};
   }
@@ -193,7 +193,7 @@ class RepeatedField<Value_, true> final : public Field<Value_, true> {
   ~RepeatedField() override = default;
 
   template <typename Value>
-  auto Set(Value&& value) {
+  [[nodiscard]] auto Set(Value&& value) {
     static_assert(std::is_convertible_v<Value, Value_>);
     return RepeatedField<Value_, true>{std::forward<Value>(value)};
   }
@@ -217,7 +217,7 @@ class Builder {
       class... Fields,
       typename... Values,
       bool... has>
-  auto Construct(Fields<Values, has>... fields) {
+  [[nodiscard]] auto Construct(Fields<Values, has>... fields) {
     return Builder<has...>(std::move(fields)...);
   }
 };

@@ -9,7 +9,7 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto DomainNameResolve(
+[[nodiscard]] inline auto DomainNameResolve(
     EventLoop& loop,
     const std::string& address,
     const std::string& port) {
@@ -76,7 +76,7 @@ inline auto DomainNameResolve(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto DomainNameResolve(
+[[nodiscard]] inline auto DomainNameResolve(
     const std::string& address,
     const std::string& port) {
   return DomainNameResolve(EventLoop::Default(), address, port);

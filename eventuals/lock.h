@@ -676,20 +676,20 @@ struct _Wait final {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Acquire(Lock* lock) {
+[[nodiscard]] inline auto Acquire(Lock* lock) {
   return _Acquire::Composable{lock};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Release(Lock* lock) {
+[[nodiscard]] inline auto Release(Lock* lock) {
   return _Release::Composable{lock};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
-auto Wait(Lock* lock, F f) {
+[[nodiscard]] auto Wait(Lock* lock, F f) {
   return _Wait::Composable<F>{lock, std::move(f)};
 }
 
@@ -700,14 +700,14 @@ class Synchronizable {
   virtual ~Synchronizable() = default;
 
   template <typename E>
-  auto Synchronized(E e) {
+  [[nodiscard]] auto Synchronized(E e) {
     return Acquire(&lock_)
         | std::move(e)
         | Release(&lock_);
   }
 
   template <typename F>
-  auto Wait(F f) {
+  [[nodiscard]] auto Wait(F f) {
     return eventuals::Wait(&lock_, std::move(f));
   }
 
@@ -727,7 +727,7 @@ class ConditionVariable final {
     : lock_(CHECK_NOTNULL(lock)) {}
 
   template <typename F>
-  auto Wait(F f) {
+  [[nodiscard]] auto Wait(F f) {
     return eventuals::Wait(
         lock_,
         [this, f = std::move(f), waiter = Waiter()](auto notify) mutable {
@@ -768,7 +768,7 @@ class ConditionVariable final {
         });
   }
 
-  auto Wait() {
+  [[nodiscard]] auto Wait() {
     return Wait(EmptyCondition());
   }
 

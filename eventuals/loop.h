@@ -403,7 +403,7 @@ auto Loop() {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Loop() {
+[[nodiscard]] inline auto Loop() {
   return Loop<void>();
 }
 

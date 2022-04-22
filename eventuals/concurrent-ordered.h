@@ -132,7 +132,7 @@ struct _ReorderAdaptor final {
 
 /////////////////////////////////////////////////////////////////////
 
-inline auto ReorderAdaptor() {
+[[nodiscard]] inline auto ReorderAdaptor() {
   return _ReorderAdaptor::Composable{};
 }
 
@@ -234,14 +234,14 @@ struct _ConcurrentOrderedAdaptor final {
 
 /////////////////////////////////////////////////////////////////////
 
-inline auto ConcurrentOrderedAdaptor() {
+[[nodiscard]] inline auto ConcurrentOrderedAdaptor() {
   return _ConcurrentOrderedAdaptor::Composable{};
 }
 
 /////////////////////////////////////////////////////////////////////
 
 template <typename F>
-inline auto ConcurrentOrdered(F f) {
+[[nodiscard]] inline auto ConcurrentOrdered(F f) {
   // NOTE: Starting our index 'i' at 1 because we signal the end of that
   // tranche of values via '-i' which means we can't start at 0.
   return Map([i = 1](auto&& value) mutable {

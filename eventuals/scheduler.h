@@ -299,7 +299,7 @@ struct _Reschedule final {
 
 // Returns an eventual which will switch to the specified context
 // before continuing it's continuation.
-inline auto Reschedule(Scheduler::Context* context) {
+[[nodiscard]] inline auto Reschedule(Scheduler::Context* context) {
   return _Reschedule::Composable{context};
 }
 
@@ -309,7 +309,7 @@ inline auto Reschedule(Scheduler::Context* context) {
 // eventual 'e' has completed the scheduler context used before 'e'
 // will be used to reschedule the next continuation.
 template <typename E>
-auto RescheduleAfter(E e) {
+[[nodiscard]] auto RescheduleAfter(E e) {
   return Closure([e = std::move(e)]() mutable {
     Scheduler::Context* previous = Scheduler::Context::Get();
     return std::move(e)
@@ -491,7 +491,7 @@ struct _Preempt final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E>
-auto Preempt(std::string name, E e) {
+[[nodiscard]] auto Preempt(std::string name, E e) {
   return _Preempt::Composable<E>{std::move(e), std::move(name)};
 }
 

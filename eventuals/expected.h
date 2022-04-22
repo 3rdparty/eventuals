@@ -189,14 +189,14 @@ struct Expected final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Value>
-auto Expected(Value value) {
+[[nodiscard]] auto Expected(Value value) {
   return _Expected<Value, std::tuple<>>(std::move(value));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Error>
-auto Unexpected(Error error) {
+[[nodiscard]] auto Unexpected(Error error) {
   static_assert(
       std::is_base_of_v<std::exception, std::decay_t<Error>>,
       "Expecting a type derived from std::exception");
@@ -205,19 +205,19 @@ auto Unexpected(Error error) {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Unexpected(const std::string& s) {
+[[nodiscard]] inline auto Unexpected(const std::string& s) {
   return Unexpected(std::runtime_error(s));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Unexpected(char* s) {
+[[nodiscard]] inline auto Unexpected(char* s) {
   return Unexpected(std::runtime_error(s));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Unexpected(const char* s) {
+[[nodiscard]] inline auto Unexpected(const char* s) {
   return Unexpected(std::runtime_error(s));
 }
 

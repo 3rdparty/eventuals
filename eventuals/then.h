@@ -213,7 +213,7 @@ struct _Then::Continuation<K_, F_, Arg_, true> final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
-auto Then(F f) {
+[[nodiscard]] auto Then(F f) {
   return _Then::Composable<F>{std::move(f)};
 }
 

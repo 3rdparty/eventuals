@@ -328,16 +328,16 @@ class Client final {
 
   Client() = default;
 
-  auto Get(
+  [[nodiscard]] auto Get(
       std::string&& uri,
       std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0));
 
-  auto Post(
+  [[nodiscard]] auto Post(
       std::string&& uri,
       PostFields&& fields,
       std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0));
 
-  auto Do(Request&& request);
+  [[nodiscard]] auto Do(Request&& request);
 
  private:
   template <bool, bool>
@@ -1225,7 +1225,7 @@ struct _HTTP final {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Client::Do(Request&& request) {
+[[nodiscard]] inline auto Client::Do(Request&& request) {
   // TODO(benh): need 'Client::Default()'.
   auto& loop = EventLoop::Default();
 
@@ -1247,7 +1247,7 @@ inline auto Client::Do(Request&& request) {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Client::Get(
+[[nodiscard]] inline auto Client::Get(
     std::string&& uri,
     std::chrono::nanoseconds&& timeout) {
   return Do(
@@ -1260,7 +1260,7 @@ inline auto Client::Get(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Client::Post(
+[[nodiscard]] inline auto Client::Post(
     std::string&& uri,
     PostFields&& fields,
     std::chrono::nanoseconds&& timeout) {
@@ -1275,7 +1275,7 @@ inline auto Client::Post(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Get(
+[[nodiscard]] inline auto Get(
     std::string&& url,
     std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0)) {
   return Client().Get(std::move(url), std::move(timeout));
@@ -1283,7 +1283,7 @@ inline auto Get(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Post(
+[[nodiscard]] inline auto Post(
     std::string&& url,
     PostFields&& fields,
     std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0)) {

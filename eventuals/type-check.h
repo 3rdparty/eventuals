@@ -31,7 +31,7 @@ struct _TypeCheck {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T, typename E>
-auto TypeCheck(E e) {
+[[nodiscard]] auto TypeCheck(E e) {
   return _TypeCheck<T, E>{std::move(e)};
 }
 

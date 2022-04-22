@@ -42,7 +42,7 @@ struct _DoAll final {
     std::atomic<size_t> counter_ = sizeof...(Eventuals_);
 
     template <size_t index, typename Eventual>
-    auto BuildEventual(Eventual eventual) {
+    [[nodiscard]] auto BuildEventual(Eventual eventual) {
       return Build(
           std::move(eventual)
           | Terminal()
@@ -175,7 +175,7 @@ struct _DoAll final {
     }
 
     template <size_t... index>
-    auto BuildAll(
+    [[nodiscard]] auto BuildAll(
         std::tuple<Eventuals_...>&& eventuals,
         std::index_sequence<index...>) {
       return std::make_tuple(
@@ -280,7 +280,7 @@ struct _DoAll final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Eventual, typename... Eventuals>
-auto DoAll(Eventual eventual, Eventuals... eventuals) {
+[[nodiscard]] auto DoAll(Eventual eventual, Eventuals... eventuals) {
   return _DoAll::Composable<Eventual, Eventuals...>{
       std::make_tuple(std::move(eventual), std::move(eventuals)...)};
 }

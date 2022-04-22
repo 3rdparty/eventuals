@@ -140,7 +140,7 @@ struct _Map final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
-auto Map(F f) {
+[[nodiscard]] auto Map(F f) {
   static_assert(
       !HasValueFrom<F>::value,
       "'Map' expects a callable (e.g., a lambda) not an eventual");

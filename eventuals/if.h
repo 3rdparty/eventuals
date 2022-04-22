@@ -181,7 +181,7 @@ struct _If final {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto If(bool condition) {
+[[nodiscard]] inline auto If(bool condition) {
   return _If::Builder<Undefined, Undefined>{
       condition,
       Undefined(),

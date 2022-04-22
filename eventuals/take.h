@@ -205,15 +205,15 @@ struct _TakeRange final {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto TakeLastN(size_t N) {
+[[nodiscard]] inline auto TakeLastN(size_t N) {
   return _TakeLastN::Composable{N};
 }
 
-inline auto TakeRange(size_t begin, size_t amount) {
+[[nodiscard]] inline auto TakeRange(size_t begin, size_t amount) {
   return _TakeRange::Composable{begin, amount};
 }
 
-inline auto TakeFirstN(size_t amount) {
+[[nodiscard]] inline auto TakeFirstN(size_t amount) {
   return _TakeRange::Composable{0, amount};
 }
 

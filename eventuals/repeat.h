@@ -80,7 +80,7 @@ struct _Repeat final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
-auto Repeat(F f) {
+[[nodiscard]] auto Repeat(F f) {
   static_assert(
       !HasValueFrom<F>::value,
       "'Repeat' expects a callable (e.g., a lambda) not an eventual");
@@ -88,7 +88,7 @@ auto Repeat(F f) {
   return _Repeat::Composable{} | Map(std::move(f));
 }
 
-inline auto Repeat() {
+[[nodiscard]] inline auto Repeat() {
   return _Repeat::Composable{};
 }
 

@@ -70,25 +70,25 @@ struct _Raise final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-auto Raise(T t) {
+[[nodiscard]] auto Raise(T t) {
   return _Raise::Composable<T>{std::move(t)};
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Raise(const std::string& s) {
+[[nodiscard]] inline auto Raise(const std::string& s) {
   return Raise(std::runtime_error(s));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Raise(char* s) {
+[[nodiscard]] inline auto Raise(char* s) {
   return Raise(std::runtime_error(s));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Raise(const char* s) {
+[[nodiscard]] inline auto Raise(const char* s) {
   return Raise(std::runtime_error(s));
 }
 

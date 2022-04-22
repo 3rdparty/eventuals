@@ -175,7 +175,7 @@ struct _Terminal final {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Terminal() {
+[[nodiscard]] inline auto Terminal() {
   return _Terminal::Builder<
       Undefined,
       Undefined,
@@ -233,7 +233,7 @@ struct ReferenceWrapperTypeExtractor<std::reference_wrapper<T>> {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E>
-auto Terminate(E e) {
+[[nodiscard]] auto Terminate(E e) {
   using Value = typename E::template ValueFrom<void>;
 
   std::promise<
@@ -296,28 +296,28 @@ auto operator*(E e) {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Arg, typename E>
-auto Build(E e) {
+[[nodiscard]] auto Build(E e) {
   return std::move(e).template k<Arg>();
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Arg, typename E, typename K>
-auto Build(E e, K k) {
+[[nodiscard]] auto Build(E e, K k) {
   return std::move(e).template k<Arg>(std::move(k));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E>
-auto Build(E e) {
+[[nodiscard]] auto Build(E e) {
   return std::move(e).template k<void>();
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E, typename K>
-auto Build(E e, K k) {
+[[nodiscard]] auto Build(E e, K k) {
   return std::move(e).template k<void>(std::move(k));
 }
 

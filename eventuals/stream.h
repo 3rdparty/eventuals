@@ -476,7 +476,7 @@ struct _Stream final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Value, typename... Errors>
-auto Stream() {
+[[nodiscard]] auto Stream() {
   return _Stream::Builder<
       Undefined,
       Undefined,

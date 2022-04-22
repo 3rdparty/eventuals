@@ -139,7 +139,7 @@ struct _Reduce final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T, typename F>
-auto Reduce(T t, F f) {
+[[nodiscard]] auto Reduce(T t, F f) {
   static_assert(
       std::is_invocable_v<F, std::add_lvalue_reference_t<T>>,
       "'Reduce' expects a *callable* (e.g., a lambda or functor) "
