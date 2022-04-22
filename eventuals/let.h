@@ -35,7 +35,7 @@ namespace eventuals {
 // explicitly doing a 'std::move()' and use a 'Closure()' ourselves we
 // can simplify the code by using a 'Let()'.
 template <typename F>
-auto Let(F f) {
+[[nodiscard]] auto Let(F f) {
   return [f = std::move(f)](auto value) mutable {
     // NOTE: we need to take 'value' above by value and 'std::move()'
     // it below to capture it otherwise compilers find it hard to

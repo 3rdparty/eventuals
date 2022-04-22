@@ -76,7 +76,7 @@ template <
             HasValueFrom<Left>,
             HasValueFrom<Right>>,
         int> = 0>
-auto operator|(Left left, Right right) {
+[[nodiscard]] auto operator|(Left left, Right right) {
   return Composed<Left, Right>{std::move(left), std::move(right)};
 }
 

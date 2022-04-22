@@ -237,7 +237,7 @@ struct _Until::Continuation<K_, F_, Arg_, true> final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
-auto Until(F f) {
+[[nodiscard]] auto Until(F f) {
   return _Until::Composable<F>{std::move(f)};
 }
 

@@ -11,7 +11,7 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename E, typename F>
-auto Foreach(E e, F f) {
+[[nodiscard]] auto Foreach(E e, F f) {
   return std::move(e)
       | Map(std::move(f))
       | Loop();

@@ -24,7 +24,7 @@ class Pipe final : public Synchronizable {
 
   ~Pipe() override = default;
 
-  auto Write(T&& value) {
+  [[nodiscard]] auto Write(T&& value) {
     return Synchronized(Then([this, value = std::move(value)]() mutable {
       if (!is_closed_) {
         values_.emplace_back(std::move(value));
@@ -33,7 +33,7 @@ class Pipe final : public Synchronizable {
     }));
   }
 
-  auto Read() {
+  [[nodiscard]] auto Read() {
     return Repeat()
         | Synchronized(
                Map([this]() {
@@ -62,14 +62,14 @@ class Pipe final : public Synchronizable {
            });
   }
 
-  auto Close() {
+  [[nodiscard]] auto Close() {
     return Synchronized(Then([this]() {
       is_closed_ = true;
       has_values_or_closed_.Notify();
     }));
   }
 
-  auto Size() {
+  [[nodiscard]] auto Size() {
     return Synchronized(Then([this]() {
       return values_.size();
     }));

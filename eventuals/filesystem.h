@@ -157,7 +157,7 @@ class File final {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto OpenFile(
+[[nodiscard]] inline auto OpenFile(
     EventLoop& loop,
     const std::filesystem::path& path,
     const int& flags,
@@ -208,7 +208,7 @@ inline auto OpenFile(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto OpenFile(
+[[nodiscard]] inline auto OpenFile(
     const std::filesystem::path& path,
     const int& flags,
     const int& mode) {
@@ -217,7 +217,7 @@ inline auto OpenFile(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto CloseFile(EventLoop& loop, File&& file) {
+[[nodiscard]] inline auto CloseFile(EventLoop& loop, File&& file) {
   struct Data {
     EventLoop& loop;
     File file;
@@ -261,13 +261,13 @@ inline auto CloseFile(EventLoop& loop, File&& file) {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto CloseFile(File&& file) {
+[[nodiscard]] inline auto CloseFile(File&& file) {
   return CloseFile(EventLoop::Default(), std::move(file));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto ReadFile(
+[[nodiscard]] inline auto ReadFile(
     EventLoop& loop,
     const File& file,
     const size_t& bytes_to_read,
@@ -320,7 +320,7 @@ inline auto ReadFile(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto ReadFile(
+[[nodiscard]] inline auto ReadFile(
     const File& file,
     const size_t& bytes_to_read,
     const size_t& offset) {
@@ -329,7 +329,7 @@ inline auto ReadFile(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto WriteFile(
+[[nodiscard]] inline auto WriteFile(
     EventLoop& loop,
     const File& file,
     const std::string& data,
@@ -381,7 +381,7 @@ inline auto WriteFile(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto WriteFile(
+[[nodiscard]] inline auto WriteFile(
     const File& file,
     const std::string& data,
     const size_t& offset) {
@@ -390,7 +390,9 @@ inline auto WriteFile(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto UnlinkFile(EventLoop& loop, const std::filesystem::path& path) {
+[[nodiscard]] inline auto UnlinkFile(
+    EventLoop& loop,
+    const std::filesystem::path& path) {
   struct Data {
     EventLoop& loop;
     std::filesystem::path path;
@@ -433,13 +435,13 @@ inline auto UnlinkFile(EventLoop& loop, const std::filesystem::path& path) {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto UnlinkFile(const std::filesystem::path& path) {
+[[nodiscard]] inline auto UnlinkFile(const std::filesystem::path& path) {
   return UnlinkFile(EventLoop::Default(), path);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto MakeDirectory(
+[[nodiscard]] inline auto MakeDirectory(
     EventLoop& loop,
     const std::filesystem::path& path,
     const int& mode) {
@@ -487,13 +489,15 @@ inline auto MakeDirectory(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto MakeDirectory(const std::filesystem::path& path, const int& mode) {
+[[nodiscard]] inline auto MakeDirectory(
+    const std::filesystem::path& path,
+    const int& mode) {
   return MakeDirectory(EventLoop::Default(), path, mode);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto RemoveDirectory(
+[[nodiscard]] inline auto RemoveDirectory(
     EventLoop& loop,
     const std::filesystem::path& path) {
   struct Data {
@@ -538,13 +542,13 @@ inline auto RemoveDirectory(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto RemoveDirectory(const std::filesystem::path& path) {
+[[nodiscard]] inline auto RemoveDirectory(const std::filesystem::path& path) {
   return RemoveDirectory(EventLoop::Default(), path);
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto CopyFile(
+[[nodiscard]] inline auto CopyFile(
     EventLoop& loop,
     const std::filesystem::path& src,
     const std::filesystem::path& dst,
@@ -595,7 +599,7 @@ inline auto CopyFile(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto CopyFile(
+[[nodiscard]] inline auto CopyFile(
     const std::filesystem::path& src,
     const std::filesystem::path& dst,
     const int& flags) {
@@ -604,7 +608,7 @@ inline auto CopyFile(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto RenameFile(
+[[nodiscard]] inline auto RenameFile(
     EventLoop& loop,
     const std::filesystem::path& src,
     const std::filesystem::path& dst) {
@@ -652,7 +656,7 @@ inline auto RenameFile(
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto RenameFile(
+[[nodiscard]] inline auto RenameFile(
     const std::filesystem::path& src,
     const std::filesystem::path& dst) {
   return RenameFile(EventLoop::Default(), src, dst);

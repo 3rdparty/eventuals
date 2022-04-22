@@ -55,7 +55,7 @@ struct _Closure final {
       interrupt_ = &interrupt;
     }
 
-    auto& continuation() {
+    [[nodiscard]] auto& continuation() {
       if (!continuation_) {
         continuation_.emplace(f_().template k<Arg_>(std::move(k_)));
 

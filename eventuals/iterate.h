@@ -14,7 +14,7 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Iterator>
-auto Iterate(Iterator begin, Iterator end) {
+[[nodiscard]] auto Iterate(Iterator begin, Iterator end) {
   using T = decltype(*begin);
 
   return Stream<T>()
@@ -33,7 +33,7 @@ auto Iterate(Iterator begin, Iterator end) {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Container>
-auto Iterate(const Container& container) {
+[[nodiscard]] auto Iterate(const Container& container) {
   using Iterator = typename Container::const_iterator;
 
   struct Data {
@@ -64,7 +64,7 @@ auto Iterate(const Container& container) {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Container>
-auto Iterate(Container& container) {
+[[nodiscard]] auto Iterate(Container& container) {
   using Iterator = typename Container::iterator;
 
   struct Data {
@@ -95,7 +95,7 @@ auto Iterate(Container& container) {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Container>
-auto Iterate(Container&& container) {
+[[nodiscard]] auto Iterate(Container&& container) {
   using Iterator = typename Container::iterator;
 
   struct Data {
@@ -128,7 +128,7 @@ auto Iterate(Container&& container) {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T, size_t n>
-auto Iterate(std::array<T, n>&& container) {
+[[nodiscard]] auto Iterate(std::array<T, n>&& container) {
   return Stream<decltype(container[0])>()
       .next([container = std::move(container), i = 0u](auto& k) mutable {
         if (i != container.size()) {
@@ -145,7 +145,7 @@ auto Iterate(std::array<T, n>&& container) {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-auto Iterate(T* begin, T* end) {
+[[nodiscard]] auto Iterate(T* begin, T* end) {
   return Stream<decltype(*begin)>()
       .next([begin, end](auto& k) mutable {
         if (begin != end) {
@@ -162,7 +162,7 @@ auto Iterate(T* begin, T* end) {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-auto Iterate(T container[], size_t n) {
+[[nodiscard]] auto Iterate(T container[], size_t n) {
   return Iterate(&container[0], &container[n]);
 }
 
@@ -173,7 +173,7 @@ auto Iterate(T container[], size_t n) {
 // rather than moved but the whole point is to move the temporary
 // values through the stream!
 template <typename T, size_t n>
-auto Iterate(T(&&values)[n]) {
+[[nodiscard]] auto Iterate(T(&&values)[n]) {
   // NOTE: using a 'std::deque' in case 'T' is only moveable so that
   // when we do 'emplace_back()' it won't require that 'T' is also
   // copyable which 'std::vector' does.

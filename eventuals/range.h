@@ -97,15 +97,15 @@ struct _Range final {
   };
 };
 
-inline auto Range(int from, int to, int step) {
+[[nodiscard]] inline auto Range(int from, int to, int step) {
   return _Range::Composable{from, to, step};
 }
 
-inline auto Range(int from, int to) {
+[[nodiscard]] inline auto Range(int from, int to) {
   return Range(from, to, 1);
 }
 
-inline auto Range(int to) {
+[[nodiscard]] inline auto Range(int to) {
   return Range(0, to, 1);
 }
 

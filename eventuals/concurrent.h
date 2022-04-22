@@ -45,7 +45,7 @@ namespace eventuals {
 // you are composing with (in the future we'll be adding something
 // like 'TypeErasedStream::Interrupt()' to support this case directly.
 template <typename F>
-auto Concurrent(F f);
+[[nodiscard]] auto Concurrent(F f);
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -158,7 +158,7 @@ struct _Concurrent final {
     // addressed before doing so and we should ensure that we see
     // further speed ups that are beyond what we get already from
     // putting all of these in 'TypeErasedAdaptor'.
-    auto CreateOrReuseFiber() {
+    [[nodiscard]] auto CreateOrReuseFiber() {
       return Synchronized(Then([this]() {
         // As long as downstream isn't done, or we've been interrupted,
         // or have encountered an error, then add a new fiber if none
@@ -213,7 +213,7 @@ struct _Concurrent final {
     // NOTE: this could also be moved to a .cc file but see the
     // comments above 'CreateOrReuseFiber()' above for what's
     // preventing us from doing so.
-    auto IngressEpilogue() {
+    [[nodiscard]] auto IngressEpilogue() {
       return Synchronized(
           Eventual<void>()
               .start([this](auto& k) {
@@ -270,7 +270,7 @@ struct _Concurrent final {
     // NOTE: this could also be moved to a .cc file but see the
     // comments above 'CreateOrReuseFiber()' above for what's
     // preventing us from doing so.
-    auto FiberEpilogue(TypeErasedFiber* fiber) {
+    [[nodiscard]] auto FiberEpilogue(TypeErasedFiber* fiber) {
       return Synchronized(
           Eventual<void>()
               .start([this, fiber](auto& k) {
@@ -326,7 +326,7 @@ struct _Concurrent final {
     // NOTE: this could also be moved to a .cc file but see the
     // comments above 'CreateOrReuseFiber()' above for what's
     // preventing us from doing so.
-    auto Interrupt() {
+    [[nodiscard]] auto Interrupt() {
       return Synchronized(Then([this]() {
                interrupted_ = true;
 
@@ -348,7 +348,7 @@ struct _Concurrent final {
     // NOTE: this could also be moved to a .cc file but see the
     // comments above 'CreateOrReuseFiber()' above for what's
     // preventing us from doing so.
-    auto WaitForDone(Callback<void()>&& callback) {
+    [[nodiscard]] auto WaitForDone(Callback<void()>&& callback) {
       return Synchronized(
                  Wait([this](auto notify) {
                    notify_done_ = std::move(notify);
@@ -371,7 +371,7 @@ struct _Concurrent final {
     // NOTE: this could also be moved to a .cc file but see the
     // comments above 'CreateOrReuseFiber()' above for what's
     // preventing us from doing so.
-    auto Done() {
+    [[nodiscard]] auto Done() {
       return Synchronized(Then([this]() {
                downstream_done_ = true;
 
@@ -444,7 +444,7 @@ struct _Concurrent final {
 
     // Returns an eventual which represents the computation we perform
     // for each upstream value.
-    auto FiberEventual(TypeErasedFiber* fiber, Arg_&& arg) {
+    [[nodiscard]] auto FiberEventual(TypeErasedFiber* fiber, Arg_&& arg) {
       // NOTE: 'f_()' should expect to be composed with a
       // stream hence the use of 'Iterate()'. It also might
       // return a 'FlatMap()' so we need to use 'Loop()'
@@ -490,7 +490,7 @@ struct _Concurrent final {
 
     // Returns an eventual which implements the logic of handling each
     // upstream value.
-    auto Ingress() {
+    [[nodiscard]] auto Ingress() {
       return Map(Let([this](Arg_& arg) {
                return CreateOrReuseFiber()
                    | Then([&](TypeErasedFiber* fiber) {
@@ -514,7 +514,7 @@ struct _Concurrent final {
 
     // Returns an eventual which implements the logic for handling
     // each value emitted from our fibers and moving them downstream.
-    auto Egress() {
+    [[nodiscard]] auto Egress() {
       return Synchronized(
                  Wait([this](auto notify) {
                    notify_egress_ = std::move(notify);
@@ -741,7 +741,7 @@ struct _Concurrent final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
-auto Concurrent(F f) {
+[[nodiscard]] auto Concurrent(F f) {
   static_assert(
       std::is_invocable_v<F>,
       "Concurrent expects callable that takes no arguments");

@@ -613,7 +613,7 @@ class _Task final {
   // Helpers for synchronous tasks.
 
   template <typename Value>
-  static auto Success(Value value) {
+  [[nodiscard]] static auto Success(Value value) {
     return _Task<
         void,
         Value,
@@ -621,14 +621,14 @@ class _Task final {
   }
 
   template <typename Value>
-  static auto Success(std::reference_wrapper<Value> value) {
+  [[nodiscard]] static auto Success(std::reference_wrapper<Value> value) {
     return _Task<
         void,
         Value&,
         std::tuple<>>(std::move(value));
   }
 
-  static auto Success() {
+  [[nodiscard]] static auto Success() {
     return _Task<
         void,
         void,
@@ -636,7 +636,7 @@ class _Task final {
   }
 
   template <typename Error>
-  static auto Failure(Error error) {
+  [[nodiscard]] static auto Failure(Error error) {
     static_assert(
         std::is_base_of_v<std::exception, std::decay_t<Error>>,
         "Expecting a type derived from std::exception");
@@ -654,15 +654,15 @@ class _Task final {
     };
   }
 
-  static auto Failure(const std::string& s) {
+  [[nodiscard]] static auto Failure(const std::string& s) {
     return Failure(std::runtime_error(s));
   }
 
-  static auto Failure(char* s) {
+  [[nodiscard]] static auto Failure(char* s) {
     return Failure(std::runtime_error(s));
   }
 
-  static auto Failure(const char* s) {
+  [[nodiscard]] static auto Failure(const char* s) {
     return Failure(std::runtime_error(s));
   }
 

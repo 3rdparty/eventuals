@@ -12,7 +12,7 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename Container>
-auto Collect() {
+[[nodiscard]] auto Collect() {
   return Loop<Container>()
       .context(Container())
       .body([](auto& data, auto& stream, auto&& value) {

@@ -40,7 +40,7 @@ class ClientReader {
       context_(context),
       stream_(stream) {}
 
-  auto Read() {
+  [[nodiscard]] auto Read() {
     struct Data {
       ClientReader* reader = nullptr;
       ResponseType_ response;
@@ -117,7 +117,7 @@ class ClientWriter {
       context_(context),
       stream_(stream) {}
 
-  auto Write(
+  [[nodiscard]] auto Write(
       RequestType_ request,
       ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
     return Eventual<void>()
@@ -147,7 +147,7 @@ class ClientWriter {
             });
   }
 
-  auto WriteLast(
+  [[nodiscard]] auto WriteLast(
       RequestType_ request,
       ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
     return Write(request, options.set_last_message());
@@ -215,7 +215,7 @@ class ClientCall {
   // TODO(benh): move this into 'ClientWriter' once we figure out how
   // to get a '::grpc::ClientAsyncWriterInterface' from our
   // '::grpc::ClientAsyncReaderWriter'.
-  auto WritesDone() {
+  [[nodiscard]] auto WritesDone() {
     return Eventual<void>()
         .raises<std::runtime_error>()
         .start(
@@ -237,7 +237,7 @@ class ClientCall {
             });
   }
 
-  auto Finish() {
+  [[nodiscard]] auto Finish() {
     struct Data {
       ::grpc::Status status;
       void* k = nullptr;
@@ -305,7 +305,7 @@ class Client {
     : channel_(::grpc::CreateChannel(target, credentials)),
       pool_(std::move(pool)) {}
 
-  auto Context() {
+  [[nodiscard]] auto Context() {
     return Eventual<::grpc::ClientContext*>()
         .context(eventuals::Lazy<::grpc::ClientContext>())
         .start([](auto& context, auto& k) {
@@ -314,7 +314,7 @@ class Client {
   }
 
   template <typename Service, typename Request, typename Response>
-  auto Call(
+  [[nodiscard]] auto Call(
       const std::string& name,
       ::grpc::ClientContext* context,
       std::optional<std::string> host = std::nullopt) {
@@ -329,7 +329,7 @@ class Client {
   }
 
   template <typename Request, typename Response>
-  auto Call(
+  [[nodiscard]] auto Call(
       std::string name,
       ::grpc::ClientContext* context,
       std::optional<std::string> host = std::nullopt) {
@@ -456,7 +456,7 @@ class Client {
   }
 
   template <typename Service, typename Request, typename Response>
-  auto Call(
+  [[nodiscard]] auto Call(
       const std::string& name,
       std::optional<std::string> host = std::nullopt) {
     static_assert(
@@ -469,7 +469,7 @@ class Client {
   }
 
   template <typename Request, typename Response>
-  auto Call(
+  [[nodiscard]] auto Call(
       std::string name,
       std::optional<std::string> host = std::nullopt) {
     return Context()

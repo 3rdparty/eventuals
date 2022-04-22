@@ -9,7 +9,7 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
-auto Unpack(F f) {
+[[nodiscard]] auto Unpack(F f) {
   return [f = std::move(f)](auto&& tuple) mutable {
     return std::apply(f, std::forward<decltype(tuple)>(tuple));
   };

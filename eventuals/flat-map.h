@@ -180,7 +180,7 @@ struct _FlatMap final {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename F>
-auto FlatMap(F f) {
+[[nodiscard]] auto FlatMap(F f) {
   return _FlatMap::Composable<F>{std::move(f)};
 }
 

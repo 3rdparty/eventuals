@@ -72,7 +72,7 @@ struct _Head final {
 
 ////////////////////////////////////////////////////////////////////////
 
-inline auto Head() {
+[[nodiscard]] inline auto Head() {
   return _Head::Composable{};
 }
 

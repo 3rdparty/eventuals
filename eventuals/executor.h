@@ -80,22 +80,22 @@ class Executor final
         []() { LOG(FATAL) << "Unreachable"; });
   }
 
-  auto Submit(E_ e) {
+  [[nodiscard]] auto Submit(E_ e) {
     return TypeCheck<void>(
         pipe_.Write(std::move(e)));
   }
 
-  auto Shutdown() {
+  [[nodiscard]] auto Shutdown() {
     return TypeCheck<void>(
         pipe_.Close());
   }
 
-  auto InterruptAndShutdown() {
+  [[nodiscard]] auto InterruptAndShutdown() {
     interrupt_.Trigger();
     return Shutdown();
   }
 
-  auto Wait() {
+  [[nodiscard]] auto Wait() {
     return TypeCheck<void>(
         Synchronized(
             wait_until_finished_.Wait(this->Borrow([this]() {
