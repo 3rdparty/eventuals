@@ -562,6 +562,46 @@ class _Task final {
     k_->Start();
   }
 
+  // Overloaded 'Start()' that doesn't take callbacks but instead
+  // returns a 'std::future'.
+  auto Start(std::string&& name, Interrupt& interrupt) {
+    promise_.emplace();
+
+    auto future = promise_->get_future();
+
+    Start(
+        std::move(name),
+        interrupt,
+        // NOTE: not borrowing 'this' because callback is stored/used
+        // from within 'this' and borrowing could create a cycle.
+        [this](auto&&... value) {
+          static_assert(
+              sizeof...(value) == 0 || sizeof...(value) == 1,
+              "Task only supports 0 or 1 value, but found > 1");
+
+          CHECK(promise_.has_value());
+          promise_->set_value(std::forward<decltype(value)>(value)...);
+        },
+        // NOTE: not borrowing 'this' because callback is stored/used
+        // from within 'this' and borrowing could create a cycle.
+        [this](auto&& error) {
+          CHECK(promise_.has_value());
+          promise_->set_exception(
+              make_exception_ptr_or_forward(
+                  std::forward<decltype(error)>(error)));
+        },
+        // NOTE: not borrowing 'this' because callback is stored/used
+        // from within 'this' and borrowing could create a cycle.
+        [this]() {
+          CHECK(promise_.has_value());
+          promise_->set_exception(
+              std::make_exception_ptr(
+                  StoppedException()));
+        });
+
+    return future;
+  }
+
   // Treat this task as a continuation and "fail" it. Every task gets
   // its own 'Scheduler::Context' that will begin executing with the
   // default scheduler, aka, the preemptive scheduler.
@@ -704,6 +744,13 @@ class _Task final {
       decltype(Eventual<Undefined>()),
       _TaskFromToWith::Composable<From_, To_, Errors_, Args_...>>
       e_;
+
+  // Optional promise if we are invoked as a continuation without any
+  // callbacks.
+  std::optional<
+      std::promise<
+          typename ReferenceWrapperTypeExtractor<To_>::type>>
+      promise_;
 
   // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
   // a composable but also a continuation which has a terminal made up
