@@ -116,19 +116,15 @@ Server::Server(
 
     serve->task.emplace(
         Task::Of<void>::Raises<std::exception>([service]() {
-          // Use a separate preemptible scheduler context to serve
-          // each service so that we correctly handle any waiting
-          // (e.g., on 'Lock' or 'Wait').
-          //
-          // TODO(benh): while only one service with the same name
-          // should be able to accept at a time we can have one
-          // service per host so just using the service name is not
-          // unique but we don't have access to host information at
-          // this time.
-          return Preempt(service->name(), service->Serve());
+          return service->Serve();
         }));
 
     serve->task->Start(
+        // TODO(benh): while only one service with the same name
+        // should be able to accept at a time we can have one service
+        // per host so just using the service name is not unique but
+        // we don't have access to host information at this time.
+        serve->service->name(),
         serve->interrupt,
         [&serve]() {
           EVENTUALS_GRPC_LOG(1)
@@ -160,45 +156,41 @@ Server::Server(
         [this](auto* cq) {
           return Closure(
               [this, cq, context = std::unique_ptr<ServerContext>()]() mutable {
-                // Use a separate preemptible scheduler context for
-                // each worker so that we correctly handle any waiting
-                // (e.g., on 'Lock' or 'Wait').
-                return Preempt(
-                    "[" + std::to_string((size_t) cq) + "]",
-                    Repeat([&]() mutable {
-                      context = std::make_unique<ServerContext>();
-                      return RequestCall(context.get(), cq)
-                          | Lookup(context.get())
-                          | Conditional(
-                                 [](auto* endpoint) {
-                                   return endpoint != nullptr;
-                                 },
-                                 [&](auto* endpoint) {
-                                   return endpoint->Enqueue(
-                                       std::move(context));
-                                 },
-                                 [&](auto*) {
-                                   return Unimplemented(context.release());
-                                 });
-                    })
-                        | Loop()
-                        | Catch()
-                              .raised<std::exception>(
-                                  [this](std::exception&& e) {
-                                    EVENTUALS_GRPC_LOG(1)
-                                        << "Failed to accept a call: "
-                                        << e.what() << "; shutting down";
+                return Repeat([&]() mutable {
+                         context = std::make_unique<ServerContext>();
+                         return RequestCall(context.get(), cq)
+                             | Lookup(context.get())
+                             | Conditional(
+                                    [](auto* endpoint) {
+                                      return endpoint != nullptr;
+                                    },
+                                    [&](auto* endpoint) {
+                                      return endpoint->Enqueue(
+                                          std::move(context));
+                                    },
+                                    [&](auto*) {
+                                      return Unimplemented(context.release());
+                                    });
+                       })
+                    | Loop()
+                    | Catch()
+                          .raised<std::exception>(
+                              [this](std::exception&& e) {
+                                EVENTUALS_GRPC_LOG(1)
+                                    << "Failed to accept a call: "
+                                    << e.what() << "; shutting down";
 
-                                    // TODO(benh): refactor so we only call
-                                    // 'ShutdownEndpoints()' once on server
-                                    // shutdown, not for each worker (which
-                                    // should be harmless but unnecessary).
-                                    return ShutdownEndpoints();
-                                  }));
+                                // TODO(benh): refactor so we only call
+                                // 'ShutdownEndpoints()' once on server
+                                // shutdown, not for each worker (which
+                                // should be harmless but unnecessary).
+                                return ShutdownEndpoints();
+                              });
               });
         });
 
     worker->task->Start(
+        "[worker for queue " + std::to_string((size_t) cq.get()) + "]",
         worker->interrupt,
         [&worker]() {
           worker->done.store(true);

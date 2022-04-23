@@ -10,6 +10,14 @@ cc_library(
 )
 
 cc_library(
+    name = "generate-test-task-name",
+    hdrs = [
+        "generate-test-task-name.h",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "http-mock-server",
     testonly = True,
     srcs = ["http-mock-server.cc"],
@@ -66,6 +74,7 @@ cc_test(
     ],
     copts = copts(),
     deps = [
+        ":generate-test-task-name",
         ":expect-throw-what",
         ":http-mock-server",
         "//eventuals",

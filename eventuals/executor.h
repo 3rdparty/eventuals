@@ -74,6 +74,7 @@ class Executor final
       })) {
     // Start the executor task!
     executor_.Start(
+        std::string(name_), // Copy.
         interrupt_,
         []() {},
         [](std::exception_ptr) { LOG(FATAL) << "Unreachable"; },
