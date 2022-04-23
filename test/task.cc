@@ -11,6 +11,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
+#include "test/generate-test-task-name.h"
 
 namespace eventuals::test {
 namespace {
@@ -259,6 +260,7 @@ TEST(Task, Start) {
   int result = 0;
 
   task->Start(
+      GenerateTestTaskName(),
       interrupt,
       [&](int x) {
         result = x;
@@ -294,6 +296,7 @@ TEST(Task, FailContinuation) {
   std::exception_ptr result;
 
   task->Fail(
+      GenerateTestTaskName(),
       std::runtime_error("error"),
       interrupt,
       [](int) {
@@ -332,6 +335,7 @@ TEST(Task, StopContinuation) {
   bool stopped = false;
 
   task->Stop(
+      GenerateTestTaskName(),
       interrupt,
       [](int) {
         FAIL() << "test should not have succeeded";

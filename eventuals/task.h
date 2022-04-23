@@ -536,13 +536,22 @@ class _Task final {
     return std::move(e_).template k<Arg>(std::move(k));
   }
 
+  // Treat this task as a continuation and "start" it. Every task gets
+  // its own 'Scheduler::Context' that will begin executing with the
+  // default scheduler, aka, the preemptive scheduler.
+  //
+  // NOTE: the callbacks, 'start', 'fail', and 'stop' will _not_ be
+  // invoked with the same 'Scheduler::Context' as the rest of the
+  // task, they will be invoked with whatever 'Scheduler::Context' was
+  // used to call 'Start()'.
   void Start(
+      std::string&& name,
       Interrupt& interrupt,
       Callback<function_type_t<void, To_>>&& start,
       Callback<void(std::exception_ptr)>&& fail,
       Callback<void()>&& stop) {
     k_.emplace(Build(
-        std::move(e_)
+        Preempt(std::move(name), std::move(e_))
         | Terminal()
               .start(std::move(start))
               .fail(std::move(fail))
@@ -553,8 +562,17 @@ class _Task final {
     k_->Start();
   }
 
+  // Treat this task as a continuation and "fail" it. Every task gets
+  // its own 'Scheduler::Context' that will begin executing with the
+  // default scheduler, aka, the preemptive scheduler.
+  //
+  // NOTE: the callbacks, 'start', 'fail', and 'stop' will _not_ be
+  // invoked with the same 'Scheduler::Context' as the rest of the
+  // task, they will be invoked with whatever 'Scheduler::Context' was
+  // used to call 'Start()'.
   template <typename Error>
   void Fail(
+      std::string&& name,
       Error&& error,
       Interrupt& interrupt,
       Callback<function_type_t<void, To_>>&& start,
@@ -573,7 +591,7 @@ class _Task final {
         "Error is not specified in 'Raises'");
 
     k_.emplace(Build(
-        std::move(e_)
+        Preempt(std::move(name), std::move(e_))
         | Terminal()
               .start(std::move(start))
               .fail(std::move(fail))
@@ -584,13 +602,22 @@ class _Task final {
     k_->Fail(std::forward<Error>(error));
   }
 
+  // Treat this task as a continuation and "stop" it. Every task gets
+  // its own 'Scheduler::Context' that will begin executing with the
+  // default scheduler, aka, the preemptive scheduler.
+  //
+  // NOTE: the callbacks, 'start', 'fail', and 'stop' will _not_ be
+  // invoked with the same 'Scheduler::Context' as the rest of the
+  // task, they will be invoked with whatever 'Scheduler::Context' was
+  // used to call 'Start()'.
   void Stop(
+      std::string&& name,
       Interrupt& interrupt,
       Callback<function_type_t<void, To_>>&& start,
       Callback<void(std::exception_ptr)>&& fail,
       Callback<void()>&& stop) {
     k_.emplace(Build(
-        std::move(e_)
+        Preempt(std::move(name), std::move(e_))
         | Terminal()
               .start(std::move(start))
               .fail(std::move(fail))
@@ -685,7 +712,7 @@ class _Task final {
       std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
       Undefined,
       decltype(Build(
-          std::move(e_)
+          Preempt(std::string(), std::move(e_))
           | Terminal()
                 .start(std::declval<Callback<function_type_t<void, To_>>&&>())
                 .fail(std::declval<Callback<void(std::exception_ptr)>&&>())
