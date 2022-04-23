@@ -275,6 +275,24 @@ TEST(Task, Start) {
   EXPECT_EQ(42, result);
 }
 
+TEST(Task, StartFuture) {
+  auto e = []() -> Task::Of<int> {
+    return [x = 42]() {
+      return Just(x);
+    };
+  };
+
+  std::optional<Task::Of<int>> task;
+
+  task.emplace(e());
+
+  Interrupt interrupt;
+
+  auto future = task->Start(GenerateTestTaskName(), interrupt);
+
+  EXPECT_EQ(42, future.get());
+}
+
 TEST(Task, FailContinuation) {
   auto e = []() -> Task::Of<int> {
     return [x = 42]() {
