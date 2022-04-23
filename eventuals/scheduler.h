@@ -38,13 +38,13 @@ class Scheduler {
       return CHECK_NOTNULL(previous);
     }
 
-    Context(Scheduler* scheduler, const std::string& name, void* data = nullptr)
+    Context(Scheduler* scheduler, std::string&& name, void* data = nullptr)
       : data(data),
         scheduler_(CHECK_NOTNULL(scheduler)),
-        name_(name) {}
+        name_(std::move(name)) {}
 
-    Context(const std::string& name)
-      : Context(Context::Get()->scheduler(), name) {
+    Context(std::string&& name)
+      : Context(Context::Get()->scheduler(), std::move(name)) {
       scheduler()->Clone(this);
     }
 
@@ -378,16 +378,18 @@ struct _Preempt final {
     Continuation(K_ k, E_ e, std::string name)
       : context_(
           Scheduler::Default(),
-          "preempt continuation"),
+          std::move(name)),
         e_(std::move(e)),
         k_(std::move(k)) {}
 
     Continuation(Continuation&& that)
       : context_(
           Scheduler::Default(),
-          "preempt continuation"),
+          std::move(const_cast<std::string&>(that.context_.name()))),
         e_(std::move(that.e_)),
-        k_(std::move(that.k_)) {}
+        k_(std::move(that.k_)) {
+      CHECK_EQ(that.previous_, nullptr) << "moving after starting";
+    }
 
     ~Continuation() = default;
 
