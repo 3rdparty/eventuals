@@ -82,6 +82,29 @@ template <
 
 ////////////////////////////////////////////////////////////////////////
 
+// Helpers for _building_ a continuation out of an eventual.
+template <typename Arg, typename E>
+[[nodiscard]] auto Build(E e) {
+  return std::move(e).template k<Arg>();
+}
+
+template <typename Arg, typename E, typename K>
+[[nodiscard]] auto Build(E e, K k) {
+  return std::move(e).template k<Arg>(std::move(k));
+}
+
+template <typename E>
+[[nodiscard]] auto Build(E e) {
+  return Build<void>(std::move(e));
+}
+
+template <typename E, typename K>
+[[nodiscard]] auto Build(E e, K k) {
+  return Build<void>(std::move(e), std::move(k));
+}
+
+////////////////////////////////////////////////////////////////////////
+
 } // namespace eventuals
 
 ////////////////////////////////////////////////////////////////////////
