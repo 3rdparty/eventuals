@@ -700,10 +700,7 @@ class _Task final {
 
   // NOTE: should only be used in tests!
   auto operator*() && {
-    auto [future, k] = Terminate(std::move(e_));
-
-    k.Start();
-
+    auto future = Start("[anonymous task]");
     return future.get();
   }
 
