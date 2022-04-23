@@ -546,7 +546,6 @@ class _Task final {
   // used to call 'Start()'.
   void Start(
       std::string&& name,
-      Interrupt& interrupt,
       Callback<function_type_t<void, To_>>&& start,
       Callback<void(std::exception_ptr)>&& fail,
       Callback<void()>&& stop) {
@@ -557,21 +556,34 @@ class _Task final {
               .fail(std::move(fail))
               .stop(std::move(stop))));
 
-    k_->Register(interrupt);
+    if (interrupt_ != nullptr) {
+      k_->Register(*interrupt_);
+    }
 
     k_->Start();
   }
 
-  // Overloaded 'Start()' that doesn't take callbacks but instead
-  // returns a 'std::future'.
-  auto Start(std::string&& name, Interrupt& interrupt) {
+  // Overloaded 'Start()' for callbacks that takes an 'Interrupt'.
+  void Start(
+      std::string&& name,
+      Interrupt& interrupt,
+      Callback<function_type_t<void, To_>>&& start,
+      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void()>&& stop) {
+    interrupt_ = &interrupt;
+
+    Start(std::move(name), std::move(start), std::move(fail), std::move(stop));
+  }
+
+  // Overloaded 'Start()' that returns a 'std::future' instead of
+  // taking callbacks.
+  auto Start(std::string&& name) {
     promise_.emplace();
 
     auto future = promise_->get_future();
 
     Start(
         std::move(name),
-        interrupt,
         // NOTE: not borrowing 'this' because callback is stored/used
         // from within 'this' and borrowing could create a cycle.
         [this](auto&&... value) {
@@ -602,6 +614,12 @@ class _Task final {
     return future;
   }
 
+  // Overloaded 'Start()' for 'std::future' that takes an 'Interrupt'.
+  auto Start(std::string&& name, Interrupt& interrupt) {
+    interrupt_ = &interrupt;
+    return Start(std::move(name));
+  }
+
   // Treat this task as a continuation and "fail" it. Every task gets
   // its own 'Scheduler::Context' that will begin executing with the
   // default scheduler, aka, the preemptive scheduler.
@@ -609,7 +627,11 @@ class _Task final {
   // NOTE: the callbacks, 'start', 'fail', and 'stop' will _not_ be
   // invoked with the same 'Scheduler::Context' as the rest of the
   // task, they will be invoked with whatever 'Scheduler::Context' was
-  // used to call 'Start()'.
+  // used to call 'Fail()'.
+  //
+  // TODO(benh): provide overloaded versions of 'Fail()' similar to
+  // 'Start()' that return 'std::future' and do or don't take an
+  // 'Interrupt'.
   template <typename Error>
   void Fail(
       std::string&& name,
@@ -630,6 +652,8 @@ class _Task final {
             tuple_types_contains_subtype<std::decay_t<Error>, Errors_>>,
         "Error is not specified in 'Raises'");
 
+    interrupt_ = &interrupt;
+
     k_.emplace(Build(
         Preempt(std::move(name), std::move(e_))
         | Terminal()
@@ -649,7 +673,11 @@ class _Task final {
   // NOTE: the callbacks, 'start', 'fail', and 'stop' will _not_ be
   // invoked with the same 'Scheduler::Context' as the rest of the
   // task, they will be invoked with whatever 'Scheduler::Context' was
-  // used to call 'Start()'.
+  // used to call 'Stop()'.
+  //
+  // TODO(benh): provide overloaded versions of 'Stop()' similar to
+  // 'Start()' that return 'std::future' and do or don't take an
+  // 'Interrupt'.
   void Stop(
       std::string&& name,
       Interrupt& interrupt,
@@ -662,6 +690,8 @@ class _Task final {
               .start(std::move(start))
               .fail(std::move(fail))
               .stop(std::move(stop))));
+
+    interrupt_ = &interrupt;
 
     k_->Register(interrupt);
 
@@ -751,6 +781,10 @@ class _Task final {
       std::promise<
           typename ReferenceWrapperTypeExtractor<To_>::type>>
       promise_;
+
+  // Possible interrupt we registered if we are invoked as a
+  // continuation and passed in an interrupt.
+  Interrupt* interrupt_ = nullptr;
 
   // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
   // a composable but also a continuation which has a terminal made up
