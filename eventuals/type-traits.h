@@ -266,6 +266,19 @@ using tuple_types_subtract_t =
 
 ////////////////////////////////////////////////////////////////////////
 
+template <template <typename...> class T, typename Tuple>
+struct apply_tuple_types;
+
+template <template <typename...> class T, typename... Types>
+struct apply_tuple_types<T, std::tuple<Types...>> {
+  using type = T<Types...>;
+};
+
+template <template <typename...> class T, typename Tuple>
+using apply_tuple_types_t = typename apply_tuple_types<T, Tuple>::type;
+
+////////////////////////////////////////////////////////////////////////
+
 } // namespace eventuals
 
 ////////////////////////////////////////////////////////////////////////
