@@ -1,6 +1,11 @@
 #include "eventuals/type-traits.h"
 
+#include <exception>
 #include <string>
+
+#include "eventuals/task.h"
+
+////////////////////////////////////////////////////////////////////////
 
 namespace eventuals::test {
 namespace {
@@ -250,5 +255,30 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////
 
+static_assert(
+    std::is_same_v<
+        apply_tuple_types_t<
+            Task::Of<int>::Raises,
+            std::tuple<>>,
+        Task::Of<int>::Raises<>>);
+
+static_assert(
+    std::is_same_v<
+        apply_tuple_types_t<
+            Task::Of<int>::Raises,
+            std::tuple<std::overflow_error>>,
+        Task::Of<int>::Raises<std::overflow_error>>);
+
+static_assert(
+    std::is_same_v<
+        apply_tuple_types_t<
+            Task::Of<int>::Raises,
+            std::tuple<std::overflow_error, std::underflow_error>>,
+        Task::Of<int>::Raises<std::overflow_error, std::underflow_error>>);
+
+////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace eventuals::test
+
+////////////////////////////////////////////////////////////////////////
