@@ -2,7 +2,6 @@
 
 #include "eventuals/closure.h"
 #include "eventuals/range.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

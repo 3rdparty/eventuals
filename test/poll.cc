@@ -6,13 +6,13 @@
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
 #include "eventuals/reduce.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
 #include "eventuals/unpack.h"
 #include "eventuals/until.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -91,7 +91,7 @@ TEST_F(PollTest, Succeed) {
            }));
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   k.Start();
 

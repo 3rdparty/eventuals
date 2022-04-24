@@ -3,11 +3,11 @@
 #include "eventuals/grpc/server.h"
 #include "eventuals/head.h"
 #include "eventuals/let.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
 #include "test/grpc/test.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::grpc::test {
 namespace {
@@ -44,7 +44,7 @@ TEST(DeadlineTest, DeadlineExceeded) {
            }));
   };
 
-  auto [cancelled, k] = Terminate(serve());
+  auto [cancelled, k] = PromisifyForTest(serve());
 
   k.Start();
 

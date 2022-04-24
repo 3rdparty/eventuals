@@ -12,6 +12,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -52,9 +53,9 @@ TEST(LockTest, Succeed) {
         | Then([]() { return "t3"; });
   };
 
-  auto [future1, t1] = Terminate(e1());
-  auto [future2, t2] = Terminate(e2());
-  auto [future3, t3] = Terminate(e3());
+  auto [future1, t1] = PromisifyForTest(e1());
+  auto [future2, t2] = PromisifyForTest(e2());
+  auto [future3, t3] = PromisifyForTest(e3());
 
   t1.Start();
 
@@ -126,7 +127,7 @@ TEST(LockTest, Stop) {
         | Then([]() { return "t2"; });
   };
 
-  auto [future1, k1] = Terminate(e1());
+  auto [future1, k1] = PromisifyForTest(e1());
 
   Interrupt interrupt;
 
@@ -168,7 +169,7 @@ TEST(LockTest, Wait) {
         | Release(&lock);
   };
 
-  auto [future1, t1] = Terminate(e1());
+  auto [future1, t1] = PromisifyForTest(e1());
 
   Interrupt interrupt;
 
@@ -330,9 +331,9 @@ TEST(LockTest, ConditionVariable) {
 
   Foo foo;
 
-  auto [future1, k1] = Terminate(foo.WaitFor(42));
-  auto [future2, k2] = Terminate(foo.WaitFor(42));
-  auto [future3, k3] = Terminate(foo.WaitFor(42));
+  auto [future1, k1] = PromisifyForTest(foo.WaitFor(42));
+  auto [future2, k2] = PromisifyForTest(foo.WaitFor(42));
+  auto [future3, k3] = PromisifyForTest(foo.WaitFor(42));
 
   k1.Start();
   k2.Start();

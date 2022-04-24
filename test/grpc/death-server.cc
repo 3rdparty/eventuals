@@ -1,6 +1,5 @@
 #include "eventuals/grpc/server.h"
 #include "eventuals/head.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "test/grpc/death-constants.h"
@@ -42,7 +41,7 @@ void RunServer(const int pipe) {
            });
   };
 
-  auto [future, k] = Terminate(serve());
+  auto [future, k] = Promisify("death-server", serve());
 
   k.Start();
 

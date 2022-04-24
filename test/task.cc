@@ -12,6 +12,7 @@
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
 #include "test/generate-test-task-name.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -191,7 +192,7 @@ TEST(Task, FailTerminated) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
   k.Fail(std::runtime_error("error"));
 
   EXPECT_THROW_WHAT(future.get(), "error from fail");
@@ -238,7 +239,7 @@ TEST(Task, StopTerminated) {
     };
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
   k.Stop();
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
@@ -575,7 +576,7 @@ TEST(Task, ConstRefSuccess) {
            });
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   k.Start();
 
@@ -593,7 +594,7 @@ TEST(Task, ConstRefFunction) {
     };
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   k.Start();
 

@@ -9,12 +9,12 @@
 #include "eventuals/raise.h"
 #include "eventuals/reduce.h"
 #include "eventuals/repeat.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/until.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -138,7 +138,7 @@ TEST(ClosureTest, Interrupt) {
            });
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   Interrupt interrupt;
 

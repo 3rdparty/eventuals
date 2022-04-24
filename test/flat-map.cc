@@ -16,10 +16,10 @@
 #include "eventuals/map.h"
 #include "eventuals/range.h"
 #include "eventuals/stream.h"
-#include "eventuals/terminal.h"
 #include "eventuals/timer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -203,7 +203,7 @@ TEST_F(FlatMapTest, Interrupt) {
               });
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   Interrupt interrupt;
 
@@ -241,7 +241,7 @@ TEST(FlatMap, InterruptReturn) {
         | Collect<std::vector<int>>();
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   Interrupt interrupt;
 

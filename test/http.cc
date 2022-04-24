@@ -5,12 +5,12 @@
 #include "eventuals/interrupt.h"
 #include "eventuals/let.h"
 #include "eventuals/scheduler.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/http-mock-server.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::http::test {
 namespace {
@@ -51,7 +51,7 @@ TEST_P(HttpTest, Get) {
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -112,7 +112,7 @@ TEST_P(HttpTest, GetGet) {
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
 
   k.Start();
 
@@ -144,7 +144,7 @@ TEST_P(HttpTest, GetFailTimeout) {
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -163,7 +163,7 @@ TEST_P(HttpTest, PostFailTimeout) {
       {{"title", "test"},
        {"body", "message"}},
       std::chrono::milliseconds(1));
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -178,7 +178,7 @@ TEST_P(HttpTest, GetInterrupt) {
   std::string scheme = GetParam();
 
   auto e = Get(scheme + "example.com");
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
 
   Interrupt interrupt;
 
@@ -201,7 +201,7 @@ TEST_P(HttpTest, PostInterrupt) {
       scheme + "jsonplaceholder.typicode.com/posts",
       {{"title", "test"},
        {"body", "message"}});
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
 
   Interrupt interrupt;
 
@@ -221,7 +221,7 @@ TEST_P(HttpTest, GetInterruptAfterStart) {
   std::string scheme = GetParam();
 
   auto e = Get(scheme + "example.com");
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
 
   Interrupt interrupt;
 
@@ -255,7 +255,7 @@ TEST_P(HttpTest, PostInterruptAfterStart) {
       scheme + "jsonplaceholder.typicode.com/posts",
       {{"title", "test"},
        {"body", "message"}});
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
 
   Interrupt interrupt;
 
@@ -311,7 +311,7 @@ TEST_P(HttpTest, GetHeaders) {
           .method(GET)
           .header("foo", "bar")
           .Build());
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -360,7 +360,7 @@ TEST_P(HttpTest, GetDuplicateHeaders) {
           .header("foo", "bar1")
           .header("foo", "bar2")
           .Build());
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);

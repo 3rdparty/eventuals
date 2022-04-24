@@ -1,9 +1,5 @@
 #pragma once
 
-#include <future>
-#include <optional>
-
-#include "eventuals/eventual.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/undefined.h"
 
@@ -23,10 +19,7 @@ struct _Terminal final {
     template <typename... Args>
     void Start(Args&&... args) {
       if constexpr (IsUndefined<Start_>::value) {
-        EVENTUALS_LOG(1)
-            << "'Terminal::Start()' reached by "
-            << Scheduler::Context::Get()->name()
-            << " but undefined";
+        EVENTUALS_LOG(1) << "'Terminal::Start()' reached but undefined";
       } else {
         if constexpr (IsUndefined<Context_>::value) {
           start_(std::forward<Args>(args)...);
@@ -39,10 +32,7 @@ struct _Terminal final {
     template <typename Error>
     void Fail(Error&& error) {
       if constexpr (IsUndefined<Fail_>::value) {
-        EVENTUALS_LOG(1)
-            << "'Terminal::Fail()' reached by "
-            << Scheduler::Context::Get()->name()
-            << " but undefined";
+        EVENTUALS_LOG(1) << "'Terminal::Fail()' reached but undefined";
       } else {
         if constexpr (IsUndefined<Context_>::value) {
           fail_(std::forward<Error>(error));
@@ -54,10 +44,7 @@ struct _Terminal final {
 
     void Stop() {
       if constexpr (IsUndefined<Stop_>::value) {
-        EVENTUALS_LOG(1)
-            << "'Terminal::Stop()' reached by "
-            << Scheduler::Context::Get()->name()
-            << " but undefined";
+        EVENTUALS_LOG(1) << "'Terminal::Stop()' reached but undefined";
       } else {
         if constexpr (IsUndefined<Context_>::value) {
           stop_();
@@ -196,102 +183,6 @@ struct StoppedException final : public std::exception {
     return "Eventual computation stopped (cancelled)";
   }
 };
-
-////////////////////////////////////////////////////////////////////////
-
-// Using to don't create nested 'std::exception_ptr'.
-template <typename... Args>
-auto make_exception_ptr_or_forward(Args&&... args) {
-  static_assert(sizeof...(args) > 0, "Expecting an error");
-  static_assert(!std::is_same_v<std::decay_t<Args>..., std::exception_ptr>);
-  static_assert(
-      std::is_base_of_v<std::exception, std::decay_t<Args>...>,
-      "Expecting a type derived from std::exception");
-  return std::make_exception_ptr(std::forward<Args>(args)...);
-}
-
-inline auto make_exception_ptr_or_forward(std::exception_ptr error) {
-  return error;
-}
-
-////////////////////////////////////////////////////////////////////////
-
-// Using to get right type for 'std::promise' at 'Terminate' because
-// using 'std::promise<std::reference_wrapper<T>>' is forbidden on
-// Windows build using MSVC.
-// https://stackoverflow.com/questions/49830864
-template <typename T>
-struct ReferenceWrapperTypeExtractor {
-  using type = T;
-};
-
-template <typename T>
-struct ReferenceWrapperTypeExtractor<std::reference_wrapper<T>> {
-  using type = T&;
-};
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename E>
-[[nodiscard]] auto Terminate(E e) {
-  using Value = typename E::template ValueFrom<void>;
-
-  std::promise<
-      typename ReferenceWrapperTypeExtractor<Value>::type>
-      promise;
-
-  auto future = promise.get_future();
-
-  auto k =
-      (std::move(e)
-       | eventuals::Terminal()
-             .context(std::move(promise))
-             .start([](auto& promise, auto&&... values) {
-               static_assert(
-                   sizeof...(values) == 0 || sizeof...(values) == 1,
-                   "Task only supports 0 or 1 value, but found > 1");
-               promise.set_value(std::forward<decltype(values)>(values)...);
-             })
-             .fail([](auto& promise, auto&&... errors) {
-               static_assert(
-                   sizeof...(errors) == 0 || sizeof...(errors) == 1,
-                   "Task only supports 0 or 1 error, but found > 1");
-
-               promise.set_exception(
-                   make_exception_ptr_or_forward(
-                       std::forward<decltype(errors)>(errors)...));
-             })
-             .stop([](auto& promise) {
-               promise.set_exception(
-                   std::make_exception_ptr(
-                       StoppedException()));
-             }))
-          .template k<void>();
-
-  return std::make_tuple(std::move(future), std::move(k));
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <typename E>
-auto operator*(E e) {
-  auto [future, k] = Terminate(std::move(e));
-
-  k.Start();
-
-  try {
-    return future.get();
-  } catch (const std::exception& e) {
-    LOG(WARNING)
-        << "WARNING: exception thrown while dereferencing eventual: "
-        << e.what();
-    throw;
-  } catch (...) {
-    LOG(WARNING)
-        << "WARNING: exception thrown while dereferencing eventual";
-    throw;
-  }
-}
 
 ////////////////////////////////////////////////////////////////////////
 

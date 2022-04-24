@@ -4,21 +4,14 @@
 
 #include "eventuals/just.h"
 #include "eventuals/raise.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
+#include "test/promisify-for-test.h"
 
-using std::string;
-
-using eventuals::Eventual;
-using eventuals::If;
-using eventuals::Interrupt;
-using eventuals::Just;
-using eventuals::Raise;
-using eventuals::Terminate;
-using eventuals::Then;
+namespace eventuals::test {
+namespace {
 
 using testing::MockFunction;
 
@@ -97,7 +90,7 @@ TEST(IfTest, Interrupt) {
            });
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   Interrupt interrupt;
 
@@ -131,3 +124,6 @@ TEST(IfTest, Raise) {
 
   EXPECT_EQ(42, *e());
 }
+
+} // namespace
+} // namespace eventuals::test

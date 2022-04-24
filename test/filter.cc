@@ -8,7 +8,6 @@
 #include "eventuals/iterate.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
-#include "eventuals/terminal.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

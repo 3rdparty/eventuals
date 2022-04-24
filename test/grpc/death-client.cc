@@ -1,5 +1,4 @@
 #include "eventuals/grpc/client.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "test/grpc/death-constants.h"

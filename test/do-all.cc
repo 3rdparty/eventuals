@@ -1,11 +1,11 @@
 #include "eventuals/do-all.h"
 
 #include "eventuals/eventual.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -79,7 +79,7 @@ TEST(DoAllTest, Interrupt) {
                      }));
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   Interrupt interrupt;
 

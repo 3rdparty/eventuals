@@ -13,6 +13,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -220,7 +221,7 @@ TEST(StreamTest, InterruptStream) {
               });
   };
 
-  auto [future, k] = Terminate(s());
+  auto [future, k] = PromisifyForTest(s());
 
   Interrupt interrupt;
 
@@ -298,7 +299,7 @@ TEST(StreamTest, InterruptLoop) {
           decltype(s())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = Terminate(s());
+  auto [future, k] = PromisifyForTest(s());
 
   Interrupt interrupt;
 

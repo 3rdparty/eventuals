@@ -5,11 +5,11 @@
 #include "event-loop-test.h"
 #include "eventuals/event-loop.h"
 #include "eventuals/scheduler.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -38,7 +38,7 @@ TEST_F(SignalTest, SignalComposition) {
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
 
   k.Start();
 
@@ -63,7 +63,7 @@ TEST_F(SignalTest, SignalComposition) {
 TEST_F(SignalTest, WaitForSignal) {
   auto e = WaitForOneOfSignals({SIGQUIT});
 
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
 
   k.Start();
 
@@ -89,7 +89,7 @@ TEST_F(SignalTest, WaitForSignal) {
 
 
 TEST_F(SignalTest, SignalInterrupt) {
-  auto [future, k] = Terminate(WaitForSignal(SIGINT));
+  auto [future, k] = PromisifyForTest(WaitForSignal(SIGINT));
 
   Interrupt interrupt;
 

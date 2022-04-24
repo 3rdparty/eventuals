@@ -12,7 +12,6 @@
 #include "eventuals/map.h"
 #include "eventuals/repeat.h"
 #include "eventuals/scheduler.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/until.h"
 #include "gmock/gmock.h"

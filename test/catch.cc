@@ -9,10 +9,10 @@
 #include "eventuals/interrupt.h"
 #include "eventuals/just.h"
 #include "eventuals/raise.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -291,7 +291,7 @@ TEST(CatchTest, Interrupt) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<>>);
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   Interrupt interrupt;
 

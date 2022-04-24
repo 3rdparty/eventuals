@@ -6,10 +6,10 @@
 #include "event-loop-test.h"
 #include "eventuals/closure.h"
 #include "eventuals/eventual.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::filesystem::test {
 namespace {
@@ -38,7 +38,7 @@ TEST_F(FilesystemTest, OpenAndCloseFileSucceed) {
              });
            });
 
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -53,7 +53,7 @@ TEST_F(FilesystemTest, OpenFileFail) {
   EXPECT_FALSE(std::filesystem::exists(path));
 
   auto e = OpenFile(path, UV_FS_O_RDONLY, 0);
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -94,7 +94,7 @@ TEST_F(FilesystemTest, ReadFileSucceed) {
              });
            });
 
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -126,7 +126,7 @@ TEST_F(FilesystemTest, ReadFileFail) {
              });
            });
 
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -172,7 +172,7 @@ TEST_F(FilesystemTest, WriteFileSucceed) {
                       });
              });
            });
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -200,7 +200,7 @@ TEST_F(FilesystemTest, WriteFileFail) {
                       });
              });
            });
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -226,7 +226,7 @@ TEST_F(FilesystemTest, UnlinkFileSucceed) {
       | Then([&]() {
              EXPECT_FALSE(std::filesystem::exists(path));
            });
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -241,7 +241,7 @@ TEST_F(FilesystemTest, UnlinkFileFail) {
   EXPECT_FALSE(std::filesystem::exists(path));
 
   auto e = UnlinkFile(path);
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -259,7 +259,7 @@ TEST_F(FilesystemTest, MakeDirectorySucceed) {
              std::filesystem::remove(path);
              EXPECT_FALSE(std::filesystem::exists(path));
            });
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -275,7 +275,7 @@ TEST_F(FilesystemTest, MakeDirectoryFail) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   auto e = MakeDirectory(path, 0);
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -297,7 +297,7 @@ TEST_F(FilesystemTest, RemoveDirectorySucceed) {
       | Then([&]() {
              EXPECT_FALSE(std::filesystem::exists(path));
            });
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -312,7 +312,7 @@ TEST_F(FilesystemTest, RemoveDirectoryFail) {
   EXPECT_FALSE(std::filesystem::exists(path));
 
   auto e = RemoveDirectory(path);
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -340,7 +340,7 @@ TEST_F(FilesystemTest, CopyFileSucceed) {
              EXPECT_FALSE(std::filesystem::exists(src));
              EXPECT_FALSE(std::filesystem::exists(dst));
            });
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -357,7 +357,7 @@ TEST_F(FilesystemTest, CopyFileFail) {
   EXPECT_FALSE(std::filesystem::exists(dst));
 
   auto e = CopyFile(src, dst, 0);
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -388,7 +388,7 @@ TEST_F(FilesystemTest, RenameFileSucceed) {
              EXPECT_FALSE(std::filesystem::exists(src));
              EXPECT_FALSE(std::filesystem::exists(dst));
            });
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);
@@ -405,7 +405,7 @@ TEST_F(FilesystemTest, RenameFileFail) {
   EXPECT_FALSE(std::filesystem::exists(dst));
 
   auto e = RenameFile(src, dst);
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
   k.Start();
 
   EventLoop::Default().RunUntil(future);

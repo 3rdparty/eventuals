@@ -3,10 +3,10 @@
 #include <thread>
 
 #include "eventuals/just.h"
-#include "eventuals/terminal.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -112,7 +112,7 @@ TEST(ThenTest, Interrupt) {
            });
   };
 
-  auto [future, k] = Terminate(c());
+  auto [future, k] = PromisifyForTest(c());
 
   Interrupt interrupt;
 
