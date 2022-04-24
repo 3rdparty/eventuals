@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <optional>
 #include <tuple>
 #include <variant>
 
