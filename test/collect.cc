@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "eventuals/iterate.h"
-#include "eventuals/terminal.h"
 #include "gtest/gtest.h"
 
 namespace eventuals::test {

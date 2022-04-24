@@ -1,6 +1,5 @@
 #include "eventuals/grpc/client.h"
 #include "eventuals/let.h"
-#include "eventuals/terminal.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"

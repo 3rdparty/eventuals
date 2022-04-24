@@ -3,13 +3,13 @@
 #include <regex>
 
 #include "eventuals/event-loop.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/event-loop-test.h"
 #include "test/expect-throw-what.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -28,7 +28,7 @@ TEST_F(DomainNameResolveTest, Succeed) {
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
 
   k.Start();
 
@@ -51,7 +51,7 @@ TEST_F(DomainNameResolveTest, Fail) {
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
 
   k.Start();
 
@@ -79,7 +79,7 @@ TEST_F(DomainNameResolveTest, Stop) {
              return std::to_string(data);
            });
 
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
 
   k.Start();
 
@@ -112,7 +112,7 @@ TEST_F(DomainNameResolveTest, Raises) {
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error, std::overflow_error>>);
 
-  auto [future, k] = Terminate(std::move(e));
+  auto [future, k] = PromisifyForTest(std::move(e));
 
   k.Start();
 

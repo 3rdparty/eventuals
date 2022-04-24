@@ -3,9 +3,9 @@
 #include <thread>
 
 #include "eventuals/just.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -57,7 +57,7 @@ TEST(JustTest, ConstRef) {
            });
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   k.Start();
 

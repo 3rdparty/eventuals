@@ -11,6 +11,7 @@
 #include "eventuals/raise.h"
 #include "eventuals/terminal.h"
 #include "eventuals/type-traits.h"
+#include "stout/stringify.hpp"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -698,10 +699,27 @@ class _Task final {
     k_->Stop();
   }
 
-  // NOTE: should only be used in tests!
+  // NOTE: THIS IS BLOCKING! CONSIDER YOURSELF WARNED!
   auto operator*() && {
-    auto future = Start("[anonymous task]");
-    return future.get();
+    try {
+      auto future = Start(
+          // NOTE: using the current thread id in order to constuct a task
+          // name because the thread blocks so this name should be unique!
+          "[thread "
+          + stringify(std::this_thread::get_id())
+          + " blocking on dereference]");
+
+      return future.get();
+    } catch (const std::exception& e) {
+      LOG(WARNING)
+          << "WARNING: exception thrown while dereferencing eventual: "
+          << e.what();
+      throw;
+    } catch (...) {
+      LOG(WARNING)
+          << "WARNING: exception thrown while dereferencing eventual";
+      throw;
+    }
   }
 
   // Helpers for synchronous tasks.

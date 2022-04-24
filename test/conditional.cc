@@ -4,11 +4,11 @@
 
 #include "eventuals/just.h"
 #include "eventuals/raise.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -145,7 +145,7 @@ TEST(ConditionalTest, Interrupt) {
                [&](auto&&) { return els3(); });
   };
 
-  auto [future, k] = Terminate(c());
+  auto [future, k] = PromisifyForTest(c());
 
   Interrupt interrupt;
 

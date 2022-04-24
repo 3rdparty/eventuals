@@ -2,11 +2,11 @@
 #include "eventuals/grpc/server.h"
 #include "eventuals/head.h"
 #include "eventuals/let.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
 #include "test/grpc/test.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::grpc::test {
 namespace {
@@ -51,11 +51,11 @@ TEST(MultipleHostsTest, Success) {
            }));
   };
 
-  auto [berkeley_cancelled, b] = Terminate(serve("cs.berkeley.edu"));
+  auto [berkeley_cancelled, b] = PromisifyForTest(serve("cs.berkeley.edu"));
 
   b.Start();
 
-  auto [washington_cancelled, w] = Terminate(serve("cs.washington.edu"));
+  auto [washington_cancelled, w] = PromisifyForTest(serve("cs.washington.edu"));
 
   w.Start();
 

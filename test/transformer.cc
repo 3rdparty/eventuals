@@ -9,10 +9,10 @@
 #include "eventuals/let.h"
 #include "eventuals/map.h"
 #include "eventuals/stream.h"
-#include "eventuals/terminal.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -159,7 +159,7 @@ TEST(Transformer, Interrupt) {
 
   Interrupt interrupt;
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   k.Register(interrupt);
 

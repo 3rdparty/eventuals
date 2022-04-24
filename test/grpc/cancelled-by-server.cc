@@ -6,6 +6,7 @@
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
 #include "test/grpc/test.h"
+#include "test/promisify-for-test.h"
 
 using helloworld::Greeter;
 using helloworld::HelloReply;
@@ -43,7 +44,7 @@ TEST(CancelledByServerTest, Cancelled) {
            }));
   };
 
-  auto [cancelled, k] = Terminate(serve());
+  auto [cancelled, k] = PromisifyForTest(serve());
 
   k.Start();
 

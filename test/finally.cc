@@ -6,7 +6,6 @@
 #include "eventuals/if.h"
 #include "eventuals/just.h"
 #include "eventuals/raise.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"

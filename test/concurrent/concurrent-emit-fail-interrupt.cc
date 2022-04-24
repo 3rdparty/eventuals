@@ -7,9 +7,9 @@
 #include "eventuals/let.h"
 #include "eventuals/map.h"
 #include "eventuals/stream.h"
-#include "eventuals/terminal.h"
 #include "test/concurrent/concurrent.h"
 #include "test/expect-throw-what.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -58,7 +58,7 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailInterrupt) {
           std::tuple<std::runtime_error>>);
 
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   k.Register(interrupt);
 

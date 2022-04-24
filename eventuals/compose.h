@@ -37,6 +37,39 @@ struct HasErrorsFrom<T, std::void_t<void_template<T::template ErrorsFrom>>>
 
 ////////////////////////////////////////////////////////////////////////
 
+// Helper to avoid creating nested 'std::exception_ptr'.
+template <typename... Args>
+auto make_exception_ptr_or_forward(Args&&... args) {
+  static_assert(sizeof...(args) > 0, "Expecting an error");
+  static_assert(!std::is_same_v<std::decay_t<Args>..., std::exception_ptr>);
+  static_assert(
+      std::is_base_of_v<std::exception, std::decay_t<Args>...>,
+      "Expecting a type derived from std::exception");
+  return std::make_exception_ptr(std::forward<Args>(args)...);
+}
+
+inline auto make_exception_ptr_or_forward(std::exception_ptr error) {
+  return error;
+}
+
+////////////////////////////////////////////////////////////////////////
+
+// Using to get right type for 'std::promise' at 'Terminate' because
+// using 'std::promise<std::reference_wrapper<T>>' is forbidden on
+// Windows build using MSVC.
+// https://stackoverflow.com/questions/49830864
+template <typename T>
+struct ReferenceWrapperTypeExtractor {
+  using type = T;
+};
+
+template <typename T>
+struct ReferenceWrapperTypeExtractor<std::reference_wrapper<T>> {
+  using type = T&;
+};
+
+////////////////////////////////////////////////////////////////////////
+
 template <typename Left_, typename Right_>
 struct Composed final {
   Left_ left_;

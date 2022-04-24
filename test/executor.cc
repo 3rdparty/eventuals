@@ -3,7 +3,6 @@
 #include "eventuals/eventual.h"
 #include "eventuals/just.h"
 #include "eventuals/task.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

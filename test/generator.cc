@@ -17,11 +17,11 @@
 #include "eventuals/range.h"
 #include "eventuals/stream.h"
 #include "eventuals/task.h"
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -207,7 +207,7 @@ TEST(Generator, InterruptStream) {
               });
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   k.Register(interrupt);
 
@@ -288,7 +288,7 @@ TEST(Generator, FailStream) {
               });
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
@@ -366,7 +366,7 @@ TEST(Generator, StopStream) {
               });
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   k.Start();
 

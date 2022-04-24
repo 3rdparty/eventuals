@@ -2,7 +2,6 @@
 
 #include <string>
 
-#include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
 #include "test/expect-throw-what.h"

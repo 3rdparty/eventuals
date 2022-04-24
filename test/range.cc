@@ -3,7 +3,6 @@
 #include <vector>
 
 #include "eventuals/collect.h"
-#include "eventuals/terminal.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

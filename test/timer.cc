@@ -7,6 +7,7 @@
 #include "eventuals/range.h"
 #include "eventuals/terminal.h"
 #include "gtest/gtest.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -16,7 +17,7 @@ TEST_F(EventLoopTest, Timer) {
     return Timer(std::chrono::milliseconds(10));
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   k.Start();
 
@@ -38,7 +39,7 @@ TEST_F(EventLoopTest, PauseAndAdvanceClock) {
         | Just(42);
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   k.Start();
 
@@ -59,7 +60,7 @@ TEST_F(EventLoopTest, AddTimerAfterAdvancingClock) {
     return Timer(std::chrono::seconds(5));
   };
 
-  auto [future1, k1] = Terminate(e1());
+  auto [future1, k1] = PromisifyForTest(e1());
 
   k1.Start();
 
@@ -69,7 +70,7 @@ TEST_F(EventLoopTest, AddTimerAfterAdvancingClock) {
     return Timer(std::chrono::seconds(5));
   };
 
-  auto [future2, k2] = Terminate(e2());
+  auto [future2, k2] = PromisifyForTest(e2());
 
   k2.Start();
 
@@ -98,7 +99,7 @@ TEST_F(EventLoopTest, InterruptTimer) {
     return Timer(std::chrono::seconds(100));
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   Interrupt interrupt;
 
@@ -125,7 +126,7 @@ TEST_F(EventLoopTest, PauseClockInterruptTimer) {
     return Timer(std::chrono::seconds(100));
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   Interrupt interrupt;
 
@@ -153,7 +154,7 @@ TEST_F(EventLoopTest, TimerAfterTimer) {
         | Timer(std::chrono::milliseconds(5));
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   k.Start();
 
@@ -174,7 +175,7 @@ TEST_F(EventLoopTest, MapTimer) {
         });
   };
 
-  auto [future, k] = Terminate(e());
+  auto [future, k] = PromisifyForTest(e());
 
   k.Start();
 
