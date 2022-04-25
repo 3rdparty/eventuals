@@ -56,7 +56,7 @@ static thread_local Scheduler::Context context(
 
 ////////////////////////////////////////////////////////////////////////
 
-thread_local stout::borrowed_ptr<Scheduler::Context>
+thread_local stout::borrowed_ref<Scheduler::Context>
     Scheduler::Context::current_ = []() {
       return context.Borrow();
     }();
