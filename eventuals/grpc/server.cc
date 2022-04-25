@@ -125,7 +125,6 @@ Server::Server(
         // per host so just using the service name is not unique but
         // we don't have access to host information at this time.
         serve->service->name(),
-        serve->interrupt,
         [&serve]() {
           EVENTUALS_GRPC_LOG(1)
               << serve->service->name()
@@ -191,7 +190,6 @@ Server::Server(
 
     worker->task->Start(
         "[worker for queue " + std::to_string((size_t) cq.get()) + "]",
-        worker->interrupt,
         [&worker]() {
           worker->done.store(true);
         },

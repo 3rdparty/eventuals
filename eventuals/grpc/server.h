@@ -553,7 +553,6 @@ class Server : public Synchronizable {
 
   struct Serve {
     Service* service;
-    Interrupt interrupt;
     std::optional<Task::Of<void>::Raises<std::exception>> task;
     std::atomic<bool> done = false;
   };
@@ -561,7 +560,6 @@ class Server : public Synchronizable {
   std::vector<std::unique_ptr<Serve>> serves_;
 
   struct Worker {
-    Interrupt interrupt;
     std::optional<Task::Of<void>::With<::grpc::ServerCompletionQueue*>> task;
     std::atomic<bool> done = false;
   };

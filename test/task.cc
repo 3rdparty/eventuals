@@ -3,7 +3,6 @@
 #include <string>
 
 #include "eventuals/eventual.h"
-#include "eventuals/interrupt.h"
 #include "eventuals/just.h"
 #include "eventuals/map.h"
 #include "eventuals/terminal.h"
@@ -256,13 +255,10 @@ TEST(Task, Start) {
 
   task.emplace(e());
 
-  Interrupt interrupt;
-
   int result = 0;
 
   task->Start(
       GenerateTestTaskName(),
-      interrupt,
       [&](int x) {
         result = x;
       },
@@ -287,9 +283,7 @@ TEST(Task, StartFuture) {
 
   task.emplace(e());
 
-  Interrupt interrupt;
-
-  auto future = task->Start(GenerateTestTaskName(), interrupt);
+  auto future = task->Start(GenerateTestTaskName());
 
   EXPECT_EQ(42, future.get());
 }
@@ -310,14 +304,11 @@ TEST(Task, FailContinuation) {
 
   task.emplace(e());
 
-  Interrupt interrupt;
-
   std::exception_ptr result;
 
   task->Fail(
       GenerateTestTaskName(),
       std::runtime_error("error"),
-      interrupt,
       [](int) {
         FAIL() << "test should not have succeeded";
       },
@@ -349,13 +340,10 @@ TEST(Task, StopContinuation) {
 
   task.emplace(e());
 
-  Interrupt interrupt;
-
   bool stopped = false;
 
   task->Stop(
       GenerateTestTaskName(),
-      interrupt,
       [](int) {
         FAIL() << "test should not have succeeded";
       },

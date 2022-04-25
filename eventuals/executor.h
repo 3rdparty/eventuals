@@ -3,7 +3,6 @@
 #include "eventuals/catch.h"
 #include "eventuals/concurrent.h"
 #include "eventuals/eventual.h"
-#include "eventuals/interrupt.h"
 #include "eventuals/just.h"
 #include "eventuals/lock.h"
 #include "eventuals/loop.h"
@@ -75,7 +74,6 @@ class Executor final
     // Start the executor task!
     executor_.Start(
         std::string(name_), // Copy.
-        interrupt_,
         []() {},
         [](std::exception_ptr) { LOG(FATAL) << "Unreachable"; },
         []() { LOG(FATAL) << "Unreachable"; });
@@ -92,7 +90,7 @@ class Executor final
   }
 
   [[nodiscard]] auto InterruptAndShutdown() {
-    interrupt_.Trigger();
+    executor_.Interrupt();
     return Shutdown();
   }
 
