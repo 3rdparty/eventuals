@@ -11,6 +11,7 @@
 #include "eventuals/closure.h"
 #include "eventuals/compose.h"
 #include "eventuals/interrupt.h"
+#include "eventuals/lazy.h"
 #include "eventuals/terminal.h"
 #include "eventuals/undefined.h"
 #include "stout/stringify.hpp"
@@ -518,27 +519,33 @@ template <typename E>
 
   auto future = promise.get_future();
 
-  auto k =
-      (Preempt(std::move(name), std::move(e))
-       | Terminal()
-             .context(std::move(promise))
-             .start([](auto& promise, auto&&... values) {
-               static_assert(
-                   sizeof...(values) == 0 || sizeof...(values) == 1,
-                   "'Promisify()' only supports 0 or 1 value, but found > 1");
-               promise.set_value(std::forward<decltype(values)>(values)...);
-             })
-             .fail([](auto& promise, auto&& error) {
-               promise.set_exception(
-                   make_exception_ptr_or_forward(
-                       std::forward<decltype(error)>(error)));
-             })
-             .stop([](auto& promise) {
-               promise.set_exception(
-                   std::make_exception_ptr(
-                       StoppedException()));
-             }))
-          .template k<void>();
+  auto k = Build(
+      Closure([context = Lazy<Scheduler::Context>(
+                   Scheduler::Default(),
+                   std::move(name))]() mutable {
+        // NOTE: intentionally rescheduling with our context and never
+        // rescheduling again because when we terminate we're done!
+        return Reschedule(context.get());
+      })
+      | std::move(e)
+      | Terminal()
+            .context(std::move(promise))
+            .start([](auto& promise, auto&&... values) {
+              static_assert(
+                  sizeof...(values) == 0 || sizeof...(values) == 1,
+                  "'Promisify()' only supports 0 or 1 value, but found > 1");
+              promise.set_value(std::forward<decltype(values)>(values)...);
+            })
+            .fail([](auto& promise, auto&& error) {
+              promise.set_exception(
+                  make_exception_ptr_or_forward(
+                      std::forward<decltype(error)>(error)));
+            })
+            .stop([](auto& promise) {
+              promise.set_exception(
+                  std::make_exception_ptr(
+                      StoppedException()));
+            }));
 
   return std::make_tuple(std::move(future), std::move(k));
 }
