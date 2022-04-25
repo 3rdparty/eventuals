@@ -518,12 +518,12 @@ class _Task final {
       std::enable_if_t<tuple_types_subset_subtype_v<E, Errors_>, int> = 0>
   _Task(_Task<From_, To_, E, Args_...>&& that)
     : e_(std::move(that.e_.value_or_dispatch_), std::move(that.e_.args_)) {
-    CHECK(!k_.has_value()) << "moving after starting";
+    CHECK(!that.k_.has_value()) << "moving after starting";
   }
 
   _Task(_Task&& that)
     : e_(std::move(that.e_)) {
-    CHECK(!k_.has_value()) << "moving after starting";
+    CHECK(!that.k_.has_value()) << "moving after starting";
   }
 
   ~_Task() = default;
