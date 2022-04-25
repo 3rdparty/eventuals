@@ -550,8 +550,13 @@ class _Task final {
       Callback<function_type_t<void, To_>>&& start,
       Callback<void(std::exception_ptr)>&& fail,
       Callback<void()>&& stop) {
+    CHECK(!context_.has_value()) << "Task already started";
+
+    context_.emplace(Scheduler::Default(), std::move(name));
+
     k_.emplace(Build(
-        Preempt(std::move(name), std::move(e_))
+        Reschedule(&context_.value())
+        | std::move(e_)
         | Terminal()
               .start(std::move(start))
               .fail(std::move(fail))
@@ -655,8 +660,13 @@ class _Task final {
 
     interrupt_ = &interrupt;
 
+    CHECK(!context_.has_value()) << "Task already started";
+
+    context_.emplace(Scheduler::Default(), std::move(name));
+
     k_.emplace(Build(
-        Preempt(std::move(name), std::move(e_))
+        Reschedule(&context_.value())
+        | std::move(e_)
         | Terminal()
               .start(std::move(start))
               .fail(std::move(fail))
@@ -685,8 +695,13 @@ class _Task final {
       Callback<function_type_t<void, To_>>&& start,
       Callback<void(std::exception_ptr)>&& fail,
       Callback<void()>&& stop) {
+    CHECK(!context_.has_value()) << "Task already started";
+
+    context_.emplace(Scheduler::Default(), std::move(name));
+
     k_.emplace(Build(
-        Preempt(std::move(name), std::move(e_))
+        Reschedule(&context_.value())
+        | std::move(e_)
         | Terminal()
               .start(std::move(start))
               .fail(std::move(fail))
@@ -801,6 +816,9 @@ class _Task final {
   // continuation and passed in an interrupt.
   Interrupt* interrupt_ = nullptr;
 
+  // Possible context to use if we are invoked as a continuation.
+  std::optional<Scheduler::Context> context_;
+
   // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
   // a composable but also a continuation which has a terminal made up
   // of the callbacks passed to 'Task::Start()'.
@@ -808,7 +826,8 @@ class _Task final {
       std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
       Undefined,
       decltype(Build(
-          Preempt(std::string(), std::move(e_))
+          Reschedule(&context_.value())
+          | std::move(e_)
           | Terminal()
                 .start(std::declval<Callback<function_type_t<void, To_>>&&>())
                 .fail(std::declval<Callback<void(std::exception_ptr)>&&>())
