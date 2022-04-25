@@ -70,16 +70,16 @@ StaticThreadPool::StaticThreadPool()
 
               CHECK_EQ(nullptr, context->next);
 
-              Context::Set(context);
-
               context->unblock();
+
+              Context* previous = Context::Switch(context);
 
               EVENTUALS_LOG(1) << "Resuming '" << context->name() << "'";
 
               CHECK(context->callback);
               context->callback();
 
-              CHECK_EQ(context, Context::Get());
+              CHECK_EQ(context, Context::Switch(previous));
 
               ////////////////////////////////////////////////////
               // NOTE: can't use 'waiter' at this point in time //
