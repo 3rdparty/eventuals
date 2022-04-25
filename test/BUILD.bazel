@@ -14,10 +14,10 @@ cc_library(
     hdrs = [
         "generate-test-task-name.h",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         "@com_github_google_googletest//:gtest",
     ],
-    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -25,12 +25,12 @@ cc_library(
     hdrs = [
         "promisify-for-test.h",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         ":generate-test-task-name",
         "//eventuals",
         "@com_github_google_googletest//:gtest",
     ],
-    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -90,8 +90,8 @@ cc_test(
     ],
     copts = copts(),
     deps = [
-        ":generate-test-task-name",
         ":expect-throw-what",
+        ":generate-test-task-name",
         ":http-mock-server",
         ":promisify-for-test",
         "//eventuals",
