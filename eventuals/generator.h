@@ -383,7 +383,7 @@ struct _Generator final {
           "'Generator' expects a callable (e.g., a lambda) that "
           "returns an eventual but you're not returning anything");
 
-      using ErrorsFromE = ErrorsFromMaybeComposable<E, From_, std::tuple<>>;
+      using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
 
       static_assert(
           tuple_types_subset_subtype_v<ErrorsFromE, Errors_>,
