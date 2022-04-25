@@ -25,10 +25,6 @@ namespace eventuals {
 class Scheduler {
  public:
   struct Context final {
-    static void Set(Context* context) {
-      current_ = CHECK_NOTNULL(context);
-    }
-
     static Context* Get() {
       return CHECK_NOTNULL(current_);
     }
