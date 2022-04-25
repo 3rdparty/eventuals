@@ -517,7 +517,7 @@ struct _StaticThreadPoolSchedule final {
     StaticThreadPool* pool_;
     StaticThreadPool::Requirements* requirements_;
     E_ e_;
-    std::string name_;
+    std::string name_ = "[StaticThreadPool::Schedule - anonymous]";
   };
 };
 
