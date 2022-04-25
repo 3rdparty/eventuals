@@ -52,6 +52,11 @@ struct {{ service.name }} {
             ::grpc::GenericServerContext*,
             {{ input_type }}*>* args) = 0;
 {% endfor %}
+
+    private:
+{% for method in service.methods %}
+    ::eventuals::Task::Of<void> Serve{{ method.name }}();
+{% endfor %}    
   };
 
   template <typename Implementation>

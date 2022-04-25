@@ -27,11 +27,10 @@ using eventuals::grpc::Stream;
 using namespace {{ namespaces | join('::') }}::eventuals;
 
 {% for service in services -%}
-Task::Of<void> {{ service.name }}::TypeErasedService::Serve() {
-  return [this]() {
-    return DoAll(
 {%- for method in service.methods %}
-{%- set input_type -%}
+Task::Of<void> {{ service.name }}::TypeErasedService::Serve{{ method.name }}() {
+  return [this]() {
+    {%- set input_type -%}
     {%- if method.client_streaming -%}
         Stream<{{ method.input_type.split('.') | join('::') }}>
     {%- else -%}
@@ -45,8 +44,7 @@ Task::Of<void> {{ service.name }}::TypeErasedService::Serve() {
         {{ method.output_type.split('.') | join('::') }}
     {%- endif -%}
 {%- endset %}
-      // {{ method.name }}
-      server().Accept<
+    return server().Accept<
           {{ namespaces | join('::') }}::{{ service.name }},
           {{ input_type  }},
           {{ output_type  }}>("{{ method.name }}")
@@ -125,8 +123,16 @@ Task::Of<void> {{ service.name }}::TypeErasedService::Serve() {
 {%- endif %}
               }));{# Map #}
           }){# Concurrent #}
-        | Loop()
-        {%- if not loop.last -%},{%- endif %}
+          | Loop();
+        };
+}
+{% endfor %}
+
+Task::Of<void> {{ service.name }}::TypeErasedService::Serve() {
+  return [this]() {
+    return DoAll(
+{%- for method in service.methods %}
+      Serve{{ method.name }}(){%- if not loop.last -%},{%- endif %}
 {% endfor %}
     ) | Just(); // Return 'void'.
   };
