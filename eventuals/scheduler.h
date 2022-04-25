@@ -111,7 +111,7 @@ class Scheduler {
     Callback<void()> callback;
 
    private:
-    static thread_local stout::borrowed_ptr<Context> current_;
+    static thread_local stout::borrowed_ref<Context> current_;
 
     Scheduler* scheduler_ = nullptr;
 
