@@ -25,7 +25,33 @@ namespace eventuals {
 
 class Scheduler {
  public:
-  struct Context final : stout::enable_borrowable_from_this<Context> {
+  // Forward declaration.
+  class Context;
+
+  // Rather than have schedulers duplicate a common "waiter" structure
+  // we have provided a generic one and provide one in every context.
+  struct Waiter final {
+    // Pointer back to the enclosing context of this waiter. We're
+    // using a 'stout::borrowed_ref' to encourage it's use from
+    // schedulers (versus a raw reference or pointer).
+    //
+    // NOTE: even though we are using a 'stout::borrowed_ref' this
+    // will not create a cycle because '~Context()' will destruct it's
+    // 'waiter' member and thus this field before invoking the base
+    // destructor which waits for all references. If '~Context()' ever
+    // waits for borrows explicitly then this will need to change.
+    stout::borrowed_ref<Context> context;
+
+    // For schedulers that want to invoke a callback to "start",
+    // "unblock", or "resume" a context that has waited.
+    Callback<void()> callback;
+
+    // For schedulers to create intrusive linked lists of waiters.
+    Waiter* next = nullptr;
+  };
+
+  class Context final : public stout::enable_borrowable_from_this<Context> {
+   public:
     static Context* Get() {
       return CHECK_NOTNULL(current_.get());
     }
@@ -38,6 +64,7 @@ class Scheduler {
 
     Context(Scheduler* scheduler, std::string&& name, void* data = nullptr)
       : data(data),
+        waiter{Borrow()},
         scheduler_(CHECK_NOTNULL(scheduler)),
         name_(std::move(name)) {}
 
@@ -99,16 +126,11 @@ class Scheduler {
       }
     }
 
-    // Schedulers that need arbitrary data for this context can use 'data'.
+    // For schedulers that need to store arbitrary data.
     void* data = nullptr;
 
-    // Many schedulers need to store a blocked context in some kind of data
-    // structure and you can use 'next' for doing that.
-    Context* next = nullptr;
-
-    // Schedulers can use 'callback' to store the function that "starts" or
-    // "unblocks"/"resumes" the context.
-    Callback<void()> callback;
+    // Every context includes a waiter that can be used by schedulers.
+    Waiter waiter;
 
    private:
     static thread_local stout::borrowed_ref<Context> current_;

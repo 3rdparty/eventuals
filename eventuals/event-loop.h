@@ -1033,7 +1033,7 @@ class EventLoop final : public Scheduler {
 
   static inline thread_local bool in_event_loop_ = false;
 
-  std::atomic<Scheduler::Context*> contexts_ = nullptr;
+  std::atomic<Waiter*> waiters_ = nullptr;
 
   Clock clock_;
 };

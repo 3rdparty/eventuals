@@ -293,16 +293,22 @@ bool EventLoop::Continuable(Scheduler::Context* context) {
 
 void EventLoop::Submit(Callback<void()> callback, Scheduler::Context* context) {
   CHECK(!context->blocked()) << context->name();
-  CHECK(context->next == nullptr) << context->name();
+
+  CHECK_EQ(this, context->scheduler());
 
   context->block();
-  context->callback = std::move(callback);
 
-  context->next = contexts_.load(std::memory_order_relaxed);
+  Waiter* waiter = &context->waiter;
 
-  while (!contexts_.compare_exchange_weak(
-      context->next,
-      context,
+  waiter->callback = std::move(callback);
+
+  CHECK(waiter->next == nullptr) << context->name();
+
+  waiter->next = waiters_.load(std::memory_order_relaxed);
+
+  while (!waiters_.compare_exchange_weak(
+      waiter->next,
+      waiter,
       std::memory_order_release,
       std::memory_order_relaxed)) {}
 
@@ -312,39 +318,39 @@ void EventLoop::Submit(Callback<void()> callback, Scheduler::Context* context) {
 ////////////////////////////////////////////////////////////////////////
 
 void EventLoop::Check() {
-  Context* context = nullptr;
+  Waiter* waiter = nullptr;
   do {
   load:
-    context = contexts_.load(std::memory_order_relaxed);
+    waiter = waiters_.load(std::memory_order_relaxed);
 
-    if (context != nullptr) {
-      if (context->next == nullptr) {
-        if (!contexts_.compare_exchange_weak(
-                context,
+    if (waiter != nullptr) {
+      if (waiter->next == nullptr) {
+        if (!waiters_.compare_exchange_weak(
+                waiter,
                 nullptr,
                 std::memory_order_release,
                 std::memory_order_relaxed)) {
           goto load; // Try again.
         }
       } else {
-        while (context->next->next != nullptr) {
-          context = context->next;
+        while (waiter->next->next != nullptr) {
+          waiter = waiter->next;
         }
 
-        CHECK(context->next != nullptr);
+        CHECK(waiter->next != nullptr);
 
-        auto* next = context->next;
-        context->next = nullptr;
-        context = next;
+        auto* next = waiter->next;
+        waiter->next = nullptr;
+        waiter = next;
       }
 
-      CHECK_NOTNULL(context);
+      CHECK_NOTNULL(waiter);
 
-      context->unblock();
+      waiter->context->unblock();
 
-      context->callback();
+      waiter->callback();
     }
-  } while (context != nullptr);
+  } while (waiter != nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////
