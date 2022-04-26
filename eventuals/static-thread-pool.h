@@ -130,7 +130,7 @@ class StaticThreadPool final : public Scheduler {
   // "signalling" the thread because it should be faster/less overhead
   // in the kernel: https://stackoverflow.com/q/9826919
   std::vector<Semaphore*> semaphores_;
-  std::vector<std::atomic<Context*>*> heads_;
+  std::vector<std::atomic<Waiter*>*> heads_;
   std::deque<Semaphore> ready_;
   std::vector<std::thread> threads_;
   std::atomic<bool> shutdown_ = false;
