@@ -1,6 +1,7 @@
 #include "eventuals/do-all.h"
 
 #include "eventuals/eventual.h"
+#include "eventuals/task.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -18,6 +19,35 @@ TEST(DoAllTest, Succeed) {
         Eventual<int>([](auto& k) { k.Start(42); }),
         Eventual<std::string>([](auto& k) { k.Start(std::string("hello")); }),
         Eventual<void>([](auto& k) { k.Start(); }));
+  };
+
+  auto result = *e();
+
+  using T = std::decay_t<decltype(result)>;
+
+  EXPECT_EQ(std::tuple_size_v<T>, 3);
+
+  using T0 = decltype(std::get<0>(result));
+  using T1 = decltype(std::get<1>(result));
+  using T2 = decltype(std::get<2>(result));
+
+  static_assert(std::is_same_v<T0, int&>);
+  static_assert(std::is_same_v<T1, std::string&>);
+  static_assert(std::is_same_v<T2, std::monostate&>);
+
+  EXPECT_EQ(std::make_tuple(42, "hello", std::monostate{}), result);
+}
+
+
+TEST(DoAllTest, SucceedTaskOf) {
+  auto e = []() {
+    return DoAll(
+        Task::Of<int>([]() { return Just(42); }),
+        Task::Of<std::string>([]() {
+          return Eventual<std::string>(
+              [](auto& k) { k.Start("hello"); });
+        }),
+        Task::Of<void>([]() { return Just(); }));
   };
 
   auto result = *e();
