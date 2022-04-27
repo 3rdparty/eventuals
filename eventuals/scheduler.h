@@ -7,6 +7,9 @@
 #include <string>
 #include <tuple>
 
+#include "stout/stringify.hpp"
+
+// After stout library
 #include "eventuals/callback.h"
 #include "eventuals/closure.h"
 #include "eventuals/compose.h"
@@ -14,7 +17,6 @@
 #include "eventuals/lazy.h"
 #include "eventuals/terminal.h"
 #include "eventuals/undefined.h"
-#include "stout/stringify.hpp"
 
 ////////////////////////////////////////////////////////////////////////
 
