@@ -2,7 +2,6 @@
 
 #include <filesystem>
 
-#include "eventuals/rsa.h"
 #include "openssl/bio.h"
 #include "openssl/pem.h"
 #include "openssl/x509.h"
@@ -12,6 +11,7 @@
 #include "asio.hpp"
 #include "eventuals/builder.h"
 #include "eventuals/expected.h"
+#include "eventuals/rsa.h"
 
 ////////////////////////////////////////////////////////////////////////
 
