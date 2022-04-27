@@ -116,7 +116,8 @@ jobs:
            --remote_upload_local_results=false" \
            >> $GITHUB_ENV
 
-      - name: Build
+      - name: Build (main branch)
+        if: github.ref == 'refs/heads/main'
         run: |
           ${{ matrix.bazel-command }} \
             ${{ matrix.output-user_root }} \
@@ -129,7 +130,40 @@ jobs:
             --strip="never" \
             ...
 
-      - name: Test
+      - name: Test (main branch)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          ${{ matrix.bazel-command }} \
+            ${{ matrix.output-user_root }} \
+            test \
+            ${{ matrix.bazel-config }} \
+            --experimental_ui_max_stdouterr_bytes=-1 \
+            ${{ env.BAZEL_REMOTE_CACHE }} \
+            --verbose_failures \
+            --spawn_strategy=local \
+            -c dbg \
+            --strip="never" \
+            --test_output=errors \
+            test/... \
+            --test_arg=--gtest_shuffle \
+            --test_arg=--gtest_repeat=100
+
+      - name: Build (Pull Requests)
+        if: github.event_name == 'pull_request'
+        run: |
+          ${{ matrix.bazel-command }} \
+            ${{ matrix.output-user_root }} \
+            build \
+            ${{ matrix.bazel-config }} \
+            ${{ env.BAZEL_REMOTE_CACHE }} \
+            --verbose_failures \
+            --spawn_strategy=local \
+            -c dbg \
+            --strip="never" \
+            ...
+
+      - name: Test (Pull Requests)
+        if: github.event_name == 'pull_request'
         run: |
           ${{ matrix.bazel-command }} \
             ${{ matrix.output-user_root }} \
