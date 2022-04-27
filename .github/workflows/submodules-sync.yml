@@ -14,5 +14,7 @@ on:
 jobs:
   submodule-sync:
     uses: 3rdparty/dev-tools/.github/workflows/submodules-sync.yml@main
+    with:
+      devtools_directory: submodules/dev-tools
     secrets:
       private_repo_access_as_rebot_token: ${{ secrets.PRIVATE_REPO_ACCESS_AS_REBOT_TOKEN }}
