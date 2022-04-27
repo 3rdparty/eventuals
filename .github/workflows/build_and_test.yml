@@ -73,7 +73,7 @@ jobs:
       - name: Set up remote cache credentials
         # With the exception of GITHUB_TOKEN, secrets are not passed to the runner
         # when a workflow is triggered from a forked repository.
-        if: github.event.pull_request.head.repo.full_name == '3rdparty/eventuals'
+        if: github.ref == 'refs/heads/main'
         uses: jsdaniell/create-json@1.1.2
         with:
           name: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
@@ -102,14 +102,22 @@ jobs:
       # when a workflow is triggered from a forked repository, and thus we
       # can only set up a remote cache if this pull request comes from a
       # non-forked repository.
-      - name: Set Up Remote Cache
-        if: github.event.pull_request.head.repo.full_name == '3rdparty/eventuals'
+      - name: Set Up Remote Cache (main branch)
+        if: github.ref == 'refs/heads/main'
         run: |
          echo "BAZEL_REMOTE_CACHE=--remote_cache=${{ env.GOOGLE_REMOTE_CACHE }} \
            --google_credentials=${{ env.GOOGLE_APPLICATION_CREDENTIALS }}" \
            >> $GITHUB_ENV
 
-      - name: Build
+      - name: Set Up Remote Cache (Pull Requests)
+        if: github.event_name == 'pull_request'
+        run: |
+         echo "BAZEL_REMOTE_CACHE=--remote_cache=${{ env.GOOGLE_REMOTE_CACHE }} \
+           --remote_upload_local_results=false" \
+           >> $GITHUB_ENV
+
+      - name: Build (main branch)
+        if: github.ref == 'refs/heads/main'
         run: |
           ${{ matrix.bazel-command }} \
             ${{ matrix.output-user_root }} \
@@ -122,7 +130,40 @@ jobs:
             --strip="never" \
             ...
 
-      - name: Test
+      - name: Test (main branch)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          ${{ matrix.bazel-command }} \
+            ${{ matrix.output-user_root }} \
+            test \
+            ${{ matrix.bazel-config }} \
+            --experimental_ui_max_stdouterr_bytes=-1 \
+            ${{ env.BAZEL_REMOTE_CACHE }} \
+            --verbose_failures \
+            --spawn_strategy=local \
+            -c dbg \
+            --strip="never" \
+            --test_output=errors \
+            test/... \
+            --test_arg=--gtest_shuffle \
+            --test_arg=--gtest_repeat=100
+
+      - name: Build (Pull Requests)
+        if: github.event_name == 'pull_request'
+        run: |
+          ${{ matrix.bazel-command }} \
+            ${{ matrix.output-user_root }} \
+            build \
+            ${{ matrix.bazel-config }} \
+            ${{ env.BAZEL_REMOTE_CACHE }} \
+            --verbose_failures \
+            --spawn_strategy=local \
+            -c dbg \
+            --strip="never" \
+            ...
+
+      - name: Test (Pull Requests)
+        if: github.event_name == 'pull_request'
         run: |
           ${{ matrix.bazel-command }} \
             ${{ matrix.output-user_root }} \
