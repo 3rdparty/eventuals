@@ -31,7 +31,7 @@ TEST(UnaryTest, Success) {
 
   auto build = builder.BuildAndStart();
 
-  ASSERT_TRUE(build.status.ok());
+  ASSERT_TRUE(build.status.ok()) << build.status;
 
   auto server = std::move(build.server);
 
@@ -81,7 +81,8 @@ TEST(UnaryTest, Success) {
 
   auto status = *call();
 
-  EXPECT_TRUE(status.ok());
+  EXPECT_TRUE(status.ok()) << status.error_code()
+                           << ": " << status.error_message();
 
   EXPECT_FALSE(cancelled.get());
 

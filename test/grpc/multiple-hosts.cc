@@ -29,7 +29,7 @@ TEST(MultipleHostsTest, Success) {
 
   auto build = builder.BuildAndStart();
 
-  ASSERT_TRUE(build.status.ok());
+  ASSERT_TRUE(build.status.ok()) << build.status;
 
   auto server = std::move(build.server);
 
@@ -80,13 +80,15 @@ TEST(MultipleHostsTest, Success) {
 
   auto status = *call("cs.berkeley.edu");
 
-  EXPECT_TRUE(status.ok());
+  EXPECT_TRUE(status.ok()) << status.error_code()
+                           << ": " << status.error_message();
 
   EXPECT_FALSE(berkeley_cancelled.get());
 
   status = *call("cs.washington.edu");
 
-  EXPECT_TRUE(status.ok());
+  EXPECT_TRUE(status.ok()) << status.error_code()
+                           << ": " << status.error_message();
 
   EXPECT_FALSE(washington_cancelled.get());
 }
