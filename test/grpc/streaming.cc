@@ -50,7 +50,7 @@ void test_client_behavior(Handler handler) {
 
   auto build = builder.BuildAndStart();
 
-  ASSERT_TRUE(build.status.ok());
+  ASSERT_TRUE(build.status.ok()) << build.status;
 
   auto server = std::move(build.server);
 
@@ -104,7 +104,8 @@ void test_client_behavior(Handler handler) {
 
   auto status = *call();
 
-  EXPECT_TRUE(status.ok()) << status.error_message();
+  EXPECT_TRUE(status.ok()) << status.error_code()
+                           << ": " << status.error_message();
 
   EXPECT_FALSE(cancelled.get());
 }
