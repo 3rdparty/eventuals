@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <deque>
+#include <string_view>
 #include <thread>
 
 #include "absl/container/flat_hash_map.h"
@@ -497,6 +498,10 @@ class ServerStatus {
     return error_.value();
   }
 
+  std::string_view ToString() const {
+    return ok() ? std::string_view("OK") : std::string_view(error());
+  }
+
  private:
   ServerStatus() {}
   ServerStatus(const std::string& error)
@@ -504,6 +509,10 @@ class ServerStatus {
 
   std::optional<std::string> error_;
 };
+
+inline std::ostream& operator<<(std::ostream& os, const ServerStatus& s) {
+  return os << s.ToString();
+}
 
 ////////////////////////////////////////////////////////////////////////
 
