@@ -62,7 +62,6 @@ jobs:
 
     env:
       GOOGLE_APPLICATION_CREDENTIALS: service_account_credentials.json
-      GOOGLE_REMOTE_CACHE: https://storage.googleapis.com/reboot-dev-eventuals-remote-cache
 
     steps:
       # Checkout the repository under $GITHUB_WORKSPACE.
@@ -102,18 +101,11 @@ jobs:
       # when a workflow is triggered from a forked repository, and thus we
       # can only set up a remote cache if this pull request comes from a
       # non-forked repository.
-      - name: Set Up Remote Cache (main branch)
+      - name: Set Up Remote Cache
         if: github.ref == 'refs/heads/main'
         run: |
-         echo "BAZEL_REMOTE_CACHE=--remote_cache=${{ env.GOOGLE_REMOTE_CACHE }} \
+         echo "BAZEL_REMOTE_CACHE=--remote_upload_local_results=true \
            --google_credentials=${{ env.GOOGLE_APPLICATION_CREDENTIALS }}" \
-           >> $GITHUB_ENV
-
-      - name: Set Up Remote Cache (Pull Requests)
-        if: github.event_name == 'pull_request'
-        run: |
-         echo "BAZEL_REMOTE_CACHE=--remote_cache=${{ env.GOOGLE_REMOTE_CACHE }} \
-           --remote_upload_local_results=false" \
            >> $GITHUB_ENV
 
       - name: Build

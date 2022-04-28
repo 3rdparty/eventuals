@@ -13,5 +13,11 @@ build:windows --compiler="clang-cl"
 
 build:clang --action_env=CC=clang
 
+# Google cache read-only access
+build --remote_cache=https://storage.googleapis.com/reboot-dev-eventuals-remote-cache
+build --remote_upload_local_results=false
+test --remote_cache=https://storage.googleapis.com/reboot-dev-eventuals-remote-cache
+test --remote_upload_local_results=false
+
 # Allow users to add local preferences.
 try-import %workspace%/user.bazelrc
