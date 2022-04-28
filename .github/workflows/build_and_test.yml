@@ -69,7 +69,7 @@ jobs:
         with:
           submodules: "recursive"
 
-      - name: Set up remote cache credentials
+      - name: Set up Read+Write remote cache credentials
         # With the exception of GITHUB_TOKEN, secrets are not passed to the runner
         # when a workflow is triggered from a forked repository.
         if: github.ref == 'refs/heads/main'
@@ -101,7 +101,7 @@ jobs:
       # when a workflow is triggered from a forked repository, and thus we
       # can only set up a remote cache if this pull request comes from a
       # non-forked repository.
-      - name: Set Up Remote Cache
+      - name: Set up Read+Write Remote Cache
         if: github.ref == 'refs/heads/main'
         run: |
          echo "BAZEL_REMOTE_CACHE=--remote_upload_local_results=true \
