@@ -12,7 +12,7 @@ TEST(BuildAndStartTest, Success) {
 
   auto build = builder.BuildAndStart();
 
-  ASSERT_TRUE(build.status.ok());
+  ASSERT_TRUE(build.status.ok()) << build.status;
   ASSERT_TRUE(build.server);
 }
 

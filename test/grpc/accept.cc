@@ -20,7 +20,7 @@ TEST(AcceptTest, ServeValidate) {
 
   auto build = builder.BuildAndStart();
 
-  ASSERT_TRUE(build.status.ok());
+  ASSERT_TRUE(build.status.ok()) << build.status;
 
   auto server = std::move(build.server);
 
