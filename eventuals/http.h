@@ -80,10 +80,10 @@ class Request final {
   class _Builder;
 
   std::string uri_;
-  Method method_;
+  Method method_ = Method::GET;
   Headers headers_;
   std::string body_;
-  std::chrono::nanoseconds timeout_;
+  std::chrono::nanoseconds timeout_ = std::chrono::nanoseconds(0);
   PostFields fields_;
   std::optional<bool> verify_peer_;
   std::optional<x509::Certificate> certificate_;
@@ -313,7 +313,7 @@ struct Response final {
       headers_(std::move(headers)),
       body_(std::move(body)) {}
 
-  long code_;
+  long code_ = 0;
   Headers headers_;
   std::string body_;
 };
@@ -1053,7 +1053,9 @@ struct _HTTP final {
                   curl_easy_setopt(
                       easy_.get(),
                       CURLOPT_TIMEOUT_MS,
-                      duration_cast<milliseconds>(request_.timeout())),
+                      static_cast<long>(duration_cast<milliseconds>(
+                                            request_.timeout())
+                                            .count())),
                   CURLE_OK);
               // If onoff is 1, libcurl will not use any functions that install
               // signal handlers or any functions that cause signals to be sent
