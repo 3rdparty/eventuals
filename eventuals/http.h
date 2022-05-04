@@ -1053,7 +1053,9 @@ struct _HTTP final {
                   curl_easy_setopt(
                       easy_.get(),
                       CURLOPT_TIMEOUT_MS,
-                      duration_cast<milliseconds>(request_.timeout())),
+                      static_cast<long>(duration_cast<milliseconds>(
+                                            request_.timeout())
+                                            .count())),
                   CURLE_OK);
               // If onoff is 1, libcurl will not use any functions that install
               // signal handlers or any functions that cause signals to be sent
