@@ -390,7 +390,7 @@ class EventLoop final : public Scheduler {
         }
 
         stout::borrowed_ref<Clock> clock_;
-        std::chrono::nanoseconds nanoseconds_;
+        std::chrono::nanoseconds nanoseconds_ = std::chrono::nanoseconds(0);
 
         uv_timer_t timer_;
 
@@ -432,7 +432,7 @@ class EventLoop final : public Scheduler {
         }
 
         stout::borrowed_ref<Clock> clock_;
-        std::chrono::nanoseconds nanoseconds_;
+        std::chrono::nanoseconds nanoseconds_ = std::chrono::nanoseconds(0);
       };
     };
 
@@ -440,10 +440,10 @@ class EventLoop final : public Scheduler {
 
     // Stores paused time, no time means clock is not paused.
     std::optional<std::chrono::nanoseconds> paused_;
-    std::chrono::nanoseconds advanced_;
+    std::chrono::nanoseconds advanced_ = std::chrono::nanoseconds(0);
 
     struct Pending final {
-      std::chrono::nanoseconds nanoseconds;
+      std::chrono::nanoseconds nanoseconds = std::chrono::nanoseconds(0);
       Callback<void(const std::chrono::nanoseconds&)> callback;
     };
 
