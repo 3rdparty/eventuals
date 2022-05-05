@@ -114,6 +114,20 @@ template <
 
 ////////////////////////////////////////////////////////////////////////
 
+template <
+    typename Left,
+    typename Right,
+    std::enable_if_t<
+        std::conjunction_v<
+            HasValueFrom<Left>,
+            HasValueFrom<Right>>,
+        int> = 0>
+[[nodiscard]] auto operator>>(Left left, Right right) {
+  return Composed<Left, Right>{std::move(left), std::move(right)};
+}
+
+////////////////////////////////////////////////////////////////////////
+
 // Helpers for _building_ a continuation out of an eventual.
 template <typename Arg, typename E>
 [[nodiscard]] auto Build(E e) {
