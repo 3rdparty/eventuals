@@ -12,13 +12,19 @@
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
-load("//3rdparty/bazel-rules-asio:repos.bzl", asio_repos = "repos")
-load("//3rdparty/bazel-rules-curl:repos.bzl", curl_repos = "repos")
-load("//3rdparty/bazel-rules-jemalloc:repos.bzl", jemalloc_repos = "repos")
-load("//3rdparty/bazel-rules-libuv:repos.bzl", libuv_repos = "repos")
-load("//3rdparty/pyprotoc-plugin:repos.bzl", pyprotoc_plugin_repos = "repos")
-load("//3rdparty/stout-borrowed-ptr:repos.bzl", stout_borrowed_ptr_repos = "repos")
-load("//3rdparty/stout-notification:repos.bzl", stout_notification_repos = "repos")
+load("@com_github_3rdparty_stout_atomic_backoff//bazel:repos.bzl", stout_atomic_backoff_repos = "repos")
+load("@com_github_3rdparty_stout_stateful_tally//bazel:repos.bzl", stout_stateful_tally = "repos")
+
+# buildifier: disable=out-of-order-load
+load("@com_github_3rdparty_stout_borrowed_ptr//bazel:repos.bzl", stout_borrowed_ptr_repos = "repos")
+load("@com_github_3rdparty_stout_flags//bazel:repos.bzl", stout_flags_repos = "repos")
+
+# buildifier: disable=out-of-order-load
+load("@com_github_3rdparty_stout_notification//bazel:repos.bzl", stout_notification_repos = "repos")
+
+# buildifier: disable=out-of-order-load
+load("@com_github_3rdparty_stout//bazel:repos.bzl", stout_repos = "repos")
+load("@com_github_reboot_dev_pyprotoc_plugin//bazel:repos.bzl", pyprotoc_plugin_repos = "repos")
 
 def repos(external = True, repo_mapping = {}):
     """Adds repositories/archives needed by eventuals
@@ -30,31 +36,68 @@ def repos(external = True, repo_mapping = {}):
             repo_mapping, e.g., 'git_repository'
     """
 
-    asio_repos(
+    stout_atomic_backoff_repos()
+
+    stout_stateful_tally()
+
+    stout_borrowed_ptr_repos()
+
+    stout_flags_repos()
+
+    stout_notification_repos()
+
+    stout_repos()
+
+    pyprotoc_plugin_repos()
+
+    #Loading rules_foreign_cc repo.
+    maybe(
+        http_archive,
+        name = "rules_foreign_cc",
+        url = "https://github.com/bazelbuild/rules_foreign_cc/archive/0.5.1.tar.gz",
+        sha256 = "33a5690733c5cc2ede39cb62ebf89e751f2448e27f20c8b2fbbc7d136b166804",
+        strip_prefix = "rules_foreign_cc-0.5.1",
         repo_mapping = repo_mapping,
     )
 
-    curl_repos(
+    # Loading asio repo. In future we gonna add script which checks
+    # for updated sha/commit if some repo had any changes.
+    maybe(
+        git_repository,
+        name = "com_github_3rdparty_bazel_rules_asio",
+        remote = "https://github.com/3rdparty/bazel-rules-asio",
+        commit = "257c93cbaf94703f1b0668b7693267bebea52b37",
+        shallow_since = "1650559794 +0200",
         repo_mapping = repo_mapping,
     )
 
-    jemalloc_repos(
+    # Loading curl repo.
+    maybe(
+        git_repository,
+        name = "com_github_3rdparty_bazel_rules_curl",
+        remote = "https://github.com/3rdparty/bazel-rules-curl",
+        commit = "5748da4b2594fab9410db9b5e6619b47cb5688e0",
+        shallow_since = "1651700487 +0300",
         repo_mapping = repo_mapping,
     )
 
-    libuv_repos(
+    # Loading jemalloc repo.
+    maybe(
+        git_repository,
+        name = "com_github_3rdparty_bazel_rules_jemalloc",
+        remote = "https://github.com/3rdparty/bazel-rules-jemalloc",
+        commit = "c82c0c3856f07d53c1b76e89beeb8abab8c2d0ad",
+        shallow_since = "1634918242 -0700",
         repo_mapping = repo_mapping,
     )
 
-    stout_borrowed_ptr_repos(
-        repo_mapping = repo_mapping,
-    )
-
-    stout_notification_repos(
-        repo_mapping = repo_mapping,
-    )
-
-    pyprotoc_plugin_repos(
+    # Loading libuv repo.
+    maybe(
+        git_repository,
+        name = "com_github_3rdparty_bazel_rules_libuv",
+        remote = "https://github.com/3rdparty/bazel-rules-libuv",
+        commit = "f8aeba82e40cda94d6227c67d114ecc732b30be5",
+        shallow_since = "1638359550 +0300",
         repo_mapping = repo_mapping,
     )
 
@@ -74,6 +117,56 @@ def repos(external = True, repo_mapping = {}):
             "https://github.com/bazelbuild/bazel-skylib/releases/download/1.2.1/bazel-skylib-1.2.1.tar.gz",
         ],
         sha256 = "f7be3474d42aae265405a592bb7da8e171919d74c16f082a5457840f06054728",
+    )
+
+    maybe(
+        http_archive,
+        name = "platforms",
+        urls = [
+            "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.5/platforms-0.0.5.tar.gz",
+            "https://github.com/bazelbuild/platforms/releases/download/0.0.5/platforms-0.0.5.tar.gz",
+        ],
+        sha256 = "379113459b0feaf6bfbb584a91874c065078aa673222846ac765f86661c27407",
+        repo_mapping = repo_mapping,
+    )
+
+    maybe(
+        http_archive,
+        name = "com_github_gflags_gflags",
+        url = "https://github.com/gflags/gflags/archive/v2.2.2.tar.gz",
+        sha256 = "34af2f15cf7367513b352bdcd2493ab14ce43692d2dcd9dfc499492966c64dcf",
+        strip_prefix = "gflags-2.2.2",
+        repo_mapping = repo_mapping,
+    )
+
+    # NOTE: using glog version 0.5.0 since older versions failed
+    # to compile on Windows, see:
+    # https://github.com/google/glog/issues/472
+    maybe(
+        http_archive,
+        name = "com_github_google_glog",
+        url = "https://github.com/google/glog/archive/refs/tags/v0.5.0.tar.gz",
+        sha256 = "eede71f28371bf39aa69b45de23b329d37214016e2055269b3b5e7cfd40b59f5",
+        strip_prefix = "glog-0.5.0",
+        repo_mapping = repo_mapping,
+    )
+
+    maybe(
+        http_archive,
+        name = "com_github_google_googletest",
+        url = "https://github.com/google/googletest/archive/release-1.11.0.tar.gz",
+        sha256 = "b4870bf121ff7795ba20d20bcdd8627b8e088f2d1dab299a031c1034eddc93d5",
+        strip_prefix = "googletest-release-1.11.0",
+        repo_mapping = repo_mapping,
+    )
+
+    maybe(
+        http_archive,
+        name = "com_google_absl",
+        url = "https://github.com/abseil/abseil-cpp/archive/refs/tags/20211102.0.tar.gz",
+        strip_prefix = "abseil-cpp-20211102.0",
+        sha256 = "dcf71b9cba8dc0ca9940c4b316a0c796be8fab42b070bb6b7cab62b48f0e66c4",
+        repo_mapping = repo_mapping,
     )
 
     if external:
