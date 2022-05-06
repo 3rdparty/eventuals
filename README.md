@@ -20,112 +20,12 @@ The library provides numerous abstractions that simplify asynchronous computatio
 
 This library was inspired from experience building and using the [libprocess](https://github.com/3rdparty/libprocess) library to power [Apache Mesos](https://github.com/apache/mesos), which itself has been used at massive scale (production clusters of > 80k hosts).
 
-## Building/Testing
-
-Currently we only support [Bazel](https://bazel.build) and expect/use C++17 (some work could likely make this C++14).
-
-You can build the library with:
-
-```sh
-$ bazel build :eventuals
-...
-```
-
-You can build and run the tests with:
-
-```sh
-$ bazel test test:eventuals
-...
-```
-
-### Visual Studio Code and Bazel Set Up
-
-<details><summary>macOS</summary>
-<p>
-
-1. Download and install [Visual Studio Code](https://code.visualstudio.com/download) (VS Code).
-2. Run VS Code and install the necessary extensions:
-    1. [Bazel plugin](https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel). This extension provides support for Bazel in Visual Studio Code.
-    2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
-    3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
-    4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
-3. Install [Bazel](https://bazel.build). Possible instructions for doing so using Homebrew:
-    1. Check the presence of Bazel using the following command in your terminal:
-    ```
-    $ bazel --version
-    ```
-    2. If you have no Bazel - install it using [Homebrew](https://brew.sh).
-    ```
-    3. Install the Bazel package via Homebrew as follows:
-    ```
-    $ brew install bazel
-    ```
-    4. Upgrade to a newer version of Bazel using the following command (if needed):
-     ```
-    $ brew upgrade bazel
-    ```
-4. Clone [eventuals](https://github.com/3rdparty/eventuals).
-5. Open the eventuals folder via VS Code.
-6. Check the checkboxes about "Trust the authors".
-7. VS Code -> Terminal -> New Terminal
-
-</p>
-</details>
-
-<details><summary>Linux</summary>
-<p>
-
-1. Download and install [Visual Studio Code](https://code.visualstudio.com/download) (VS Code).
-2. Run VS Code and install the necessary extensions:
-    1. [Bazel plugin](https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel). This extension provides support for Bazel in Visual Studio Code.
-    2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
-    3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
-    4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
-3. Install [Bazel](https://bazel.build).
-4. Install the latest version of the compiler [LLVM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
-5. Install [Git](https://git-scm.com/downloads).
-6. Clone [eventuals](https://github.com/3rdparty/eventuals).
-7. Open the eventuals folder via VS Code.
-8. Check the checkboxes about "Trust the authors".
-9. VS Code -> Terminal -> New Terminal
-
-</p>
-</details>
-
-<details><summary>Windows</summary>
-<p>
-
-1. Download and install [Visual Studio Code](https://code.visualstudio.com/download) (VS Code).
-2. Run VS Code and install the necessary extensions:
-    1. [Bazel plugin](https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel). This extension provides support for Bazel in Visual Studio Code.
-    2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
-    3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
-    Possible instuctions for how you can use Visual Studio's `clang-format`:
-        1. Create a folder `.vscode`in your project folder.
-        2. Create a file `settings.json` in the folder `.vscode`
-        3. Add the data to the file (check the path to your `clang-format.exe`):
-        ```
-        {
-        "clang-format.style": "Google",
-        "clang-format.executable": "C:/Program Files (x86)/Microsoft Visual Studio/2019/
-        Community/VC/Tools/Llvm/x64/bin/clang-format.exe",
-        "editor.formatOnSave": true
-        }
-        ```
-    4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
-3. Install [Bazel](https://bazel.build). Detailed installation instructions for Windows can be found here: [Installing Bazel on Windows](https://docs.bazel.build/versions/4.1.0/install-windows.html). This is an important step. You must follow all the instructions, otherwise you will get various errors at the compilation stage.
-4. Install the latest version of the compiler [LLVM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
-5. Install [Git](https://git-scm.com/downloads).
-6. Restart your PC. ;-)
-7. Clone [eventuals](https://github.com/3rdparty/eventuals).
-8. Open the eventuals folder via VS Code.
-9. Check the checkboxes about "Trust the authors".
-10. VS Code -> Terminal -> New Terminal
-
-</p>
-</details>
-
 ## User Guide
+
+### Bazel
+For an example of how to depend on eventuals via Bazel in your own project you'll need to copy the lines selected in [WORKSPACE.bazel](https://github.com/3rdparty/eventuals-tutorial/blob/main/WORKSPACE.bazel#L3-L31) from our [eventuals-tutorial](https://github.com/3rdparty/eventuals-tutorial) repository.
+
+### Eventual's theory
 
 Most of the time you'll use higher-level ***combinators*** for composing eventuals together. This guide will start with more basic ones and work our way up to creating your own eventuals.
 
@@ -846,6 +746,111 @@ eventuals_deps()
 You can then depend on `@eventuals//eventuals` in your Bazel targets.
 
 ## Contributing
+
+### Building/Testing
+
+Currently we only support [Bazel](https://bazel.build) and expect/use C++17 (some work could likely make this C++14).
+
+You can build the library with:
+
+```sh
+$ bazel build :eventuals
+...
+```
+
+You can build and run the tests with:
+
+```sh
+$ bazel test test:eventuals
+...
+```
+
+### Visual Studio Code and Bazel Set Up
+
+<details><summary>macOS</summary>
+<p>
+
+1. Download and install [Visual Studio Code](https://code.visualstudio.com/download) (VS Code).
+2. Run VS Code and install the necessary extensions:
+    1. [Bazel plugin](https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel). This extension provides support for Bazel in Visual Studio Code.
+    2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
+    3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
+    4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
+3. Install [Bazel](https://bazel.build). Possible instructions for doing so using Homebrew:
+    1. Check the presence of Bazel using the following command in your terminal:
+    ```
+    $ bazel --version
+    ```
+    2. If you have no Bazel - install it using [Homebrew](https://brew.sh).
+    ```
+    3. Install the Bazel package via Homebrew as follows:
+    ```
+    $ brew install bazel
+    ```
+    4. Upgrade to a newer version of Bazel using the following command (if needed):
+     ```
+    $ brew upgrade bazel
+    ```
+4. Clone [eventuals](https://github.com/3rdparty/eventuals).
+5. Open the eventuals folder via VS Code.
+6. Check the checkboxes about "Trust the authors".
+7. VS Code -> Terminal -> New Terminal
+
+</p>
+</details>
+
+<details><summary>Linux</summary>
+<p>
+
+1. Download and install [Visual Studio Code](https://code.visualstudio.com/download) (VS Code).
+2. Run VS Code and install the necessary extensions:
+    1. [Bazel plugin](https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel). This extension provides support for Bazel in Visual Studio Code.
+    2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
+    3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
+    4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
+3. Install [Bazel](https://bazel.build).
+4. Install the latest version of the compiler [LLVM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
+5. Install [Git](https://git-scm.com/downloads).
+6. Clone [eventuals](https://github.com/3rdparty/eventuals).
+7. Open the eventuals folder via VS Code.
+8. Check the checkboxes about "Trust the authors".
+9. VS Code -> Terminal -> New Terminal
+
+</p>
+</details>
+
+<details><summary>Windows</summary>
+<p>
+
+1. Download and install [Visual Studio Code](https://code.visualstudio.com/download) (VS Code).
+2. Run VS Code and install the necessary extensions:
+    1. [Bazel plugin](https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel). This extension provides support for Bazel in Visual Studio Code.
+    2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
+    3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
+    Possible instuctions for how you can use Visual Studio's `clang-format`:
+        1. Create a folder `.vscode`in your project folder.
+        2. Create a file `settings.json` in the folder `.vscode`
+        3. Add the data to the file (check the path to your `clang-format.exe`):
+        ```
+        {
+        "clang-format.style": "Google",
+        "clang-format.executable": "C:/Program Files (x86)/Microsoft Visual Studio/2019/
+        Community/VC/Tools/Llvm/x64/bin/clang-format.exe",
+        "editor.formatOnSave": true
+        }
+        ```
+    4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
+3. Install [Bazel](https://bazel.build). Detailed installation instructions for Windows can be found here: [Installing Bazel on Windows](https://docs.bazel.build/versions/4.1.0/install-windows.html). This is an important step. You must follow all the instructions, otherwise you will get various errors at the compilation stage.
+4. Install the latest version of the compiler [LLVM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
+5. Install [Git](https://git-scm.com/downloads).
+6. Restart your PC. ;-)
+7. Clone [eventuals](https://github.com/3rdparty/eventuals).
+8. Open the eventuals folder via VS Code.
+9. Check the checkboxes about "Trust the authors".
+10. VS Code -> Terminal -> New Terminal
+
+</p>
+</details>
 
 ### Code Style
 
