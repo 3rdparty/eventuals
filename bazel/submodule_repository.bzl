@@ -11,10 +11,20 @@ def _submodule_repository(repository_ctx):
 
     repository_ctx.symlink(workspace_root, "")
 
-submodule_repository = repository_rule(
-    implementation = _submodule_repository,
-    local = True,
-    attrs = {
-        "path": attr.string(mandatory = True),
-    },
-)
+def submodule_repository(name, path, external):
+    if not external:
+        native.local_repository(
+            name = name,
+            path = path,
+        )
+    else:
+        repository_rule(
+            implementation = _submodule_repository,
+            local = True,
+            attrs = {
+                "path": attr.string(mandatory = True),
+            },
+        )(
+            name = name,
+            path = path,
+        )
