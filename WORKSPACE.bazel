@@ -19,23 +19,3 @@ load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
 grpc_extra_deps()
 
 ########################################################################
-
-# Need Python rules in order to use protos from grpc examples in the
-# tests.
-#
-# NOTE: we include these here rather than in deps.bzl because:
-#
-#   (1) We _believe_ we need to do this after 'grpc_extra_deps()'
-#       which we have to do here (see above).
-#
-#   (2) They're only used for tests and we assume those depending on
-#       eventuals don't need to depend on the tests.
-
-load("@rules_python//python:pip.bzl", "pip_install")
-
-pip_install(
-    name = "grpc_python_dependencies",
-    requirements = "@com_github_grpc_grpc//:requirements.bazel.txt",
-)
-
-########################################################################
