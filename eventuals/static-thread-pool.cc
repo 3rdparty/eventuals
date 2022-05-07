@@ -70,23 +70,27 @@ StaticThreadPool::StaticThreadPool()
 
               CHECK_EQ(nullptr, waiter->next);
 
-              Context* context = waiter->context.get();
-
-              context->unblock();
-
-              Context* previous = Context::Switch(context);
+              Context* context = CHECK_NOTNULL(waiter->context.get());
 
               EVENTUALS_LOG(1) << "Resuming '" << context->name() << "'";
 
-              CHECK(waiter->callback);
-              waiter->callback();
+              context->unblock();
 
-              CHECK_EQ(context, Context::Switch(previous));
+              stout::borrowed_ref<Context> previous =
+                  Context::Switch(std::move(waiter->context).reference());
+
+              CHECK(waiter->callback);
+
+              Callback<void()> callback = std::move(waiter->callback);
+
+              callback();
 
               ////////////////////////////////////////////////////
               // NOTE: can't use 'waiter' at this point in time //
               // because it might have been deallocated!        //
               ////////////////////////////////////////////////////
+
+              CHECK_EQ(context, Context::Switch(std::move(previous)).get());
             }
           } while (!shutdown_.load());
         });
@@ -113,33 +117,35 @@ StaticThreadPool::~StaticThreadPool() {
 
 ////////////////////////////////////////////////////////////////////////
 
-void StaticThreadPool::Submit(Callback<void()> callback, Context* context) {
-  EVENTUALS_LOG(1) << "Submitting '" << context->name() << "'";
+void StaticThreadPool::Submit(Callback<void()> callback, Context& context) {
+  EVENTUALS_LOG(1) << "Submitting '" << context.name() << "'";
 
-  CHECK(!context->blocked()) << context->name();
+  CHECK(!context.blocked()) << context.name();
 
-  CHECK_EQ(this, context->scheduler());
+  CHECK_EQ(this, context.scheduler());
 
   auto* requirements =
-      static_cast<StaticThreadPool::Requirements*>(context->data);
+      static_cast<StaticThreadPool::Requirements*>(context.data);
 
   auto& pinned = requirements->pinned;
 
-  CHECK(pinned.cpu()) << context->name();
+  CHECK(pinned.cpu()) << context.name();
 
   unsigned int cpu = pinned.cpu().value();
 
   assert(cpu < concurrency);
 
-  context->block();
+  context.block();
 
-  Waiter* waiter = &context->waiter;
+  Waiter* waiter = &context.waiter;
+
+  waiter->context = context.Borrow();
 
   waiter->callback = std::move(callback);
 
   auto* head = heads_[cpu];
 
-  CHECK(waiter->next == nullptr) << context->name();
+  CHECK(waiter->next == nullptr) << context.name();
 
   waiter->next = head->load(std::memory_order_relaxed);
 
@@ -156,19 +162,19 @@ void StaticThreadPool::Submit(Callback<void()> callback, Context* context) {
 
 ////////////////////////////////////////////////////////////////////////
 
-bool StaticThreadPool::Continuable(Context* context) {
-  CHECK(!context->blocked()) << context->name();
+bool StaticThreadPool::Continuable(const Context& context) {
+  CHECK(!context.blocked()) << context.name();
 
-  CHECK(context->waiter.next == nullptr) << context->name();
+  CHECK(context.waiter.next == nullptr) << context.name();
 
-  CHECK_EQ(this, context->scheduler());
+  CHECK_EQ(this, context.scheduler());
 
   auto* requirements =
-      static_cast<StaticThreadPool::Requirements*>(context->data);
+      static_cast<StaticThreadPool::Requirements*>(context.data);
 
   auto& pinned = requirements->pinned;
 
-  CHECK(pinned.cpu()) << context->name();
+  CHECK(pinned.cpu()) << context.name();
 
   unsigned int cpu = pinned.cpu().value();
 
@@ -177,12 +183,12 @@ bool StaticThreadPool::Continuable(Context* context) {
 
 ////////////////////////////////////////////////////////////////////////
 
-void StaticThreadPool::Clone(Context* child) {
+void StaticThreadPool::Clone(Context& child) {
   // We copy the parent's data pointer which points to the
   // 'Requirements'.  We don't need to reallocate the pointer to
   // 'Requirements' because it must outlive the parent context and the
   // parent context must outlive this child context.
-  child->data = CHECK_NOTNULL(Scheduler::Context::Get()->data);
+  child.data = CHECK_NOTNULL(Scheduler::Context::Get()->data);
 }
 
 ////////////////////////////////////////////////////////////////////////

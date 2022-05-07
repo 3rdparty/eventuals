@@ -38,7 +38,12 @@ class Executor final
         return pipe_.Read()
             | Concurrent([this]() {
                  return Map([this](E_ e) {
-                   return std::move(e)
+                   // NOTE: we do 'RescheduleAfter()' here so that we
+                   // make sure we don't end up borrowing any
+                   // 'Scheduler::Context' used within 'e' which may
+                   // cause a deadlock if 'this' gets destructed after
+                   // the borrowed 'Scheduler::Context'.
+                   return RescheduleAfter(std::move(e))
                        // NOTE: returning 'std::monostate' since
                        // 'Concurrent' does not yet support 'void'.
                        | Just(std::monostate{})

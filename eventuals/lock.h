@@ -23,7 +23,7 @@ class Lock final {
     Callback<void()> f;
     Waiter* next = nullptr;
     bool acquired = false;
-    Scheduler::Context* context = nullptr;
+    stout::borrowed_ptr<Scheduler::Context> context;
   };
 
   bool AcquireFast(Waiter* waiter) {
@@ -38,7 +38,7 @@ class Lock final {
               waiter,
               std::memory_order_release,
               std::memory_order_relaxed)) {
-        owner_.store(CHECK_NOTNULL(waiter->context));
+        owner_.store(CHECK_NOTNULL(waiter->context.get()));
         waiter->acquired = true;
         return true;
       }
@@ -86,8 +86,8 @@ class Lock final {
     CHECK_NOTNULL(waiter);
 
     if (waiter->next == nullptr) {
-      // Unset owner _now_ instead of _after_ the "compare and swap"
-      // to avoid racing with 'AcquireFast()' trying to set the owner.
+      // Unset owner _now_ instead of _after_ the "compare and swap" to
+      // avoid racing with 'AcquireFast()' trying to set the owner.
       owner_.store(nullptr);
 
       if (!head_.compare_exchange_weak(
@@ -106,10 +106,13 @@ class Lock final {
       waiter->next->acquired = false;
       waiter->next = nullptr;
 
-      owner_.store(CHECK_NOTNULL(waiter->context));
+      owner_.store(CHECK_NOTNULL(waiter->context.get()));
 
       waiter->acquired = true;
-      waiter->f();
+
+      Callback<void()> f = std::move(waiter->f);
+
+      f();
     }
   }
 
@@ -120,7 +123,7 @@ class Lock final {
   bool OwnedByCurrentSchedulerContext() {
     // NOTE: using 'CHECK_NOTNULL' because the intention here is that
     // the caller expects to have a current scheduler context.
-    return owner_.load() == CHECK_NOTNULL(Scheduler::Context::Get());
+    return owner_.load() == CHECK_NOTNULL(Scheduler::Context::Get().get());
   }
 
  private:
@@ -144,6 +147,16 @@ struct _Acquire final {
       : lock_(lock),
         k_(std::move(k)) {}
 
+    Continuation(Continuation&& that)
+      : lock_(that.lock_),
+        k_(std::move(that.k_)) {
+      CHECK(!waiter_.context) << "moving after starting";
+    }
+
+    ~Continuation() {
+      CHECK(!waiter_.f) << "continuation still waiting for lock";
+    }
+
     template <typename... Args>
     void Start(Args&&... args) {
       waiter_.context = Scheduler::Context::Get();
@@ -154,6 +167,12 @@ struct _Acquire final {
       if (lock_->AcquireFast(&waiter_)) {
         EVENTUALS_LOG(2)
             << "'" << waiter_.context->name() << "' (fast) acquired";
+
+        // NOTE: need to relinquish borrow of context to avoid this
+        // continuation causing a deadlock when trying to destruct the
+        // context.
+        waiter_.context.relinquish();
+
         k_.Start(std::forward<Args>(args)...);
       } else {
         static_assert(
@@ -171,6 +190,11 @@ struct _Acquire final {
               << "'" << waiter_.context->name() << "' (very slow) acquired";
 
           waiter_.context->Unblock([this]() mutable {
+            // NOTE: need to relinquish borrow of context to avoid
+            // this continuation causing a deadlock when trying to
+            // destruct the context.
+            waiter_.context.relinquish();
+
             if constexpr (sizeof...(args) == 1) {
               k_.Start(std::move(*arg_));
             } else {
@@ -183,11 +207,14 @@ struct _Acquire final {
           EVENTUALS_LOG(2)
               << "'" << waiter_.context->name() << "' (slow) acquired";
 
-          if constexpr (sizeof...(args) == 1) {
-            k_.Start(std::move(*arg_));
-          } else {
-            k_.Start();
-          }
+          // TODO(benh): while this isn't the "fast path" we'll do a
+          // Context::Unblock() here which will make it an even slower
+          // path because we'll defer continued execution rather than
+          // execute immediately unless we enhance 'Unblock()' to be
+          // able to tell it to "execute immediately if possible".
+          Callback<void()> f = std::move(waiter_.f);
+
+          f();
         }
       }
     }
@@ -197,6 +224,11 @@ struct _Acquire final {
       waiter_.context = Scheduler::Context::Get();
 
       if (lock_->AcquireFast(&waiter_)) {
+        // NOTE: need to relinquish borrow of context to avoid this
+        // continuation causing a deadlock when trying to destruct the
+        // context.
+        waiter_.context.relinquish();
+
         k_.Fail(std::move(error));
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
@@ -212,6 +244,12 @@ struct _Acquire final {
               [tuple = std::move(tuple)]() mutable {
                 std::apply(
                     [](auto* acquire, auto&&... args) {
+                      // NOTE: need to relinquish borrow of context to
+                      // avoid this continuation causing a deadlock
+                      // when trying to destruct the context.
+                      auto& context = acquire->waiter_.context;
+                      context.relinquish();
+
                       auto& k_ = acquire->k_;
                       k_.Fail(std::forward<decltype(args)>(args)...);
                     },
@@ -225,7 +263,9 @@ struct _Acquire final {
           // path because we'll defer continued execution rather than
           // execute immediately unless we enhance 'Unblock()' to be
           // able to tell it to "execute immediately if possible".
-          waiter_.f();
+          Callback<void()> f = std::move(waiter_.f);
+
+          f();
         }
       }
     }
@@ -234,10 +274,20 @@ struct _Acquire final {
       waiter_.context = Scheduler::Context::Get();
 
       if (lock_->AcquireFast(&waiter_)) {
+        // NOTE: need to relinquish borrow of context to avoid this
+        // continuation causing a deadlock when trying to destruct the
+        // context.
+        waiter_.context.relinquish();
+
         k_.Stop();
       } else {
         waiter_.f = [this]() mutable {
           waiter_.context->Unblock([this]() mutable {
+            // NOTE: need to relinquish borrow of context to avoid
+            // this continuation causing a deadlock when trying to
+            // destruct the context.
+            waiter_.context.relinquish();
+
             k_.Stop();
           });
         };
@@ -248,7 +298,9 @@ struct _Acquire final {
           // path because we'll defer continued execution rather than
           // execute immediately unless we enhance 'Unblock()' to be
           // able to tell it to "execute immediately if possible".
-          waiter_.f();
+          Callback<void()> f = std::move(waiter_.f);
+
+          f();
         }
       }
     }
@@ -265,6 +317,12 @@ struct _Acquire final {
       if (lock_->AcquireFast(&waiter_)) {
         EVENTUALS_LOG(2)
             << "'" << waiter_.context->name() << "' (fast) acquired";
+
+        // NOTE: need to relinquish borrow of context to avoid this
+        // continuation causing a deadlock when trying to destruct the
+        // context.
+        waiter_.context.relinquish();
+
         k_.Begin(*CHECK_NOTNULL(stream_));
       } else {
         waiter_.f = [this]() mutable {
@@ -272,6 +330,11 @@ struct _Acquire final {
               << "'" << waiter_.context->name() << "' (very slow) acquired";
 
           waiter_.context->Unblock([this]() mutable {
+            // NOTE: need to relinquish borrow of context to avoid
+            // this continuation causing a deadlock when trying to
+            // destruct the context.
+            waiter_.context.relinquish();
+
             k_.Begin(*CHECK_NOTNULL(stream_));
           });
         };
@@ -280,7 +343,14 @@ struct _Acquire final {
           EVENTUALS_LOG(2)
               << "'" << waiter_.context->name() << "' (slow) acquired";
 
-          k_.Begin(*CHECK_NOTNULL(stream_));
+          // TODO(benh): while this isn't the "fast path" we'll do a
+          // Context::Unblock() here which will make it an even slower
+          // path because we'll defer continued execution rather than
+          // execute immediately unless we enhance 'Unblock()' to be
+          // able to tell it to "execute immediately if possible".
+          Callback<void()> f = std::move(waiter_.f);
+
+          f();
         }
       }
     }
@@ -295,6 +365,12 @@ struct _Acquire final {
       if (lock_->AcquireFast(&waiter_)) {
         EVENTUALS_LOG(2)
             << "'" << waiter_.context->name() << "' (fast) acquired";
+
+        // NOTE: need to relinquish borrow of context to avoid this
+        // continuation causing a deadlock when trying to destruct the
+        // context.
+        waiter_.context.relinquish();
+
         k_.Body(std::forward<Args>(args)...);
       } else {
         static_assert(
@@ -312,6 +388,11 @@ struct _Acquire final {
               << "'" << waiter_.context->name() << "' (very slow) acquired";
 
           waiter_.context->Unblock([this]() mutable {
+            // NOTE: need to relinquish borrow of context to avoid
+            // this continuation causing a deadlock when trying to
+            // destruct the context.
+            waiter_.context.relinquish();
+
             if constexpr (sizeof...(args) == 1) {
               k_.Body(std::move(*arg_));
             } else {
@@ -324,11 +405,14 @@ struct _Acquire final {
           EVENTUALS_LOG(2)
               << "'" << waiter_.context->name() << "' (slow) acquired";
 
-          if constexpr (sizeof...(args) == 1) {
-            k_.Body(std::move(*arg_));
-          } else {
-            k_.Body();
-          }
+          // TODO(benh): while this isn't the "fast path" we'll do a
+          // Context::Unblock() here which will make it an even slower
+          // path because we'll defer continued execution rather than
+          // execute immediately unless we enhance 'Unblock()' to be
+          // able to tell it to "execute immediately if possible".
+          Callback<void()> f = std::move(waiter_.f);
+
+          f();
         }
       }
     }
@@ -337,10 +421,20 @@ struct _Acquire final {
       waiter_.context = Scheduler::Context::Get();
 
       if (lock_->AcquireFast(&waiter_)) {
+        // NOTE: need to relinquish borrow of context to avoid this
+        // continuation causing a deadlock when trying to destruct the
+        // context.
+        waiter_.context.relinquish();
+
         k_.Ended();
       } else {
         waiter_.f = [this]() mutable {
           waiter_.context->Unblock([this]() mutable {
+            // NOTE: need to relinquish borrow of context to avoid
+            // this continuation causing a deadlock when trying to
+            // destruct the context.
+            waiter_.context.relinquish();
+
             k_.Ended();
           });
         };
@@ -351,7 +445,9 @@ struct _Acquire final {
           // path because we'll defer continued execution rather than
           // execute immediately unless we enhance 'Unblock()' to be
           // able to tell it to "execute immediately if possible".
-          waiter_.f();
+          Callback<void()> f = std::move(waiter_.f);
+
+          f();
         }
       }
     }
@@ -477,6 +573,13 @@ struct _Wait final {
         f_(std::move(f)),
         k_(std::move(k)) {}
 
+    Continuation(Continuation&&) = default;
+
+    ~Continuation() {
+      CHECK(!waiting_) << "continuation still waiting for lock";
+      // TODO(benh): CHECK(!waiter_.f) << "continuation still notifiable";
+    }
+
     template <typename... Args>
     void Start(Args&&... args) {
       CHECK(!lock_->Available()) << "expecting lock to be acquired";
@@ -485,6 +588,7 @@ struct _Wait final {
 
       if (!condition_) {
         condition_.emplace(
+            // TODO(benh): borrow 'this'!
             f_(Callback<void()>([this]() {
               // NOTE: we ignore notifications unless we're notifiable
               // and we make sure we're not notifiable after the first
@@ -493,11 +597,13 @@ struct _Wait final {
               if (notifiable_) {
                 CHECK(lock_->OwnedByCurrentSchedulerContext());
 
+                CHECK(waiter_.context);
+
                 EVENTUALS_LOG(2)
-                    << "'" << CHECK_NOTNULL(waiter_.context)->name()
-                    << "' notified";
+                    << "'" << waiter_.context->name() << "' notified";
 
                 notifiable_ = false;
+                waiting_ = true;
 
                 bool acquired = lock_->AcquireSlow(&waiter_);
 
@@ -524,20 +630,23 @@ struct _Wait final {
         waiter_.context = Scheduler::Context::Get();
 
         waiter_.f = [this]() mutable {
+          waiting_ = false;
+
           EVENTUALS_LOG(2)
               << "'" << waiter_.context->name() << "' (notify) acquired";
 
           waiter_.context->Unblock([this]() mutable {
+            // NOTE: need to relinquish borrow of context to avoid
+            // this continuation causing a deadlock when trying to
+            // destruct the context.
+            waiter_.context.relinquish();
+
             if constexpr (sizeof...(args) == 1) {
               Start(std::move(*arg_));
             } else {
               Start();
             }
           });
-
-          EVENTUALS_LOG(2)
-              << "'" << CHECK_NOTNULL(waiter_.context)->name()
-              << "' (notify) submitted";
         };
 
         lock_->Release();
@@ -578,9 +687,10 @@ struct _Wait final {
               if (notifiable_) {
                 CHECK(!lock_->Available());
 
+                CHECK(waiter_.context);
+
                 EVENTUALS_LOG(2)
-                    << "'" << CHECK_NOTNULL(waiter_.context)->name()
-                    << "' notified";
+                    << "'" << waiter_.context->name() << "' notified";
 
                 notifiable_ = false;
 
@@ -609,20 +719,23 @@ struct _Wait final {
         waiter_.context = Scheduler::Context::Get();
 
         waiter_.f = [this]() mutable {
+          waiting_ = false;
+
           EVENTUALS_LOG(2)
               << "'" << waiter_.context->name() << "' (notify) acquired";
 
           waiter_.context->Unblock([this]() mutable {
+            // NOTE: need to relinquish borrow of context to avoid
+            // this continuation causing a deadlock when trying to
+            // destruct the context.
+            waiter_.context.relinquish();
+
             if constexpr (sizeof...(args) == 1) {
               Body(std::move(*arg_));
             } else {
               Body();
             }
           });
-
-          EVENTUALS_LOG(2)
-              << "'" << CHECK_NOTNULL(waiter_.context)->name()
-              << "' (notify) submitted";
         };
 
         lock_->Release();
@@ -632,6 +745,10 @@ struct _Wait final {
     }
 
     void Ended() {
+      CHECK(!lock_->Available()) << "expecting lock to be acquired";
+      CHECK(!waiting_) << "continuation still waiting for lock";
+      CHECK(!waiter_.f) << "continuation still notifiable";
+
       k_.Ended();
     }
 
@@ -648,6 +765,7 @@ struct _Wait final {
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
     bool notifiable_ = false;
+    bool waiting_ = false;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

@@ -243,7 +243,7 @@ struct _Stream final {
 
       // 'adaptor_' and 'previous_' should be installed before in one
       // of 'Start', 'Fail', 'Stop'.
-      CHECK_NOTNULL(previous_)->Continue([this]() {
+      previous_->Continue([this]() {
         if constexpr (IsUndefined<Context_>::value) {
           next_(adaptor_);
         } else {
@@ -255,7 +255,7 @@ struct _Stream final {
     void Done() override {
       // 'adaptor_' and 'previous_' should be installed before in one
       // of 'Start', 'Fail', 'Stop'.
-      CHECK_NOTNULL(previous_)->Continue([this]() {
+      previous_->Continue([this]() {
         if constexpr (IsUndefined<Done_>::value) {
           k_.Ended();
         } else if constexpr (IsUndefined<Context_>::value) {
@@ -267,7 +267,7 @@ struct _Stream final {
     }
 
     auto& adaptor() {
-      if (previous_ == nullptr) {
+      if (!previous_) {
         previous_ = Scheduler::Context::Get();
         adaptor_.stream_ = this;
         adaptor_.k_ = &k_;
@@ -282,7 +282,7 @@ struct _Stream final {
     Fail_ fail_;
     Stop_ stop_;
 
-    Scheduler::Context* previous_ = nullptr;
+    stout::borrowed_ptr<Scheduler::Context> previous_;
 
     Adaptor<Continuation, K_, Value_, Errors_> adaptor_;
 

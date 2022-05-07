@@ -107,11 +107,11 @@ class StaticThreadPool final : public Scheduler {
 
   ~StaticThreadPool() override;
 
-  bool Continuable(Context* context) override;
+  bool Continuable(const Context& context) override;
 
-  void Submit(Callback<void()> callback, Context* context) override;
+  void Submit(Callback<void()> callback, Context& context) override;
 
-  void Clone(Context* child) override;
+  void Clone(Context& child) override;
 
   template <typename E>
   [[nodiscard]] auto Schedule(Requirements* requirements, E e);
@@ -191,10 +191,10 @@ struct _StaticThreadPoolSchedule final {
 
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
-        auto* previous = Scheduler::Context::Switch(context_.get());
+        auto previous = Scheduler::Context::Switch(context_->Borrow());
         adapted_->Start(std::forward<Args>(args)...);
-        previous = Scheduler::Context::Switch(previous);
-        CHECK_EQ(previous, context_.get());
+        previous = Scheduler::Context::Switch(std::move(previous));
+        CHECK_EQ(previous.get(), context_.get());
       } else {
         if constexpr (!std::is_void_v<Arg_>) {
           arg_.emplace(std::forward<Args>(args)...);
@@ -212,7 +212,7 @@ struct _StaticThreadPoolSchedule final {
                 adapted_->Start();
               }
             }),
-            context_.get());
+            *context_);
       }
     }
 
@@ -239,10 +239,10 @@ struct _StaticThreadPoolSchedule final {
 
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
-        auto* previous = Scheduler::Context::Switch(context_.get());
+        auto previous = Scheduler::Context::Switch(context_->Borrow());
         adapted_->Fail(std::forward<Error>(error));
-        previous = Scheduler::Context::Switch(previous);
-        CHECK_EQ(previous, context_.get());
+        previous = Scheduler::Context::Switch(std::move(previous));
+        CHECK_EQ(previous.get(), context_.get());
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
@@ -264,7 +264,7 @@ struct _StaticThreadPoolSchedule final {
                   },
                   std::move(*tuple));
             }),
-            context_.get());
+            *context_);
       }
     }
 
@@ -290,10 +290,10 @@ struct _StaticThreadPoolSchedule final {
 
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
-        auto* previous = Scheduler::Context::Switch(context_.get());
+        auto previous = Scheduler::Context::Switch(context_->Borrow());
         adapted_->Stop();
-        previous = Scheduler::Context::Switch(previous);
-        CHECK_EQ(previous, context_.get());
+        previous = Scheduler::Context::Switch(std::move(previous));
+        CHECK_EQ(previous.get(), context_.get());
       } else {
         EVENTUALS_LOG(1)
             << "Schedule submitting '" << context_->name() << "'";
@@ -303,7 +303,7 @@ struct _StaticThreadPoolSchedule final {
               Adapt();
               adapted_->Stop();
             }),
-            context_.get());
+            *context_);
       }
     }
 
@@ -327,10 +327,10 @@ struct _StaticThreadPoolSchedule final {
 
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
-        auto* previous = Scheduler::Context::Switch(context_.get());
+        auto previous = Scheduler::Context::Switch(context_->Borrow());
         adapted_->Begin(*CHECK_NOTNULL(stream_));
-        previous = Scheduler::Context::Switch(previous);
-        CHECK_EQ(previous, context_.get());
+        previous = Scheduler::Context::Switch(std::move(previous));
+        CHECK_EQ(previous.get(), context_.get());
       } else {
         EVENTUALS_LOG(1)
             << "Schedule submitting '" << context_->name() << "'";
@@ -340,7 +340,7 @@ struct _StaticThreadPoolSchedule final {
               Adapt();
               adapted_->Begin(*CHECK_NOTNULL(stream_));
             }),
-            context_.get());
+            *context_);
       }
     }
 
@@ -366,10 +366,10 @@ struct _StaticThreadPoolSchedule final {
 
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
-        auto* previous = Scheduler::Context::Switch(context_.get());
+        auto previous = Scheduler::Context::Switch(context_->Borrow());
         adapted_->Body(std::forward<Args>(args)...);
-        previous = Scheduler::Context::Switch(previous);
-        CHECK_EQ(previous, context_.get());
+        previous = Scheduler::Context::Switch(std::move(previous));
+        CHECK_EQ(previous.get(), context_.get());
       } else {
         if constexpr (!std::is_void_v<Arg_>) {
           arg_.emplace(std::forward<Args>(args)...);
@@ -387,7 +387,7 @@ struct _StaticThreadPoolSchedule final {
                 adapted_->Body();
               }
             }),
-            context_.get());
+            *context_);
       }
     }
 
@@ -413,10 +413,10 @@ struct _StaticThreadPoolSchedule final {
 
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
-        auto* previous = Scheduler::Context::Switch(context_.get());
+        auto previous = Scheduler::Context::Switch(context_->Borrow());
         adapted_->Ended();
-        previous = Scheduler::Context::Switch(previous);
-        CHECK_EQ(previous, context_.get());
+        previous = Scheduler::Context::Switch(std::move(previous));
+        CHECK_EQ(previous.get(), context_.get());
       } else {
         EVENTUALS_LOG(1)
             << "Schedule submitting '" << context_->name() << "'";
@@ -426,7 +426,7 @@ struct _StaticThreadPoolSchedule final {
               Adapt();
               adapted_->Ended();
             }),
-            context_.get());
+            *context_);
       }
     }
 
@@ -440,7 +440,8 @@ struct _StaticThreadPoolSchedule final {
     void Adapt() {
       if (!adapted_) {
         // Save previous context (even if it's us).
-        Scheduler::Context* previous = Scheduler::Context::Get();
+        stout::borrowed_ref<Scheduler::Context> previous =
+            Scheduler::Context::Get().reborrow();
 
         adapted_.reset(
             // NOTE: for now we're assuming usage of something like
@@ -453,8 +454,8 @@ struct _StaticThreadPoolSchedule final {
             // tradeoff is not emperically a benefit.
             new Adapted_(
                 std::move(e_).template k<Arg_>(
-                    Reschedule(previous).template k<Value_>(
-                        std::move(k_)))));
+                    Reschedule(std::move(previous))
+                        .template k<Value_>(std::move(k_)))));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);

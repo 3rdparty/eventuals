@@ -240,7 +240,7 @@ TEST_P(HttpTest, GetInterruptAfterStart) {
       [&interrupt]() {
         interrupt.Trigger();
       },
-      &context);
+      context);
 
   EventLoop::Default().RunUntil(future);
 
@@ -274,7 +274,7 @@ TEST_P(HttpTest, PostInterruptAfterStart) {
       [&interrupt]() {
         interrupt.Trigger();
       },
-      &context);
+      context);
 
   EventLoop::Default().RunUntil(future);
 

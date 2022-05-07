@@ -555,7 +555,7 @@ class _Task final {
     context_.emplace(Scheduler::Default(), std::move(name));
 
     k_.emplace(Build(
-        Reschedule(&context_.value())
+        Reschedule(context_->Borrow())
         | std::move(e_)
         | Terminal()
               .start(std::move(start))
@@ -641,7 +641,7 @@ class _Task final {
     context_.emplace(Scheduler::Default(), std::move(name));
 
     k_.emplace(Build(
-        Reschedule(&context_.value())
+        Reschedule(context_->Borrow())
         | std::move(e_)
         | Terminal()
               .start(std::move(start))
@@ -674,7 +674,7 @@ class _Task final {
     context_.emplace(Scheduler::Default(), std::move(name));
 
     k_.emplace(Build(
-        Reschedule(&context_.value())
+        Reschedule(context_->Borrow())
         | std::move(e_)
         | Terminal()
               .start(std::move(start))
@@ -802,7 +802,7 @@ class _Task final {
       std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
       Undefined,
       decltype(Build(
-          Reschedule(&context_.value())
+          Reschedule(context_->Borrow())
           | std::move(e_)
           | Terminal()
                 .start(std::declval<Callback<function_type_t<void, To_>>&&>())

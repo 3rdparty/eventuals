@@ -1078,7 +1078,7 @@ struct _HTTP final {
                   CURLM_OK);
             }
           },
-          &context_);
+          context_);
     }
 
     template <typename Error>
@@ -1100,7 +1100,7 @@ struct _HTTP final {
                 },
                 std::move(*tuple));
           },
-          &context_);
+          context_);
     }
 
     void Stop() {
@@ -1109,7 +1109,7 @@ struct _HTTP final {
           [this]() {
             k_.Stop();
           },
-          &context_);
+          context_);
     }
 
     void Register(Interrupt& interrupt) {
@@ -1158,7 +1158,7 @@ struct _HTTP final {
                     CURLM_OK);
               }
             },
-            &interrupt_context_);
+            interrupt_context_);
       });
 
       // NOTE: we always install the handler in case 'Start()'

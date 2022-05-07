@@ -289,7 +289,7 @@ class EventLoop final : public Scheduler {
                         }
                       }
                     }),
-                    &context_);
+                    context_);
               }),
               nanoseconds_);
         }
@@ -317,7 +317,7 @@ class EventLoop final : public Scheduler {
                     },
                     std::move(*tuple));
               }),
-              &context_);
+              context_);
         }
 
         void Stop() {
@@ -330,7 +330,7 @@ class EventLoop final : public Scheduler {
                   k_.Stop();
                 }
               }),
-              &context_);
+              context_);
         }
 
         void Register(Interrupt& interrupt) {
@@ -367,7 +367,7 @@ class EventLoop final : public Scheduler {
                     });
                   }
                 }),
-                &interrupt_context_);
+                interrupt_context_);
           }));
 
           // NOTE: we always install the handler in case 'Start()'
@@ -481,7 +481,21 @@ class EventLoop final : public Scheduler {
       in_event_loop_ = false;
 
       status = future.wait_for(std::chrono::nanoseconds::zero());
-    } while (status != std::future_status::ready);
+    } while (status != std::future_status::ready || waiters_.load() != nullptr);
+  }
+
+  void RunWhileWaiters() {
+    do {
+      in_event_loop_ = true;
+      running_ = true;
+
+      // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
+      // I/O.
+      uv_run(&loop_, UV_RUN_NOWAIT);
+
+      running_ = false;
+      in_event_loop_ = false;
+    } while (waiters_.load() != nullptr);
   }
 
   // Interrupts the event loop; necessary to have the loop redetermine
@@ -489,11 +503,11 @@ class EventLoop final : public Scheduler {
   // while it was executing.
   void Interrupt();
 
-  bool Continuable(Scheduler::Context* context) override;
+  bool Continuable(const Scheduler::Context& context) override;
 
-  void Submit(Callback<void()> callback, Scheduler::Context* context) override;
+  void Submit(Callback<void()> callback, Scheduler::Context& context) override;
 
-  void Clone(Context* child) override {}
+  void Clone(Context& child) override {}
 
   // Schedules the eventual for execution on the event loop thread.
   template <typename E>
@@ -602,7 +616,7 @@ class EventLoop final : public Scheduler {
                 }
               }
             }),
-            &context_);
+            context_);
       }
 
       template <typename Error>
@@ -628,7 +642,7 @@ class EventLoop final : public Scheduler {
                   },
                   std::move(*tuple));
             }),
-            &context_);
+            context_);
       }
 
       void Stop() {
@@ -641,7 +655,7 @@ class EventLoop final : public Scheduler {
                 k_.Stop();
               }
             }),
-            &context_);
+            context_);
       }
 
       void Register(class Interrupt& interrupt) {
@@ -674,7 +688,7 @@ class EventLoop final : public Scheduler {
                   });
                 }
               }),
-              &interrupt_context_);
+              interrupt_context_);
         });
 
         // NOTE: we always install the handler in case 'Start()'
@@ -801,7 +815,7 @@ class EventLoop final : public Scheduler {
                 }
               }
             }),
-            &context_);
+            context_);
       }
 
       void Next() override {
@@ -862,7 +876,7 @@ class EventLoop final : public Scheduler {
                 }
               }
             }),
-            &context_);
+            context_);
       }
 
       void Done() override {
@@ -887,7 +901,7 @@ class EventLoop final : public Scheduler {
                 });
               }
             }),
-            &context_);
+            context_);
       }
 
       template <typename Error>
@@ -913,7 +927,7 @@ class EventLoop final : public Scheduler {
                   },
                   std::move(*tuple));
             }),
-            &context_);
+            context_);
       }
 
       void Stop() {
@@ -926,7 +940,7 @@ class EventLoop final : public Scheduler {
                 k_.Stop();
               }
             }),
-            &context_);
+            context_);
       }
 
       void Register(class Interrupt& interrupt) {
@@ -959,7 +973,7 @@ class EventLoop final : public Scheduler {
                   });
                 }
               }),
-              &interrupt_context_);
+              interrupt_context_);
         });
 
         // NOTE: we always install the handler in case 'Start()'
@@ -1065,10 +1079,10 @@ struct _EventLoopSchedule final {
 
       if (loop()->InEventLoop()) {
         Adapt();
-        auto* previous = Scheduler::Context::Switch(context_.get());
+        auto previous = Scheduler::Context::Switch(context_->Borrow());
         adapted_->Start(std::forward<Args>(args)...);
-        previous = Scheduler::Context::Switch(previous);
-        CHECK_EQ(previous, context_.get());
+        previous = Scheduler::Context::Switch(std::move(previous));
+        CHECK_EQ(previous.get(), context_.get());
       } else {
         if constexpr (!std::is_void_v<Arg_>) {
           arg_.emplace(std::forward<Args>(args)...);
@@ -1083,7 +1097,7 @@ struct _EventLoopSchedule final {
                 adapted_->Start();
               }
             }),
-            context_.get());
+            *context_);
       }
     }
 
@@ -1095,10 +1109,10 @@ struct _EventLoopSchedule final {
       // propagate a different failure.
       if (loop()->InEventLoop()) {
         Adapt();
-        auto* previous = Scheduler::Context::Switch(context_.get());
+        auto previous = Scheduler::Context::Switch(context_->Borrow());
         adapted_->Fail(std::forward<Error>(error));
-        previous = Scheduler::Context::Switch(previous);
-        CHECK_EQ(previous, context_.get());
+        previous = Scheduler::Context::Switch(std::move(previous));
+        CHECK_EQ(previous.get(), context_.get());
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
@@ -1117,7 +1131,7 @@ struct _EventLoopSchedule final {
                   },
                   std::move(*tuple));
             }),
-            context_.get());
+            *context_);
       }
     }
 
@@ -1129,17 +1143,17 @@ struct _EventLoopSchedule final {
 
       if (loop()->InEventLoop()) {
         Adapt();
-        auto* previous = Scheduler::Context::Switch(context_.get());
+        auto previous = Scheduler::Context::Switch(context_->Borrow());
         adapted_->Stop();
-        previous = Scheduler::Context::Switch(previous);
-        CHECK_EQ(previous, context_.get());
+        previous = Scheduler::Context::Switch(std::move(previous));
+        CHECK_EQ(previous.get(), context_.get());
       } else {
         loop()->Submit(
             this->Borrow([this]() {
               Adapt();
               adapted_->Stop();
             }),
-            context_.get());
+            *context_);
       }
     }
 
@@ -1151,7 +1165,8 @@ struct _EventLoopSchedule final {
     void Adapt() {
       if (!adapted_) {
         // Save previous context (even if it's us).
-        Scheduler::Context* previous = Scheduler::Context::Get();
+        stout::borrowed_ref<Scheduler::Context> previous =
+            Scheduler::Context::Get().reborrow();
 
         adapted_.reset(
             // NOTE: for now we're assuming usage of something like
@@ -1164,8 +1179,8 @@ struct _EventLoopSchedule final {
             // tradeoff is not emperically a benefit.
             new Adapted_(
                 std::move(e_).template k<Arg_>(
-                    Reschedule(previous).template k<Value_>(
-                        _Then::Adaptor<K_>{k_}))));
+                    Reschedule(std::move(previous))
+                        .template k<Value_>(_Then::Adaptor<K_>{k_}))));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
