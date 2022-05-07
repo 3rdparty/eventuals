@@ -145,7 +145,7 @@ struct _FlatMap final {
 
     bool done_ = false;
 
-    Scheduler::Context* previous_ = nullptr;
+    stout::borrowed_ptr<Scheduler::Context> previous_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

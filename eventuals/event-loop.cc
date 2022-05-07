@@ -53,6 +53,10 @@ void EventLoop::Clock::Resume() {
   pending_.clear();
 
   paused_.reset();
+
+  // Now run the event loop in the event any waiters were enqueued and
+  // should be invoked due to the clock having been resumed.
+  loop_.RunWhileWaiters();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -77,6 +81,10 @@ void EventLoop::Clock::Advance(const std::chrono::nanoseconds& nanoseconds) {
             }
           }),
       pending_.end());
+
+  // Now run the event loop in the event any waiters were enqueued and
+  // should be invoked due to the clock having been advanced.
+  loop_.RunWhileWaiters();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -285,24 +293,26 @@ void EventLoop::Interrupt() {
 
 ////////////////////////////////////////////////////////////////////////
 
-bool EventLoop::Continuable(Scheduler::Context* context) {
+bool EventLoop::Continuable(const Scheduler::Context& context) {
   return InEventLoop();
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-void EventLoop::Submit(Callback<void()> callback, Scheduler::Context* context) {
-  CHECK(!context->blocked()) << context->name();
+void EventLoop::Submit(Callback<void()> callback, Context& context) {
+  CHECK(!context.blocked()) << context.name();
 
-  CHECK_EQ(this, context->scheduler());
+  CHECK_EQ(this, context.scheduler());
 
-  context->block();
+  context.block();
 
-  Waiter* waiter = &context->waiter;
+  Waiter* waiter = &context.waiter;
+
+  waiter->context = context.Borrow();
 
   waiter->callback = std::move(callback);
 
-  CHECK(waiter->next == nullptr) << context->name();
+  CHECK(waiter->next == nullptr) << context.name();
 
   waiter->next = waiters_.load(std::memory_order_relaxed);
 
@@ -346,9 +356,25 @@ void EventLoop::Check() {
 
       CHECK_NOTNULL(waiter);
 
-      waiter->context->unblock();
+      Context* context = CHECK_NOTNULL(waiter->context.get());
 
-      waiter->callback();
+      context->unblock();
+
+      stout::borrowed_ref<Context> previous =
+          Context::Switch(std::move(waiter->context).reference());
+
+      CHECK(waiter->callback);
+
+      Callback<void()> callback = std::move(waiter->callback);
+
+      callback();
+
+      ////////////////////////////////////////////////////
+      // NOTE: can't use 'waiter' at this point in time //
+      // because it might have been deallocated!        //
+      ////////////////////////////////////////////////////
+
+      CHECK_EQ(context, Context::Switch(std::move(previous)).get());
     }
   } while (waiter != nullptr);
 }

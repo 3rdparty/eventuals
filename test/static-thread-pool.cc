@@ -199,16 +199,16 @@ TEST(StaticThreadPoolTest, Concurrent) {
         "static thread pool",
         &requirements,
         Iterate({1, 2, 3})
-            | Concurrent([&]() {
-                auto* parent = Scheduler::Context::Get();
+            | Concurrent([&requirements]() {
+                auto parent = Scheduler::Context::Get().reborrow();
                 EXPECT_EQ(
                     parent->name(),
                     "static thread pool");
                 EXPECT_EQ(&requirements, parent->data);
-                return Map([&](int i) {
+                return Map([&requirements, parent = std::move(parent)](int i) {
                   // Should be executed on a cloned StaticThreadPool context.
-                  auto* child = Scheduler::Context::Get();
-                  EXPECT_NE(parent, child);
+                  auto child = Scheduler::Context::Get().reborrow();
+                  EXPECT_NE(parent.get(), child.get());
                   EXPECT_EQ(&requirements, child->data);
                   EXPECT_EQ(
                       child->name(),

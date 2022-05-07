@@ -53,7 +53,7 @@ TEST_F(SignalTest, SignalComposition) {
       []() {
         EXPECT_EQ(raise(SIGQUIT), 0);
       },
-      &context);
+      context);
 
   EventLoop::Default().RunUntil(future);
 
@@ -78,7 +78,7 @@ TEST_F(SignalTest, WaitForSignal) {
       []() {
         EXPECT_EQ(raise(SIGQUIT), 0);
       },
-      &context);
+      context);
 
   EventLoop::Default().RunUntil(future);
 

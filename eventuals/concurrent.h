@@ -445,13 +445,18 @@ struct _Concurrent final {
     // Returns an eventual which represents the computation we perform
     // for each upstream value.
     [[nodiscard]] auto FiberEventual(TypeErasedFiber* fiber, Arg_&& arg) {
-      // NOTE: 'f_()' should expect to be composed with a
-      // stream hence the use of 'Iterate()'. It also might
-      // return a 'FlatMap()' so we need to use 'Loop()'
-      // down below even though we know we only have a single
-      // 'arg' to iterate from the top.
-      return Iterate({std::move(arg)})
-          | f_()
+      // NOTE: we do a 'RescheduleAfter()' so that we don't end up
+      // borrowing any 'Scheduler::Context' (for example from
+      // 'Synchronized()') that might have come from the eventual
+      // returned from 'f_()'.
+      return RescheduleAfter(
+                 // NOTE: 'f_()' should expect to be composed with a
+                 // stream hence the use of 'Iterate()'. It also might
+                 // return a 'FlatMap()' so we need to use 'Loop()'
+                 // down below even though we know we only have a
+                 // single 'arg' to iterate from the top.
+                 Iterate({std::move(arg)})
+                 | f_())
           | Synchronized(Map([this](auto&& value) {
                values_.push_back(std::forward<decltype(value)>(value));
                notify_egress_();
@@ -481,11 +486,11 @@ struct _Concurrent final {
 
       fiber->context->scheduler()->Submit(
           [fiber]() {
-            CHECK_EQ(&fiber->context.value(), Scheduler::Context::Get());
+            CHECK_EQ(&fiber->context.value(), Scheduler::Context::Get().get());
             static_cast<Fiber<E>*>(fiber)->k->Register(fiber->interrupt);
             static_cast<Fiber<E>*>(fiber)->k->Start();
           },
-          &fiber->context.value());
+          fiber->context.value());
     }
 
     // Returns an eventual which implements the logic of handling each
