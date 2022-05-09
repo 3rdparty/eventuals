@@ -37,7 +37,9 @@ void RunServer(const int pipe) {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
         | Head()
         | Then([](auto&& call) {
-             exit(kProcessIntentionalExitCode);
+             // NOTE: need to use 'std::_Exit()' to avoid deadlock
+             // waiting for borrowed contexts to get relinquished.
+             std::_Exit(kProcessIntentionalExitCode);
            });
   };
 
