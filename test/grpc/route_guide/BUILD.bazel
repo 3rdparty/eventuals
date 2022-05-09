@@ -56,7 +56,6 @@ cc_library(
     name = "route-guide-eventuals-server",
     hdrs = [
         "route-guide-eventuals-server.h",
-        "route-guide-utilities.h",
     ],
     deps = [
         ":helper",
