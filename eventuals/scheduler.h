@@ -14,6 +14,7 @@
 #include "eventuals/lazy.h"
 #include "eventuals/terminal.h"
 #include "eventuals/undefined.h"
+#include "stout/borrowable.h"
 #include "stout/stringify.hpp"
 
 ////////////////////////////////////////////////////////////////////////
@@ -24,14 +25,14 @@ namespace eventuals {
 
 class Scheduler {
  public:
-  struct Context final {
+  struct Context final : stout::enable_borrowable_from_this<Context> {
     static Context* Get() {
-      return CHECK_NOTNULL(current_);
+      return CHECK_NOTNULL(current_.get());
     }
 
     static Context* Switch(Context* context) {
-      Context* previous = current_;
-      current_ = CHECK_NOTNULL(context);
+      Context* previous = current_.get();
+      current_ = CHECK_NOTNULL(context)->Borrow();
       return CHECK_NOTNULL(previous);
     }
 
@@ -110,7 +111,7 @@ class Scheduler {
     Callback<void()> callback;
 
    private:
-    static thread_local Context* current_;
+    static thread_local stout::borrowed_ptr<Context> current_;
 
     Scheduler* scheduler_ = nullptr;
 
