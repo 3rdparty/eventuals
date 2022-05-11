@@ -18,7 +18,7 @@
 #include "eventuals/stream.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
-#include "stout/borrowed_ptr.h"
+#include "stout/borrowed_ptr.hpp"
 #include "uv.h"
 
 ////////////////////////////////////////////////////////////////////////

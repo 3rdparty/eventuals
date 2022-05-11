@@ -11,7 +11,7 @@
 #include "eventuals/lazy.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/semaphore.h"
-#include "stout/borrowed_ptr.h"
+#include "stout/borrowed_ptr.hpp"
 
 ////////////////////////////////////////////////////////////////////////
 
