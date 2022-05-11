@@ -32,7 +32,7 @@
 #include "grpcpp/server.h"
 #include "grpcpp/server_builder.h"
 #include "grpcpp/server_context.h"
-#include "stout/notification.h"
+#include "stout/notification.hpp"
 
 ////////////////////////////////////////////////////////////////////////
 

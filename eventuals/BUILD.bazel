@@ -62,7 +62,6 @@ cc_library(
     copts = copts(),
     deps = [
         "@com_github_3rdparty_stout//:stout",
-        "@com_github_3rdparty_stout_borrowed_ptr//:borrowed_ptr",
         "@com_github_google_glog//:glog",
     ] + select({
         # NOTE!

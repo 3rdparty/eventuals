@@ -4,11 +4,6 @@ load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 load("@com_github_3rdparty_stout//bazel:repos.bzl", stout_repos = "repos")
-load("@com_github_3rdparty_stout_atomic_backoff//bazel:repos.bzl", stout_atomic_backoff_repos = "repos")
-load("@com_github_3rdparty_stout_borrowed_ptr//bazel:repos.bzl", stout_borrowed_ptr_repos = "repos")
-load("@com_github_3rdparty_stout_flags//bazel:repos.bzl", stout_flags_repos = "repos")
-load("@com_github_3rdparty_stout_notification//bazel:repos.bzl", stout_notification_repos = "repos")
-load("@com_github_3rdparty_stout_stateful_tally//bazel:repos.bzl", stout_stateful_tally_repos = "repos")
 load("@com_github_reboot_dev_pyprotoc_plugin//bazel:repos.bzl", pyprotoc_plugin_repos = "repos")
 
 def repos(repo_mapping = {}):
@@ -18,30 +13,6 @@ def repos(repo_mapping = {}):
         repo_mapping: passed through to all other functions that expect/use
             repo_mapping, e.g., 'git_repository'
     """
-    stout_atomic_backoff_repos(
-        external = False,
-        repo_mapping = repo_mapping,
-    )
-
-    stout_stateful_tally_repos(
-        external = False,
-        repo_mapping = repo_mapping,
-    )
-
-    stout_borrowed_ptr_repos(
-        external = False,
-        repo_mapping = repo_mapping,
-    )
-
-    stout_flags_repos(
-        external = False,
-        repo_mapping = repo_mapping,
-    )
-
-    stout_notification_repos(
-        external = False,
-        repo_mapping = repo_mapping,
-    )
 
     stout_repos(
         external = False,

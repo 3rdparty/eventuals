@@ -12,7 +12,7 @@
 #include "grpcpp/completion_queue.h"
 #include "grpcpp/create_channel.h"
 #include "grpcpp/generic/generic_stub.h"
-#include "stout/borrowable.h"
+#include "stout/borrowable.hpp"
 
 ////////////////////////////////////////////////////////////////////////
 

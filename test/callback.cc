@@ -1,7 +1,7 @@
 #include "eventuals/callback.h"
 
 #include "gtest/gtest.h"
-#include "stout/borrowed_ptr.h"
+#include "stout/borrowed_ptr.hpp"
 
 namespace eventuals::test {
 namespace {
