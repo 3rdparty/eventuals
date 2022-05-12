@@ -14,7 +14,7 @@
 #include "eventuals/lazy.h"
 #include "eventuals/terminal.h"
 #include "eventuals/undefined.h"
-#include "stout/borrowable.hpp"
+#include "stout/borrowable.h"
 #include "stout/stringify.hpp"
 
 ////////////////////////////////////////////////////////////////////////

@@ -5,7 +5,7 @@
 
 #include "eventuals/callback.h"
 #include "grpcpp/completion_queue.h"
-#include "stout/borrowable.hpp"
+#include "stout/borrowable.h"
 
 ////////////////////////////////////////////////////////////////////////
 

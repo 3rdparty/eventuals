@@ -10,7 +10,7 @@
 #include "eventuals/pipe.h"
 #include "eventuals/task.h"
 #include "eventuals/type-check.h"
-#include "stout/borrowable.hpp"
+#include "stout/borrowable.h"
 
 ////////////////////////////////////////////////////////////////////////
 
