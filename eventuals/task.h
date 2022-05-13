@@ -11,7 +11,7 @@
 #include "eventuals/raise.h"
 #include "eventuals/terminal.h"
 #include "eventuals/type-traits.h"
-#include "stout/stringify.hpp"
+#include "stout/stringify.h"
 
 ////////////////////////////////////////////////////////////////////////
 
