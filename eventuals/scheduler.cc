@@ -1,7 +1,7 @@
 #include "eventuals/scheduler.h"
 
 #include "glog/logging.h" // For GetTID().
-#include "stout/stringify.hpp"
+#include "stout/stringify.h"
 
 ////////////////////////////////////////////////////////////////////////
 
