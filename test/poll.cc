@@ -43,24 +43,25 @@ TEST_F(PollTest, Succeed) {
   auto e = [&]() {
     return DoAll(
                // Server:
-               Poll(server, PollEvents::Readable) | Reduce(
-                   /* data = */ std::string(),
-                   [&](auto& data) {
-                     return Then([&](PollEvents events) {
-                       EXPECT_EQ(
-                           events & PollEvents::Readable,
-                           PollEvents::Readable);
-                       char buffer[1024];
-                       int size = recv(server, buffer, 1024, 0);
-                       if (size > 0) {
-                         data += std::string(buffer, size);
-                         return /* continue = */ true;
-                       } else {
-                         // Reached EOF!
-                         return /* continue = */ false;
-                       }
-                     });
-                   }),
+               Poll(server, PollEvents::Readable)
+                   | Reduce(
+                       /* data = */ std::string(),
+                       [&](auto& data) {
+                         return Then([&](PollEvents events) {
+                           EXPECT_EQ(
+                               events & PollEvents::Readable,
+                               PollEvents::Readable);
+                           char buffer[1024];
+                           int size = recv(server, buffer, 1024, 0);
+                           if (size > 0) {
+                             data += std::string(buffer, size);
+                             return /* continue = */ true;
+                           } else {
+                             // Reached EOF!
+                             return /* continue = */ false;
+                           }
+                         });
+                       }),
                // Client:
                Poll(client, PollEvents::Writable)
                    | Map([&, first = true](PollEvents events) mutable {
