@@ -53,12 +53,16 @@ class _Expected {
   using ErrorsFrom = tuple_types_union_t<Errors_, Errors>;
 
 #if _WIN32
-  // NOTE: default constructor should not exist or be used but is
-  // necessary on Windows so this type can be used as a type parameter
-  // to 'std::promise', see: https://bit.ly/VisualStudioStdPromiseBug
+  // NOTE: default constructor should only exist when 'Value_' is
+  // 'void' but it's required on Windows so this type can be used as a
+  // type parameter to 'std::promise', see:
+  // https://bit.ly/VisualStudioStdPromiseBug
   _Expected() {}
 #else
-  _Expected() = delete;
+  template <
+      typename Value = Value_,
+      std::enable_if_t<std::is_void_v<Value>, int> = 0>
+  _Expected() {}
 #endif
 
   template <
@@ -80,11 +84,15 @@ class _Expected {
           int> = 0>
   _Expected(_Expected<T, Errors> that)
     : variant_([&]() {
+        using ValueOrMonostate = std::conditional_t<
+            std::is_void_v<Value_>,
+            std::monostate,
+            Value_>;
         if (that.has_value()) {
-          return std::variant<Value_, std::exception_ptr>(
+          return std::variant<ValueOrMonostate, std::exception_ptr>(
               std::get<0>(std::move(that.variant_)));
         } else {
-          return std::variant<Value_, std::exception_ptr>(
+          return std::variant<ValueOrMonostate, std::exception_ptr>(
               std::get<1>(std::move(that.variant_)));
         }
       }()) {}
@@ -119,7 +127,11 @@ class _Expected {
     // not stop but instead try and recover from the error.
     return Eventual<Value_>([variant = std::move(variant_)](auto& k) mutable {
              if (variant.index() == 0) {
-               return k.Start(std::move(std::get<0>(variant)));
+               if constexpr (!std::is_void_v<Value_>) {
+                 return k.Start(std::move(std::get<0>(variant)));
+               } else {
+                 return k.Start();
+               }
              } else {
                return k.Fail(std::move(std::get<1>(variant)));
              }
@@ -135,7 +147,8 @@ class _Expected {
     return has_value();
   }
 
-  Value_* operator->() {
+  template <typename Value = Value_>
+  std::enable_if_t<!std::is_void_v<Value>, Value>* operator->() {
     if (has_value()) {
       return &std::get<0>(variant_);
     } else {
@@ -143,7 +156,8 @@ class _Expected {
     }
   }
 
-  Value_& operator*() {
+  template <typename Value = Value_>
+  std::enable_if_t<!std::is_void_v<Value>, Value>& operator*() {
     if (has_value()) {
       return std::get<0>(variant_);
     } else {
@@ -160,7 +174,13 @@ class _Expected {
   template <typename, typename>
   friend class _Expected;
 
-  std::variant<Value_, std::exception_ptr> variant_;
+  std::variant<
+      std::conditional_t<
+          std::is_void_v<Value_>,
+          std::monostate,
+          Value_>,
+      std::exception_ptr>
+      variant_;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -185,6 +205,12 @@ struct Expected final {
   // Use 'Expected::Of<T>' instead!
   Expected() = delete;
 };
+
+////////////////////////////////////////////////////////////////////////
+
+[[nodiscard]] inline auto Expected() {
+  return _Expected<void, std::tuple<>>();
+}
 
 ////////////////////////////////////////////////////////////////////////
 
