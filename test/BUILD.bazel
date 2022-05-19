@@ -61,6 +61,8 @@ cc_test(
         "eventual.cc",
         "executor.cc",
         "expected.cc",
+        "failure-signal-handler.cc",
+        "failure-signal-handler.h",
         "filesystem.cc",
         "filter.cc",
         "finally.cc",
