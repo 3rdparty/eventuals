@@ -27,7 +27,6 @@ cc_library(
 
 cc_library(
     name = "http-mock-server",
-    testonly = True,
     srcs = ["http-mock-server.cc"],
     hdrs = ["http-mock-server.h"],
     copts = copts(),
@@ -38,8 +37,12 @@ cc_library(
     ],
 )
 
-cc_test(
-    name = "eventuals",
+cc_library(
+    name = "base",
+    # We've split all of the tests into separate files so they can be
+    # compiled in parallel which is significantly faster than having
+    # all of the tests in a single file.
+    testonly = True,
     srcs = [
         "bitwise_operator.cc",
         "callback.cc",
@@ -89,6 +92,17 @@ cc_test(
         ":http-mock-server",
         ":promisify-for-test",
         "//eventuals",
+    ],
+    # Setting it to False or leaving it absent will prevent base
+    # tests from running on Windows.
+    alwayslink = True,
+)
+
+cc_test(
+    name = "eventuals",
+    copts = copts(),
+    deps = [
+        ":base",
         "//test/concurrent",
         "@com_github_google_googletest//:gtest_main",
     ],
