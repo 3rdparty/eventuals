@@ -150,10 +150,9 @@ struct _StaticThreadPoolSchedule final {
         E_ e)
       : e_(std::move(e)),
         context_(
-            std::make_tuple(
-                CHECK_NOTNULL(pool),
-                std::move(name),
-                CHECK_NOTNULL(requirements))),
+            CHECK_NOTNULL(pool),
+            std::move(name),
+            CHECK_NOTNULL(requirements)),
         k_(std::move(k)) {}
 
     // Helper to avoid casting default 'Scheduler*' to 'StaticThreadPool*'
@@ -475,8 +474,7 @@ struct _StaticThreadPoolSchedule final {
 
     // Need to store context using '_Lazy' because we need to be able to move
     // this class _before_ it's started and 'Context' is not movable.
-    _Lazy<
-        Scheduler::Context,
+    Lazy::Of<Scheduler::Context>::Args<
         StaticThreadPool*,
         std::string,
         StaticThreadPool::Requirements*>
