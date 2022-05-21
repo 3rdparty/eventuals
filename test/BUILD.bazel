@@ -46,20 +46,11 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "test-environment",
-    hdrs = [
-        "signal-handler-env.h",
-    ],
-    deps = [
-        "@com_github_google_glog//:glog",
-        "@com_github_google_googletest//:gtest",
-    ],
-)
-
 cc_test(
     name = "eventuals",
     srcs = [
+        "install-signal-handler-environment.h",
+        "install-signal-handler-environment.cc",
         "bitwise_operator.cc",
         "callback.cc",
         "catch.cc",
@@ -89,7 +80,6 @@ cc_test(
         "range.cc",
         "repeat.cc",
         "signal.cc",
-        "stack-trace-check.cc",
         "static-thread-pool.cc",
         "stream.cc",
         "take.cc",
@@ -107,7 +97,6 @@ cc_test(
         ":generate-test-task-name",
         ":http-mock-server",
         ":promisify-for-test",
-        ":test-environment",
         "//eventuals",
         "//test/concurrent",
         "@com_github_google_googletest//:gtest_main",
