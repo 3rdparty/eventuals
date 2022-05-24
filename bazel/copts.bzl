@@ -13,11 +13,14 @@ def copts():
             # We do not want to treat `syscall` warning as an error.
             # Future update of glog lib will fix this warning.
             "-Wno-error=deprecated-declarations",
+            "-std=c++17",
         ],
         "@bazel_tools//src/conditions:windows": [
             "-Wno-error=microsoft-cast",
             "-Wno-error=invalid-noreturn",
             "-Wno-error=microsoft-include",
         ],
-        "//conditions:default": [],
+        "//conditions:default": [
+            "-std=c++17",
+        ],
     })
