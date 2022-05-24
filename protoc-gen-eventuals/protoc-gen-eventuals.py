@@ -61,9 +61,23 @@ class EventualsProtocPlugin(ProtocPlugin):
             template = load_template(template_name)
             content = template.render(**template_data)
 
-            output_file = self.response.file.add()
-            output_file.name = file_name
-            output_file.content = content
+        generate_methods_template_name = 'grpc-method-eventuals.cc.j2'
+
+        for service in template_data['services']:
+            for method in service['methods']:
+                template = load_template(generate_methods_template_name)
+                service_data = {
+                    'service': service,
+                    'method': method,
+                }
+
+                content = template.render(**template_data, **service_data)
+
+                file_name = service['name'] + '-' + method[
+                    'name'] + '.eventuals.cc'
+                self.response.file.add(name=folder_for_generated_files + '/' +
+                                       file_name,
+                                       content=content)
 
 
 if __name__ == '__main__':
