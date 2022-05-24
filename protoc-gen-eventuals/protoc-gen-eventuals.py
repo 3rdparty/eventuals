@@ -39,31 +39,54 @@ class EventualsProtocPlugin(ProtocPlugin):
 
         file_digest = self.analyze_file(proto_file)
 
-        proto_file_name = file_digest.pop('proto_file_name')
+        proto_file_path = file_digest.pop('proto_file_name')
 
-        header_file_name = proto_file_name.replace('.proto', '.eventuals.h')
-        source_file_name = proto_file_name.replace('.proto', '.eventuals.cc')
+        proto_file_name = proto_file_path.split('/')[-1]
+
+        folder_for_generated_files = proto_file_name.replace(
+            '.proto', '_generated')
+
+        header_file_name = folder_for_generated_files + '/' + proto_file_name.replace(
+            '.proto', '.eventuals.h')
+        source_file_name = folder_for_generated_files + '/' + proto_file_name.replace(
+            '.proto', '.eventuals.cc')
 
         eventuals_data = {
-            'eventuals_header': header_file_name,
-            'grpc_pb_header': proto_file_name.replace('.proto', '.grpc.pb.h'),
+            'eventuals_header': header_file_name.split('/')[-1],
+            'grpc_pb_header': proto_file_path.replace('.proto', '.grpc.pb.h')
         }
 
-        template_data = dict(**eventuals_data, **file_digest)
-
-        outputs = [
+        general_outputs = [
             (header_file_name, 'eventuals.h.j2'),
             (source_file_name, 'eventuals.cc.j2'),
         ]
 
-        for file_name, template_name in outputs:
+        template_data = dict(**eventuals_data, **file_digest)
 
+        # Generate only base files, without rpc methods implementation
+        for file_name, template_name in general_outputs:
             template = load_template(template_name)
             content = template.render(**template_data)
+            self.response.file.add(name=file_name, content=content)
 
-            output_file = self.response.file.add()
-            output_file.name = file_name
-            output_file.content = content
+        generate_methods_template_name = 'grpc-method-eventuals.cc.j2'
+
+        for service in template_data['services']:
+            for method in service['methods']:
+                template = load_template(generate_methods_template_name)
+
+                service_data = {
+                    'service': service,
+                    'method': method,
+                }
+
+                content = template.render(**template_data, **service_data)
+
+                file_name = service['name'] + '-' + method[
+                    'name'] + '.eventuals.cc'
+                self.response.file.add(name=folder_for_generated_files + '/' +
+                                       file_name,
+                                       content=content)
 
 
 if __name__ == '__main__':
