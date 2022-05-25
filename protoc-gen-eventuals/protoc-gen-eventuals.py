@@ -11,28 +11,36 @@ class EventualsProtocPlugin(ProtocPlugin):
 
     def analyze_file(self, proto_file: FileDescriptorProto) -> dict:
         return {
-            'proto_file_name': proto_file.name,
-            'package_name': proto_file.package,
-            'services': [
-                {
-                    'name': service.name,
-                    'methods': [
-                        {
-                            'name': method.name,
-                            'input_type': method.input_type,
-                            'output_type': method.output_type,
-                            'client_streaming': getattr(
-                                method, 'client_streaming', False
-                            ),
-                            'server_streaming': getattr(
-                                method, 'server_streaming', False
-                            ),
-                        }
-                        for method in service.method
-                    ],
-                }
-                for service in proto_file.service
-            ]
+            'proto_file_name':
+                proto_file.name,
+            'package_name':
+                proto_file.package,
+            'services':
+                [
+                    {
+                        'name':
+                            service.name,
+                        'methods':
+                            [
+                                {
+                                    'name':
+                                        method.name,
+                                    'input_type':
+                                        method.input_type,
+                                    'output_type':
+                                        method.output_type,
+                                    'client_streaming':
+                                        getattr(
+                                            method, 'client_streaming', False
+                                        ),
+                                    'server_streaming':
+                                        getattr(
+                                            method, 'server_streaming', False
+                                        ),
+                                } for method in service.method
+                            ],
+                    } for service in proto_file.service
+                ]
         }
 
     def process_file(self, proto_file: FileDescriptorProto):
@@ -69,12 +77,8 @@ class EventualsProtocPlugin(ProtocPlugin):
 
 
 if __name__ == '__main__':
-    add_template_path(
-        os.path.join(__file__, '../templates/')
-    )
+    add_template_path(os.path.join(__file__, '../templates/'))
 
-    add_template_path(
-        os.path.join(__file__, '../../templates/')
-    )
+    add_template_path(os.path.join(__file__, '../../templates/'))
 
     EventualsProtocPlugin.execute()
