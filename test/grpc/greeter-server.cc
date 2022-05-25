@@ -76,7 +76,6 @@ TEST(GreeterServerTest, SayHello) {
 
   EXPECT_TRUE(status.ok()) << status.error_code()
                            << ": " << status.error_message();
-  ;
 }
 
 } // namespace
