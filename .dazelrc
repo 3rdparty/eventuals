@@ -9,7 +9,7 @@ import os.path
 # compilation failures due to corrupt caches. Even Dazel's maintainers think
 # using the same cache is a mistake: https://github.com/nadirizr/dazel/issues/43
 #
-# We specify a path to an arbitrary 'eventuals' directory to hopefully avoid 
+# We specify a path to an arbitrary 'eventuals' directory to hopefully avoid
 # cache pollution/conflict from other uses of dazel in other repositories
 # but this is just best effort because multiple clones of eventuals will still
 # use the same directory.
