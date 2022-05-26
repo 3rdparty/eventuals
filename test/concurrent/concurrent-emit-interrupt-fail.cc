@@ -5,12 +5,15 @@
 #include "eventuals/interrupt.h"
 #include "eventuals/map.h"
 #include "eventuals/stream.h"
+#include "gmock/gmock.h"
 #include "test/concurrent/concurrent.h"
-#include "test/expect-throw-what.h"
 #include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
+
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 // Tests when when upstream fails after an interrupt the result will
 // be fail.
@@ -58,7 +61,14 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
 
   interrupt.Trigger();
 
-  EXPECT_THROW_WHAT(future.get(), "error");
+  EXPECT_THAT(
+      // NOTE: capturing 'future' as a pointer because until C++20 we
+      // can't capture a "local binding" by reference and there is a
+      // bug with 'EXPECT_THAT' that forces our lambda to be const so
+      // if we capture it by copy we can't call 'get()' because that
+      // is a non-const function.
+      [future = &future]() { future->get(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 } // namespace

@@ -11,13 +11,14 @@
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 #include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 TEST(LockTest, Succeed) {
   Lock lock;
@@ -94,7 +95,9 @@ TEST(LockTest, Fail) {
         | Then([]() { return "t2"; });
   };
 
-  EXPECT_THROW_WHAT(*e1(), "error");
+  EXPECT_THAT(
+      [&]() { *e1(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 
   EXPECT_STREQ("t2", *e2());
 }

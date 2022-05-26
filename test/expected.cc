@@ -3,11 +3,14 @@
 #include <string>
 
 #include "eventuals/then.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 
 namespace eventuals::test {
 namespace {
+
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 TEST(Expected, Construct) {
   Expected::Of<std::string> s = "hello world";
@@ -96,7 +99,9 @@ TEST(Expected, NoRaisesDeclarationUnexpected) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::exception>>);
 
-  EXPECT_THROW_WHAT(*e(), "unexpected");
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<std::runtime_error>(StrEq("unexpected")));
 }
 
 TEST(Expected, NoRaisesDeclarationUnexpectedFromDerivedException) {
@@ -122,7 +127,9 @@ TEST(Expected, NoRaisesDeclarationUnexpectedFromDerivedException) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::exception>>);
 
-  EXPECT_THROW_WHAT(*e(), "woah");
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<MyException>(StrEq("woah")));
 }
 
 TEST(Expected, RaisesDeclarationUnexpectedFromDerivedException) {
@@ -148,7 +155,9 @@ TEST(Expected, RaisesDeclarationUnexpectedFromDerivedException) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<MyException>>);
 
-  EXPECT_THROW_WHAT(*e(), "woah");
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<MyException>(StrEq("woah")));
 }
 
 TEST(Expected, ExpectedNoErrors) {

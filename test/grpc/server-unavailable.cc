@@ -1,8 +1,8 @@
 #include "eventuals/grpc/client.h"
 #include "eventuals/let.h"
 #include "examples/protos/helloworld.grpc.pb.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 #include "test/grpc/test.h"
 
 namespace eventuals::grpc::test {
@@ -13,6 +13,9 @@ using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
 using stout::Borrowable;
+
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 TEST(ServerUnavailableTest, NonexistantServer) {
   Borrowable<CompletionPool> pool;
@@ -31,7 +34,9 @@ TEST(ServerUnavailableTest, NonexistantServer) {
            }));
   };
 
-  EXPECT_THROW_WHAT(*call(), "Failed to start call");
+  EXPECT_THAT(
+      [&]() { *call(); },
+      ThrowsMessage<std::runtime_error>(StrEq("Failed to start call")));
 }
 
 } // namespace

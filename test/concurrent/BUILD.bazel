@@ -37,7 +37,6 @@ cc_library(
     visibility = ["//test:__pkg__"],
     deps = [
         "//eventuals",
-        "//test:expect-throw-what",
         "//test:promisify-for-test",
         "@com_github_google_googletest//:gtest",
         "@com_github_google_googletest//:gtest_main",

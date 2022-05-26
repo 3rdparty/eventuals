@@ -7,11 +7,14 @@
 #include "eventuals/just.h"
 #include "eventuals/raise.h"
 #include "eventuals/then.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 
 namespace eventuals::test {
 namespace {
+
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 TEST(Finally, Succeed) {
   auto e = []() {
@@ -43,7 +46,9 @@ TEST(Finally, Fail) {
 
   static_assert(std::is_same_v<Expected::Of<int>, decltype(expected)>);
 
-  EXPECT_THROW_WHAT(*expected, "error");
+  EXPECT_THAT(
+      [&]() { *expected; },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 TEST(Finally, Stop) {
@@ -99,9 +104,9 @@ TEST(Finally, VoidFail) {
 
   ASSERT_TRUE(exception.has_value());
 
-  EXPECT_THROW_WHAT(
-      std::rethrow_exception(exception.value()),
-      "error");
+  EXPECT_THAT(
+      [&]() { std::rethrow_exception(exception.value()); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 TEST(Finally, VoidStop) {

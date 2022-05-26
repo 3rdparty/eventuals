@@ -7,12 +7,15 @@
 #include "eventuals/closure.h"
 #include "eventuals/eventual.h"
 #include "eventuals/then.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 #include "test/promisify-for-test.h"
 
 namespace eventuals::filesystem::test {
 namespace {
+
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 class FilesystemTest : public ::eventuals::test::EventLoopTest {};
 
@@ -60,7 +63,14 @@ TEST_F(FilesystemTest, OpenFileFail) {
 
   EXPECT_FALSE(std::filesystem::exists(path));
 
-  EXPECT_THROW_WHAT(future.get(), "no such file or directory");
+  EXPECT_THAT(
+      // NOTE: capturing 'future' as a pointer because until C++20 we
+      // can't capture a "local binding" by reference and there is a
+      // bug with 'EXPECT_THAT' that forces our lambda to be const so
+      // if we capture it by copy we can't call 'get()' because that
+      // is a non-const function.
+      [future = &future]() { future->get(); },
+      ThrowsMessage<std::runtime_error>(StrEq("no such file or directory")));
 }
 
 
@@ -246,7 +256,14 @@ TEST_F(FilesystemTest, UnlinkFileFail) {
 
   EventLoop::Default().RunUntil(future);
 
-  EXPECT_THROW_WHAT(future.get(), "no such file or directory");
+  EXPECT_THAT(
+      // NOTE: capturing 'future' as a pointer because until C++20 we
+      // can't capture a "local binding" by reference and there is a
+      // bug with 'EXPECT_THAT' that forces our lambda to be const so
+      // if we capture it by copy we can't call 'get()' because that
+      // is a non-const function.
+      [future = &future]() { future->get(); },
+      ThrowsMessage<std::runtime_error>(StrEq("no such file or directory")));
 }
 
 
@@ -283,7 +300,14 @@ TEST_F(FilesystemTest, MakeDirectoryFail) {
   std::filesystem::remove(path);
   EXPECT_FALSE(std::filesystem::exists(path));
 
-  EXPECT_THROW_WHAT(future.get(), "file already exists");
+  EXPECT_THAT(
+      // NOTE: capturing 'future' as a pointer because until C++20 we
+      // can't capture a "local binding" by reference and there is a
+      // bug with 'EXPECT_THAT' that forces our lambda to be const so
+      // if we capture it by copy we can't call 'get()' because that
+      // is a non-const function.
+      [future = &future]() { future->get(); },
+      ThrowsMessage<std::runtime_error>(StrEq("file already exists")));
 }
 
 
@@ -317,7 +341,14 @@ TEST_F(FilesystemTest, RemoveDirectoryFail) {
 
   EventLoop::Default().RunUntil(future);
 
-  EXPECT_THROW_WHAT(future.get(), "no such file or directory");
+  EXPECT_THAT(
+      // NOTE: capturing 'future' as a pointer because until C++20 we
+      // can't capture a "local binding" by reference and there is a
+      // bug with 'EXPECT_THAT' that forces our lambda to be const so
+      // if we capture it by copy we can't call 'get()' because that
+      // is a non-const function.
+      [future = &future]() { future->get(); },
+      ThrowsMessage<std::runtime_error>(StrEq("no such file or directory")));
 }
 
 
@@ -365,7 +396,14 @@ TEST_F(FilesystemTest, CopyFileFail) {
   EXPECT_FALSE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
 
-  EXPECT_THROW_WHAT(future.get(), "no such file or directory");
+  EXPECT_THAT(
+      // NOTE: capturing 'future' as a pointer because until C++20 we
+      // can't capture a "local binding" by reference and there is a
+      // bug with 'EXPECT_THAT' that forces our lambda to be const so
+      // if we capture it by copy we can't call 'get()' because that
+      // is a non-const function.
+      [future = &future]() { future->get(); },
+      ThrowsMessage<std::runtime_error>(StrEq("no such file or directory")));
 }
 
 
@@ -413,7 +451,14 @@ TEST_F(FilesystemTest, RenameFileFail) {
   EXPECT_FALSE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
 
-  EXPECT_THROW_WHAT(future.get(), "no such file or directory");
+  EXPECT_THAT(
+      // NOTE: capturing 'future' as a pointer because until C++20 we
+      // can't capture a "local binding" by reference and there is a
+      // bug with 'EXPECT_THAT' that forces our lambda to be const so
+      // if we capture it by copy we can't call 'get()' because that
+      // is a non-const function.
+      [future = &future]() { future->get(); },
+      ThrowsMessage<std::runtime_error>(StrEq("no such file or directory")));
 }
 
 } // namespace

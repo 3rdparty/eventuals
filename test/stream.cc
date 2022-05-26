@@ -12,13 +12,14 @@
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 #include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 TEST(StreamTest, Succeed) {
   // Using mocks to ensure fail and stop callbacks don't get invoked.
@@ -158,7 +159,9 @@ TEST(StreamTest, Fail) {
           decltype(s())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  EXPECT_THROW_WHAT(*s(), "error");
+  EXPECT_THAT(
+      [&]() { *s(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 
@@ -411,7 +414,9 @@ TEST(StreamTest, Head) {
         | Head();
   };
 
-  EXPECT_THROW_WHAT(*s2(), "empty stream");
+  EXPECT_THAT(
+      [&]() { *s2(); },
+      ThrowsMessage<std::runtime_error>(StrEq("empty stream")));
 }
 
 TEST(StreamTest, PropagateError) {
@@ -429,7 +434,9 @@ TEST(StreamTest, PropagateError) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  EXPECT_THROW_WHAT(*e(), "error");
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 TEST(StreamTest, ThrowSpecificError) {
@@ -456,7 +463,9 @@ TEST(StreamTest, ThrowSpecificError) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error, std::bad_alloc>>);
 
-  EXPECT_THROW_WHAT(*e(), "error");
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 TEST(StreamTest, ThrowGeneralError) {
@@ -483,7 +492,9 @@ TEST(StreamTest, ThrowGeneralError) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::bad_alloc, std::exception>>);
 
-  EXPECT_THROW_WHAT(*e(), "error");
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 } // namespace

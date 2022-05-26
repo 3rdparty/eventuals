@@ -13,7 +13,6 @@
 #include "eventuals/until.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 #include "test/promisify-for-test.h"
 
 namespace eventuals::test {
@@ -24,6 +23,8 @@ using std::string;
 
 using testing::ElementsAre;
 using testing::MockFunction;
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 TEST(ClosureTest, Then) {
   auto e = []() {
@@ -116,7 +117,9 @@ TEST(ClosureTest, Fail) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  EXPECT_THROW_WHAT(*e(), "error");
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 

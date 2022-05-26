@@ -9,12 +9,15 @@
 #include "eventuals/iterate.h"
 #include "eventuals/let.h"
 #include "eventuals/map.h"
+#include "gmock/gmock.h"
 #include "test/concurrent/concurrent.h"
-#include "test/expect-throw-what.h"
 #include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
+
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 // Tests that 'Concurrent()' and 'ConcurrentOrdered()' defers to the
 // eventuals on how to handle interrupts and in this case one of the
@@ -74,7 +77,14 @@ TYPED_TEST(ConcurrentTypedTest, InterruptFailOrStop) {
   if constexpr (std::is_same_v<TypeParam, ConcurrentType>) {
     EXPECT_ANY_THROW(future.get());
   } else {
-    EXPECT_THROW_WHAT(future.get(), "error");
+    EXPECT_THAT(
+        // NOTE: capturing 'future' as a pointer because until C++20
+        // we can't capture a "local binding" by reference and there
+        // is a bug with 'EXPECT_THAT' that forces our lambda to be
+        // const so if we capture it by copy we can't call 'get()'
+        // because that is a non-const function.
+        [future = &future]() { future->get(); },
+        ThrowsMessage<std::runtime_error>(StrEq("error")));
   }
 }
 

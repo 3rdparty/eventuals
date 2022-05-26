@@ -9,7 +9,6 @@
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 #include "test/generate-test-task-name.h"
 #include "test/promisify-for-test.h"
 
@@ -17,6 +16,8 @@ namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 TEST(Task, Succeed) {
   auto e1 = []() -> Task::Of<int> {
@@ -162,7 +163,9 @@ TEST(Task, FailOnCallback) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  EXPECT_THROW_WHAT(*e(), "error from start");
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error from start")));
 }
 
 TEST(Task, FailTerminated) {
@@ -194,7 +197,14 @@ TEST(Task, FailTerminated) {
   auto [future, k] = PromisifyForTest(e());
   k.Fail(std::runtime_error("error"));
 
-  EXPECT_THROW_WHAT(future.get(), "error from fail");
+  EXPECT_THAT(
+      // NOTE: capturing 'future' as a pointer because until C++20 we
+      // can't capture a "local binding" by reference and there is a
+      // bug with 'EXPECT_THAT' that forces our lambda to be const so
+      // if we capture it by copy we can't call 'get()' because that
+      // is a non-const function.
+      [future = &future]() { future->get(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error from fail")));
 }
 
 TEST(Task, StopOnCallback) {
@@ -326,7 +336,9 @@ TEST(Task, FailContinuation) {
               std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  EXPECT_THROW_WHAT(std::rethrow_exception(result), "error");
+  EXPECT_THAT(
+      [&]() { std::rethrow_exception(result); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 TEST(Task, StopContinuation) {
@@ -419,7 +431,9 @@ TEST(Task, FromToFail) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  EXPECT_THROW_WHAT(*e(), "error");
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 TEST(Task, FromToStop) {
@@ -474,7 +488,9 @@ TEST(Task, Failure) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  EXPECT_THROW_WHAT(*e(), "error");
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 TEST(Task, Inheritance) {
@@ -540,7 +556,10 @@ TEST(Task, Inheritance) {
 
   EXPECT_EQ(*sync(), 10);
   EXPECT_EQ(*async(), 20);
-  EXPECT_THROW_WHAT(*failure(), "error");
+
+  EXPECT_THAT(
+      [&]() { *failure(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 TEST(Task, MoveableSuccess) {

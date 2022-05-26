@@ -2,14 +2,6 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 load("//bazel:copts.bzl", "copts")
 
 cc_library(
-    name = "expect-throw-what",
-    hdrs = [
-        "expect-throw-what.h",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-cc_library(
     name = "generate-test-task-name",
     hdrs = [
         "generate-test-task-name.h",
@@ -93,7 +85,6 @@ cc_test(
     ],
     copts = copts(),
     deps = [
-        ":expect-throw-what",
         ":generate-test-task-name",
         ":http-mock-server",
         ":promisify-for-test",

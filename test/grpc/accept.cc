@@ -2,16 +2,19 @@
 #include "eventuals/head.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "examples/protos/keyvaluestore.grpc.pb.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 #include "test/grpc/test.h"
+
+namespace eventuals::grpc::test {
+namespace {
 
 using helloworld::Greeter;
 using helloworld::HelloReply;
 using helloworld::HelloRequest;
 
-namespace eventuals::grpc::test {
-namespace {
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 TEST(AcceptTest, ServeValidate) {
   ServerBuilder builder;
@@ -35,7 +38,10 @@ TEST(AcceptTest, ServeValidate) {
           | Head();
     };
 
-    EXPECT_THROW_WHAT(*serve(), "Method has streaming requests");
+    EXPECT_THAT(
+        [&]() { *serve(); },
+        ThrowsMessage<std::runtime_error>(StrEq(
+            "Method has streaming requests")));
   }
 
   {
@@ -47,7 +53,10 @@ TEST(AcceptTest, ServeValidate) {
           | Head();
     };
 
-    EXPECT_THROW_WHAT(*serve(), "Method has streaming responses");
+    EXPECT_THAT(
+        [&]() { *serve(); },
+        ThrowsMessage<std::runtime_error>(StrEq(
+            "Method has streaming responses")));
   }
 
   {
@@ -57,7 +66,10 @@ TEST(AcceptTest, ServeValidate) {
           | Head();
     };
 
-    EXPECT_THROW_WHAT(*serve(), "Method does not have streaming requests");
+    EXPECT_THAT(
+        [&]() { *serve(); },
+        ThrowsMessage<std::runtime_error>(StrEq(
+            "Method does not have streaming requests")));
   }
 
   {
@@ -67,7 +79,10 @@ TEST(AcceptTest, ServeValidate) {
           | Head();
     };
 
-    EXPECT_THROW_WHAT(*serve(), "Method does not have streaming responses");
+    EXPECT_THAT(
+        [&]() { *serve(); },
+        ThrowsMessage<std::runtime_error>(StrEq(
+            "Method does not have streaming responses")));
   }
 
   {
@@ -79,9 +94,10 @@ TEST(AcceptTest, ServeValidate) {
           | Head();
     };
 
-    EXPECT_THROW_WHAT(
-        *serve(),
-        "Method does not have requests of type helloworld.HelloRequest");
+    EXPECT_THAT(
+        [&]() { *serve(); },
+        ThrowsMessage<std::runtime_error>(StrEq(
+            "Method does not have requests of type helloworld.HelloRequest")));
   }
 
   {
@@ -93,9 +109,10 @@ TEST(AcceptTest, ServeValidate) {
           | Head();
     };
 
-    EXPECT_THROW_WHAT(
-        *serve(),
-        "Method does not have responses of type helloworld.HelloReply");
+    EXPECT_THAT(
+        [&]() { *serve(); },
+        ThrowsMessage<std::runtime_error>(StrEq(
+            "Method does not have responses of type helloworld.HelloReply")));
   }
 }
 

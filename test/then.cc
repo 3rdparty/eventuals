@@ -5,13 +5,14 @@
 #include "eventuals/just.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 #include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 TEST(ThenTest, Succeed) {
   auto e = [](auto s) {
@@ -82,7 +83,9 @@ TEST(ThenTest, Fail) {
            });
   };
 
-  EXPECT_THROW_WHAT(*c(), "error");
+  EXPECT_THAT(
+      [&]() { *c(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 

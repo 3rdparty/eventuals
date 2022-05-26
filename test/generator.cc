@@ -20,7 +20,6 @@
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/expect-throw-what.h"
 #include "test/promisify-for-test.h"
 
 namespace eventuals::test {
@@ -28,6 +27,8 @@ namespace {
 
 using testing::ElementsAre;
 using testing::MockFunction;
+using testing::StrEq;
+using testing::ThrowsMessage;
 
 TEST(Generator, Succeed) {
   auto stream = []() -> Generator::Of<int> {
@@ -297,7 +298,14 @@ TEST(Generator, FailStream) {
 
   k.Start();
 
-  EXPECT_THROW_WHAT(future.get(), "error");
+  EXPECT_THAT(
+      // NOTE: capturing 'future' as a pointer because until C++20 we
+      // can't capture a "local binding" by reference and there is a
+      // bug with 'EXPECT_THAT' that forces our lambda to be const so
+      // if we capture it by copy we can't call 'get()' because that
+      // is a non-const function.
+      [future = &future]() { future->get(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 TEST(Generator, StopStream) {
