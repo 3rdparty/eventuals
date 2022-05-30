@@ -1061,9 +1061,8 @@ struct _EventLoopSchedule final {
     Continuation(K_ k, E_ e, EventLoop* loop, std::string&& name)
       : e_(std::move(e)),
         context_(
-            std::make_tuple(
-                CHECK_NOTNULL(loop),
-                std::move(name))),
+            CHECK_NOTNULL(loop),
+            std::move(name)),
         k_(std::move(k)) {}
 
     // To avoid casting default 'Scheduler*' to 'EventLoop*' each time.
@@ -1196,8 +1195,7 @@ struct _EventLoopSchedule final {
 
     // Need to store context using '_Lazy' because we need to be able to move
     // this class _before_ it's started and 'Context' is not movable.
-    _Lazy<
-        Scheduler::Context,
+    Lazy::Of<Scheduler::Context>::Args<
         EventLoop*,
         std::string>
         context_;
