@@ -89,10 +89,11 @@ jobs:
         # We only need to do this when the PR is first created, not on subsequent
         # updates.
         if: steps.pr.outputs.pull-request-operation == 'created'
-        uses: juliangruber/approve-pull-request-action@v1
+        uses: juliangruber/approve-pull-request-action@v1.1.1
         with:
-          github-token: ${{ secrets.private_repo_access_as_rebot_token }}
-          number: ${{ steps.pr.outputs.pull-request-number }}    
+          github-token: ${{ secrets.private_repo_access_as_approver_token }}
+          number: ${{ steps.pr.outputs.pull-request-number }}
+          repo: ${{ env.OWNER }}/${{ env.REPO_NAME }}
 
       # Here we are waiting for the PR check status in order to use it in next steps.
       # See docs: https://github.com/marketplace/actions/wait-for-check
