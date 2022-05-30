@@ -1,0 +1,152 @@
+name: Create a PR for updating eventuals in `3rdparty/eventuals-tutorial` repo
+
+on:
+  push:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+# Specify the owner and repo where PR for updating eventuals will be created.
+env:
+  REPO_NAME: eventuals-tutorial
+  OWNER: 3rdparty
+
+jobs:
+  Update-Eventuals:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install buildifier for .bzl files
+        run: brew install buildifier
+        shell: bash
+
+      - uses: actions/checkout@v3
+        with:
+          submodules: "recursive"  
+
+      - name: Grab current commit and shallow_since
+        id: current_info
+        run: |
+          echo ::set-output name=latest_commit::$(git log -n 1 --pretty=format:"%H")
+          echo ::set-output name=latest_shallow_since::$(git log -n 1 --date=raw --pretty=format:"%cd")   
+
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.private_repo_access_as_rebot_token }}
+          repository: ${{ env.OWNER }}/${{ env.REPO_NAME }}
+          path: eventuals-tutorial
+
+      - name: Update WORKSPACE.bazel
+        run: |
+          commit="${{ steps.current_info.outputs.latest_commit }}"
+          shallow_since="${{ steps.current_info.outputs.latest_shallow_since }}"
+          chmod +x scripts/update-eventuals-git-repository.sh
+          ./scripts/update-eventuals-git-repository.sh eventuals-tutorial/WORKSPACE.bazel $commit "$shallow_since"
+        shell: bash
+
+      # The following step checks whether the issue and pull request have already been created.
+      - name: Check if PR and issue already exist
+        env:
+          REPO: ${{ env.OWNER }}/${{ env.REPO_NAME }}
+          GITHUB_TOKEN: ${{ secrets.private_repo_access_as_rebot_token }}
+        run: ./check-if-issue-and-pr-exist.sh Update+eventuals Updating+eventuals+failed
+        working-directory: submodules/dev-tools/.github/workflows/scripts
+
+      - name: Close open issue
+        if: env.ISSUE_EXISTS == 'true' && env.PR_EXISTS == 'false'
+        uses: peter-evans/close-issue@v2
+        with:
+          issue-number: ${{ env.ISSUE_NUMBER }}
+          repository: ${{ env.OWNER }}/${{ env.REPO_NAME }}
+          comment: |
+            Auto-closing this issue because the Pull Request it was created for was closed.
+      # When the "Close open issue" step closes issue we need to set env variable ISSUE_EXISTS to False.
+      # If we don't set it then "Wait for build to succeed" step won't start and we won't get build status and
+      # next step "Create an issue" won't create a new issue
+      - name: Set ISSUE_EXISTS to False
+        if: (env.ISSUE_EXISTS == 'true' && env.PR_EXISTS == 'false')
+        run: echo "ISSUE_EXISTS=false" >> $GITHUB_ENV
+  
+      - name: Create Pull Request
+        id: pr
+        uses: peter-evans/create-pull-request@v4
+        with:
+          committer: Rebot <96078724+reboot-dev-bot@users.noreply.github.com>
+          author: Rebot <96078724+reboot-dev-bot@users.noreply.github.com>
+          commit-message: Update eventuals in git_repository bazel rule
+          title: Update eventuals
+          body: Update eventuals commit and shallow_since in 'git_repository' bazel rule.
+          branch: update-eventuals
+          base: main
+          add-paths: WORKSPACE.bazel
+          token: ${{ secrets.private_repo_access_as_rebot_token }}
+          # If a previous run had already created the branch like `submodule-sync.latest`,
+          # remove that first, start fresh. This ensures that the PR we
+          # open or update always has exactly one commit in it.
+          delete-branch: true
+          path: eventuals-tutorial
+
+      - name: Auto-approve PR
+        # We only need to do this when the PR is first created, not on subsequent
+        # updates.
+        if: steps.pr.outputs.pull-request-operation == 'created'
+        uses: juliangruber/approve-pull-request-action@v1
+        with:
+          github-token: ${{ secrets.private_repo_access_as_rebot_token }}
+          number: ${{ steps.pr.outputs.pull-request-number }}    
+
+      # Here we are waiting for the PR check status in order to use it in next steps.
+      # See docs: https://github.com/marketplace/actions/wait-for-check
+      - name: Wait for build to succeed
+        # If the issue already exists, we don't need to wait, because the only reason we wait is to decide whether to open the issue.
+        if: env.ISSUE_EXISTS == 'false' && (steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated')
+        uses: fountainhead/action-wait-for-check@v1.0.0
+        id: wait-for-build
+        with:
+          token: ${{ secrets.private_repo_access_as_rebot_token }}
+          checkName: 'Build'
+          ref: ${{ steps.pr.outputs.pull-request-head-sha }}
+          repo: ${{ env.REPO_NAME }}
+          owner: ${{ env.OWNER }}
+          timeoutSeconds: 3600
+
+      # In case checks of PR failed and the issue hadn't been created before the following action creates issue.
+      # See docs: https://github.com/actions-ecosystem/action-create-issue
+      - name: Create an issue
+        if: steps.wait-for-build.outputs.conclusion == 'failure'
+        uses: actions-ecosystem/action-create-issue@v1
+        with:
+          github_token: ${{ secrets.private_repo_access_as_rebot_token }}
+          repo: ${{ env.OWNER }}/${{ env.REPO_NAME }}
+          title: Updating eventuals failed
+          body: |
+            ## Please check the PR for updating eventuals
+            Pull Request URL - ${{ steps.pr.outputs.pull-request-url }}
+      # The "mergequeue-failed" label gets added by the Mergequeue bot when it has previously seen
+      # the mergequeue-ready label on a PR but the checks failed and Mergequeue couldn't merge the PR.
+      # When that happens it removes the "mergequeue-ready" label and adds "mergequeue-failed".
+      # Even if we later add the "mergequeue-ready" label to the PR again, Mergequeue won't merge a PR
+      # with a new "mergequeue-ready" label if it still has an (old) "mergequeue-failed" label on it.
+      # So we must remove the mergequeue-failed label before re-adding mergequeue-ready.
+      # The following action removes the "mergequeue-failed" label if it exist.
+      # If it doesn't exist the action returns error but doesn't fail the whole job (by default).
+      # See docs: https://github.com/actions-ecosystem/action-remove-labels
+      - name: Remove label "mergequeue-failed"
+        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        uses: actions-ecosystem/action-remove-labels@v1
+        with:
+          number: ${{ steps.pr.outputs.pull-request-number }}
+          labels: mergequeue-failed
+          repo: ${{ env.OWNER }}/${{ env.REPO_NAME }}
+          github_token: ${{ secrets.private_repo_access_as_rebot_token }}
+
+      # We add "mergequeue-ready" label to the pull request created or updated in the step
+      # "Create Pull Request or update existing" in order to merge the changes in automatic mode.
+      # See docs of the action: https://github.com/actions-ecosystem/action-add-labels
+      - name: Add label "mergequeue-ready"
+        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          number: ${{ steps.pr.outputs.pull-request-number }}
+          labels: mergequeue-ready
+          repo: ${{ env.OWNER }}/${{ env.REPO_NAME }}
+          github_token: ${{ secrets.private_repo_access_as_rebot_token }}
