@@ -234,7 +234,7 @@ TEST(FlatMap, InterruptReturn) {
                    });
                    waiting.store(true);
                  })
-                 .next([](auto& k) {
+                 .next([](auto& k, Interrupt::Handler& handler) {
                    k.Ended();
                  });
            })

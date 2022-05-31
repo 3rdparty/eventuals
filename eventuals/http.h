@@ -464,6 +464,10 @@ struct _HTTP final {
     }
 
     void Start() {
+      if (handler_.has_value()) {
+        handler_->Install();
+      }
+
       CHECK(!started_ && !completed_);
 
       loop_.Submit(
@@ -1062,6 +1066,10 @@ struct _HTTP final {
 
     template <typename Error>
     void Fail(Error&& error) {
+      if (handler_.has_value()) {
+        handler_->Install();
+      }
+
       // TODO(benh): avoid allocating on heap by storing args in
       // pre-allocated buffer based on composing with Errors.
       using Tuple = std::tuple<decltype(this), Error>;
@@ -1083,12 +1091,16 @@ struct _HTTP final {
     }
 
     void Stop() {
-      // Submitting to event loop to avoid race with interrupt.
-      loop_.Submit(
-          [this]() {
-            k_.Stop();
-          },
-          context_);
+      if (handler_.has_value() && !handler_->Install()) {
+        handler_->Invoke();
+      } else {
+        // Submitting to event loop to avoid race with interrupt.
+        loop_.Submit(
+            [this]() {
+              k_.Stop();
+            },
+            context_);
+      }
     }
 
     void Register(Interrupt& interrupt) {
@@ -1139,10 +1151,6 @@ struct _HTTP final {
             },
             interrupt_context_);
       });
-
-      // NOTE: we always install the handler in case 'Start()'
-      // never gets called.
-      handler_->Install();
     }
 
    private:

@@ -21,12 +21,12 @@ TYPED_TEST(ConcurrentTypedTest, EmitStopInterrupt) {
     return Stream<int>()
                .interruptible()
                .begin([](auto& k, Interrupt::Handler& handler) {
+                 k.Begin();
+               })
+               .next([i = 0](auto& k, Interrupt::Handler& handler) mutable {
                  handler.Install([&k]() {
                    k.Stop();
                  });
-                 k.Begin();
-               })
-               .next([i = 0](auto& k) mutable {
                  i++;
                  if (i == 1) {
                    k.Emit(i);

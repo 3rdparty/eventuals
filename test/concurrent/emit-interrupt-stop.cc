@@ -18,29 +18,25 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptStop) {
     return Stream<int>()
                .interruptible()
                .begin([](auto& k, Interrupt::Handler& handler) {
-                 handler.Install([&k]() {
-                   k.Stop();
-                 });
+                 handler.Install([&k]() { k.Stop(); });
                  k.Begin();
                })
-               .next([i = 0](auto& k) mutable {
+               .next([i = 0](auto& k, Interrupt::Handler& handler) mutable {
                  i++;
                  if (i == 1) {
                    k.Emit(i);
                  }
                })
-        | this->ConcurrentOrConcurrentOrdered([]() {
-            return Map([](int i) {
-              return std::to_string(i);
-            });
-          })
+        | this->ConcurrentOrConcurrentOrdered(
+            []() { return Map([](int i) { return std::to_string(i); }); })
         | Collect<std::vector<std::string>>();
   };
 
-  static_assert(
-      eventuals::tuple_types_unordered_equals_v<
-          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<>>);
+  static_assert(eventuals::tuple_types_unordered_equals_v<
+                typename decltype(e())::template ErrorsFrom<
+                    void,
+                    std::tuple<>>,
+                std::tuple<>>);
 
   auto [future, k] = PromisifyForTest(e());
 

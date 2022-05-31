@@ -219,6 +219,11 @@ class EventLoop final : public Scheduler {
         }
 
         void Start() {
+          // Will be installed if not triggered.
+          if (handler_.has_value()) {
+            handler_->Install();
+          }
+
           // Clock is basically a "scheduler" for timers so we need to
           // "submit" a callback to be executed when the clock is not
           // paused which might be right away but might also be at
@@ -295,6 +300,11 @@ class EventLoop final : public Scheduler {
 
         template <typename Error>
         void Fail(Error&& error) {
+          // Will be installed if not triggered.
+          if (handler_.has_value()) {
+            handler_->Install();
+          }
+
           // TODO(benh): avoid allocating on heap by storing args in
           // pre-allocated buffer based on composing with Errors.
           using Tuple = std::tuple<decltype(this), Error>;
@@ -320,16 +330,20 @@ class EventLoop final : public Scheduler {
         }
 
         void Stop() {
-          // Submitting to event loop to avoid race with interrupt.
-          loop().Submit(
-              this->Borrow([this]() {
-                if (!completed_) {
-                  CHECK(!started_);
-                  completed_ = true;
-                  k_.Stop();
-                }
-              }),
-              context_);
+          if (handler_.has_value() && !handler_->Install()) {
+            handler_->Invoke();
+          } else {
+            // Submitting to event loop to avoid race with interrupt.
+            loop().Submit(
+                this->Borrow([this]() {
+                  if (!completed_) {
+                    CHECK(!started_);
+                    completed_ = true;
+                    k_.Stop();
+                  }
+                }),
+                context_);
+          }
         }
 
         void Register(Interrupt& interrupt) {
@@ -368,10 +382,6 @@ class EventLoop final : public Scheduler {
                 }),
                 interrupt_context_);
           }));
-
-          // NOTE: we always install the handler in case 'Start()'
-          // never gets called i.e., due to a paused clock.
-          handler_->Install();
         }
 
        private:
@@ -568,6 +578,11 @@ class EventLoop final : public Scheduler {
       }
 
       void Start() {
+        // Will be installed if not triggered.
+        if (handler_.has_value()) {
+          handler_->Install();
+        }
+
         loop_.Submit(
             this->Borrow([this]() {
               if (!completed_) {
@@ -620,6 +635,11 @@ class EventLoop final : public Scheduler {
 
       template <typename Error>
       void Fail(Error&& error) {
+        // Will be installed if not triggered.
+        if (handler_.has_value()) {
+          handler_->Install();
+        }
+
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
         using Tuple = std::tuple<decltype(this), Error>;
@@ -645,16 +665,20 @@ class EventLoop final : public Scheduler {
       }
 
       void Stop() {
-        // Submitting to event loop to avoid race with interrupt.
-        loop_.Submit(
-            this->Borrow([this]() {
-              if (!completed_) {
-                CHECK(!started_);
-                completed_ = true;
-                k_.Stop();
-              }
-            }),
-            context_);
+        if (handler_.has_value() && !handler_->Install()) {
+          handler_->Invoke();
+        } else {
+          // Submitting to event loop to avoid race with interrupt.
+          loop_.Submit(
+              this->Borrow([this]() {
+                if (!completed_) {
+                  CHECK(!started_);
+                  completed_ = true;
+                  k_.Stop();
+                }
+              }),
+              context_);
+        }
       }
 
       void Register(class Interrupt& interrupt) {
@@ -689,10 +713,6 @@ class EventLoop final : public Scheduler {
               }),
               interrupt_context_);
         });
-
-        // NOTE: we always install the handler in case 'Start()'
-        // never gets called.
-        handler_->Install();
       }
 
      private:
@@ -789,6 +809,11 @@ class EventLoop final : public Scheduler {
       }
 
       void Start() {
+        // Will be installed if not triggered.
+        if (handler_.has_value()) {
+          handler_->Install();
+        }
+
         loop_.Submit(
             this->Borrow([this]() {
               if (!completed_) {
@@ -910,6 +935,11 @@ class EventLoop final : public Scheduler {
 
       template <typename Error>
       void Fail(Error&& error) {
+        // Will be installed if not triggered.
+        if (handler_.has_value()) {
+          handler_->Install();
+        }
+
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
         using Tuple = std::tuple<decltype(this), Error>;
@@ -935,16 +965,20 @@ class EventLoop final : public Scheduler {
       }
 
       void Stop() {
-        // Submitting to event loop to avoid race with interrupt.
-        loop_.Submit(
-            this->Borrow([this]() {
-              if (!completed_) {
-                CHECK(!started_);
-                completed_ = true;
-                k_.Stop();
-              }
-            }),
-            context_);
+        if (handler_.has_value() && !handler_->Install()) {
+          handler_->Invoke();
+        } else {
+          // Submitting to event loop to avoid race with interrupt.
+          loop_.Submit(
+              this->Borrow([this]() {
+                if (!completed_) {
+                  CHECK(!started_);
+                  completed_ = true;
+                  k_.Stop();
+                }
+              }),
+              context_);
+        }
       }
 
       void Register(class Interrupt& interrupt) {
@@ -979,10 +1013,6 @@ class EventLoop final : public Scheduler {
               }),
               interrupt_context_);
         });
-
-        // NOTE: we always install the handler in case 'Start()'
-        // never gets called.
-        handler_->Install();
       }
 
      private:

@@ -31,12 +31,14 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailInterrupt) {
     return Stream<int>()
                .interruptible()
                .begin([](auto& k, Interrupt::Handler& handler) {
-                 handler.Install([&k]() {
-                   k.Stop();
-                 });
+                 // Since there is no blocking in 'begin', the interrupt handler
+                 // shouldn't be installed.
                  k.Begin();
                })
-               .next([i = 0](auto& k) mutable {
+               .next([i = 0](auto& k, Interrupt::Handler& handler) mutable {
+                 // There we emulate some blocking operation, so the interrupt
+                 // handler should be installed.
+                 handler.Install([&k]() { k.Stop(); });
                  i++;
                  if (i == 1) {
                    k.Emit(i);
@@ -55,11 +57,9 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailInterrupt) {
         | Collect<std::vector<std::string>>();
   };
 
-  static_assert(
-      eventuals::tuple_types_unordered_equals_v<
-          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
-
+  static_assert(eventuals::tuple_types_unordered_equals_v<
+                typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+                std::tuple<std::runtime_error>>);
 
   auto [future, k] = PromisifyForTest(e());
 

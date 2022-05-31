@@ -192,14 +192,17 @@ TEST(StreamTest, InterruptStream) {
                  });
                  k.Begin();
                })
-               .next([](auto& interrupted, auto& k) {
+               .next([](
+                         auto& interrupted,
+                         auto& k,
+                         Interrupt::Handler& handler) {
                  if (!interrupted->load()) {
                    k.Emit(0);
                  } else {
                    k.Stop();
                  }
                })
-               .done([&](auto&, auto&) {
+               .done([&](auto&, auto&, Interrupt::Handler& handler) {
                  done.Call();
                })
         | Loop<int>()
@@ -272,7 +275,7 @@ TEST(StreamTest, InterruptLoop) {
                 });
                 k.Next();
               })
-              .body([&](auto&, auto& k, auto&&) {
+              .body([&](auto&, auto& k, Interrupt::Handler& handler, auto&&) {
                 auto thread = std::thread(
                     [&]() mutable {
                       while (!triggered.load()) {
@@ -282,17 +285,20 @@ TEST(StreamTest, InterruptLoop) {
                     });
                 thread.detach();
               })
-              .ended([](auto& interrupted, auto& k) {
+              .ended([](
+                         auto& interrupted,
+                         auto& k,
+                         Interrupt::Handler& handler) {
                 if (interrupted->load()) {
                   k.Stop();
                 } else {
                   k.Fail(std::runtime_error("error"));
                 }
               })
-              .fail([&](auto&, auto&&) {
+              .fail([&](auto&, Interrupt::Handler& handler, auto&&) {
                 fail.Call();
               })
-              .stop([&](auto&) {
+              .stop([&](auto&, Interrupt::Handler& handler) {
                 stop.Call();
               });
   };
