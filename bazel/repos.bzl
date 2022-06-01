@@ -70,6 +70,15 @@ def repos(repo_mapping = {}):
     )
 
     maybe(
+        git_repository,
+        name = "com_github_3rdparty_bazel_rules_tl_expected",
+        remote = "https://github.com/3rdparty/bazel-rules-expected",
+        commit = "c703632657bf4ec9177d9aea0447166d424b3b74",
+        shallow_since = "1654243887 +0300",
+        repo_mapping = repo_mapping,
+    )
+
+    maybe(
         http_archive,
         name = "com_github_grpc_grpc",
         urls = ["https://github.com/grpc/grpc/archive/refs/tags/v1.45.0.tar.gz"],
