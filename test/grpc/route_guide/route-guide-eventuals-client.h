@@ -1,20 +1,15 @@
 #pragma once
 
-#include <grpcpp/channel.h>
+#include <gtest/gtest.h>
 
-#include <memory>
 #include <string>
 #include <vector>
 
 #include "eventuals/grpc/client.h"
-#include "test/grpc/route_guide/helper.h"
 #include "test/grpc/route_guide/route-guide-eventuals-server.h"
-#include "test/grpc/route_guide/route_guide.grpc.pb.h"
 
 using eventuals::grpc::Client;
 using eventuals::grpc::CompletionPool;
-using eventuals::grpc::ServerBuilder;
-using eventuals::grpc::ServerStatusOrServer;
 using routeguide::Feature;
 using routeguide::Point;
 using stout::Borrowable;
@@ -27,13 +22,9 @@ class RouteGuideClient {
       const std::string& target,
       const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
       stout::borrowed_ptr<CompletionPool> pool,
-      const std::string& db)
-    : client_(target, credentials, std::move(pool)) {
-  }
+      const std::string& db);
 
-  void SetDb(const std::string& db) {
-    routeguide::ParseDb(db, &feature_list_);
-  }
+  void SetDb(const std::string& db);
 
   auto GetFeature();
 
@@ -71,6 +62,12 @@ class RouteGuideClient {
 
 class RouteGuideTest : public ::testing::Test {
  public:
+  RouteGuideTest();
+
+ protected:
+  void SetUp() override;
+
+ private:
   const std::string db_path_ = "test/grpc/route_guide/route_guide_db.json";
   const std::string server_address_ = "localhost:8888";
 
@@ -78,36 +75,8 @@ class RouteGuideTest : public ::testing::Test {
   std::unique_ptr<eventuals::grpc::Server> server_;
   Borrowable<CompletionPool> pool_;
 
- protected:
-  void SetUp() override {
-    std::string db;
-    routeguide::GetDbFileContent(db_path_, db);
-
-    service_.ParseDb(db);
-
-    ServerBuilder builder;
-    builder.AddListeningPort(
-        server_address_,
-        ::grpc::InsecureServerCredentials());
-    builder.RegisterService(&service_);
-
-    auto build = builder.BuildAndStart();
-
-    ASSERT_TRUE(build.status.ok()) << build.status;
-    server_.swap(build.server);
-    ASSERT_TRUE(server_);
-
-    guide.SetDb(db);
-  }
-
  public:
-  RouteGuideTest()
-    : guide(
-        server_address_,
-        ::grpc::InsecureChannelCredentials(),
-        pool_.Borrow(),
-        "") {}
-
+  //  Need to be declared after 'pool_'.
   RouteGuideClient guide;
 };
 
