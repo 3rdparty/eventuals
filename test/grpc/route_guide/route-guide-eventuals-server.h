@@ -12,8 +12,8 @@
 #include "eventuals/map.h"
 #include "eventuals/then.h"
 #include "test/grpc/route_guide/helper.h"
-#include "test/grpc/route_guide/route_guide.eventuals.h"
 #include "test/grpc/route_guide/route_guide.grpc.pb.h"
+#include "test/grpc/route_guide/route_guide_generated/route_guide.eventuals.h"
 
 using eventuals::Closure;
 using eventuals::Filter;
@@ -125,16 +125,9 @@ class RouteGuideImpl final
   : public RouteGuide::Service<RouteGuideImpl>,
     public Synchronizable {
  public:
-  void ParseDb(const std::string& db) {
-    routeguide::ParseDb(db, &feature_list_);
-  }
+  void ParseDb(const std::string& db);
 
-  auto GetFeature(grpc::ServerContext* context, Point&& point) {
-    Feature feature;
-    feature.set_name(GetFeatureName(point, feature_list_));
-    feature.mutable_location()->CopyFrom(point);
-    return feature;
-  }
+  Feature GetFeature(grpc::ServerContext* context, Point&& point);
 
   auto ListFeatures(
       grpc::ServerContext* context,
