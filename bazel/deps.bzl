@@ -7,6 +7,7 @@ load("@com_github_3rdparty_bazel_rules_asio//bazel:deps.bzl", asio_deps = "deps"
 load("@com_github_3rdparty_bazel_rules_curl//bazel:deps.bzl", curl_deps = "deps")
 load("@com_github_3rdparty_bazel_rules_jemalloc//bazel:deps.bzl", jemalloc_deps = "deps")
 load("@com_github_3rdparty_bazel_rules_libuv//bazel:deps.bzl", libuv_deps = "deps")
+load("@com_github_3rdparty_bazel_rules_tl_expected//bazel:deps.bzl", expected_deps = "deps")
 load("@com_github_3rdparty_stout//bazel:deps.bzl", stout_deps = "deps")
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
 load("@com_github_reboot_dev_pyprotoc_plugin//bazel:deps.bzl", pyprotoc_plugin_deps = "deps")
@@ -25,6 +26,10 @@ def deps(repo_mapping = {}):
     bazel_skylib_workspace()
 
     curl_deps(
+        repo_mapping = repo_mapping,
+    )
+
+    expected_deps(
         repo_mapping = repo_mapping,
     )
 
