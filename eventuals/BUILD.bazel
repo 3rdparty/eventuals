@@ -63,6 +63,7 @@ cc_library(
     deps = [
         "@com_github_3rdparty_stout//:stout",
         "@com_github_google_glog//:glog",
+        "@com_github_tl_expected//:expected",
     ] + select({
         # NOTE!
         # For now we build jemalloc on macOS and Linux.

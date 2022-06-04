@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include "eventuals/type-traits.h"
 #include "glog/logging.h"
 

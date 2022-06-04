@@ -202,7 +202,7 @@ class Certificate::_Builder final : public builder::Builder {
         organization_name_.Set(std::move(organization_name)));
   }
 
-  eventuals::Expected::Of<Certificate> Build() &&;
+  eventuals::expected<Certificate> Build() &&;
 
  private:
   friend class builder::Builder;
@@ -257,7 +257,7 @@ template <
     bool has_hostname_,
     bool has_ip_,
     bool has_organization_name_>
-eventuals::Expected::Of<Certificate> Certificate::_Builder<
+eventuals::expected<Certificate> Certificate::_Builder<
     has_subject_key_,
     has_sign_key_,
     has_parent_certificate_,
@@ -266,9 +266,6 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
     has_hostname_,
     has_ip_,
     has_organization_name_>::Build() && {
-  // Using a 'using' here to reduce verbosity.
-  using eventuals::Unexpected;
-
   // Check for required fields.
   static_assert(has_subject_key_, "Missing required 'subject_key'");
   static_assert(has_sign_key_, "Missing required 'sign_key'");
@@ -279,7 +276,8 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
     // If there is no parent certificate, then the subject and
     // signing key must be the same.
     if (subject_key_.value() != sign_key_.value()) {
-      return Unexpected("Subject vs signing key mismatch");
+      return eventuals::make_unexpected(
+          "Subject vs signing key mismatch");
     }
   } else {
     // If there is a parent certificate, then set the issuer name to
@@ -287,7 +285,7 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
     issuer_name = X509_get_subject_name(parent_certificate_.value());
 
     if (issuer_name.value() == nullptr) {
-      return Unexpected(
+      return eventuals::make_unexpected(
           "Failed to get subject name of parent certificate: "
           "X509_get_subject_name");
     }
@@ -296,19 +294,22 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
   // Allocate the in-memory structure for the certificate.
   X509* x509 = X509_new();
   if (x509 == nullptr) {
-    return Unexpected("Failed to allocate certification: X509_new");
+    return eventuals::make_unexpected(
+        "Failed to allocate certification: X509_new");
   }
 
   // Set the version to V3.
   if (X509_set_version(x509, 2) != 1) {
     X509_free(x509);
-    return Unexpected("Failed to set version: X509_set_version");
+    return eventuals::make_unexpected(
+        "Failed to set version: X509_set_version");
   }
 
   // Set the serial number.
   if (ASN1_INTEGER_set(X509_get_serialNumber(x509), serial_.value()) != 1) {
     X509_free(x509);
-    return Unexpected("Failed to set serial number: ASN1_INTEGER_set");
+    return eventuals::make_unexpected(
+        "Failed to set serial number: ASN1_INTEGER_set");
   }
 
   // Make this certificate valid for 'days' number of days from now.
@@ -321,14 +322,15 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
              60L * 60L * 24L * days_.value())
           == nullptr) {
     X509_free(x509);
-    return Unexpected(
+    return eventuals::make_unexpected(
         "Failed to set valid days of certificate: X509_gmtime_adj");
   }
 
   // Set the public key for our certificate based on the subject key.
   if (X509_set_pubkey(x509, subject_key_.value()) != 1) {
     X509_free(x509);
-    return Unexpected("Failed to set public key: X509_set_pubkey");
+    return eventuals::make_unexpected(
+        "Failed to set public key: X509_set_pubkey");
   }
 
   // Figure out our hostname if one was not provided.
@@ -340,7 +342,8 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
     hostname = asio::ip::host_name(error);
     if (error) {
       X509_free(x509);
-      return Unexpected("Failed to determine hostname");
+      return eventuals::make_unexpected(
+          "Failed to determine hostname");
     }
   }
 
@@ -348,7 +351,8 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
   X509_NAME* name = X509_get_subject_name(x509);
   if (name == nullptr) {
     X509_free(x509);
-    return Unexpected("Failed to get subject name: X509_get_subject_name");
+    return eventuals::make_unexpected(
+        "Failed to get subject name: X509_get_subject_name");
   }
 
   // Set the country code, organization, and common name.
@@ -363,7 +367,8 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
           0)
       != 1) {
     X509_free(x509);
-    return Unexpected("Failed to set country code: X509_NAME_add_entry_by_txt");
+    return eventuals::make_unexpected(
+        "Failed to set country code: X509_NAME_add_entry_by_txt");
   }
 
   if (X509_NAME_add_entry_by_txt(
@@ -376,7 +381,7 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
           0)
       != 1) {
     X509_free(x509);
-    return Unexpected(
+    return eventuals::make_unexpected(
         "Failed to set organization name: X509_NAME_add_entry_by_txt");
   }
 
@@ -390,7 +395,8 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
           0)
       != 1) {
     X509_free(x509);
-    return Unexpected("Failed to set common name: X509_NAME_add_entry_by_txt");
+    return eventuals::make_unexpected(
+        "Failed to set common name: X509_NAME_add_entry_by_txt");
   }
 
   // Set the issuer name to be the same as the subject if it is not
@@ -402,7 +408,8 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
   CHECK(issuer_name.has_value());
   if (X509_set_issuer_name(x509, issuer_name.value()) != 1) {
     X509_free(x509);
-    return Unexpected("Failed to set issuer name: X509_set_issuer_name");
+    return eventuals::make_unexpected(
+        "Failed to set issuer name: X509_set_issuer_name");
   }
 
   if constexpr (has_ip_) {
@@ -410,14 +417,16 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
     STACK_OF(GENERAL_NAME)* alt_name_stack = sk_GENERAL_NAME_new_null();
     if (alt_name_stack == nullptr) {
       X509_free(x509);
-      return Unexpected("Failed to create a stack: sk_GENERAL_NAME_new_null");
+      return eventuals::make_unexpected(
+          "Failed to create a stack: sk_GENERAL_NAME_new_null");
     }
 
     GENERAL_NAME* alt_name = GENERAL_NAME_new();
     if (alt_name == nullptr) {
       sk_GENERAL_NAME_pop_free(alt_name_stack, GENERAL_NAME_free);
       X509_free(x509);
-      return Unexpected("Failed to create GENERAL_NAME: GENERAL_NAME_new");
+      return eventuals::make_unexpected(
+          "Failed to create GENERAL_NAME: GENERAL_NAME_new");
     }
 
     alt_name->type = GEN_IPADD;
@@ -427,11 +436,13 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
       GENERAL_NAME_free(alt_name);
       sk_GENERAL_NAME_pop_free(alt_name_stack, GENERAL_NAME_free);
       X509_free(x509);
-      return Unexpected("Failed to create alternative name: ASN1_STRING_new");
+      return eventuals::make_unexpected(
+          "Failed to create alternative name: ASN1_STRING_new");
     }
 
     if (!ip_->is_v4()) {
-      return Unexpected("Only IPv4 is currently supported");
+      return eventuals::make_unexpected(
+          "Only IPv4 is currently supported");
     }
 
     in_addr in;
@@ -450,7 +461,8 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
       GENERAL_NAME_free(alt_name);
       sk_GENERAL_NAME_pop_free(alt_name_stack, GENERAL_NAME_free);
       X509_free(x509);
-      return Unexpected("Failed to set alternative name: ASN1_STRING_set");
+      return eventuals::make_unexpected(
+          "Failed to set alternative name: ASN1_STRING_set");
     }
 
     // We are transferring ownership of 'alt_name_str` towards the
@@ -463,7 +475,7 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
       GENERAL_NAME_free(alt_name);
       sk_GENERAL_NAME_pop_free(alt_name_stack, GENERAL_NAME_free);
       X509_free(x509);
-      return Unexpected(
+      return eventuals::make_unexpected(
           "Failed to push alternative name: sk_GENERAL_NAME_push");
     }
 
@@ -478,7 +490,7 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
         == 0) {
       sk_GENERAL_NAME_pop_free(alt_name_stack, GENERAL_NAME_free);
       X509_free(x509);
-      return Unexpected(
+      return eventuals::make_unexpected(
           "Failed to set subject alternative name: X509_add1_ext_i2d");
     }
 
@@ -488,7 +500,8 @@ eventuals::Expected::Of<Certificate> Certificate::_Builder<
   // Sign the certificate with the sign key.
   if (X509_sign(x509, sign_key_.value(), EVP_sha1()) == 0) {
     X509_free(x509);
-    return Unexpected("Failed to sign certificate: X509_sign");
+    return eventuals::make_unexpected(
+        "Failed to sign certificate: X509_sign");
   }
 
   return Certificate(
@@ -507,13 +520,14 @@ namespace pem {
 
 // Returns an expected 'std::string' with the encoded X509 certificate in
 // PEM format or an unexpected.
-inline eventuals::Expected::Of<std::string> Encode(X509* certificate) {
+inline eventuals::expected<std::string> Encode(X509* certificate) {
   BIO* bio = BIO_new(BIO_s_mem());
 
   int write = PEM_write_bio_X509(bio, certificate);
 
   if (write != 1) {
-    return eventuals::Unexpected("Failed to write certificate to memory");
+    return eventuals::make_unexpected(
+        "Failed to write certificate to memory");
   }
 
   BUF_MEM* memory = nullptr;
@@ -529,12 +543,12 @@ inline eventuals::Expected::Of<std::string> Encode(X509* certificate) {
 ////////////////////////////////////////////////////////////////////////
 
 // Returns an X509 certificate read from a file in PEM format.
-inline eventuals::Expected::Of<x509::Certificate> ReadCertificate(
+inline eventuals::expected<x509::Certificate> ReadCertificate(
     const std::filesystem::path& path) {
   // Using a 'FILE*' here as necessary for 'PEM_read_X509()'.
   FILE* file = fopen(path.string().c_str(), "r");
   if (file == nullptr) {
-    return eventuals::Unexpected(
+    return eventuals::make_unexpected(
         "Failed to open file '" + path.string() + "' for reading");
   }
 
@@ -543,7 +557,7 @@ inline eventuals::Expected::Of<x509::Certificate> ReadCertificate(
   fclose(file);
 
   if (x509 == nullptr) {
-    return eventuals::Unexpected(
+    return eventuals::make_unexpected(
         "Failed to read PEM encoded X509 certificate from file '"
         + path.string() + "'");
   } else {

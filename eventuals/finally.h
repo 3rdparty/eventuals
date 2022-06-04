@@ -15,40 +15,26 @@ struct _Finally final {
   struct Continuation final {
     template <typename... Args>
     void Start(Args&&... args) {
-      if constexpr (std::is_void_v<Arg_>) {
-        k_.Start(std::optional<std::exception_ptr>());
-      } else {
-        k_.Start(Expected::Of<Arg_>(std::forward<Args>(args)...));
-      }
+      k_.Start(
+          expected<Arg_, std::exception_ptr>(
+              std::forward<Args>(args)...));
     }
 
     template <typename Error>
     void Fail(Error&& error) {
-      if constexpr (std::is_void_v<Arg_>) {
-        k_.Start(
-            std::optional<std::exception_ptr>(
-                make_exception_ptr_or_forward(
-                    std::forward<Error>(error))));
-      } else {
-        k_.Start(
-            Expected::Of<Arg_>(
-                make_exception_ptr_or_forward(
-                    std::forward<Error>(error))));
-      }
+      k_.Start(
+          expected<Arg_, std::exception_ptr>(
+              make_unexpected(
+                  std::make_exception_ptr(
+                      std::forward<Error>(error)))));
     }
 
     void Stop() {
-      if constexpr (std::is_void_v<Arg_>) {
-        k_.Start(
-            std::optional<std::exception_ptr>(
-                std::make_exception_ptr(
-                    StoppedException())));
-      } else {
-        k_.Start(
-            Expected::Of<Arg_>(
-                std::make_exception_ptr(
-                    StoppedException())));
-      }
+      k_.Start(
+          expected<Arg_, std::exception_ptr>(
+              make_unexpected(
+                  std::make_exception_ptr(
+                      StoppedException()))));
     }
 
     void Register(Interrupt& interrupt) {
@@ -60,11 +46,7 @@ struct _Finally final {
 
   struct Composable final {
     template <typename Arg>
-    using ValueFrom =
-        std::conditional_t<
-            std::is_void_v<Arg>,
-            std::optional<std::exception_ptr>,
-            Expected::Of<Arg>>;
+    using ValueFrom = expected<Arg, std::exception_ptr>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = std::tuple<>;
