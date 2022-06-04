@@ -129,7 +129,7 @@ class Key::_Builder final : public builder::Builder {
         exponent_.Set(std::move(exponent)));
   }
 
-  eventuals::Expected::Of<Key> Build() &&;
+  eventuals::expected<Key> Build() &&;
 
  private:
   friend class builder::Builder;
@@ -156,30 +156,30 @@ inline auto Key::Builder() {
 ////////////////////////////////////////////////////////////////////////
 
 template <bool has_bits_, bool has_exponent_>
-eventuals::Expected::Of<Key> Key::_Builder<
+eventuals::expected<Key> Key::_Builder<
     has_bits_,
     has_exponent_>::Build() && {
-  // Using a 'using' here to reduce verbosity.
-  using eventuals::Unexpected;
-
   // Allocate the in-memory structure for the private key.
   EVP_PKEY* key = EVP_PKEY_new();
   if (key == nullptr) {
-    return Unexpected("Failed to allocate key: EVP_PKEY_new");
+    return eventuals::make_unexpected(
+        "Failed to allocate key: EVP_PKEY_new");
   }
 
   // Allocate space for the exponent.
   BIGNUM* exponent = BN_new();
   if (exponent == nullptr) {
     EVP_PKEY_free(key);
-    return Unexpected("Failed to allocate exponent: BN_new");
+    return eventuals::make_unexpected(
+        "Failed to allocate exponent: BN_new");
   }
 
   // Assign the exponent.
   if (BN_set_word(exponent, exponent_.value()) != 1) {
     BN_free(exponent);
     EVP_PKEY_free(key);
-    return Unexpected("Failed to set exponent: BN_set_word");
+    return eventuals::make_unexpected(
+        "Failed to set exponent: BN_set_word");
   }
 
   // Allocate the in-memory structure for the key pair.
@@ -187,7 +187,8 @@ eventuals::Expected::Of<Key> Key::_Builder<
   if (rsa == nullptr) {
     BN_free(exponent);
     EVP_PKEY_free(key);
-    return Unexpected("Failed to allocate RSA: RSA_new");
+    return eventuals::make_unexpected(
+        "Failed to allocate RSA: RSA_new");
   }
 
   // Generate the RSA key pair.
@@ -195,7 +196,8 @@ eventuals::Expected::Of<Key> Key::_Builder<
     RSA_free(rsa);
     BN_free(exponent);
     EVP_PKEY_free(key);
-    return Unexpected(ERR_error_string(ERR_get_error(), nullptr));
+    return eventuals::make_unexpected(
+        ERR_error_string(ERR_get_error(), nullptr));
   }
 
   // We no longer need the exponent, so let's free it.
@@ -207,7 +209,8 @@ eventuals::Expected::Of<Key> Key::_Builder<
   if (EVP_PKEY_assign_RSA(key, rsa) != 1) {
     RSA_free(rsa);
     EVP_PKEY_free(key);
-    return Unexpected("Failed to assign RSA key: EVP_PKEY_assign_RSA");
+    return eventuals::make_unexpected(
+        "Failed to assign RSA key: EVP_PKEY_assign_RSA");
   }
 
   return Key(
@@ -226,7 +229,7 @@ namespace pem {
 
 // Returns an expected 'std::string' with the encoded private key in
 // PEM format or an unexpected.
-inline eventuals::Expected::Of<std::string> Encode(EVP_PKEY* key) {
+inline eventuals::expected<std::string> Encode(EVP_PKEY* key) {
   BIO* bio = BIO_new(BIO_s_mem());
 
   int write = PEM_write_bio_PrivateKey(
@@ -239,7 +242,8 @@ inline eventuals::Expected::Of<std::string> Encode(EVP_PKEY* key) {
       nullptr);
 
   if (write != 1) {
-    return eventuals::Unexpected("Failed to write private key to memory");
+    return eventuals::make_unexpected(
+        "Failed to write private key to memory");
   }
 
   BUF_MEM* memory = nullptr;

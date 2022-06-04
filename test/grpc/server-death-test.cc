@@ -68,7 +68,7 @@ TEST(ServerDeathTest, ClientReceivesUnavailable) {
              request.set_name("emily");
              return call.Writer().WriteLast(request)
                  | Finally(
-                        [&](std::optional<std::exception_ptr>&&) {
+                        [&](expected<void, std::exception_ptr>&&) {
                           return call.Finish();
                         });
            }));

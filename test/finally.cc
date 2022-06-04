@@ -2,6 +2,7 @@
 
 #include "eventuals/catch.h"
 #include "eventuals/eventual.h"
+#include "eventuals/expected.h"
 #include "eventuals/finally.h"
 #include "eventuals/if.h"
 #include "eventuals/just.h"
@@ -24,13 +25,11 @@ TEST(Finally, Succeed) {
            });
   };
 
-  auto expected = *e();
+  expected<int, std::exception_ptr> result = *e();
 
-  static_assert(std::is_same_v<Expected::Of<int>, decltype(expected)>);
+  ASSERT_TRUE(result.has_value());
 
-  ASSERT_TRUE(expected);
-
-  EXPECT_EQ(42, *expected);
+  EXPECT_EQ(42, *result);
 }
 
 TEST(Finally, Fail) {
@@ -42,12 +41,12 @@ TEST(Finally, Fail) {
            });
   };
 
-  auto expected = *e();
+  expected<int, std::exception_ptr> result = *e();
 
-  static_assert(std::is_same_v<Expected::Of<int>, decltype(expected)>);
+  ASSERT_FALSE(result.has_value());
 
   EXPECT_THAT(
-      [&]() { *expected; },
+      [&]() { std::rethrow_exception(result.error()); },
       ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
@@ -61,11 +60,13 @@ TEST(Finally, Stop) {
            });
   };
 
-  auto expected = *e();
+  expected<std::string, std::exception_ptr> result = *e();
 
-  static_assert(std::is_same_v<Expected::Of<std::string>, decltype(expected)>);
+  ASSERT_FALSE(result.has_value());
 
-  EXPECT_THROW(*expected, eventuals::StoppedException);
+  EXPECT_THROW(
+      std::rethrow_exception(result.error()),
+      eventuals::StoppedException);
 }
 
 TEST(Finally, VoidSucceed) {
@@ -76,14 +77,9 @@ TEST(Finally, VoidSucceed) {
            });
   };
 
-  auto exception = *e();
+  expected<void, std::exception_ptr> result = *e();
 
-  static_assert(
-      std::is_same_v<
-          std::optional<std::exception_ptr>,
-          decltype(exception)>);
-
-  EXPECT_FALSE(exception.has_value());
+  EXPECT_TRUE(result.has_value());
 }
 
 TEST(Finally, VoidFail) {
@@ -95,17 +91,12 @@ TEST(Finally, VoidFail) {
            });
   };
 
-  auto exception = *e();
+  expected<void, std::exception_ptr> result = *e();
 
-  static_assert(
-      std::is_same_v<
-          std::optional<std::exception_ptr>,
-          decltype(exception)>);
-
-  ASSERT_TRUE(exception.has_value());
+  ASSERT_FALSE(result.has_value());
 
   EXPECT_THAT(
-      [&]() { std::rethrow_exception(exception.value()); },
+      [&]() { std::rethrow_exception(result.error()); },
       ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
@@ -119,22 +110,17 @@ TEST(Finally, VoidStop) {
            });
   };
 
-  auto exception = *e();
+  expected<void, std::exception_ptr> result = *e();
 
-  static_assert(
-      std::is_same_v<
-          std::optional<std::exception_ptr>,
-          decltype(exception)>);
-
-  ASSERT_TRUE(exception.has_value());
+  ASSERT_FALSE(result.has_value());
 
   EXPECT_THROW(
-      std::rethrow_exception(exception.value()),
+      std::rethrow_exception(result.error()),
       eventuals::StoppedException);
 }
 
 TEST(Finally, FinallyInsideThen) {
-  auto e = [&]() {
+  auto e = []() {
     return Just(1)
         | Then([](int status) {
              return Eventual<void>()
@@ -142,19 +128,19 @@ TEST(Finally, FinallyInsideThen) {
                         .start([](auto& k) {
                           k.Fail(std::runtime_error("error"));
                         })
-                 | Finally([](std::optional<std::exception_ptr>&& error) {
-                      return If(error.has_value())
-                          .yes([error = std::move(error)]() {
-                            return Raise(std::move(error.value()))
+                 | Finally([](expected<void, std::exception_ptr>&& e) {
+                      return If(e.has_value())
+                          .no([e = std::move(e)]() {
+                            return Raise(std::move(e.error()))
                                 | Catch()
                                       .raised<std::exception>(
-                                          [](std::exception&& error) {
+                                          [](std::exception&& e) {
                                             EXPECT_STREQ(
-                                                error.what(),
+                                                e.what(),
                                                 "error");
                                           });
                           })
-                          .no([]() {
+                          .yes([]() {
                             return Raise("another error");
                           });
                     });

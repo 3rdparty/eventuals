@@ -758,10 +758,10 @@ template <typename Request, typename Response>
             })
       | Then([&](::grpc::Status status) {
            return call.Finish(status)
-               | Finally([&](std::optional<std::exception_ptr>&& e) {
+               | Finally([&](expected<void, std::exception_ptr>&& e) {
                     return If(e.has_value())
-                               .yes([e = std::move(e), &call]() {
-                                 return Raise(std::move(e.value()))
+                               .no([e = std::move(e), &call]() {
+                                 return Raise(std::move(e.error()))
                                      | Catch()
                                            .raised<std::exception>(
                                                [&call](std::exception&& e) {
@@ -777,7 +777,7 @@ template <typename Request, typename Response>
                                                      << e.what();
                                                });
                                })
-                               .no([]() { return Just(); })
+                               .yes([]() { return Just(); })
                         | call.WaitForDone();
                   });
          });
@@ -800,10 +800,10 @@ template <typename Request, typename Response>
             })
       | Then([&](::grpc::Status status) {
            return call.Finish(status)
-               | Finally([&](std::optional<std::exception_ptr>&& e) {
+               | Finally([&](expected<void, std::exception_ptr>&& e) {
                     return If(e.has_value())
-                               .yes([e = std::move(e), &call]() {
-                                 return Raise(std::move(e.value()))
+                               .no([e = std::move(e), &call]() {
+                                 return Raise(std::move(e.error()))
                                      | Catch()
                                            .raised<std::exception>(
                                                [&call](std::exception&& e) {
@@ -819,7 +819,7 @@ template <typename Request, typename Response>
                                                      << e.what();
                                                });
                                })
-                               .no([]() { return Just(); })
+                               .yes([]() { return Just(); })
                         | call.WaitForDone();
                   });
          });

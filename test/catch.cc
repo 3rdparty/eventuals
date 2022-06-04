@@ -115,12 +115,12 @@ TEST(CatchTest, UnexpectedRaise) {
     }
   };
 
-  auto expected = []() -> Expected::Of<int> {
-    return Unexpected(Error{});
+  auto f = []() -> expected<int, Error> {
+    return make_unexpected(Error{});
   };
 
   auto e = [&]() {
-    return expected() // Throwing 'std::exception_ptr' there.
+    return f() // Throwing 'std::exception_ptr' there.
         | Catch()
               .raised<std::overflow_error>([](auto&& error) {
                 ADD_FAILURE() << "Encountered unexpected matched raised";
@@ -137,7 +137,7 @@ TEST(CatchTest, UnexpectedRaise) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::exception>>);
+          std::tuple<>>);
 
   EXPECT_EQ(*e(), 100);
 }
@@ -149,12 +149,12 @@ TEST(CatchTest, UnexpectedAll) {
     }
   };
 
-  auto expected = []() -> Expected::Of<int> {
-    return Unexpected(Error{});
+  auto f = []() -> expected<int, Error> {
+    return make_unexpected(Error{});
   };
 
   auto e = [&]() {
-    return expected() // Throwing 'std::exception_ptr' there.
+    return f() // Throwing 'std::exception_ptr' there.
         | Catch()
               .raised<std::overflow_error>([](auto&& error) {
                 ADD_FAILURE() << "Encountered unexpected matched raised";
