@@ -7,7 +7,6 @@ set namespaces = package_name.split('.')
 #include "eventuals/generator.h"
 #include "eventuals/grpc/server.h"
 #include "eventuals/task.h"
-#include "eventuals/then.h"
 #include "{{ grpc_pb_header }}"
 
 namespace {{ namespaces | join('::') }}::eventuals {
