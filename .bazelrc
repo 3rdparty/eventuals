@@ -5,7 +5,8 @@ build --enable_platform_specific_config
 
 build:macos --cxxopt='-std=c++17'
 
-build:linux --cxxopt='-std=c++17'
+# Specify repo_env std version for protoc generated files.
+build:linux --cxxopt='-std=c++17' --repo_env=BAZEL_CXXOPTS="-std=c++17"
 
 build:windows --cxxopt="/std:c++17"
 
