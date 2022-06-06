@@ -3,151 +3,17 @@ set namespaces = package_name.split('.')
 -%}
 #include "{{ eventuals_header }}"
 
-#include "eventuals/concurrent.h"
 #include "eventuals/do-all.h"
-#include "eventuals/finally.h"
-#include "eventuals/grpc/server.h"
 #include "eventuals/just.h"
-#include "eventuals/let.h"
-#include "eventuals/loop.h"
-#include "eventuals/map.h"
-#include "eventuals/task.h"
-#include "eventuals/then.h"
 
-using eventuals::Concurrent;
 using eventuals::DoAll;
 using eventuals::Finally;
 using eventuals::Just;
-using eventuals::Let;
-using eventuals::Loop;
-using eventuals::Map;
 using eventuals::Task;
-using eventuals::Then;
-
-using eventuals::grpc::Stream;
 
 using namespace {{ namespaces | join('::') }}::eventuals;
 
 {% for service in services -%}
-{%- for method in service.methods %}
-Task::Of<void> {{ service.name }}::TypeErasedService::Serve{{ method.name }}() {
-  return [this]() {
-    {%- set input_type -%}
-    {%- if method.client_streaming -%}
-        Stream<{{ method.input_type.split('.') | join('::') }}>
-    {%- else -%}
-        {{ method.input_type.split('.') | join('::') }}
-    {%- endif -%}
-{%- endset %}
-{%- set output_type -%}
-    {%- if method.server_streaming -%}
-        Stream<{{ method.output_type.split('.') | join('::') }}>
-    {%- else -%}
-        {{ method.output_type.split('.') | join('::') }}
-    {%- endif -%}
-{%- endset %}
-    return server().Accept<
-          {{ namespaces | join('::') }}::{{ service.name }},
-          {{ input_type  }},
-          {{ output_type  }}>("{{ method.name }}")
-          >> Concurrent([this]() {
-              return Map(Let([this](auto& call) {
-{%- if not method.server_streaming and not method.client_streaming %}
-{#- No streaming #}
-                return UnaryPrologue(call)
-                    >> Then(Let([&]({{ input_type }}& request) {
-                        return Then(
-                            [&,
-                              // NOTE: using a tuple because need
-                              // to pass more than one
-                              // argument. Also 'this' will be
-                              // downcasted appropriately in
-                              // 'TypeErased{{ method.name }}()'.
-                              args = std::tuple{
-                                  this,
-                                  call.context(),
-                                  &request}]() mutable {
-                              return TypeErased{{ method.name }}(&args)
-                                  >> UnaryEpilogue(call);
-                            });
-                      }));
-{%- elif not method.server_streaming and method.client_streaming %}
-{#- Client streaming #}
-                return Then(
-                    [&,
-                    // NOTE: using a tuple because need
-                    // to pass more than one
-                    // argument. Also 'this' will be
-                    // downcasted appropriately in
-                    // 'TypeErased{{ method.name }}()'.
-                    args = std::tuple{
-                        this,
-                        call.context(),
-                        &call.Reader()}]() mutable {
-                      return TypeErased{{ method.name }}(&args)
-                          >> UnaryEpilogue(call);
-                    });
-{%- elif method.server_streaming and not method.client_streaming %}
-{#- Server streaming #}
-                return UnaryPrologue(call)
-                    >> Then(Let([&]({{ input_type }}& request) {
-                        return Then(
-                            [&,
-                              // NOTE: using a tuple because need
-                              // to pass more than one
-                              // argument. Also 'this' will be
-                              // downcasted appropriately in
-                              // 'TypeErased{{ method.name }}()'.
-                              args = std::tuple{
-                                  this,
-                                  call.context(),
-                                  &request}]() mutable {
-                              return TypeErased{{ method.name }}(&args)
-                                  >> StreamingEpilogue(call);
-                            });
-                      }));
-{%- elif method.server_streaming and method.client_streaming %}
-{#- Bi-directional streaming #}
-                return Then(
-                    [&,
-                    // NOTE: using a tuple because need
-                    // to pass more than one
-                    // argument. Also 'this' will be
-                    // downcasted appropriately in
-                    // 'TypeErased{{ method.name }}()'.
-                    args = std::tuple{
-                        this,
-                        call.context(),
-                        &call.Reader()}]() mutable {
-                      return TypeErased{{ method.name }}(&args)
-                          >> StreamingEpilogue(call);
-                    });
-{%- endif %}
-              }));{# Map #}
-          }){# Concurrent #}
-          >> Loop()
-          // TODO(benh): currently we need to have a 'Finally()'
-          // because we have a 'Task' that doesn't raise any errors
-          // but we probably would prefer to have the 'Finally()'
-          // on each served call so that a single failed call
-          // doesn't fail all of the calls.
-          >> Finally([&](auto&& expected) {
-               if (!expected.has_value()) {
-                 try {
-                   std::rethrow_exception(expected.error());
-                 } catch (std::exception& e) {
-                   LOG(WARNING) << "Failed to serve: " << e.what();
-                 } catch (...) {
-                   LOG(WARNING)
-                       << "Failed to serve (unexpected error that "
-                       << "does not extend from 'std::exception')";
-                 }
-               }
-            });
-        };
-}
-{% endfor %}
-
 Task::Of<void> {{ service.name }}::TypeErasedService::Serve() {
   return [this]() {
     return DoAll(
