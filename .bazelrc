@@ -3,17 +3,40 @@ try-import submodules/dev-tools/.bazelrc
 # Specific Bazel build/test options.
 build --enable_platform_specific_config
 
-build:macos --cxxopt='-std=c++17'
+# Verbose failure logs when something goes wrong.
+build --verbose_failures
 
-build:linux --cxxopt='-std=c++17'
-
-build:windows --cxxopt="/std:c++17"
-
+# Use Clang as a default compiler on Windows.
+# TODO: use Clang as a default compiler on every platform.
 build:windows --compiler="clang-cl"
 
+# Compiler options.
+build:gcc --action_env=CC=gcc
 build:clang --action_env=CC=clang
 
-# Google cache read-only access
+# Build eventuals in C++17 mode.
+build:linux --cxxopt=-std=c++17
+build:linux --host_cxxopt=-std=c++17
+build:macos --cxxopt=-std=c++17
+build:macos --host_cxxopt=-std=c++17
+build:windows --cxxopt=/std:c++17
+build:windows --host_cxxopt=/std:c++17
+
+# On Windows, `__cplusplus` is wrongly defined without this switch.
+# See https://devblogs.microsoft.com/cppblog/msvc-now-correctly-reports-__cplusplus/
+build:windows --copt=/Zc:__cplusplus
+
+# Make sure to include as little of windows.h as possible.
+# This generally helps with compilation speed.
+# It also prevents breaking the One Definition Rule,
+# e.g. both wincrypt.h and OpenSSL have their own definitions of
+# SSL structs.
+build:windows --copt=-DWIN32_LEAN_AND_MEAN
+build:windows --host_copt=-DWIN32_LEAN_AND_MEAN
+build:windows --copt=-DNOGDI
+build:windows --host_copt=-DNOGDI
+
+# Google cache read-only access.
 build --remote_cache=https://storage.googleapis.com/reboot-dev-eventuals-remote-cache
 build --remote_upload_local_results=false
 
