@@ -305,6 +305,12 @@ class Client {
     : channel_(::grpc::CreateChannel(target, credentials)),
       pool_(std::move(pool)) {}
 
+  Client(
+      std::shared_ptr<::grpc::Channel> channel,
+      stout::borrowed_ptr<CompletionPool> pool)
+    : channel_(std::move(channel)),
+      pool_(std::move(pool)) {}
+
   [[nodiscard]] auto Context() {
     return Eventual<::grpc::ClientContext*>()
         .context(eventuals::Lazy<::grpc::ClientContext>())

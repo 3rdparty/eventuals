@@ -19,7 +19,8 @@ using helloworld::HelloRequest;
 
 using stout::Borrowable;
 
-TEST(UnaryTest, Success) {
+void TestUnaryWithClient(
+    std::function<Client(Borrowable<CompletionPool>&&, int)> client_factory) {
   ServerBuilder builder;
 
   int port = 0;
@@ -58,11 +59,7 @@ TEST(UnaryTest, Success) {
   k.Start();
 
   Borrowable<CompletionPool> pool;
-
-  Client client(
-      "0.0.0.0:" + std::to_string(port),
-      ::grpc::InsecureChannelCredentials(),
-      pool.Borrow());
+  Client client = client_factory(std::move(pool), port);
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
@@ -91,6 +88,27 @@ TEST(UnaryTest, Success) {
   // _also_ trys to call them .
   server->Shutdown();
   server->Wait();
+}
+
+TEST(UnaryTest, SuccessWithDefaultChannel) {
+  TestUnaryWithClient([](Borrowable<CompletionPool>&& pool, int port) {
+    // Have the client construct its own channel.
+    return Client(
+        "0.0.0.0:" + std::to_string(port),
+        ::grpc::InsecureChannelCredentials(),
+        pool.Borrow());
+  });
+}
+
+TEST(UnaryTest, SuccessWithCustomChannel) {
+  TestUnaryWithClient([](Borrowable<CompletionPool>&& pool, int port) {
+    // Have the client use a channel that we've constructed ourselves.
+    std::shared_ptr<::grpc::Channel> channel =
+        ::grpc::CreateChannel(
+            "0.0.0.0:" + std::to_string(port),
+            ::grpc::InsecureChannelCredentials());
+    return Client(channel, pool.Borrow());
+  });
 }
 
 } // namespace
