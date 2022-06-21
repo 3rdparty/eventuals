@@ -18,10 +18,10 @@ class Field<Value_, false> {
  public:
   virtual ~Field() = default;
 
-  template <typename Value>
-  [[nodiscard]] auto Set(Value&& value) {
-    static_assert(std::is_convertible_v<Value, Value_>);
-    return Field<Value_, true>{std::forward<Value>(value)};
+  template <typename... Args>
+  [[nodiscard]] auto Set(Args&&... args) {
+    static_assert(sizeof...(Args) > 0, "'Set' expects at least 1 argument");
+    return Field<Value_, true>{Value_{std::forward<Args>(args)...}};
   }
 };
 
@@ -79,10 +79,10 @@ class FieldWithDefault<Value_, false> final : public Field<Value_, false> {
 
   ~FieldWithDefault() override = default;
 
-  template <typename Value>
-  [[nodiscard]] auto Set(Value&& value) {
-    static_assert(std::is_convertible_v<Value, Value_>);
-    return FieldWithDefault<Value_, true>{std::forward<Value>(value)};
+  template <typename... Args>
+  [[nodiscard]] auto Set(Args&&... args) {
+    static_assert(sizeof...(Args) > 0, "'Set' expects at least 1 argument");
+    return FieldWithDefault<Value_, true>{Value_{std::forward<Args>(args)...}};
   }
 
   auto& value() & {
@@ -145,10 +145,10 @@ class RepeatedField<Value_, false> final : public Field<Value_, false> {
 
   ~RepeatedField() override = default;
 
-  template <typename Value>
-  [[nodiscard]] auto Set(Value&& value) {
-    static_assert(std::is_convertible_v<Value, Value_>);
-    return RepeatedField<Value_, true>{std::forward<Value>(value)};
+  template <typename... Args>
+  [[nodiscard]] auto Set(Args&&... args) {
+    static_assert(sizeof...(Args) > 0, "'Set' expects at least 1 argument");
+    return RepeatedField<Value_, true>{Value_{std::forward<Args>(args)...}};
   }
 
   auto& value() & {
@@ -192,10 +192,10 @@ class RepeatedField<Value_, true> final : public Field<Value_, true> {
 
   ~RepeatedField() override = default;
 
-  template <typename Value>
-  [[nodiscard]] auto Set(Value&& value) {
-    static_assert(std::is_convertible_v<Value, Value_>);
-    return RepeatedField<Value_, true>{std::forward<Value>(value)};
+  template <typename... Args>
+  [[nodiscard]] auto Set(Args&&... args) {
+    static_assert(sizeof...(Args) > 0, "'Set' expects at least 1 argument");
+    return RepeatedField<Value_, true>{Value_{std::forward<Args>(args)...}};
   }
 };
 
