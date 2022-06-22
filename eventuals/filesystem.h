@@ -147,21 +147,21 @@ class File final {
   }
 
   friend auto OpenFile(
-      EventLoop& loop,
       const std::filesystem::path& path,
       const int& flags,
-      const int& mode);
+      const int& mode,
+      EventLoop& loop);
 
-  friend auto CloseFile(EventLoop& loop, File&& file);
+  friend auto CloseFile(File&& file, EventLoop& loop);
 };
 
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto OpenFile(
-    EventLoop& loop,
     const std::filesystem::path& path,
     const int& flags,
-    const int& mode) {
+    const int& mode,
+    EventLoop& loop = EventLoop::Default()) {
   struct Data {
     EventLoop& loop;
     int flags;
@@ -208,16 +208,9 @@ class File final {
 
 ////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] inline auto OpenFile(
-    const std::filesystem::path& path,
-    const int& flags,
-    const int& mode) {
-  return OpenFile(EventLoop::Default(), path, flags, mode);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-[[nodiscard]] inline auto CloseFile(EventLoop& loop, File&& file) {
+[[nodiscard]] inline auto CloseFile(
+    File&& file,
+    EventLoop& loop = EventLoop::Default()) {
   struct Data {
     EventLoop& loop;
     File file;
@@ -261,17 +254,11 @@ class File final {
 
 ////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] inline auto CloseFile(File&& file) {
-  return CloseFile(EventLoop::Default(), std::move(file));
-}
-
-////////////////////////////////////////////////////////////////////////
-
 [[nodiscard]] inline auto ReadFile(
-    EventLoop& loop,
     const File& file,
     const size_t& bytes_to_read,
-    const size_t& offset) {
+    const size_t& offset,
+    EventLoop& loop = EventLoop::Default()) {
   struct Data {
     EventLoop& loop;
     const File& file;
@@ -320,20 +307,11 @@ class File final {
 
 ////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] inline auto ReadFile(
-    const File& file,
-    const size_t& bytes_to_read,
-    const size_t& offset) {
-  return ReadFile(EventLoop::Default(), file, bytes_to_read, offset);
-}
-
-////////////////////////////////////////////////////////////////////////
-
 [[nodiscard]] inline auto WriteFile(
-    EventLoop& loop,
     const File& file,
     const std::string& data,
-    const size_t& offset) {
+    const size_t& offset,
+    EventLoop& loop = EventLoop::Default()) {
   struct Data {
     EventLoop& loop;
     const File& file;
@@ -381,18 +359,9 @@ class File final {
 
 ////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] inline auto WriteFile(
-    const File& file,
-    const std::string& data,
-    const size_t& offset) {
-  return WriteFile(EventLoop::Default(), file, data, offset);
-}
-
-////////////////////////////////////////////////////////////////////////
-
 [[nodiscard]] inline auto UnlinkFile(
-    EventLoop& loop,
-    const std::filesystem::path& path) {
+    const std::filesystem::path& path,
+    EventLoop& loop = EventLoop::Default()) {
   struct Data {
     EventLoop& loop;
     std::filesystem::path path;
@@ -435,16 +404,10 @@ class File final {
 
 ////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] inline auto UnlinkFile(const std::filesystem::path& path) {
-  return UnlinkFile(EventLoop::Default(), path);
-}
-
-////////////////////////////////////////////////////////////////////////
-
 [[nodiscard]] inline auto MakeDirectory(
-    EventLoop& loop,
     const std::filesystem::path& path,
-    const int& mode) {
+    const int& mode,
+    EventLoop& loop = EventLoop::Default()) {
   struct Data {
     EventLoop& loop;
     std::filesystem::path path;
@@ -489,17 +452,9 @@ class File final {
 
 ////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] inline auto MakeDirectory(
-    const std::filesystem::path& path,
-    const int& mode) {
-  return MakeDirectory(EventLoop::Default(), path, mode);
-}
-
-////////////////////////////////////////////////////////////////////////
-
 [[nodiscard]] inline auto RemoveDirectory(
-    EventLoop& loop,
-    const std::filesystem::path& path) {
+    const std::filesystem::path& path,
+    EventLoop& loop = EventLoop::Default()) {
   struct Data {
     EventLoop& loop;
     std::filesystem::path path;
@@ -542,17 +497,11 @@ class File final {
 
 ////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] inline auto RemoveDirectory(const std::filesystem::path& path) {
-  return RemoveDirectory(EventLoop::Default(), path);
-}
-
-////////////////////////////////////////////////////////////////////////
-
 [[nodiscard]] inline auto CopyFile(
-    EventLoop& loop,
     const std::filesystem::path& src,
     const std::filesystem::path& dst,
-    const int& flags) {
+    const int& flags,
+    EventLoop& loop = EventLoop::Default()) {
   struct Data {
     EventLoop& loop;
     std::filesystem::path src;
@@ -599,19 +548,10 @@ class File final {
 
 ////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] inline auto CopyFile(
+[[nodiscard]] inline auto RenameFile(
     const std::filesystem::path& src,
     const std::filesystem::path& dst,
-    const int& flags) {
-  return CopyFile(EventLoop::Default(), src, dst, flags);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-[[nodiscard]] inline auto RenameFile(
-    EventLoop& loop,
-    const std::filesystem::path& src,
-    const std::filesystem::path& dst) {
+    EventLoop& loop = EventLoop::Default()) {
   struct Data {
     EventLoop& loop;
     std::filesystem::path src;
@@ -652,14 +592,6 @@ class File final {
                   std::runtime_error(uv_strerror(error)));
             }
           }));
-}
-
-////////////////////////////////////////////////////////////////////////
-
-[[nodiscard]] inline auto RenameFile(
-    const std::filesystem::path& src,
-    const std::filesystem::path& dst) {
-  return RenameFile(EventLoop::Default(), src, dst);
 }
 
 ////////////////////////////////////////////////////////////////////////
