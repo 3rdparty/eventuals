@@ -10,9 +10,9 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto DomainNameResolve(
-    EventLoop& loop,
     const std::string& address,
-    const std::string& port) {
+    const std::string& port,
+    EventLoop& loop = EventLoop::Default()) {
   struct Data {
     EventLoop& loop;
     std::string address;
@@ -72,14 +72,6 @@ namespace eventuals {
           }));
   // TODO (Artur): think later about implementing
   // .interrupt([](auto &data, auto &k){...}); callback
-}
-
-////////////////////////////////////////////////////////////////////////
-
-[[nodiscard]] inline auto DomainNameResolve(
-    const std::string& address,
-    const std::string& port) {
-  return DomainNameResolve(EventLoop::Default(), address, port);
 }
 
 ////////////////////////////////////////////////////////////////////////
