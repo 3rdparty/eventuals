@@ -27,9 +27,9 @@ def repos(repo_mapping = {}):
     maybe(
         http_archive,
         name = "rules_foreign_cc",
-        url = "https://github.com/bazelbuild/rules_foreign_cc/archive/0.5.1.tar.gz",
-        sha256 = "33a5690733c5cc2ede39cb62ebf89e751f2448e27f20c8b2fbbc7d136b166804",
-        strip_prefix = "rules_foreign_cc-0.5.1",
+        url = "https://github.com/bazelbuild/rules_foreign_cc/archive/0.8.0.tar.gz",
+        sha256 = "6041f1374ff32ba711564374ad8e007aef77f71561a7ce784123b9b4b88614fc",
+        strip_prefix = "rules_foreign_cc-0.8.0",
         repo_mapping = repo_mapping,
     )
 
