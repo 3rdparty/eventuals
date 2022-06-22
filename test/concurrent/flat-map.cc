@@ -1,6 +1,9 @@
 #include <string>
 #include <vector>
 
+// Clang-format automatically places '#include "eventuals/flat-map.h"'
+// at the top of the file.
+// This comment prevents this behaviour.
 #include "eventuals/collect.h"
 #include "eventuals/flat-map.h"
 #include "eventuals/iterate.h"
