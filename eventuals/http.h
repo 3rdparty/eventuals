@@ -5,12 +5,11 @@
 #include <string>
 #include <vector>
 
-#include "eventuals/x509.h"
-
-// Must be included after openssl includes.
+#include "absl/strings/ascii.h"
 #include "curl/curl.h"
 #include "eventuals/event-loop.h"
 #include "eventuals/scheduler.h"
+#include "eventuals/x509.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -607,33 +606,9 @@ struct _HTTP final {
                               column_iterator + 1,
                               line.cend());
 
-                          // Helper lambda for removing leading
-                          // and trailing spaces.
-                          // TODO: use absl.
-                          static auto trim = [](std::string&& string) {
-                            auto start_iterator = string.begin();
-                            while (start_iterator != string.end()
-                                   && std::isspace(*start_iterator)) {
-                              start_iterator++;
-                            }
-
-                            auto end_iterator = string.end();
-                            do {
-                              end_iterator--;
-                            } while (std::distance(
-                                         start_iterator,
-                                         end_iterator)
-                                         > 0
-                                     && std::isspace(*end_iterator));
-
-                            return std::string(
-                                start_iterator,
-                                end_iterator + 1);
-                          };
-
                           // Remove leading and trailing spaces.
-                          key = trim(std::move(key));
-                          value = trim(std::move(value));
+                          key = absl::StripAsciiWhitespace(key);
+                          value = absl::StripAsciiWhitespace(value);
 
                           // Add key and value to the map.
                           // RFC 7230, section 3.2.2:
