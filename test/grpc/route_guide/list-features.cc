@@ -12,7 +12,6 @@
 
 using grpc::Status;
 
-
 using eventuals::Finally;
 using eventuals::Foreach;
 using eventuals::Head;
@@ -21,61 +20,52 @@ using eventuals::Then;
 
 using eventuals::grpc::Stream;
 
-auto RouteGuideClient::ListFeatures() {
+TEST_F(RouteGuideTest, ListFeaturesTest) {
+  routeguide::Rectangle rect;
+  rect.mutable_lo()->set_latitude(guide.bottom_);
+  rect.mutable_lo()->set_longitude(guide.left_);
+  rect.mutable_hi()->set_latitude(guide.top_);
+  rect.mutable_hi()->set_longitude(guide.right_);
+
   std::copy_if(
-      feature_list_.begin(),
-      feature_list_.end(),
-      std::back_inserter(filtered_),
+      guide.feature_list_.begin(),
+      guide.feature_list_.end(),
+      std::back_inserter(guide.filtered_),
       [this](const auto& feature) {
-        return feature.location().longitude() >= left_
-            && feature.location().longitude() <= right_
-            && feature.location().latitude() >= bottom_
-            && feature.location().latitude() <= top_;
+        return feature.location().longitude() >= guide.left_
+            && feature.location().longitude() <= guide.right_
+            && feature.location().latitude() >= guide.bottom_
+            && feature.location().latitude() <= guide.top_;
       });
 
-  return client_.Call<RouteGuide, Rectangle, Stream<Feature>>("ListFeatures")
-      | Then(Let([this](auto& call) {
-           routeguide::Rectangle rect;
+  auto handle = [&]() {
+    return [&](Feature&& feature) {
+      auto latitude = feature.location().latitude();
+      auto longitude = feature.location().longitude();
 
-           rect.mutable_lo()->set_latitude(bottom_);
-           rect.mutable_lo()->set_longitude(left_);
-           rect.mutable_hi()->set_latitude(top_);
-           rect.mutable_hi()->set_longitude(right_);
+      auto& expected_feature = guide.filtered_[guide.current_++];
 
-           return call.Writer().WriteLast(rect)
-               | Foreach(
-                      call.Reader().Read(),
-                      ([&](Feature&& feature) {
-                        auto latitude = feature.location().latitude();
-                        auto longitude = feature.location().longitude();
+      EXPECT_EQ(
+          expected_feature.location().latitude(),
+          latitude);
 
-                        auto& expected_feature = filtered_[current_++];
+      EXPECT_EQ(
+          expected_feature.location().longitude(),
+          longitude);
 
-                        EXPECT_EQ(
-                            expected_feature.location().latitude(),
-                            latitude);
+      EXPECT_EQ(
+          expected_feature.name(),
+          feature.name());
+    };
+  };
 
-                        EXPECT_EQ(
-                            expected_feature.location().longitude(),
-                            longitude);
+  auto e = [&]() {
+    return guide.ListFeatures(std::move(rect), std::move(handle))
+        | Then([&]() {
+             CHECK_EQ(guide.current_, guide.filtered_.size());
+             return true;
+           });
+  };
 
-                        EXPECT_EQ(
-                            expected_feature.name(),
-                            feature.name());
-                      }))
-               | Finally([&](auto) {
-                    return call.Finish();
-                  })
-               | Then([this](Status&& status) {
-                    CHECK(status.ok()) << status.error_code()
-                                       << ": " << status.error_message();
-                    CHECK_EQ(current_, filtered_.size());
-
-                    return true;
-                  });
-         }));
-}
-
-TEST_F(RouteGuideTest, ListFeaturesTest) {
-  EXPECT_TRUE(*guide.ListFeatures());
+  EXPECT_TRUE(*e());
 }

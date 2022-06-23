@@ -50,15 +50,20 @@ class EventualsProtocPlugin(ProtocPlugin):
             '.proto', '.eventuals.h')
         source_file_name = folder_for_generated_files + '/' + proto_file_name.replace(
             '.proto', '.eventuals.cc')
+        header_client_name = folder_for_generated_files + '/' + proto_file_name.replace(
+            '.proto', '.client.eventuals.h')
 
         eventuals_data = {
             'eventuals_header': header_file_name.split('/')[-1],
-            'grpc_pb_header': proto_file_path.replace('.proto', '.grpc.pb.h')
+            'grpc_pb_header': proto_file_path.replace('.proto', '.grpc.pb.h'),
+            'pb_header': proto_file_path.replace('.proto', '.pb.h'),
+            'client_header': header_client_name.split('/')[-1],
         }
 
         general_outputs = [
             (header_file_name, 'eventuals.h.j2'),
             (source_file_name, 'eventuals.cc.j2'),
+            (header_client_name, 'eventuals-client.h.j2'),
         ]
 
         template_data = dict(**eventuals_data, **file_digest)
@@ -74,17 +79,18 @@ class EventualsProtocPlugin(ProtocPlugin):
         for service in template_data['services']:
             for method in service['methods']:
                 template = load_template(generate_methods_template_name)
+
                 service_data = {
                     'service': service,
                     'method': method,
                 }
 
-                content = template.render(**template_data, **service_data)
+                content_server = template.render(**template_data, **service_data)
                 file_name = service['name'] + '-' + method[
                     'name'] + '.eventuals.cc'
                 self.response.file.add(name=folder_for_generated_files + '/' +
-                                       file_name,
-                                       content=content)
+                        file_name,
+                        content=content_server)
 
 
 if __name__ == '__main__':

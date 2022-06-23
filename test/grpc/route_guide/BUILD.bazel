@@ -43,6 +43,7 @@ cc_library(
     deps =[
         ":route-guide-grpc",
         "//eventuals/grpc",
+        "@com_github_google_googletest//:gtest",
     ]
 )
 
@@ -62,8 +63,6 @@ cc_library(
         "route-guide-eventuals-server.h",
         # ":route-guide-eventuals-generated",
     ],
-    # Can't get .bazelrc settings for generated files.
-    copts = ["-std=c++17"],
     alwayslink = True,
     deps = [
         ":route-guide-grpc",
@@ -80,7 +79,9 @@ cc_test(
         "list-features.cc",
         "record-route.cc",
         "route-chat.cc",
+        ":route-guide-eventuals-generated",
     ],
+    copts = ["-std=c++17"],
     data = ["route_guide_db.json"],
     deps = [
         ":route-guide-eventuals-app",
