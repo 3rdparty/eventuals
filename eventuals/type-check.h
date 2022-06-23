@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "eventuals/eventual.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -19,8 +21,8 @@ struct _TypeCheck {
   template <typename Arg, typename K>
   auto k(K k) && {
     static_assert(
-        std::is_same_v<T_, ValueFrom<Arg>>,
-        "Failed to type check; expecting type on left, found type on right");
+        std::is_assignable_v<T_, ValueFrom<Arg>> || std::is_convertible_v<ValueFrom<Arg>, T_>,
+        "Failed to type check: Cannot return type on right into type on left");
 
     return std::move(e_).template k<Arg>(std::move(k));
   }
