@@ -298,14 +298,14 @@ class ClientCall {
 
 class Client {
  public:
-  Client(
+  explicit Client(
       const std::string& target,
       const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
       stout::borrowed_ptr<CompletionPool> pool)
     : channel_(::grpc::CreateChannel(target, credentials)),
       pool_(std::move(pool)) {}
 
-  Client(
+  explicit Client(
       std::shared_ptr<::grpc::Channel> channel,
       stout::borrowed_ptr<CompletionPool> pool)
     : channel_(std::move(channel)),

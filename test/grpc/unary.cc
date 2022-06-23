@@ -20,7 +20,8 @@ using helloworld::HelloRequest;
 using stout::Borrowable;
 
 void TestUnaryWithClient(
-    std::function<Client(Borrowable<CompletionPool>&&, int)> client_factory) {
+    const std::function<Client(Borrowable<CompletionPool>&&, int)>&
+        client_factory) {
   ServerBuilder builder;
 
   int port = 0;
@@ -91,7 +92,7 @@ void TestUnaryWithClient(
 }
 
 TEST(UnaryTest, SuccessWithDefaultChannel) {
-  TestUnaryWithClient([](Borrowable<CompletionPool>&& pool, int port) {
+  TestUnaryWithClient([](Borrowable<CompletionPool>&& pool, const int port) {
     // Have the client construct its own channel.
     return Client(
         "0.0.0.0:" + std::to_string(port),
@@ -101,7 +102,7 @@ TEST(UnaryTest, SuccessWithDefaultChannel) {
 }
 
 TEST(UnaryTest, SuccessWithCustomChannel) {
-  TestUnaryWithClient([](Borrowable<CompletionPool>&& pool, int port) {
+  TestUnaryWithClient([](Borrowable<CompletionPool>&& pool, const int port) {
     // Have the client use a channel that we've constructed ourselves.
     std::shared_ptr<::grpc::Channel> channel =
         ::grpc::CreateChannel(
