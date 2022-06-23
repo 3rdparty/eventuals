@@ -9,6 +9,7 @@ py_binary(
         "//protoc-gen-eventuals/templates:eventuals.cc.j2",
         "//protoc-gen-eventuals/templates:eventuals.h.j2",
         "//protoc-gen-eventuals/templates:grpc-method-eventuals.cc.j2",
+        "//protoc-gen-eventuals/templates:eventuals-client.h.j2",
     ],
     srcs_version = "PY3",
     visibility = ["//visibility:public"],

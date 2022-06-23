@@ -4,6 +4,7 @@
 #include "eventuals/finally.h"
 #include "eventuals/foreach.h"
 #include "eventuals/head.h"
+#include "eventuals/iterate.h"
 #include "eventuals/let.h"
 #include "eventuals/range.h"
 #include "eventuals/then.h"
@@ -16,41 +17,32 @@ using grpc::Status;
 using eventuals::Finally;
 using eventuals::Foreach;
 using eventuals::Head;
+using eventuals::Iterate;
 using eventuals::Let;
 using eventuals::Range;
 using eventuals::Then;
 
-auto RouteGuideClient::RecordRoute() {
-  return client_.Call<RouteGuide, Stream<Point>, RouteSummary>("RecordRoute")
-      | Then(Let(
-          [this](auto& call) mutable {
-            return Foreach(
-                       Range(kPoints_),
-                       ([&](int pos) {
-                         const Feature& f = feature_list_[pos];
-                         return call.Writer().Write(f.location());
-                       }))
-                | call.WritesDone()
-                | call.Reader().Read()
-                | Head()
-                | Finally(Let([&](auto& stats) {
-                     return call.Finish()
-                         | Then([&](Status&& status) {
-                              CHECK(status.ok()) << status.error_code()
-                                                 << ": "
-                                                 << status.error_message();
-                              CHECK(stats);
-
-                              CHECK_EQ(stats->point_count(), kPoints_);
-                              CHECK_EQ(stats->feature_count(), kPoints_);
-                              CHECK_EQ(stats->distance(), 675412);
-
-                              return true;
-                            });
-                   }));
-          }));
-}
+using routeguide::Point;
 
 TEST_F(RouteGuideTest, RecordRouteTest) {
-  EXPECT_TRUE(*guide.RecordRoute());
+  auto e = [&]() {
+    return guide.RecordRoute([&]() {
+      std::vector<Point> data(guide.GetPointsCount());
+
+      for (size_t i = 0; i < guide.GetPointsCount(); ++i) {
+        data[i] = guide.feature_list_[i].location();
+      }
+
+      return Iterate(std::move(data));
+    })
+        | Then([&](auto&& summary) {
+             CHECK_EQ(summary.point_count(), guide.GetPointsCount());
+             CHECK_EQ(summary.feature_count(), guide.GetPointsCount());
+             CHECK_EQ(summary.distance(), 675412);
+
+             return true;
+           });
+  };
+
+  EXPECT_TRUE(*e());
 }

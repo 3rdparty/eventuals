@@ -25,15 +25,15 @@ Feature RouteGuideImpl::GetFeature(
 
 ////////////////////////////////////////////////////////////////////////
 
-RouteGuideClient::RouteGuideClient(
-    const std::string& target,
-    const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
-    stout::borrowed_ptr<CompletionPool> pool,
-    const std::string& db)
-  : client_(target, credentials, std::move(pool)) {
-}
+// RouteGuideClientImpl::RouteGuideClientImpl(
+//     const std::string& target,
+//     const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
+//     stout::borrowed_ptr<CompletionPool> pool,
+//     const std::string& db)
+//   : RouteGuideClient(target, credentials, std::move(pool)) {
+// }
 
-void RouteGuideClient::SetDb(const std::string& db) {
+void RouteGuideClientImpl::SetDb(const std::string& db) {
   routeguide::ParseDb(db, &feature_list_);
 }
 
