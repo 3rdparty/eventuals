@@ -95,3 +95,12 @@ def repos(repo_mapping = {}):
         ],
         sha256 = "f7be3474d42aae265405a592bb7da8e171919d74c16f082a5457840f06054728",
     )
+
+    maybe(
+        git_repository,
+        name = "com_github_3rdparty_bazel_rules_backward_cpp",
+        remote = "https://github.com/3rdparty/bazel-rules-backward-cpp",
+        commit = "4a63b4ddbd192d3cba994bc79a78540b3924bfbd",
+        shallow_since = "1657266408 +0300",
+        repo_mapping = repo_mapping,
+    )

@@ -4,6 +4,7 @@ load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 load("@com_github_3rdparty_bazel_rules_asio//bazel:deps.bzl", asio_deps = "deps")
+load("@com_github_3rdparty_bazel_rules_backward_cpp//bazel:deps.bzl", backward_deps = "deps")
 load("@com_github_3rdparty_bazel_rules_curl//bazel:deps.bzl", curl_deps = "deps")
 load("@com_github_3rdparty_bazel_rules_jemalloc//bazel:deps.bzl", jemalloc_deps = "deps")
 load("@com_github_3rdparty_bazel_rules_libuv//bazel:deps.bzl", libuv_deps = "deps")
@@ -20,6 +21,10 @@ def deps(repo_mapping = {}):
             repo_mapping, e.g., 'git_repository'
     """
     asio_deps(
+        repo_mapping = repo_mapping,
+    )
+
+    backward_deps(
         repo_mapping = repo_mapping,
     )
 

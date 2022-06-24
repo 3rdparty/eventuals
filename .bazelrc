@@ -22,6 +22,22 @@ build:macos --host_cxxopt=-std=c++17
 build:windows --cxxopt=/std:c++17
 build:windows --host_cxxopt=/std:c++17
 
+# Make an existing directory writable in the sandbox in order
+# to prevent build issue on 'make' call from 'configure_make'
+# for 'binutils'.
+# Check bazel doc:
+# https://docs.bazel.build/versions/main/command-line-reference.html
+# Example of this issue:
+# https://stackoverflow.com/questions/52370202/how-to-get-bazel-ccache-and-sandboxing-to-work-together-ccache-read-only-file
+# TODO(artur): find a way to pass '/home/$USER/.cache' as the
+# value to '--sandbox_writable_path' option.
+build:linux --sandbox_writable_path=/home/
+build:macos --sandbox_writable_path=/home/
+
+# TODO(artur): make an existing directory writable in the sandbox
+# on Windows too.
+# https://github.com/3rdparty/eventuals/issues/450
+
 # On Windows, `__cplusplus` is wrongly defined without this switch.
 # See https://devblogs.microsoft.com/cppblog/msvc-now-correctly-reports-__cplusplus/
 build:windows --copt=/Zc:__cplusplus
