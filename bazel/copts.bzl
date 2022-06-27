@@ -19,6 +19,7 @@ def copts():
             "-Wno-error=microsoft-cast",
             "-Wno-error=invalid-noreturn",
             "-Wno-error=microsoft-include",
+            "/std:c++17",
         ],
         "//conditions:default": [
             "-std=c++17",
