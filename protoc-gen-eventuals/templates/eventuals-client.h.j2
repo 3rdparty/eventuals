@@ -3,6 +3,7 @@
 set namespaces = package_name.split('.')
 -%}
 #include "eventuals/grpc/client.h"
+
 #include "{{ pb_header }}"
 #include "{{ eventuals_header }}"
 #include "eventuals/finally.h"

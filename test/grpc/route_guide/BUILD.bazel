@@ -4,7 +4,8 @@
 load("@com_github_grpc_grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library", "cc_test")
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("//bazel:cc_eventuals_library.bzl", "cc_eventuals_library")
+load("//bazel:cc_eventuals_library.bzl", "cc_eventuals_library_server_and_client")
+load("//bazel:copts.bzl", "copts")
 
 proto_library(
     name = "route-guide",
@@ -23,28 +24,10 @@ cc_grpc_library(
     deps = [":route-guide-proto"],
 )
 
-cc_eventuals_library(
+cc_eventuals_library_server_and_client(
     name = "route-guide-eventuals-generated",
     srcs = ["route_guide.proto"],
     deps = [":route-guide"],
-)
-
-cc_library(
-    name = "route-guide-eventuals-library",
-    srcs = [
-        ":route-guide-eventuals-generated",
-    ],
-    hdrs = [
-        ":route-guide-eventuals-generated",
-    ],
-    # Can't get .bazelrc settings for generated files.
-    copts = ["-std=c++17"],
-    alwayslink = True,
-    deps =[
-        ":route-guide-grpc",
-        "//eventuals/grpc",
-        "@com_github_google_googletest//:gtest",
-    ]
 )
 
 # NOTE: since we specify directory instead of actual files for
@@ -54,21 +37,23 @@ cc_library(
     name = "route-guide-eventuals-app",
     srcs = [
         "server-client-implementation.cc",
-        # ":route-guide-eventuals-generated",
+        ":route-guide-eventuals-generated",
         "helper.cc",
     ],
     hdrs = [
         "helper.h",
         "route-guide-eventuals-client.h",
         "route-guide-eventuals-server.h",
-        # ":route-guide-eventuals-generated",
+        ":route-guide-eventuals-generated",
     ],
-    alwayslink = True,
+    # TODO: escape of using it for generated files 
+    # (since `route-guide-eventuals-generated` is a declare_folder for c++ builds
+    # it compiles in different environment, either we can specify BAZEL_CXXOPTS).
+    copts = copts(),
     deps = [
         ":route-guide-grpc",
         "//eventuals/grpc",
         "@com_github_google_googletest//:gtest",
-        ":route-guide-eventuals-library",
     ],
 )
 
@@ -79,9 +64,7 @@ cc_test(
         "list-features.cc",
         "record-route.cc",
         "route-chat.cc",
-        ":route-guide-eventuals-generated",
     ],
-    copts = ["-std=c++17"],
     data = ["route_guide_db.json"],
     deps = [
         ":route-guide-eventuals-app",
