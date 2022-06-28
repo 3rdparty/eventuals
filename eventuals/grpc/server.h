@@ -596,6 +596,8 @@ class ServerBuilder {
 
   // TODO(benh): Provide a 'setMaximumThreadsPerCompletionQueue' as well.
   ServerBuilder& SetMinimumThreadsPerCompletionQueue(size_t n);
+  ServerBuilder& SetMaxReceiveMessageSize(int max_receive_message_size);
+  ServerBuilder& SetMaxSendMessageSize(int max_send_message_size);
 
   ServerBuilder& AddListeningPort(
       const std::string& address,
@@ -606,6 +608,11 @@ class ServerBuilder {
 
   ServerStatusOrServer BuildAndStart();
 
+  // TODO(xander): either provide other setters available on
+  // ::grpc::ServerBuilder (like SetResourceQuota), or directly expose a
+  // ::grpc::ServerBuilder from this ::eventuals::grpc::ServerBuilder. See
+  // the ::grpc::ServerBuilder API:
+  // https://grpc.github.io/grpc/cpp/classgrpc_1_1_server_builder.html
  private:
   ServerStatus status_ = ServerStatus::Ok();
   std::optional<size_t> numberOfCompletionQueues_;

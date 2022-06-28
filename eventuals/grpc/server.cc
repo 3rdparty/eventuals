@@ -323,6 +323,22 @@ ServerBuilder& ServerBuilder::SetMinimumThreadsPerCompletionQueue(size_t n) {
 
 ////////////////////////////////////////////////////////////////////////
 
+ServerBuilder& ServerBuilder::SetMaxReceiveMessageSize(
+    const int max_receive_message_size) {
+  builder_.SetMaxReceiveMessageSize(max_receive_message_size);
+  return *this;
+}
+
+////////////////////////////////////////////////////////////////////////
+
+ServerBuilder& ServerBuilder::SetMaxSendMessageSize(
+    const int max_receive_message_size) {
+  builder_.SetMaxSendMessageSize(max_receive_message_size);
+  return *this;
+}
+
+////////////////////////////////////////////////////////////////////////
+
 ServerBuilder& ServerBuilder::AddListeningPort(
     const std::string& address,
     std::shared_ptr<::grpc::ServerCredentials> credentials,
