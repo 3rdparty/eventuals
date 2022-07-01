@@ -2,6 +2,7 @@
 
 #include <tuple>
 #include <type_traits>
+#include <variant>
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -295,6 +296,16 @@ struct apply_tuple_types<T, std::tuple<Types...>> {
 
 template <template <typename...> class T, typename Tuple>
 using apply_tuple_types_t = typename apply_tuple_types<T, Tuple>::type;
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename...>
+struct TupleToVariant;
+
+template <typename... Types>
+struct TupleToVariant<std::tuple<Types...>> {
+  using type = std::variant<Types...>;
+};
 
 ////////////////////////////////////////////////////////////////////////
 

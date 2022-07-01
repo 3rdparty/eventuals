@@ -96,10 +96,18 @@ class expected : public tl::expected<Value_, Error_> {
               std::runtime_error>>,
       Errors>;
 
-  template <typename Arg, typename K>
+  template <typename Arg, typename Errors, typename K>
   auto k(K k) && {
     return ExpectedToEventual(std::move(*this))
-        .template k<Value_>(std::move(k));
+        .template k<
+            Value_,
+            tuple_types_union_t<
+                std::tuple<
+                    std::conditional_t<
+                        std::is_base_of_v<std::exception, std::decay_t<Error_>>,
+                        Error_,
+                        std::runtime_error>>,
+                Errors>>(std::move(k));
   }
 
   using tl::expected<Value_, Error_>::expected;

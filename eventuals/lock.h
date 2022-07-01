@@ -487,7 +487,7 @@ struct _Acquire final {
 
     using Expects = StreamOrValue;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, Arg>(std::move(k), lock_);
     }
@@ -574,7 +574,7 @@ struct _Release final {
 
     using Expects = StreamOrValue;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K>(std::move(k), lock_);
     }
@@ -812,7 +812,7 @@ struct _Wait final {
 
     using Expects = StreamOrValue;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, F_, Arg>(std::move(k), lock_, std::move(f_));
     }

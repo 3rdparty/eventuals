@@ -16,7 +16,7 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E_, typename From_, typename To_>
+template <typename E_, typename Errors_, typename From_, typename To_>
 struct HeapGenerator final {
   struct Adaptor final {
     Adaptor(
@@ -73,7 +73,7 @@ struct HeapGenerator final {
 
   HeapGenerator(E_ e)
     : adapted_(
-        std::move(e).template k<From_>(
+        std::move(e).template k<From_, Errors_>(
             Adaptor{&begin_, &fail_, &stop_, &body_, &ended_})) {}
 
   void Start(
@@ -151,7 +151,7 @@ struct HeapGenerator final {
   Callback<function_type_t<void, To_>> body_;
   Callback<void()> ended_;
 
-  using Adapted_ = decltype(std::declval<E_>().template k<From_>(
+  using Adapted_ = decltype(std::declval<E_>().template k<From_, Errors_>(
       std::declval<Adaptor>()));
 
   Adapted_ adapted_;
@@ -417,13 +417,13 @@ struct _Generator final {
                       Callback<void()>&& ended) mutable {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapGenerator<E, From_, To_>(f(args...)),
+              new HeapGenerator<E, Errors_, From_, To_>(f(args...)),
               [](void* e) {
-                delete static_cast<HeapGenerator<E, From_, To_>*>(e);
+                delete static_cast<HeapGenerator<E, Errors_, From_, To_>*>(e);
               });
         }
 
-        auto* e = static_cast<HeapGenerator<E, From_, To_>*>(e_.get());
+        auto* e = static_cast<HeapGenerator<E, Errors_, From_, To_>*>(e_.get());
 
         switch (action) {
           case Action::Start:
@@ -465,7 +465,7 @@ struct _Generator final {
 
     Composable(Composable&& that) noexcept = default;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       static_assert(
           !std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,

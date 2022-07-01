@@ -337,7 +337,7 @@ struct _DoAll final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, Eventuals_...>(
           std::move(k),

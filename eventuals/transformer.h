@@ -13,7 +13,7 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E_, typename From_, typename To_>
+template <typename E_, typename Errors_, typename From_, typename To_>
 struct HeapTransformer final {
   struct Adaptor final {
     Adaptor(
@@ -65,7 +65,7 @@ struct HeapTransformer final {
 
   HeapTransformer(E_ e)
     : adapted_(
-        std::move(e).template k<From_>(
+        std::move(e).template k<From_, Errors_>(
             Adaptor{&begin_, &fail_, &stop_, &body_, &ended_})) {}
 
   void Body(
@@ -130,7 +130,7 @@ struct HeapTransformer final {
   Callback<void(To_)> body_;
   Callback<void()> ended_;
 
-  using Adapted_ = decltype(std::declval<E_>().template k<From_>(
+  using Adapted_ = decltype(std::declval<E_>().template k<From_, Errors_>(
       std::declval<Adaptor>()));
 
   Adapted_ adapted_;
@@ -310,13 +310,13 @@ struct _Transformer final {
                       Callback<void()>&& ended) {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapTransformer<E, From_, To_>(f()),
+              new HeapTransformer<E, Errors_, From_, To_>(f()),
               [](void* e) {
-                delete static_cast<HeapTransformer<E, From_, To_>*>(e);
+                delete static_cast<HeapTransformer<E, Errors_, From_, To_>*>(e);
               });
         }
 
-        auto* e = static_cast<HeapTransformer<E, From_, To_>*>(e_.get());
+        auto* e = static_cast<HeapTransformer<E, Errors_, From_, To_>*>(e_.get());
 
         switch (action) {
           case Action::Body:
@@ -356,7 +356,7 @@ struct _Transformer final {
       };
     }
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, From_, To_, Errors_>(
           std::move(k),

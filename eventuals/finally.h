@@ -11,7 +11,7 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 struct _Finally final {
-  template <typename K_, typename Arg_>
+  template <typename K_, typename Errors_, typename Arg_>
   struct Continuation final {
     template <typename... Args>
     void Start(Args&&... args) {
@@ -51,9 +51,9 @@ struct _Finally final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = std::tuple<>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, Arg>{std::move(k)};
+      return Continuation<K, Errors, Arg>{std::move(k)};
     }
 
     template <typename Downstream>

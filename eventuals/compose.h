@@ -115,20 +115,25 @@ struct Composed final {
 
   using Expects = typename Left_::Expects;
 
-  template <typename Arg>
+  template <typename Arg, typename Errors>
   auto k() && {
     using Value = typename Left_::template ValueFrom<Arg>;
+    using LeftErrors = typename Left_::template ErrorsFrom<Arg, Errors>;
+
     return std::move(left_)
-        .template k<Arg>(std::move(right_).template k<Value>());
+        .template k<
+            Arg,
+            Errors>(std::move(right_).template k<Value, LeftErrors>());
   }
 
-  template <typename Arg, typename K>
+  template <typename Arg, typename Errors, typename K>
   auto k(K k) && {
     using Value = typename Left_::template ValueFrom<Arg>;
+    using LeftErrors = typename Left_::template ErrorsFrom<Arg, Errors>;
 
     auto composed = [&]() {
-      return std::move(left_).template k<Arg>(
-          std::move(right_).template k<Value>(std::move(k)));
+      return std::move(left_).template k<Arg, Errors>(
+          std::move(right_).template k<Value, LeftErrors>(std::move(k)));
     };
 
     os::CheckSufficientStackSpace(sizeof(decltype(composed())));
@@ -157,24 +162,24 @@ template <
 ////////////////////////////////////////////////////////////////////////
 
 // Helpers for _building_ a continuation out of an eventual.
-template <typename Arg, typename E>
+template <typename Arg, typename Errors, typename E>
 [[nodiscard]] auto Build(E e) {
-  return std::move(e).template k<Arg>();
+  return std::move(e).template k<Arg, Errors>();
 }
 
-template <typename Arg, typename E, typename K>
+template <typename Arg, typename Errors, typename E, typename K>
 [[nodiscard]] auto Build(E e, K k) {
-  return std::move(e).template k<Arg>(std::move(k));
+  return std::move(e).template k<Arg, Errors>(std::move(k));
 }
 
 template <typename E>
 [[nodiscard]] auto Build(E e) {
-  return Build<void>(std::move(e));
+  return Build<void, std::tuple<>>(std::move(e));
 }
 
 template <typename E, typename K>
 [[nodiscard]] auto Build(E e, K k) {
-  return Build<void>(std::move(e), std::move(k));
+  return Build<void, std::tuple<>>(std::move(e), std::move(k));
 }
 
 ////////////////////////////////////////////////////////////////////////

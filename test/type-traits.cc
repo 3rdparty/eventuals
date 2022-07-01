@@ -278,6 +278,13 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////
 
+static_assert(
+    std::is_same_v<
+        std::variant<int, double>,
+        TupleToVariant<std::tuple<int, double>>::type>);
+
+////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace eventuals::test
 

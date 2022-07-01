@@ -96,7 +96,7 @@ struct _Terminal final {
           std::move(stop)};
     }
 
-    template <typename Arg, typename... K>
+    template <typename Arg, typename Errors, typename... K>
     auto k(K...) && {
       static_assert(
           sizeof...(K) == 0,

@@ -1200,7 +1200,7 @@ struct _HTTP final {
         Errors,
         std::tuple<std::runtime_error>>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K>(std::move(k), loop_, std::move(request_));
     }

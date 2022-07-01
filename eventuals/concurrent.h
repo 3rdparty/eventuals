@@ -594,7 +594,7 @@ struct _Concurrent final {
   // 'Adaptor'. We also use 'Continuation' to store the the eventuals
   // returned from 'Adaptor' (vs having to heap allocate them by
   // having them all return 'Task' or 'Generator').
-  template <typename K_, typename F_, typename Arg_>
+  template <typename K_, typename F_, typename Errors_, typename Arg_>
   struct Continuation final : public TypeErasedStream {
     // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, F_ f)
@@ -613,7 +613,7 @@ struct _Concurrent final {
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
 
-      ingress_.emplace(Build<Arg_>(adaptor_.Ingress()));
+      ingress_.emplace(Build<Arg_, Errors_>(adaptor_.Ingress()));
 
       // NOTE: we don't register an interrupt for 'ingress_' since we
       // explicitly handle interrupts with 'Adaptor::Interrupt()'.
@@ -716,7 +716,7 @@ struct _Concurrent final {
 
     std::atomic_flag next_ = ATOMIC_FLAG_INIT;
 
-    using Ingress_ = decltype(Build<Arg_>(adaptor_.Ingress()));
+    using Ingress_ = decltype(Build<Arg_, Errors_>(adaptor_.Ingress()));
     std::optional<Ingress_> ingress_;
 
     using Egress_ = decltype(Build(adaptor_.Egress(), std::declval<K_>()));
@@ -751,13 +751,13 @@ struct _Concurrent final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       static_assert(
           !std::is_void_v<ValueFrom<Arg>>,
           "'Concurrent' does not (yet) support 'void' eventual values");
 
-      return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
+      return Continuation<K, F_, Errors, Arg>(std::move(k), std::move(f_));
     }
 
     template <typename Downstream>

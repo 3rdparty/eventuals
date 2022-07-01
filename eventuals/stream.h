@@ -380,7 +380,7 @@ struct _Stream final {
           std::move(stop)};
     }
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<
           K,
