@@ -422,7 +422,7 @@ class EventLoop final : public Scheduler {
             Errors,
             std::tuple<std::runtime_error>>;
 
-        template <typename Arg, typename K>
+        template <typename Arg, typename Errors, typename K>
         auto k(K k) && {
           return Continuation<K>(
               std::move(k),
@@ -739,7 +739,7 @@ class EventLoop final : public Scheduler {
           Errors,
           std::tuple<std::runtime_error>>;
 
-      template <typename Arg, typename K>
+      template <typename Arg, typename Errors, typename K>
       auto k(K k) && {
         return Continuation<K>(std::move(k), loop_, signum_);
       }
@@ -1030,7 +1030,7 @@ class EventLoop final : public Scheduler {
           Errors,
           std::tuple<std::runtime_error>>;
 
-      template <typename Arg, typename K>
+      template <typename Arg, typename Errors, typename K>
       auto k(K k) && {
         return Continuation<K>(std::move(k), loop_, fd_, events_);
       }
@@ -1059,9 +1059,9 @@ class EventLoop final : public Scheduler {
 ////////////////////////////////////////////////////////////////////////
 
 struct _EventLoopSchedule final {
-  template <typename K_, typename E_, typename Arg_>
+  template <typename K_, typename Errors_, typename E_, typename Arg_>
   struct Continuation final
-    : public stout::enable_borrowable_from_this<Continuation<K_, E_, Arg_>> {
+    : public stout::enable_borrowable_from_this<Continuation<K_, Errors_, E_, Arg_>> {
     Continuation(K_ k, E_ e, EventLoop* loop, std::string&& name)
       : e_(std::move(e)),
         context_(
@@ -1181,9 +1181,9 @@ struct _EventLoopSchedule final {
             // this design decision if in practice this performance
             // tradeoff is not emperically a benefit.
             new Adapted_(
-                std::move(e_).template k<Arg_>(
+                std::move(e_).template k<Arg_, Errors_>(
                     Reschedule(std::move(previous))
-                        .template k<Value_>(_Then::Adaptor<K_>{k_}))));
+                        .template k<Value_, Errors_>(_Then::Adaptor<K_>{k_}))));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
@@ -1208,9 +1208,9 @@ struct _EventLoopSchedule final {
 
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
-    using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
+    using Adapted_ = decltype(std::declval<E_>().template k<Arg_, Errors_>(
         std::declval<_Reschedule::Composable>()
-            .template k<Value_>(std::declval<_Then::Adaptor<K_>>())));
+            .template k<Value_, Errors_>(std::declval<_Then::Adaptor<K_>>())));
 
     std::unique_ptr<Adapted_> adapted_;
 
@@ -1231,9 +1231,9 @@ struct _EventLoopSchedule final {
         Errors,
         typename E_::template ErrorsFrom<Arg, Errors>>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, E_, Arg>(
+      return Continuation<K, ErrorsFrom<Arg, Errors>, E_, Arg>(
           std::move(k),
           std::move(e_),
           loop_,

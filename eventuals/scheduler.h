@@ -316,7 +316,7 @@ struct _Reschedule final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, Arg>(std::move(k), std::move(context_));
     }
@@ -351,7 +351,7 @@ template <typename E>
 
 // Helper for exposing continuations that might need to get
 // rescheduled before being executed.
-template <typename K_, typename Arg_>
+template <typename K_, typename Errors_, typename Arg_>
 struct Reschedulable final {
   Reschedulable(K_ k)
     : k_(std::move(k)) {}
@@ -362,7 +362,7 @@ struct Reschedulable final {
           Scheduler::Context::Get().reborrow();
 
       continuation_.emplace(
-          Reschedule(std::move(previous)).template k<Arg_>(std::move(k_)));
+          Reschedule(std::move(previous)).template k<Arg_, Errors_>(std::move(k_)));
 
       if (interrupt_ != nullptr) {
         continuation_->Register(*interrupt_);
@@ -386,7 +386,7 @@ struct Reschedulable final {
 
   using Continuation_ =
       decltype(std::declval<_Reschedule::Composable>()
-                   .template k<Arg_>(std::declval<K_>()));
+                   .template k<Arg_, Errors_>(std::declval<K_>()));
 
   std::optional<Continuation_> continuation_;
 
@@ -492,7 +492,7 @@ struct _Preempt final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, E_, Arg>(
           std::move(k),

@@ -17,13 +17,13 @@ struct _TypeCheck {
   template <typename Arg, typename Errors>
   using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
-  template <typename Arg, typename K>
+  template <typename Arg, typename Errors, typename K>
   auto k(K k) && {
     static_assert(
         std::is_same_v<T_, ValueFrom<Arg>>,
         "Failed to type check; expecting type on left, found type on right");
 
-    return std::move(e_).template k<Arg>(std::move(k));
+    return std::move(e_).template k<Arg, Errors>(std::move(k));
   }
 
   E_ e_;
