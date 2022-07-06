@@ -1182,7 +1182,7 @@ struct _HTTP final {
   };
 
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Response;
 
     template <typename Arg, typename Errors>

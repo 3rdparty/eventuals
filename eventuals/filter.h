@@ -61,7 +61,7 @@ struct _Filter final {
   // with provided lambda function to filter
   template <typename F_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>

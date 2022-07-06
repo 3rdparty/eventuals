@@ -67,7 +67,9 @@ struct _Closure final {
 
     Interrupt* interrupt_ = nullptr;
 
-    using Continuation_ = decltype(f_().template k<Arg_, Errors_>(std::declval<K_&&>()));
+    using Continuation_ = decltype(f_().template k<
+                                   Arg_,
+                                   Errors_>(std::declval<K_&&>()));
 
     std::optional<Continuation_> continuation_;
 
@@ -82,8 +84,8 @@ struct _Closure final {
   struct Composable final {
     using E_ = typename std::invoke_result_t<F_>;
 
-    template <typename Arg>
-    using ValueFrom = typename E_::template ValueFrom<Arg>;
+    template <typename Arg, typename Errors>
+    using ValueFrom = typename E_::template ValueFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;

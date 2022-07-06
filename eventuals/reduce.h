@@ -36,7 +36,12 @@ struct _Reduce final {
     TypeErasedStream* stream_;
   };
 
-  template <typename K_, typename T_, typename F_, typename Errors_, typename Arg_>
+  template <
+      typename K_,
+      typename T_,
+      typename F_,
+      typename Errors_,
+      typename Arg_>
   struct Continuation final {
     Continuation(K_ k, T_ t, F_ f)
       : t_(std::move(t)),
@@ -94,7 +99,7 @@ struct _Reduce final {
     using E_ = std::invoke_result_t<F_, std::add_lvalue_reference_t<T_>>;
 
     static_assert(
-        std::is_same_v<bool, typename E_::template ValueFrom<Arg_>>,
+        std::is_same_v<bool, typename E_::template ValueFrom<Arg_, Errors_>>,
         "expecting an eventually returned bool for 'Reduce'");
 
     using Adapted_ = decltype(std::declval<E_>().template k<Arg_, Errors_>(
@@ -111,7 +116,7 @@ struct _Reduce final {
 
   template <typename T_, typename F_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = T_;
 
     using E_ =

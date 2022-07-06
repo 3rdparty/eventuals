@@ -481,7 +481,7 @@ struct _StaticThreadPoolSchedule final {
         StaticThreadPool::Requirements*>
         context_;
 
-    using Value_ = typename E_::template ValueFrom<Arg_>;
+    using Value_ = typename E_::template ValueFrom<Arg_, Errors_>;
 
     using Adapted_ = decltype(std::declval<E_>().template k<Arg_, Errors_>(
         std::declval<_Reschedule::Composable>()
@@ -498,8 +498,8 @@ struct _StaticThreadPoolSchedule final {
 
   template <typename E_>
   struct Composable final {
-    template <typename Arg>
-    using ValueFrom = typename E_::template ValueFrom<Arg>;
+    template <typename Arg, typename Errors>
+    using ValueFrom = typename E_::template ValueFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;

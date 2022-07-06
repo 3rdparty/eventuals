@@ -4,10 +4,12 @@
 #include <deque>
 #include <string_view>
 #include <thread>
+#include <variant>
 
 #include "absl/container/flat_hash_map.h"
 #include "eventuals/catch.h"
 #include "eventuals/eventual.h"
+#include "eventuals/expected.h"
 #include "eventuals/finally.h"
 #include "eventuals/grpc/logging.h"
 #include "eventuals/grpc/server.h"
@@ -765,13 +767,20 @@ template <typename Request, typename Response>
             })
       | Then([&](::grpc::Status status) {
            return call.Finish(status)
-               | Finally([&](expected<void, std::exception_ptr>&& e) {
+               | Finally([&](expected<
+                             void,
+                             std::variant<Stopped, std::runtime_error>>&& e) {
                     return If(e.has_value())
                                .no([e = std::move(e), &call]() {
                                  return Raise(std::move(e.error()))
                                      | Catch()
-                                           .raised<std::exception>(
-                                               [&call](std::exception&& e) {
+                                           .raised<std::variant<
+                                               Stopped,
+                                               std::runtime_error>>(
+                                               [&call](std::variant<
+                                                       Stopped,
+                                                       std::runtime_error>&&
+                                                           e) {
                                                  EVENTUALS_GRPC_LOG(1)
                                                      << "Finishing call ("
                                                      << call.context() << ")"
@@ -780,8 +789,19 @@ template <typename Request, typename Response>
                                                      << " and path = "
                                                      << call.context()
                                                             ->method()
-                                                     << " failed: "
-                                                     << e.what();
+                                                     << " failed: ";
+
+                                                 if (e.index() == 0) {
+                                                   EVENTUALS_GRPC_LOG(1)
+                                                       << std::get<
+                                                              0>(e)
+                                                              .what();
+                                                 } else {
+                                                   EVENTUALS_GRPC_LOG(1)
+                                                       << std::get<
+                                                              1>(e)
+                                                              .what();
+                                                 }
                                                });
                                })
                                .yes([]() { return Just(); })
@@ -807,13 +827,21 @@ template <typename Request, typename Response>
             })
       | Then([&](::grpc::Status status) {
            return call.Finish(status)
-               | Finally([&](expected<void, std::exception_ptr>&& e) {
+               | Finally([&](expected<
+                             void,
+                             std::variant<Stopped, std::runtime_error>>&& e) {
                     return If(e.has_value())
                                .no([e = std::move(e), &call]() {
                                  return Raise(std::move(e.error()))
                                      | Catch()
-                                           .raised<std::exception>(
-                                               [&call](std::exception&& e) {
+                                           .raised<std::variant<
+                                               Stopped,
+                                               std::runtime_error>>(
+                                               [&call](
+                                                   std::variant<
+                                                       Stopped,
+                                                       std::runtime_error>&&
+                                                       e) {
                                                  EVENTUALS_GRPC_LOG(1)
                                                      << "Finishing call ("
                                                      << call.context() << ")"
@@ -822,8 +850,19 @@ template <typename Request, typename Response>
                                                      << " and path = "
                                                      << call.context()
                                                             ->method()
-                                                     << " failed: "
-                                                     << e.what();
+                                                     << " failed: ";
+
+                                                 if (e.index() == 0) {
+                                                   EVENTUALS_GRPC_LOG(1)
+                                                       << std::get<
+                                                              0>(e)
+                                                              .what();
+                                                 } else {
+                                                   EVENTUALS_GRPC_LOG(1)
+                                                       << std::get<
+                                                              1>(e)
+                                                              .what();
+                                                 }
                                                });
                                })
                                .yes([]() { return Just(); })

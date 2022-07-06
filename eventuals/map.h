@@ -58,7 +58,8 @@ struct _Map final {
     template <typename... Args>
     void Body(Args&&... args) {
       if (!adapted_) {
-        adapted_.emplace(std::move(e_).template k<Arg_, Errors_>(Adaptor<K_>{k_}));
+        adapted_.emplace(
+            std::move(e_).template k<Arg_, Errors_>(Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
@@ -106,8 +107,8 @@ struct _Map final {
 
   template <typename E_>
   struct Composable final {
-    template <typename Arg>
-    using ValueFrom = typename E_::template ValueFrom<Arg>;
+    template <typename Arg, typename Errors>
+    using ValueFrom = typename E_::template ValueFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;

@@ -414,7 +414,7 @@ class EventLoop final : public Scheduler {
       };
 
       struct Composable final {
-        template <typename Arg>
+        template <typename Arg, typename Errors>
         using ValueFrom = void;
 
         template <typename Arg, typename Errors>
@@ -731,7 +731,7 @@ class EventLoop final : public Scheduler {
     };
 
     struct Composable final {
-      template <typename Arg>
+      template <typename Arg, typename Errors>
       using ValueFrom = void;
 
       template <typename Arg, typename Errors>
@@ -1022,7 +1022,7 @@ class EventLoop final : public Scheduler {
     };
 
     struct Composable final {
-      template <typename Arg>
+      template <typename Arg, typename Errors>
       using ValueFrom = PollEvents;
 
       template <typename Arg, typename Errors>
@@ -1061,7 +1061,8 @@ class EventLoop final : public Scheduler {
 struct _EventLoopSchedule final {
   template <typename K_, typename Errors_, typename E_, typename Arg_>
   struct Continuation final
-    : public stout::enable_borrowable_from_this<Continuation<K_, Errors_, E_, Arg_>> {
+    : public stout::enable_borrowable_from_this<
+          Continuation<K_, Errors_, E_, Arg_>> {
     Continuation(K_ k, E_ e, EventLoop* loop, std::string&& name)
       : e_(std::move(e)),
         context_(
@@ -1206,7 +1207,7 @@ struct _EventLoopSchedule final {
 
     Interrupt* interrupt_ = nullptr;
 
-    using Value_ = typename E_::template ValueFrom<Arg_>;
+    using Value_ = typename E_::template ValueFrom<Arg_, Errors_>;
 
     using Adapted_ = decltype(std::declval<E_>().template k<Arg_, Errors_>(
         std::declval<_Reschedule::Composable>()
@@ -1223,8 +1224,8 @@ struct _EventLoopSchedule final {
 
   template <typename E_>
   struct Composable final {
-    template <typename Arg>
-    using ValueFrom = typename E_::template ValueFrom<Arg>;
+    template <typename Arg, typename Errors>
+    using ValueFrom = typename E_::template ValueFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<
@@ -1233,7 +1234,7 @@ struct _EventLoopSchedule final {
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, ErrorsFrom<Arg, Errors>, E_, Arg>(
+      return Continuation<K, Errors, E_, Arg>(
           std::move(k),
           std::move(e_),
           loop_,

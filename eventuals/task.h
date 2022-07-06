@@ -312,7 +312,7 @@ struct _TaskFromToWith final {
       typename Errors_,
       typename... Args_>
   struct Composable final {
-    template <typename>
+    template <typename Arg, typename Errors>
     using ValueFrom = To_;
 
     template <typename Arg, typename Errors>
@@ -364,7 +364,7 @@ struct _TaskFromToWith final {
           "'Task' expects a callable (e.g., a lambda) that "
           "returns an eventual but you're not returning anything");
 
-      using Value = typename E::template ValueFrom<From_>;
+      using Value = typename E::template ValueFrom<From_, Errors_>;
 
       using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
 
@@ -443,7 +443,12 @@ struct _TaskFromToWith final {
           !std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
           "'Task' 'From' or 'To' type is not specified");
 
-      return Continuation<K, From_, To_, tuple_types_union_t<Errors, Errors_>, Args_...>(
+      return Continuation<
+          K,
+          From_,
+          To_,
+          tuple_types_union_t<Errors, Errors_>,
+          Args_...>(
           std::move(k),
           std::move(args_),
           std::move(value_or_dispatch_.value()));
@@ -475,7 +480,7 @@ template <
     typename... Args_>
 class _Task final {
  public:
-  template <typename Arg>
+  template <typename Arg, typename Errors>
   using ValueFrom = To_;
 
   template <typename Arg, typename Errors>
@@ -600,7 +605,7 @@ class _Task final {
           CHECK(promise_.has_value());
           promise_->set_exception(
               std::make_exception_ptr(
-                  StoppedException()));
+                  Stopped()));
         });
 
     return future;

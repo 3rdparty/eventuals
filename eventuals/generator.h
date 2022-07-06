@@ -307,7 +307,7 @@ struct _Generator final {
 
   template <typename From_, typename To_, typename Errors_, typename... Args_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = To_;
 
     template <typename Arg, typename Errors>
@@ -388,7 +388,7 @@ struct _Generator final {
           tuple_types_subset_subtype_v<ErrorsFromE, Errors_>,
           "Specified errors can't be thrown from 'Generator'");
 
-      using Value = typename E::template ValueFrom<From_>;
+      using Value = typename E::template ValueFrom<From_, Errors_>;
 
       static_assert(
           std::is_convertible_v<Value, To_>,

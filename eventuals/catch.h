@@ -24,7 +24,8 @@ struct _Catch final {
 
     template <typename E>
     void Handle(K_&& k, Interrupt* interrupt, E&& e) {
-      adapted_.emplace(Then(std::move(f_)).template k<Error_, Errors_>(std::move(k)));
+      adapted_.emplace(
+          Then(std::move(f_)).template k<Error_, Errors_>(std::move(k)));
 
       if (interrupt != nullptr) {
         adapted_->Register(*interrupt);
@@ -75,7 +76,9 @@ struct _Catch final {
     F_ f_;
 
     using Adapted_ =
-        decltype(Then(std::move(f_)).template k<Error_, Errors_>(std::declval<K_>()));
+        decltype(Then(
+                     std::move(f_))
+                     .template k<Error_, Errors_>(std::declval<K_>()));
 
     std::optional<Adapted_> adapted_;
   };
@@ -121,6 +124,7 @@ struct _Catch final {
     void Fail(Error&& error) {
       static_assert(
           std::disjunction_v<
+              CheckErrorsTypesForVariant<std::decay_t<Error>>,
               std::is_base_of<std::exception, std::decay_t<Error>>,
               std::is_same<std::exception_ptr, std::decay_t<Error>>>,
           "'Catch' expects a type derived from "
@@ -183,7 +187,7 @@ struct _Catch final {
   template <typename Value_, bool has_all_, typename... CatchHandlers_>
   struct Builder final {
     // NOTE: we ensure 'Arg' and 'Value_' are the same in 'k()'.
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     using CatchErrors_ = std::tuple<typename CatchHandlers_::Error...>;
@@ -236,12 +240,18 @@ struct _Catch final {
                 std::conditional_t<
                     std::disjunction_v<
                         tuple_types_contains<std::exception, CatchErrors_>,
-                        tuple_types_contains<std::exception_ptr, CatchErrors_>>,
+                        tuple_types_contains<
+                            std::exception_ptr,
+                            CatchErrors_>>,
                     std::tuple<>,
                     tuple_types_subtract_t<Errors, CatchErrors_>>,
-                decltype(std::move(catch_handler).template Convert<K, Errors>())...>(
+                decltype(std::move(
+                             catch_handler)
+                             .template Convert<K, Errors>())...>(
                 std::move(k),
-                std::tuple{std::move(catch_handler).template Convert<K, Errors>()...});
+                std::tuple{std::move(
+                               catch_handler)
+                               .template Convert<K, Errors>()...});
           },
           std::move(catch_handlers_));
     }
@@ -260,7 +270,8 @@ struct _Catch final {
 
       using Value = ValueFromMaybeComposable<
           std::invoke_result_t<F, Error>,
-          void>;
+          void,
+          std::tuple<>>;
 
       static_assert(
           std::disjunction_v<
@@ -272,7 +283,8 @@ struct _Catch final {
       return create<Unify_<Value_, Value>, has_all_>(
           std::tuple_cat(
               std::move(catch_handlers_),
-              std::tuple{Handler<Undefined, std::tuple<>, Error, F>{std::move(f)}}));
+              std::tuple{
+                  Handler<Undefined, std::tuple<>, Error, F>{std::move(f)}}));
     }
 
     template <typename F>
@@ -285,7 +297,8 @@ struct _Catch final {
 
       using Value = ValueFromMaybeComposable<
           std::invoke_result_t<F, std::exception_ptr>,
-          void>;
+          void,
+          std::tuple<>>;
 
       static_assert(
           std::disjunction_v<
@@ -298,7 +311,11 @@ struct _Catch final {
           std::tuple_cat(
               std::move(catch_handlers_),
               std::tuple{
-                  Handler<Undefined, std::tuple<>, std::exception_ptr, F>{std::move(f)}}));
+                  Handler<
+                      Undefined,
+                      std::tuple<>,
+                      std::exception_ptr,
+                      F>{std::move(f)}}));
     }
 
     std::tuple<CatchHandlers_...> catch_handlers_;

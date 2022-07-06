@@ -217,7 +217,7 @@ struct _Loop final {
       typename Value_,
       typename Errors_>
   struct Builder final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Value_;
 
     template <typename Arg, typename Errors>

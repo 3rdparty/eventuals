@@ -34,6 +34,7 @@ struct _Eventual {
       // only types derived from 'std::exception' are used.
       static_assert(
           std::disjunction_v<
+              CheckErrorsTypesForVariant<std::decay_t<Error>>,
               std::is_same<std::exception_ptr, std::decay_t<Error>>,
               std::is_base_of<std::exception, std::decay_t<Error>>>,
           "Expecting a type derived from std::exception");
@@ -181,7 +182,7 @@ struct _Eventual {
       typename Value_,
       typename Errors_ = std::tuple<>>
   struct Builder final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Value_;
 
     template <typename Arg, typename Errors>
@@ -216,8 +217,6 @@ struct _Eventual {
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      // static_assert(std::is_void_v<Errors>);
-      // static_assert(std::is_void_v<Errors_>);
       return Continuation<
           K,
           Context_,
@@ -226,8 +225,8 @@ struct _Eventual {
           Stop_,
           Interruptible_,
           Value_,
-          Errors>(
-          Reschedulable<K, Errors, Value_>{std::move(k)},
+          Errors_>(
+          Reschedulable<K, Errors_, Value_>{std::move(k)},
           std::move(context_),
           std::move(start_),
           std::move(fail_),

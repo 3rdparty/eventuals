@@ -128,7 +128,7 @@ TEST(ThenTest, Interrupt) {
 
   k.Start();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 } // namespace

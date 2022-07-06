@@ -310,7 +310,7 @@ struct _Reschedule final {
   };
 
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>
@@ -362,7 +362,9 @@ struct Reschedulable final {
           Scheduler::Context::Get().reborrow();
 
       continuation_.emplace(
-          Reschedule(std::move(previous)).template k<Arg_, Errors_>(std::move(k_)));
+          Reschedule(
+              std::move(previous))
+              .template k<Arg_, Errors_>(std::move(k_)));
 
       if (interrupt_ != nullptr) {
         continuation_->Register(*interrupt_);
@@ -400,7 +402,7 @@ struct Reschedulable final {
 ////////////////////////////////////////////////////////////////////////
 
 struct _Preempt final {
-  template <typename K_, typename E_, typename Arg_>
+  template <typename K_, typename E_, typename Arg_, typename Errors_>
   struct Continuation final {
     Continuation(K_ k, E_ e, std::string name)
       : context_(
@@ -467,7 +469,7 @@ struct _Preempt final {
 
     Interrupt* interrupt_ = nullptr;
 
-    using Value_ = typename E_::template ValueFrom<Arg_>;
+    using Value_ = typename E_::template ValueFrom<Arg_, Errors_>;
 
     using Adapted_ =
         decltype((std::declval<_Reschedule::Composable>()
@@ -486,15 +488,15 @@ struct _Preempt final {
 
   template <typename E_>
   struct Composable final {
-    template <typename Arg>
-    using ValueFrom = typename E_::template ValueFrom<Arg>;
+    template <typename Arg, typename Errors>
+    using ValueFrom = typename E_::template ValueFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, E_, Arg>(
+      return Continuation<K, E_, Arg, Errors>(
           std::move(k),
           std::move(e_),
           std::move(name_));
@@ -522,7 +524,7 @@ template <typename E>
 // eventual has it's own 'Scheduler::Context'.
 template <typename E>
 [[nodiscard]] auto Promisify(std::string&& name, E e) {
-  using Value = typename E::template ValueFrom<void>;
+  using Value = typename E::template ValueFrom<void, std::tuple<>>;
 
   std::promise<
       typename ReferenceWrapperTypeExtractor<Value>::type>
@@ -555,7 +557,7 @@ template <typename E>
             .stop([](auto& promise) {
               promise.set_exception(
                   std::make_exception_ptr(
-                      StoppedException()));
+                      Stopped()));
             }));
 
   return std::make_tuple(std::move(future), std::move(k));

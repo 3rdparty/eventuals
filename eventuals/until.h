@@ -81,7 +81,7 @@ struct _Until final {
 
   template <typename F_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>
@@ -190,7 +190,10 @@ struct _Until::Continuation<K_, Errors_, F_, Arg_, true> final {
     if constexpr (!std::is_void_v<Arg_>) {
       adapted_.emplace(
           f_(*arg_) // NOTE: passing '&' not '&&'.
-              .template k<void, Errors_>(Adaptor<K_, Arg_>{k_, *arg_, *stream_}));
+              .template k<void, Errors_>(Adaptor<K_, Arg_>{
+                  k_,
+                  *arg_,
+                  *stream_}));
     } else {
       adapted_.emplace(
           f_().template k<void, Errors_>(Adaptor<K_, Arg_>{k_, *stream_}));

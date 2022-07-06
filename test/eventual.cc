@@ -144,7 +144,7 @@ TEST(EventualTest, Interrupt) {
 
   k.Start();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 
@@ -182,7 +182,7 @@ TEST(EventualTest, Reuse) {
               .stop([](auto& promise) {
                 promise.set_exception(
                     std::make_exception_ptr(
-                        eventuals::StoppedException()));
+                        eventuals::Stopped()));
               });
   };
 

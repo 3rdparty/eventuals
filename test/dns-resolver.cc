@@ -93,7 +93,7 @@ TEST_F(DomainNameResolveTest, Stop) {
 
   EventLoop::Default().RunUntil(future);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 TEST_F(DomainNameResolveTest, Raises) {

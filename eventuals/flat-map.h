@@ -156,11 +156,11 @@ struct _FlatMap final {
 
   template <typename F_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = typename std::conditional_t<
         std::is_void_v<Arg>,
         std::invoke_result<F_>,
-        std::invoke_result<F_, Arg>>::type::template ValueFrom<void>;
+        std::invoke_result<F_, Arg>>::type::template ValueFrom<void, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename std::conditional_t<

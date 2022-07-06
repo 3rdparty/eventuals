@@ -113,7 +113,7 @@ TEST_F(EventLoopTest, InterruptTimer) {
 
   EventLoop::Default().RunUntil(future);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 
   thread.join();
 }
@@ -138,7 +138,7 @@ TEST_F(EventLoopTest, PauseClockInterruptTimer) {
 
   EventLoop::Default().RunUntil(future);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 
   // Advance the clock so that we relinquish the borrow on the timer
   // and it can be destructed.
