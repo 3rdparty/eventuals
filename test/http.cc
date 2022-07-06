@@ -174,7 +174,7 @@ TEST_P(HttpTest, GetInterrupt) {
 
   RunUntil(future);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 
@@ -197,7 +197,7 @@ TEST_P(HttpTest, PostInterrupt) {
 
   RunUntil(future);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 
@@ -228,7 +228,7 @@ TEST_P(HttpTest, GetInterruptAfterStart) {
 
   RunUntil(future);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 
@@ -262,7 +262,7 @@ TEST_P(HttpTest, PostInterruptAfterStart) {
 
   RunUntil(future);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 

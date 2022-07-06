@@ -26,7 +26,7 @@ template <typename E>
     std::string&& name,
     E e,
     EventLoop* loop = nullptr) {
-  using Value = typename E::template ValueFrom<void>;
+  using Value = typename E::template ValueFrom<void, std::tuple<>>;
 
   std::promise<
       typename ReferenceWrapperTypeExtractor<Value>::type>
@@ -111,7 +111,7 @@ template <typename E>
 
                promise.set_exception(
                    std::make_exception_ptr(
-                       StoppedException()));
+                       Stopped()));
 
                ////////////////////////////////////////////////////
                // NOTE: can't use any variables like 'loop' at   //

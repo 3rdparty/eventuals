@@ -53,7 +53,7 @@ struct _Loop final {
       (*k_)().Register(interrupt);
     }
 
-    Reschedulable<K_, Errors_, Value_>* k_ = nullptr;
+    Reschedulable<K_, Value_, Errors_>* k_ = nullptr;
   };
 
   template <
@@ -69,7 +69,7 @@ struct _Loop final {
       typename Errors_>
   struct Continuation final {
     Continuation(
-        Reschedulable<K_, Errors_, Value_> k,
+        Reschedulable<K_, Value_, Errors_> k,
         Context_ context,
         Begin_ begin,
         Body_ body,
@@ -233,7 +233,7 @@ struct _Loop final {
     // destructed _first_ and thus we won't have any use-after-delete
     // issues during destruction of 'k_' if it holds any references or
     // pointers to any (or within any) of the above members.
-    Reschedulable<K_, Errors_, Value_> k_;
+    Reschedulable<K_, Value_, Errors_> k_;
   };
 
   template <
@@ -247,7 +247,7 @@ struct _Loop final {
       typename Value_,
       typename Errors_>
   struct Builder final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Value_;
 
     template <typename Arg, typename Errors>
@@ -306,7 +306,7 @@ struct _Loop final {
           Interruptible_,
           Value_,
           Errors_>(
-          Reschedulable<K, Errors_, Value_>{std::move(k)},
+          Reschedulable<K, Value_, Errors_>{std::move(k)},
           std::move(context_),
           std::move(begin_),
           std::move(body_),

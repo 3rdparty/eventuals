@@ -226,7 +226,7 @@ TEST(Task, StopOnCallback) {
     };
   };
 
-  EXPECT_THROW(*e(), eventuals::StoppedException);
+  EXPECT_THROW(*e(), eventuals::Stopped);
 }
 
 TEST(Task, StopTerminated) {
@@ -251,7 +251,7 @@ TEST(Task, StopTerminated) {
   auto [future, k] = PromisifyForTest(e());
   k.Stop();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 TEST(Task, Start) {
@@ -458,7 +458,7 @@ TEST(Task, FromToStop) {
            });
   };
 
-  EXPECT_THROW(*e(), eventuals::StoppedException);
+  EXPECT_THROW(*e(), eventuals::Stopped);
 }
 
 TEST(Task, Success) {

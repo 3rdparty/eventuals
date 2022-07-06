@@ -16,7 +16,7 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E_, typename Errors_, typename From_, typename To_>
+template <typename E_, typename From_, typename To_, typename Errors_>
 struct HeapGenerator final {
   struct Adaptor final {
     Adaptor(
@@ -307,7 +307,7 @@ struct _Generator final {
 
   template <typename From_, typename To_, typename Errors_, typename... Args_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = To_;
 
     template <typename Arg, typename Errors>
@@ -393,7 +393,7 @@ struct _Generator final {
           tuple_types_subset_subtype_v<ErrorsFromE, Errors_>,
           "Specified errors can't be thrown from 'Generator'");
 
-      using Value = typename E::template ValueFrom<From_>;
+      using Value = typename E::template ValueFrom<From_, Errors_>;
 
       static_assert(
           std::is_convertible_v<Value, To_>,
@@ -417,13 +417,13 @@ struct _Generator final {
                       Callback<void()>&& ended) mutable {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapGenerator<E, Errors_, From_, To_>(f(args...)),
+              new HeapGenerator<E, From_, To_, Errors_>(f(args...)),
               [](void* e) {
-                delete static_cast<HeapGenerator<E, Errors_, From_, To_>*>(e);
+                delete static_cast<HeapGenerator<E, From_, To_, Errors_>*>(e);
               });
         }
 
-        auto* e = static_cast<HeapGenerator<E, Errors_, From_, To_>*>(e_.get());
+        auto* e = static_cast<HeapGenerator<E, From_, To_, Errors_>*>(e_.get());
 
         switch (action) {
           case Action::Start:

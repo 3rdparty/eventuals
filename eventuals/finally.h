@@ -1,7 +1,7 @@
 #pragma once
 
 #include "eventuals/expected.h"
-#include "eventuals/terminal.h" // For 'StoppedException'.
+#include "eventuals/terminal.h" // For 'Stopped'.
 #include "eventuals/then.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -11,30 +11,28 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 struct _Finally final {
-  template <typename K_, typename Errors_, typename Arg_>
+  template <typename K_, typename Arg_, typename Errors_>
   struct Continuation final {
     template <typename... Args>
     void Start(Args&&... args) {
       k_.Start(
-          expected<Arg_, std::exception_ptr>(
+          expected<Arg_, Errors_>(
               std::forward<Args>(args)...));
     }
 
     template <typename Error>
     void Fail(Error&& error) {
       k_.Start(
-          expected<Arg_, std::exception_ptr>(
+          expected<Arg_, Errors_>(
               make_unexpected(
-                  std::make_exception_ptr(
-                      std::forward<Error>(error)))));
+                  std::forward<Error>(error))));
     }
 
     void Stop() {
       k_.Start(
-          expected<Arg_, std::exception_ptr>(
+          expected<Arg_, Errors_>(
               make_unexpected(
-                  std::make_exception_ptr(
-                      StoppedException()))));
+                  Stopped())));
     }
 
     void Register(Interrupt& interrupt) {
@@ -45,15 +43,29 @@ struct _Finally final {
   };
 
   struct Composable final {
-    template <typename Arg>
-    using ValueFrom = expected<Arg, std::exception_ptr>;
+    template <typename...>
+    struct AddStopped {};
+
+    template <typename... Errors>
+    struct AddStopped<std::variant<Errors...>> {
+      using type = std::variant<Stopped, Errors...>;
+    };
+
+    template <typename Arg, typename Errors>
+    using ValueFrom = expected<
+        Arg,
+        typename AddStopped<typename TupleToVariant<Errors>::type>::type>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = std::tuple<>;
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, Errors, Arg>{std::move(k)};
+      return Continuation<
+          K,
+          Arg,
+          typename AddStopped<typename TupleToVariant<Errors>::type>::type>{
+          std::move(k)};
     }
 
     template <typename Downstream>

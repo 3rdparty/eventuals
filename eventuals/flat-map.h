@@ -54,7 +54,7 @@ struct _FlatMap final {
     FlatMap_* streamforeach_;
   };
 
-  template <typename K_, typename F_, typename Errors_, typename Arg_>
+  template <typename K_, typename F_, typename Arg_, typename Errors_>
   struct Continuation final : public TypeErasedStream {
     // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, F_ f)
@@ -156,11 +156,11 @@ struct _FlatMap final {
 
   template <typename F_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = typename std::conditional_t<
         std::is_void_v<Arg>,
         std::invoke_result<F_>,
-        std::invoke_result<F_, Arg>>::type::template ValueFrom<void>;
+        std::invoke_result<F_, Arg>>::type::template ValueFrom<void, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename std::conditional_t<
@@ -170,7 +170,7 @@ struct _FlatMap final {
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, F_, Errors, Arg>(std::move(k), std::move(f_));
+      return Continuation<K, F_, Arg, Errors>(std::move(k), std::move(f_));
     }
 
     template <typename Downstream>

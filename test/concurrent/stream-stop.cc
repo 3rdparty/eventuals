@@ -30,7 +30,7 @@ TYPED_TEST(ConcurrentTypedTest, StreamStop) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<>>);
 
-  EXPECT_THROW(*e(), eventuals::StoppedException);
+  EXPECT_THROW(*e(), eventuals::Stopped);
 }
 
 } // namespace

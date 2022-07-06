@@ -70,7 +70,7 @@ TEST_F(DomainNameResolveTest, Stop) {
              return std::to_string(data);
            });
 
-  EXPECT_THROW(*std::move(e), eventuals::StoppedException);
+  EXPECT_THROW(*std::move(e), eventuals::Stopped);
 }
 
 TEST_F(DomainNameResolveTest, Raises) {

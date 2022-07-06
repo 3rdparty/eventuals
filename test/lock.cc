@@ -141,7 +141,7 @@ TEST(LockTest, Stop) {
 
   interrupt.Trigger();
 
-  EXPECT_THROW(future1.get(), eventuals::StoppedException);
+  EXPECT_THROW(future1.get(), eventuals::Stopped);
 
   EXPECT_STREQ("t2", *e2());
 }

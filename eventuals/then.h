@@ -10,11 +10,11 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename T, typename Arg>
+template <typename T, typename Arg, typename Errors>
 using ValueFromMaybeComposable = typename std::conditional_t<
     !HasValueFrom<T>::value,
     decltype(Eventual<T>()),
-    T>::template ValueFrom<Arg>;
+    T>::template ValueFrom<Arg, Errors>;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +25,7 @@ template <
     typename Errors_>
 struct ErrorsFromComposed {
   using Errors = typename Right_::template ErrorsFrom<
-      typename Left_::template ValueFrom<Arg_>,
+      typename Left_::template ValueFrom<Arg_, Errors_>,
       typename Left_::template ErrorsFrom<Arg_, Errors_>>;
 };
 
@@ -79,13 +79,14 @@ struct _Then final {
 
   template <typename F_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = ValueFromMaybeComposable<
         typename std::conditional_t<
             std::is_void_v<Arg>,
             std::invoke_result<F_>,
             std::invoke_result<F_, Arg>>::type,
-        void>;
+        void,
+        Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom =
@@ -125,7 +126,7 @@ struct _Then final {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename F_, typename Errors_, typename Arg_>
+template <typename K_, typename F_, typename Arg_, typename Errors_>
 struct _Then::Continuation<K_, F_, Arg_, Errors_, false> final {
   Continuation(K_ k, F_ f)
     : f_(std::move(f)),
@@ -165,7 +166,7 @@ struct _Then::Continuation<K_, F_, Arg_, Errors_, false> final {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename F_, typename Errors_, typename Arg_>
+template <typename K_, typename F_, typename Arg_, typename Errors_>
 struct _Then::Continuation<K_, F_, Arg_, Errors_, true> final {
   Continuation(K_ k, F_ f)
     : f_(std::move(f)),
@@ -174,7 +175,9 @@ struct _Then::Continuation<K_, F_, Arg_, Errors_, true> final {
   template <typename... Args>
   void Start(Args&&... args) {
     adapted_.emplace(
-        f_(std::forward<Args>(args)...).template k<void, Errors_>(Adaptor<K_>{k_}));
+        f_(
+            std::forward<Args>(args)...)
+            .template k<void, Errors_>(Adaptor<K_>{k_}));
 
     if (interrupt_ != nullptr) {
       adapted_->Register(*interrupt_);

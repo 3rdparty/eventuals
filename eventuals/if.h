@@ -63,8 +63,8 @@ struct _If final {
 
     Interrupt* interrupt_ = nullptr;
 
-    using YesValue_ = typename YesE_::template ValueFrom<void>;
-    using NoValue_ = typename NoE_::template ValueFrom<void>;
+    using YesValue_ = typename YesE_::template ValueFrom<void, Errors_>;
+    using NoValue_ = typename NoE_::template ValueFrom<void, Errors_>;
 
     static_assert(
         std::disjunction_v<
@@ -103,7 +103,7 @@ struct _If final {
             type_identity<NoValue>,
             std::enable_if<std::is_void_v<NoValue>, YesValue>>>::type;
 
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Unify_<
         // NOTE: we propagate 'void' as the value type for both
         // 'YesE_' and 'NoE_' until they are defined (which
@@ -112,11 +112,11 @@ struct _If final {
         typename std::conditional_t<
             IsUndefined<YesE_>::value,
             decltype(Eventual<void>()),
-            YesE_>::template ValueFrom<void>,
+            YesE_>::template ValueFrom<void, Errors>,
         typename std::conditional_t<
             IsUndefined<NoE_>::value,
             decltype(Eventual<void>()),
-            NoE_>::template ValueFrom<void>>;
+            NoE_>::template ValueFrom<void, Errors>>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_all_t<

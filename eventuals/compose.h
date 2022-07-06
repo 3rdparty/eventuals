@@ -62,7 +62,9 @@ template <typename Error>
 auto make_exception_ptr_or_forward(Error&& error) {
   static_assert(!std::is_same_v<std::decay_t<Error>, std::exception_ptr>);
   static_assert(
-      std::is_base_of_v<std::exception, std::decay_t<Error>>,
+      std::disjunction_v<
+          CheckErrorsTypesForVariant<std::decay_t<Error>>,
+          std::is_base_of<std::exception, std::decay_t<Error>>>,
       "Expecting a type derived from std::exception");
   return std::make_exception_ptr(std::forward<Error>(error));
 }
@@ -100,13 +102,14 @@ struct Composed final {
   Left_ left_;
   Right_ right_;
 
-  template <typename Arg>
+  template <typename Arg, typename Errors>
   using ValueFrom = typename Right_::template ValueFrom<
-      typename Left_::template ValueFrom<Arg>>;
+      typename Left_::template ValueFrom<Arg, Errors>,
+      typename Left_::template ErrorsFrom<Arg, Errors>>;
 
   template <typename Arg, typename Errors>
   using ErrorsFrom = typename Right_::template ErrorsFrom<
-      typename Left_::template ValueFrom<Arg>,
+      typename Left_::template ValueFrom<Arg, Errors>,
       typename Left_::template ErrorsFrom<Arg, Errors>>;
 
   template <typename Downstream>
@@ -117,7 +120,7 @@ struct Composed final {
 
   template <typename Arg, typename Errors>
   auto k() && {
-    using Value = typename Left_::template ValueFrom<Arg>;
+    using Value = typename Left_::template ValueFrom<Arg, Errors>;
     using LeftErrors = typename Left_::template ErrorsFrom<Arg, Errors>;
 
     return std::move(left_)
@@ -128,7 +131,7 @@ struct Composed final {
 
   template <typename Arg, typename Errors, typename K>
   auto k(K k) && {
-    using Value = typename Left_::template ValueFrom<Arg>;
+    using Value = typename Left_::template ValueFrom<Arg, Errors>;
     using LeftErrors = typename Left_::template ErrorsFrom<Arg, Errors>;
 
     auto composed = [&]() {

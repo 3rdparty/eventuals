@@ -68,11 +68,11 @@ TYPED_TEST(ConcurrentTypedTest, FailOrStop) {
 
   // NOTE: expecting "any" throwable here depending on whether the
   // eventual that stopped or failed was completed first.
-  // Expecting 'StoppedException' for 'ConcurrentOrdered'.
+  // Expecting 'Stopped' for 'ConcurrentOrdered'.
   if constexpr (std::is_same_v<TypeParam, ConcurrentType>) {
     EXPECT_ANY_THROW(future.get());
   } else {
-    EXPECT_THROW(future.get(), eventuals::StoppedException);
+    EXPECT_THROW(future.get(), eventuals::Stopped);
   }
 }
 

@@ -250,7 +250,7 @@ struct _Concurrent final {
 
                 if (!exception_) {
                   exception_ = std::make_exception_ptr(
-                      eventuals::StoppedException());
+                      eventuals::Stopped());
                 }
 
                 fibers_done_ = FibersDone();
@@ -307,7 +307,7 @@ struct _Concurrent final {
 
                 if (!exception_) {
                   exception_ = std::make_exception_ptr(
-                      eventuals::StoppedException());
+                      eventuals::Stopped());
                 }
 
                 fibers_done_ = !InterruptFibers();
@@ -443,7 +443,7 @@ struct _Concurrent final {
 
   // 'Adaptor' is our typeful adaptor that the concurrent continuation
   // uses in order to implement the semantics of 'Concurrent()'.
-  template <typename F_, typename Arg_>
+  template <typename F_, typename Arg_, typename Errors_>
   struct Adaptor final : TypeErasedAdaptor {
     Adaptor(F_ f)
       : f_(std::move(f)) {}
@@ -557,7 +557,7 @@ struct _Concurrent final {
                              // TODO(benh): flush remaining values first?
                              try {
                                std::rethrow_exception(*exception_);
-                             } catch (const StoppedException&) {
+                             } catch (const Stopped&) {
                                k.Stop();
                              } catch (...) {
                                k.Fail(std::current_exception());
@@ -583,7 +583,7 @@ struct _Concurrent final {
 
     F_ f_;
 
-    using Value_ = typename decltype(f_())::template ValueFrom<Arg_>;
+    using Value_ = typename decltype(f_())::template ValueFrom<Arg_, Errors_>;
     std::deque<Value_> values_;
   };
 
@@ -594,7 +594,7 @@ struct _Concurrent final {
   // 'Adaptor'. We also use 'Continuation' to store the the eventuals
   // returned from 'Adaptor' (vs having to heap allocate them by
   // having them all return 'Task' or 'Generator').
-  template <typename K_, typename F_, typename Errors_, typename Arg_>
+  template <typename K_, typename F_, typename Arg_, typename Errors_>
   struct Continuation final : public TypeErasedStream {
     // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, F_ f)
@@ -710,7 +710,7 @@ struct _Concurrent final {
       });
     }
 
-    Adaptor<F_, Arg_> adaptor_;
+    Adaptor<F_, Arg_, Errors_> adaptor_;
 
     TypeErasedStream* stream_ = nullptr;
 
@@ -745,8 +745,8 @@ struct _Concurrent final {
   struct Composable final {
     using E_ = typename std::invoke_result_t<F_>;
 
-    template <typename Arg>
-    using ValueFrom = typename E_::template ValueFrom<Arg>;
+    template <typename Arg, typename Errors>
+    using ValueFrom = typename E_::template ValueFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
@@ -754,10 +754,10 @@ struct _Concurrent final {
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       static_assert(
-          !std::is_void_v<ValueFrom<Arg>>,
+          !std::is_void_v<ValueFrom<Arg, Errors>>,
           "'Concurrent' does not (yet) support 'void' eventual values");
 
-      return Continuation<K, F_, Errors, Arg>(std::move(k), std::move(f_));
+      return Continuation<K, F_, Arg, Errors>(std::move(k), std::move(f_));
     }
 
     template <typename Downstream>

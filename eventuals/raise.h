@@ -49,11 +49,12 @@ struct _Raise final {
   struct Composable final {
     static_assert(
         std::disjunction_v<
+            CheckErrorsTypesForVariant<std::decay_t<T_>>,
             std::is_same<std::exception_ptr, std::decay_t<T_>>,
             std::is_base_of<std::exception, std::decay_t<T_>>>,
         "Expecting a type derived from std::exception");
 
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>

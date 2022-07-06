@@ -26,7 +26,7 @@ TEST(Finally, Succeed) {
            });
   };
 
-  expected<int, std::exception_ptr> result = *e();
+  expected<int, std::variant<Stopped>> result = *e();
 
   ASSERT_TRUE(result.has_value());
 
@@ -42,13 +42,16 @@ TEST(Finally, Fail) {
            });
   };
 
-  expected<int, std::exception_ptr> result = *e();
+  expected<
+      int,
+      std::variant<Stopped, std::runtime_error>>
+      result = *e();
 
   ASSERT_FALSE(result.has_value());
 
-  EXPECT_THAT(
-      [&]() { std::rethrow_exception(result.error()); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  ASSERT_EQ(result.error().index(), 1);
+
+  EXPECT_STREQ(std::get<1>(result.error()).what(), "error");
 }
 
 TEST(Finally, Stop) {
@@ -61,13 +64,18 @@ TEST(Finally, Stop) {
            });
   };
 
-  expected<std::string, std::exception_ptr> result = *e();
+  expected<
+      std::string,
+      std::variant<Stopped>>
+      result = *e();
 
   ASSERT_FALSE(result.has_value());
 
-  EXPECT_THROW(
-      std::rethrow_exception(result.error()),
-      eventuals::StoppedException);
+  ASSERT_EQ(result.error().index(), 0);
+
+  EXPECT_STREQ(
+      std::get<0>(result.error()).what(),
+      "Eventual computation stopped (cancelled)");
 }
 
 TEST(Finally, VoidSucceed) {
@@ -78,7 +86,7 @@ TEST(Finally, VoidSucceed) {
            });
   };
 
-  expected<void, std::exception_ptr> result = *e();
+  expected<void, std::variant<Stopped>> result = *e();
 
   EXPECT_TRUE(result.has_value());
 }
@@ -92,13 +100,13 @@ TEST(Finally, VoidFail) {
            });
   };
 
-  expected<void, std::exception_ptr> result = *e();
+  expected<void, std::variant<Stopped, std::runtime_error>> result = *e();
 
   ASSERT_FALSE(result.has_value());
 
-  EXPECT_THAT(
-      [&]() { std::rethrow_exception(result.error()); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  ASSERT_EQ(result.error().index(), 1);
+
+  EXPECT_STREQ(std::get<1>(result.error()).what(), "error");
 }
 
 TEST(Finally, VoidStop) {
@@ -111,13 +119,15 @@ TEST(Finally, VoidStop) {
            });
   };
 
-  expected<void, std::exception_ptr> result = *e();
+  expected<void, std::variant<Stopped>> result = *e();
 
   ASSERT_FALSE(result.has_value());
 
-  EXPECT_THROW(
-      std::rethrow_exception(result.error()),
-      eventuals::StoppedException);
+  ASSERT_EQ(result.error().index(), 0);
+
+  EXPECT_STREQ(
+      std::get<0>(result.error()).what(),
+      "Eventual computation stopped (cancelled)");
 }
 
 TEST(Finally, FinallyInsideThen) {
@@ -129,15 +139,24 @@ TEST(Finally, FinallyInsideThen) {
                         .start([](auto& k) {
                           k.Fail(std::runtime_error("error"));
                         })
-                 >> Finally([](expected<void, std::exception_ptr>&& e) {
+                 >> Finally([](expected<
+                                void,
+                                std::variant<
+                                    Stopped,
+                                    std::runtime_error>>&& e) {
                       return If(e.has_value())
                           .no([e = std::move(e)]() {
                             return Raise(std::move(e.error()))
                                 >> Catch()
-                                       .raised<std::exception>(
-                                           [](std::exception&& e) {
+                                       .raised<std::variant<
+                                           Stopped,
+                                           std::runtime_error>>(
+                                           [](std::variant<
+                                               Stopped,
+                                               std::runtime_error>&& e) {
+                                             ASSERT_EQ(e.index(), 1);
                                              EXPECT_STREQ(
-                                                 e.what(),
+                                                 std::get<1>(e).what(),
                                                  "error");
                                            });
                           })

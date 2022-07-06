@@ -80,7 +80,7 @@ struct _Range final {
   };
 
   struct Composable final {
-    template <typename>
+    template <typename Arg, typename Errors>
     using ValueFrom = int;
 
     template <typename Arg, typename Errors>

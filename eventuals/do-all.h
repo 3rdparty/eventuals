@@ -36,7 +36,7 @@ struct _DoAll final {
     K_ k;
   };
 
-  template <typename K_, typename... Eventuals_>
+  template <typename K_, typename Errors_, typename... Eventuals_>
   struct Adaptor final {
     Adaptor(
         K_& k,
@@ -63,9 +63,10 @@ struct _DoAll final {
             // because that's what we use for 'void' return types.
             Undefined,
             std::conditional_t<
-                std::is_void_v<typename Eventuals_::template ValueFrom<void>>,
+                std::is_void_v<
+                    typename Eventuals_::template ValueFrom<void, Errors_>>,
                 std::monostate,
-                typename Eventuals_::template ValueFrom<void>>,
+                typename Eventuals_::template ValueFrom<void, Errors_>>,
             std::exception_ptr>...>
         values_;
 
@@ -99,7 +100,7 @@ struct _DoAll final {
                      if (exception) {
                        try {
                          std::rethrow_exception(*exception);
-                       } catch (const StoppedException&) {
+                       } catch (const Stopped&) {
                          k_.Stop();
                        } catch (...) {
                          k_.Fail(std::current_exception());
@@ -122,7 +123,7 @@ struct _DoAll final {
                      CHECK(exception);
                      try {
                        std::rethrow_exception(*exception);
-                     } catch (const StoppedException&) {
+                     } catch (const Stopped&) {
                        k_.Stop();
                      } catch (...) {
                        k_.Fail(std::current_exception());
@@ -137,7 +138,7 @@ struct _DoAll final {
                    std::get<index>(values_)
                        .template emplace<std::exception_ptr>(
                            std::make_exception_ptr(
-                               StoppedException()));
+                               Stopped()));
                    if (counter_.fetch_sub(1) == 1) {
                      // You're the last eventual so call the continuation.
                      std::optional<std::exception_ptr> exception =
@@ -146,7 +147,7 @@ struct _DoAll final {
                      CHECK(exception);
                      try {
                        std::rethrow_exception(*exception);
-                     } catch (const StoppedException&) {
+                     } catch (const Stopped&) {
                        k_.Stop();
                      } catch (...) {
                        k_.Fail(std::current_exception());
@@ -162,9 +163,10 @@ struct _DoAll final {
 
     std::tuple<
         std::conditional_t<
-            std::is_void_v<typename Eventuals_::template ValueFrom<void>>,
+            std::is_void_v<
+                typename Eventuals_::template ValueFrom<void, Errors_>>,
             std::monostate,
-            typename Eventuals_::template ValueFrom<void>>...>
+            typename Eventuals_::template ValueFrom<void, Errors_>>...>
     GetTupleOfValues() {
       return std::apply(
           [](auto&&... value) {
@@ -188,7 +190,7 @@ struct _DoAll final {
         if (std::holds_alternative<std::exception_ptr>(value)) {
           try {
             std::rethrow_exception(std::get<std::exception_ptr>(value));
-          } catch (const StoppedException&) {
+          } catch (const Stopped&) {
           } catch (...) {
             stopped = false;
             exception.emplace(std::current_exception());
@@ -206,7 +208,7 @@ struct _DoAll final {
 
       if (stopped) {
         CHECK(!exception);
-        exception = std::make_exception_ptr(eventuals::StoppedException{});
+        exception = std::make_exception_ptr(eventuals::Stopped{});
       }
 
       return exception;
@@ -221,7 +223,7 @@ struct _DoAll final {
     }
   };
 
-  template <typename K_, typename... Eventuals_>
+  template <typename K_, typename Errors_, typename... Eventuals_>
   struct Continuation final {
     Continuation(K_ k, std::tuple<Eventuals_...>&& eventuals)
       : eventuals_(std::move(eventuals)),
@@ -302,7 +304,7 @@ struct _DoAll final {
 
     std::tuple<Eventuals_...> eventuals_;
 
-    std::optional<Adaptor<K_, Eventuals_...>> adaptor_;
+    std::optional<Adaptor<K_, Errors_, Eventuals_...>> adaptor_;
 
     Callback<void()> interrupter_ = [this]() {
       // Trigger inner interrupt for each eventual.
@@ -324,12 +326,13 @@ struct _DoAll final {
 
   template <typename... Eventuals_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = std::tuple<
         std::conditional_t<
-            std::is_void_v<typename Eventuals_::template ValueFrom<void>>,
+            std::is_void_v<
+                typename Eventuals_::template ValueFrom<void, Errors>>,
             std::monostate,
-            typename Eventuals_::template ValueFrom<void>>...>;
+            typename Eventuals_::template ValueFrom<void, Errors>>...>;
 
     using Errors_ = tuple_types_union_all_t<
         typename Eventuals_::template ErrorsFrom<void, std::tuple<>>...>;
@@ -339,7 +342,7 @@ struct _DoAll final {
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, Eventuals_...>(
+      return Continuation<K, Errors, Eventuals_...>(
           std::move(k),
           std::move(eventuals_));
     }

@@ -16,6 +16,7 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
   // TODO(benh): support any error type that can be "stringified".
   static_assert(
       std::disjunction_v<
+          CheckErrorsTypesForVariant<std::decay_t<E>>,
           std::is_base_of<std::exception, std::decay_t<E>>,
           std::is_base_of<std::exception_ptr, std::decay_t<E>>,
           std::is_same<std::string, std::decay_t<E>>,
@@ -28,6 +29,7 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
       .template raises<
           std::conditional_t<
               std::disjunction_v<
+                  CheckErrorsTypesForVariant<std::decay_t<E>>,
                   std::is_base_of<std::exception, std::decay_t<E>>,
                   std::is_base_of<std::exception_ptr, std::decay_t<E>>>,
               E,
@@ -47,6 +49,7 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
         } else {
           if constexpr (
               std::disjunction_v<
+                  CheckErrorsTypesForVariant<std::decay_t<E>>,
                   std::is_base_of<std::exception, std::decay_t<E>>,
                   std::is_base_of<std::exception_ptr, std::decay_t<E>>>) {
             return k.Fail(std::move(expected.error()));
@@ -84,7 +87,7 @@ class expected : public tl::expected<Value_, Error_> {
  public:
   // Providing 'ValueFrom, 'ErrorsFrom', and 'k()' to be able to
   // compose with other eventuals.
-  template <typename Arg>
+  template <typename Arg, typename Errors>
   using ValueFrom = Value_;
 
   template <typename Arg, typename Errors>
@@ -104,7 +107,11 @@ class expected : public tl::expected<Value_, Error_> {
             tuple_types_union_t<
                 std::tuple<
                     std::conditional_t<
-                        std::is_base_of_v<std::exception, std::decay_t<Error_>>,
+                        std::disjunction_v<
+                            CheckErrorsTypesForVariant<std::decay_t<Error_>>,
+                            std::is_base_of<
+                                std::exception,
+                                std::decay_t<Error_>>>,
                         Error_,
                         std::runtime_error>>,
                 Errors>>(std::move(k));

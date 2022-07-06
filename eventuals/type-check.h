@@ -13,8 +13,8 @@ namespace eventuals {
 
 template <typename T_, typename E_>
 struct _TypeCheck {
-  template <typename Arg>
-  using ValueFrom = typename E_::template ValueFrom<Arg>;
+  template <typename Arg, typename Errors>
+  using ValueFrom = typename E_::template ValueFrom<Arg, Errors>;
 
   template <typename Arg, typename Errors>
   using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
@@ -27,7 +27,7 @@ struct _TypeCheck {
   template <typename Arg, typename Errors, typename K>
   auto k(K k) && {
     static_assert(
-        std::is_same_v<T_, ValueFrom<Arg>>,
+        std::is_same_v<T_, ValueFrom<Arg, Errors>>,
         "Failed to type check; expecting type on left, found type on right");
 
     return std::move(e_).template k<Arg, Errors>(std::move(k));

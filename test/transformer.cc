@@ -72,7 +72,7 @@ TEST(Transformer, Stop) {
         >> Collect<std::vector>();
   };
 
-  EXPECT_THROW(*e(), eventuals::StoppedException);
+  EXPECT_THROW(*e(), eventuals::Stopped);
 }
 
 TEST(Transformer, Fail) {
@@ -171,7 +171,7 @@ TEST(Transformer, Interrupt) {
 
   interrupt.Trigger();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 TEST(Transformer, PropagateStop) {
@@ -200,7 +200,7 @@ TEST(Transformer, PropagateStop) {
         >> Collect<std::vector>();
   };
 
-  EXPECT_THROW(*e(), eventuals::StoppedException);
+  EXPECT_THROW(*e(), eventuals::Stopped);
 }
 
 TEST(Transformer, PropagateFail) {

@@ -177,12 +177,12 @@ struct _Terminal final {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct StoppedException final : public std::exception {
-  StoppedException() = default;
-  StoppedException(const StoppedException& that) = default;
-  StoppedException(StoppedException&& that) = default;
+struct Stopped final : public std::exception {
+  Stopped() = default;
+  Stopped(const Stopped& that) = default;
+  Stopped(Stopped&& that) = default;
 
-  ~StoppedException() override = default;
+  ~Stopped() override = default;
 
   const char* what() const throw() override {
     return "Eventual computation stopped (cancelled)";

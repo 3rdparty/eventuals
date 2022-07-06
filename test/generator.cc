@@ -215,7 +215,7 @@ TEST(Generator, InterruptStream) {
 
   k.Start();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 TEST(Generator, FailStream) {
@@ -379,7 +379,7 @@ TEST(Generator, StopStream) {
 
   k.Start();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 TEST(Generator, TaskWithGenerator) {
