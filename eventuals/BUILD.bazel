@@ -54,6 +54,7 @@ cc_library(
         "then.h",
         "transformer.h",
         "type-check.h",
+        "type-erased-stream.h",
         "type-traits.h",
         "undefined.h",
         "unpack.h",

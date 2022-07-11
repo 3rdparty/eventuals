@@ -17,6 +17,7 @@
 
 #include "eventuals/interrupt.h"
 #include "eventuals/scheduler.h"
+#include "eventuals/type-erased-stream.h"
 #include "eventuals/type-traits.h"
 #include "eventuals/undefined.h"
 #include "stout/borrowed_ptr.h"
@@ -24,14 +25,6 @@
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
-
-////////////////////////////////////////////////////////////////////////
-
-struct TypeErasedStream {
-  virtual ~TypeErasedStream() = default;
-  virtual void Next() = 0;
-  virtual void Done() = 0;
-};
 
 ////////////////////////////////////////////////////////////////////////
 
