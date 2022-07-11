@@ -1,5 +1,6 @@
 #include "eventuals/static-thread-pool.h"
 
+#include "eventuals/compose.h"
 #include "eventuals/os.h"
 
 ////////////////////////////////////////////////////////////////////////

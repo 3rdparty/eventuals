@@ -8,6 +8,7 @@
 #include <tuple>
 #include <vector>
 
+#include "eventuals/compose.h"
 #include "eventuals/lazy.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/semaphore.h"

@@ -5,7 +5,6 @@
 #include <tuple>
 #include <variant>
 
-#include "eventuals/eventual.h"
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"

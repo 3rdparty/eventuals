@@ -1,5 +1,6 @@
 #pragma once
 
+#include "eventuals/compose.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/undefined.h"
 

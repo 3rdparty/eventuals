@@ -1,6 +1,5 @@
 #pragma once
 
-#include "eventuals/eventual.h"
 #include "eventuals/stream.h"
 #include "eventuals/then.h"
 

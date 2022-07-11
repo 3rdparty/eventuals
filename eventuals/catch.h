@@ -4,7 +4,6 @@
 #include <optional>
 #include <tuple>
 
-#include "eventuals/eventual.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"

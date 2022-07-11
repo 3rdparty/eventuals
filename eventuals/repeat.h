@@ -1,7 +1,6 @@
 #pragma once
 
 #include "eventuals/compose.h" // For 'HasValueFrom'.
-#include "eventuals/eventual.h"
 #include "eventuals/map.h"
 #include "eventuals/stream.h"
 

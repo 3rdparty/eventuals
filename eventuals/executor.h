@@ -1,6 +1,7 @@
 #pragma once
 
 #include "eventuals/catch.h"
+#include "eventuals/compose.h"
 #include "eventuals/concurrent.h"
 #include "eventuals/eventual.h"
 #include "eventuals/just.h"

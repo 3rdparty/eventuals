@@ -1,6 +1,7 @@
 #pragma once
 
-#include "eventuals/eventual.h"
+#include <type_traits>
+#include <utility>
 
 ////////////////////////////////////////////////////////////////////////
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "eventuals/eventual.h"
 #include "eventuals/then.h" // For '_Then::Adaptor'.
 #include "eventuals/type-traits.h" // For 'type_identity'.
 

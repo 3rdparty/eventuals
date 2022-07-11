@@ -4,7 +4,6 @@
 #include <string>
 
 #include "eventuals/conditional.h"
-#include "eventuals/eventual.h"
 #include "eventuals/expected.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/just.h"
