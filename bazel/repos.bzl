@@ -81,9 +81,9 @@ def repos(repo_mapping = {}):
     maybe(
         http_archive,
         name = "com_github_grpc_grpc",
-        urls = ["https://github.com/grpc/grpc/archive/refs/tags/v1.45.0.tar.gz"],
-        strip_prefix = "grpc-1.45.0",
-        sha256 = "ec19657a677d49af59aa806ec299c070c882986c9fcc022b1c22c2a3caf01bcd",
+        urls = ["https://github.com/grpc/grpc/archive/refs/tags/v1.46.3.tar.gz"],
+        strip_prefix = "grpc-1.46.3",
+        sha256 = "d6cbf22cb5007af71b61c6be316a79397469c58c82a942552a62e708bce60964",
     )
 
     maybe(
