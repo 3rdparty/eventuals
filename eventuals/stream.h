@@ -9,12 +9,17 @@
 //
 // TODO(benh): disallow calling 'Emit()' before call to 'Next()'.
 
+#include <functional>
 #include <memory>
+#include <optional>
 #include <tuple>
 #include <variant>
 
-#include "eventuals/eventual.h"
+#include "eventuals/interrupt.h"
+#include "eventuals/scheduler.h"
 #include "eventuals/type-traits.h"
+#include "eventuals/undefined.h"
+#include "stout/borrowed_ptr.h"
 
 ////////////////////////////////////////////////////////////////////////
 

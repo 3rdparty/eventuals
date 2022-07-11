@@ -13,7 +13,6 @@
 
 #include "eventuals/callback.h"
 #include "eventuals/closure.h"
-#include "eventuals/eventual.h"
 #include "eventuals/lazy.h"
 #include "eventuals/stream.h"
 #include "eventuals/then.h"

@@ -1,7 +1,6 @@
 #include "eventuals/http.h"
 
 #include "event-loop-test.h"
-#include "eventuals/eventual.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/let.h"
 #include "eventuals/scheduler.h"

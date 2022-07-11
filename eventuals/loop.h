@@ -2,7 +2,6 @@
 
 #include <tuple>
 
-#include "eventuals/eventual.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/stream.h"
 #include "eventuals/type-traits.h"

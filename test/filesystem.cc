@@ -5,7 +5,6 @@
 
 #include "event-loop-test.h"
 #include "eventuals/closure.h"
-#include "eventuals/eventual.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

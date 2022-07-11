@@ -1,4 +1,3 @@
-#include "eventuals/eventual.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"

@@ -5,7 +5,7 @@
 #include <optional>
 
 #include "eventuals/callback.h"
-#include "eventuals/eventual.h"
+#include "eventuals/compose.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/stream.h"
 #include "eventuals/then.h"
