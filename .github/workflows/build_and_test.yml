@@ -116,7 +116,6 @@ jobs:
             ${{ matrix.bazel-config }} \
             ${{ env.BAZEL_REMOTE_CACHE }} \
             --verbose_failures \
-            --spawn_strategy=local \
             -c dbg \
             --strip="never" \
             ...
@@ -130,7 +129,6 @@ jobs:
             --experimental_ui_max_stdouterr_bytes=-1 \
             ${{ env.BAZEL_REMOTE_CACHE }} \
             --verbose_failures \
-            --spawn_strategy=local \
             -c dbg \
             --strip="never" \
             --test_output=errors \
