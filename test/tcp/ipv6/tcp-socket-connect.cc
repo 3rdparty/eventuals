@@ -62,8 +62,7 @@ TEST_F(TCPIPV6Test, SocketConnectToAcceptorSuccess) {
   k_connect.Start();
   k_accept.Start();
 
-  EventLoop::Default().RunUntil(future_connect);
-  EventLoop::Default().RunUntil(future_accept);
+  EventLoop::Default().RunUntil(future_connect, future_accept);
 
   EXPECT_NO_THROW(future_connect.get());
   EXPECT_NO_THROW(future_accept.get());
@@ -143,8 +142,7 @@ TEST_F(TCPIPV6Test, SocketConnectToAcceptorTwiceFail) {
   k_connect.Start();
   k_accept.Start();
 
-  EventLoop::Default().RunUntil(future_connect);
-  EventLoop::Default().RunUntil(future_accept);
+  EventLoop::Default().RunUntil(future_connect, future_accept);
 
   EXPECT_NO_THROW(future_connect.get());
   EXPECT_NO_THROW(future_accept.get());

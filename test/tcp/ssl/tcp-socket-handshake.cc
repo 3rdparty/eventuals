@@ -168,8 +168,7 @@ TEST_F(TCPSSLTest, HandshakeTwiceFail) {
   k_connect.Start();
   k_accept.Start();
 
-  EventLoop::Default().RunUntil(future_connect);
-  EventLoop::Default().RunUntil(future_accept);
+  EventLoop::Default().RunUntil(future_connect, future_accept);
 
   EXPECT_NO_THROW(future_connect.get());
   EXPECT_NO_THROW(future_accept.get());
@@ -199,8 +198,9 @@ TEST_F(TCPSSLTest, HandshakeTwiceFail) {
   k_socket_handshake.Start();
   k_accepted_handshake.Start();
 
-  EventLoop::Default().RunUntil(future_socket_handshake);
-  EventLoop::Default().RunUntil(future_accepted_handshake);
+  EventLoop::Default().RunUntil(
+      future_socket_handshake,
+      future_accepted_handshake);
 
   EXPECT_NO_THROW(future_socket_handshake.get());
   EXPECT_NO_THROW(future_accepted_handshake.get());
@@ -230,8 +230,9 @@ TEST_F(TCPSSLTest, HandshakeTwiceFail) {
   k_socket_handshake_second.Start();
   k_accepted_handshake_second.Start();
 
-  EventLoop::Default().RunUntil(future_socket_handshake_second);
-  EventLoop::Default().RunUntil(future_accepted_handshake_second);
+  EventLoop::Default().RunUntil(
+      future_socket_handshake_second,
+      future_accepted_handshake_second);
 
   EXPECT_THAT(
       // NOTE: capturing 'future' as a pointer because until C++20 we
@@ -341,8 +342,7 @@ TEST_F(TCPSSLTest, HandshakeInterruptBeforeStart) {
   k_connect.Start();
   k_accept.Start();
 
-  EventLoop::Default().RunUntil(future_connect);
-  EventLoop::Default().RunUntil(future_accept);
+  EventLoop::Default().RunUntil(future_connect, future_accept);
 
   EXPECT_NO_THROW(future_connect.get());
   EXPECT_NO_THROW(future_accept.get());
@@ -375,8 +375,9 @@ TEST_F(TCPSSLTest, HandshakeInterruptBeforeStart) {
   k_socket_handshake.Start();
   k_accepted_handshake.Start();
 
-  EventLoop::Default().RunUntil(future_socket_handshake);
-  EventLoop::Default().RunUntil(future_accepted_handshake);
+  EventLoop::Default().RunUntil(
+      future_socket_handshake,
+      future_accepted_handshake);
 
   EXPECT_THROW(future_socket_handshake.get(), eventuals::StoppedException);
   EXPECT_THROW(future_accepted_handshake.get(), eventuals::StoppedException);
@@ -462,8 +463,7 @@ TEST_F(TCPSSLTest, HandshakeInterruptAfterStart) {
   k_connect.Start();
   k_accept.Start();
 
-  EventLoop::Default().RunUntil(future_connect);
-  EventLoop::Default().RunUntil(future_accept);
+  EventLoop::Default().RunUntil(future_connect, future_accept);
 
   EXPECT_NO_THROW(future_connect.get());
   EXPECT_NO_THROW(future_accept.get());
@@ -496,8 +496,9 @@ TEST_F(TCPSSLTest, HandshakeInterruptAfterStart) {
   interrupt_socket_handshake.Trigger();
   interrupt_accepted_handshake.Trigger();
 
-  EventLoop::Default().RunUntil(future_socket_handshake);
-  EventLoop::Default().RunUntil(future_accepted_handshake);
+  EventLoop::Default().RunUntil(
+      future_socket_handshake,
+      future_accepted_handshake);
 
   EXPECT_THROW(future_socket_handshake.get(), eventuals::StoppedException);
   EXPECT_THROW(future_accepted_handshake.get(), eventuals::StoppedException);

@@ -61,8 +61,7 @@ TEST_F(TCPTest, ShutdownSendSuccess) {
   k_connect.Start();
   k_accept.Start();
 
-  EventLoop::Default().RunUntil(future_connect);
-  EventLoop::Default().RunUntil(future_accept);
+  EventLoop::Default().RunUntil(future_connect, future_accept);
 
   EXPECT_NO_THROW(future_connect.get());
   EXPECT_NO_THROW(future_accept.get());
@@ -138,8 +137,9 @@ TEST_F(TCPTest, ShutdownSendSuccess) {
   k_send_to_socket.Start();
   k_receive_from_accepted.Start();
 
-  EventLoop::Default().RunUntil(future_send_to_socket);
-  EventLoop::Default().RunUntil(future_receive_from_accepted);
+  EventLoop::Default().RunUntil(
+      future_send_to_socket,
+      future_receive_from_accepted);
 
   EXPECT_NO_THROW(future_send_to_socket.get());
   EXPECT_NO_THROW(future_receive_from_accepted.get());
@@ -219,8 +219,7 @@ TEST_F(TCPTest, ShutdownReceiveSuccess) {
   k_connect.Start();
   k_accept.Start();
 
-  EventLoop::Default().RunUntil(future_connect);
-  EventLoop::Default().RunUntil(future_accept);
+  EventLoop::Default().RunUntil(future_connect, future_accept);
 
   EXPECT_NO_THROW(future_connect.get());
   EXPECT_NO_THROW(future_accept.get());
@@ -297,8 +296,9 @@ TEST_F(TCPTest, ShutdownReceiveSuccess) {
   k_send_to_accepted.Start();
   k_receive_from_socket.Start();
 
-  EventLoop::Default().RunUntil(future_send_to_accepted);
-  EventLoop::Default().RunUntil(future_receive_from_socket);
+  EventLoop::Default().RunUntil(
+      future_send_to_accepted,
+      future_receive_from_socket);
 
   EXPECT_NO_THROW(future_send_to_accepted.get());
   EXPECT_NO_THROW(future_receive_from_socket.get());
@@ -378,8 +378,7 @@ TEST_F(TCPTest, ShutdownBothSuccess) {
   k_connect.Start();
   k_accept.Start();
 
-  EventLoop::Default().RunUntil(future_connect);
-  EventLoop::Default().RunUntil(future_accept);
+  EventLoop::Default().RunUntil(future_connect, future_accept);
 
   EXPECT_NO_THROW(future_connect.get());
   EXPECT_NO_THROW(future_accept.get());
@@ -556,8 +555,7 @@ TEST_F(TCPTest, ShutdownInterrupt) {
   k_connect.Start();
   k_accept.Start();
 
-  EventLoop::Default().RunUntil(future_connect);
-  EventLoop::Default().RunUntil(future_accept);
+  EventLoop::Default().RunUntil(future_connect, future_accept);
 
   EXPECT_NO_THROW(future_connect.get());
   EXPECT_NO_THROW(future_accept.get());
@@ -612,8 +610,9 @@ TEST_F(TCPTest, ShutdownInterrupt) {
   k_send_to_accepted.Start();
   k_receive_from_socket.Start();
 
-  EventLoop::Default().RunUntil(future_send_to_accepted);
-  EventLoop::Default().RunUntil(future_receive_from_socket);
+  EventLoop::Default().RunUntil(
+      future_send_to_accepted,
+      future_receive_from_socket);
 
   EXPECT_NO_THROW(future_send_to_accepted.get());
   EXPECT_NO_THROW(future_receive_from_socket.get());
@@ -647,8 +646,9 @@ TEST_F(TCPTest, ShutdownInterrupt) {
   k_send_to_socket.Start();
   k_receive_from_accepted.Start();
 
-  EventLoop::Default().RunUntil(future_send_to_socket);
-  EventLoop::Default().RunUntil(future_receive_from_accepted);
+  EventLoop::Default().RunUntil(
+      future_send_to_socket,
+      future_receive_from_accepted);
 
   EXPECT_NO_THROW(future_send_to_socket.get());
   EXPECT_NO_THROW(future_receive_from_accepted.get());

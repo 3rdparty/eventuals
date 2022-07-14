@@ -248,7 +248,8 @@ class EventLoop final : public Scheduler {
                         error_ = uv_timer_start(
                             timer(),
                             [](uv_timer_t* timer) {
-                              auto& continuation = *(Continuation*) timer->data;
+                              auto& continuation =
+                                  *(Continuation*) timer->data;
                               CHECK_EQ(timer, continuation.timer());
                               CHECK_EQ(
                                   &continuation,
@@ -267,8 +268,10 @@ class EventLoop final : public Scheduler {
                                       if (!continuation.error_) {
                                         continuation.k_.Start();
                                       } else {
-                                        continuation.k_.Fail(std::runtime_error(
-                                            uv_strerror(continuation.error_)));
+                                        continuation.k_.Fail(
+                                            std::runtime_error(
+                                                uv_strerror(
+                                                    continuation.error_)));
                                       }
                                     });
                               }
@@ -483,7 +486,15 @@ class EventLoop final : public Scheduler {
       in_event_loop_ = false;
 
       status = future.wait_for(std::chrono::nanoseconds::zero());
-    } while (status != std::future_status::ready || waiters_.load() != nullptr);
+    } while (
+        status != std::future_status::ready
+        || waiters_.load() != nullptr);
+  }
+
+  template <typename T, typename... Ts>
+  void RunUntil(std::future<T>& future, std::future<Ts...>& futures) {
+    RunUntil(future);
+    RunUntil(futures);
   }
 
   void RunWhileWaiters() {
@@ -854,7 +865,8 @@ class EventLoop final : public Scheduler {
                         CHECK(!continuation.error_);
                         continuation.error_ = uv_poll_stop(poll);
                         if (status == 0 && !continuation.error_) {
-                          continuation.k_.Body(static_cast<PollEvents>(events));
+                          continuation.k_.Body(
+                              static_cast<PollEvents>(events));
                         } else {
                           continuation.completed_ = true;
                           if (!continuation.error_) {
@@ -1268,7 +1280,10 @@ template <typename E>
 ////////////////////////////////////////////////////////////////////////
 template <typename E>
 [[nodiscard]] auto EventLoop::Schedule(std::string&& name, E e) {
-  return _EventLoopSchedule::Composable<E>{std::move(e), this, std::move(name)};
+  return _EventLoopSchedule::Composable<E>{
+      std::move(e),
+      this,
+      std::move(name)};
 }
 
 ////////////////////////////////////////////////////////////////////////

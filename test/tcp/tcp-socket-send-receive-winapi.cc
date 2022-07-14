@@ -104,7 +104,7 @@ TEST_F(TCPTest, SocketSendReceiveWinApiSuccess) {
   k_connect.Start();
   k_accept.Start();
 
-  EventLoop::Default().RunUntil(future_connect);
+  EventLoop::Default().RunUntil(future_connect, future_accept);
 
   EXPECT_NO_THROW(future_connect.get());
 
@@ -161,7 +161,9 @@ TEST_F(TCPTest, SocketSendReceiveWinApiSuccess) {
   k_send_to_winapi.Start();
   k_receive_from_socket.Start();
 
-  EventLoop::Default().RunUntil(future_send_to_winapi);
+  EventLoop::Default().RunUntil(
+      future_send_to_winapi,
+      future_receive_from_socket);
 
   EXPECT_NO_THROW(future_send_to_winapi.get());
   EXPECT_NO_THROW(future_receive_from_socket.get());
@@ -220,7 +222,9 @@ TEST_F(TCPTest, SocketSendReceiveWinApiSuccess) {
   k_send_to_socket.Start();
   k_receive_from_winapi.Start();
 
-  EventLoop::Default().RunUntil(future_receive_from_winapi);
+  EventLoop::Default().RunUntil(
+      future_send_to_socket,
+      future_receive_from_winapi);
 
   EXPECT_NO_THROW(future_send_to_socket.get());
   EXPECT_NO_THROW(future_receive_from_winapi.get());
