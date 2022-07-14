@@ -473,12 +473,6 @@ class EventLoop final : public Scheduler {
     auto status = std::future_status::ready;
     do {
       running_ = true;
-
-      io_context().restart();
-      io_context().poll();
-
-      // NOTE: callbacks running in the asio::io_context
-      // are not considered to be running in the libuv loop.
       in_event_loop_ = true;
 
       // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
@@ -495,12 +489,6 @@ class EventLoop final : public Scheduler {
   void RunWhileWaiters() {
     do {
       running_ = true;
-
-      io_context().restart();
-      io_context().poll();
-
-      // NOTE: callbacks running in the asio::io_context
-      // are not considered to be running in the libuv loop.
       in_event_loop_ = true;
 
       // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
@@ -1062,8 +1050,11 @@ class EventLoop final : public Scheduler {
 
   void Check();
 
+  void AsioCheck();
+
   uv_loop_t loop_ = {};
   uv_check_t check_ = {};
+  uv_check_t asio_check_ = {};
   uv_async_t async_ = {};
 
   asio::io_context io_context_;
