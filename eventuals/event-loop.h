@@ -794,15 +794,20 @@ class EventLoop final : public Scheduler {
               if (!completed_) {
                 CHECK(!started_);
                 started_ = true;
-#if !defined(_WIN32)
-                error_ = uv_poll_init(loop_, poll(), fd_);
-#else
+#ifdef _WIN32
+                // NOTE: FILE_TYPE_PIPE means that a handle is
+                // a socket, a named pipe, or an anonymous pipe.
+                // We need this piece of a code because libuv
+                // on Windows requires use of a separate function
+                // if the handle is of a socket type.
                 if (GetFileType(reinterpret_cast<HANDLE>(fd_))
                     == FILE_TYPE_PIPE) {
                   error_ = uv_poll_init_socket(loop_, poll(), fd_);
                 } else {
                   error_ = uv_poll_init(loop_, poll(), fd_);
                 }
+#else
+                error_ = uv_poll_init(loop_, poll(), fd_);
 #endif
                 if (!error_) {
                   uv_handle_set_data(handle(), this);
