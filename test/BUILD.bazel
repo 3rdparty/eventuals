@@ -97,7 +97,14 @@ cc_test(
         ":promisify-for-test",
         "//eventuals",
         "//test/concurrent",
-        "@com_github_backward_cpp//:backward",
         "@com_github_google_googletest//:gtest_main",
-    ],
+    ] + select({
+        # We support backward-cpp only for macOS and Linux.
+        # The support for Windows might be added in future.
+        # https://github.com/3rdparty/eventuals/issues/450
+        "@bazel_tools//src/conditions:windows": [],
+        "//conditions:default": [
+            "@com_github_backward_cpp//:backward",
+        ],
+    }),
 )
