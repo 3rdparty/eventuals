@@ -472,8 +472,8 @@ class EventLoop final : public Scheduler {
   void RunUntil(std::future<T>& future) {
     auto status = std::future_status::ready;
     do {
-      running_ = true;
       in_event_loop_ = true;
+      running_ = true;
 
       // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
       // I/O.
@@ -488,8 +488,8 @@ class EventLoop final : public Scheduler {
 
   void RunWhileWaiters() {
     do {
-      running_ = true;
       in_event_loop_ = true;
+      running_ = true;
 
       // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
       // I/O.

@@ -148,20 +148,7 @@ void EventLoop::ConstructDefaultAndRunForeverDetached() {
   ConstructDefault();
 
   auto thread = std::thread([]() {
-    while (true) {
-      EventLoop::Default().running_ = true;
-      EventLoop::Default().in_event_loop_ = true;
-
-      // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
-      // I/O.
-      uv_run(&EventLoop::Default().loop_, UV_RUN_NOWAIT);
-
-      EventLoop::Default().running_ = false;
-      EventLoop::Default().in_event_loop_ = false;
-    }
-
-    // We should never get out of run.
-    LOG(FATAL) << "unreachable";
+    EventLoop::Default().RunForever();
   });
 
   thread.detach();
@@ -303,19 +290,15 @@ EventLoop::~EventLoop() {
 ////////////////////////////////////////////////////////////////////////
 
 void EventLoop::RunForever() {
-  while (true) {
-    running_ = true;
-    in_event_loop_ = true;
+  in_event_loop_ = true;
+  running_ = true;
 
-    // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
-    // I/O.
-    uv_run(&EventLoop::Default().loop_, UV_RUN_NOWAIT);
+  // NOTE: we'll truly run forever because handles like 'async_' will
+  // keep the loop alive forever.
+  uv_run(&loop_, UV_RUN_DEFAULT);
 
-    running_ = false;
-    in_event_loop_ = false;
-  }
-
-  LOG(FATAL) << "unreachable";
+  running_ = false;
+  in_event_loop_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////

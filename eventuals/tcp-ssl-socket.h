@@ -32,12 +32,10 @@ class Socket final : public SocketBase {
       EventLoop& loop = EventLoop::Default())
     : SocketBase(protocol, loop),
       stream_(loop.io_context(), context.ssl_context_handle()) {
-    // NOTE: Compiling on MacOS produces weird
+    // NOTE: Compiling this class produces
     // 'unused-private-field' warnings, hence why this
     // piece of code is needed.
-#ifdef __MACH__
     (void) completed_handshake_;
-#endif
   }
 
   Socket(const Socket& that) = delete;

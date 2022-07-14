@@ -19,13 +19,11 @@ class Acceptor final {
     : loop_(loop),
       protocol_(protocol),
       acceptor_(loop.io_context()) {
-    // NOTE: Compiling on MacOS produces weird
+    // NOTE: Compiling this class produces
     // 'unused-private-field' warnings, hence why this
     // piece of code is needed.
-#ifdef __MACH__
     (void) is_listening_;
     (void) protocol_;
-#endif
   }
 
   ~Acceptor() {
