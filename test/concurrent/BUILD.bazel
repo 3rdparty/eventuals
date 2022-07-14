@@ -40,7 +40,15 @@ cc_library(
         "//test:promisify-for-test",
         "@com_github_google_googletest//:gtest",
         "@com_github_google_googletest//:gtest_main",
-    ],
+    ] + select({
+        # We support backward lib only for macOS and Linux.
+        # The support for Windows might be added in future.
+        # https://github.com/3rdparty/eventuals/issues/450
+        "@bazel_tools//src/conditions:windows": [],
+        "//conditions:default": [
+            "//test:backward",
+        ],
+    }),
     # Setting it to False or leaving it absent will prevent concurrent
     # tests from running on Windows.
     alwayslink = True,

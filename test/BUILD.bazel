@@ -38,6 +38,25 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "backward",
+    srcs = ["backward-stacktrace.cc"],
+    hdrs = ["backward-stacktrace.h"],
+    copts = copts(),
+    # By default this target is visible from current package
+    # (test/BUILD.bazel). We need to make it visible for
+    # 'test/concurrent' and 'test/grpc' packages too.
+    visibility = [
+        "//test/concurrent:__pkg__",
+        "//test/grpc:__pkg__",
+    ],
+    deps = [
+        "@com_github_backward_cpp//:backward",
+        "@com_github_google_googletest//:gtest",
+    ],
+    alwayslink = True,
+)
+
 cc_test(
     name = "eventuals",
     srcs = [
@@ -80,16 +99,7 @@ cc_test(
         "type-check.cc",
         "type-traits.cc",
         "unpack.cc",
-    ] + select({
-        # We support backward-cpp only for macOS and Linux.
-        # The support for Windows might be added in future.
-        # https://github.com/3rdparty/eventuals/issues/450
-        "@bazel_tools//src/conditions:windows": [],
-        "//conditions:default": [
-            "backward-stacktrace.cc",
-            "backward-stacktrace.h",
-        ],
-    }),
+    ],
     copts = copts(),
     deps = [
         ":generate-test-task-name",
@@ -97,7 +107,14 @@ cc_test(
         ":promisify-for-test",
         "//eventuals",
         "//test/concurrent",
-        "@com_github_backward_cpp//:backward",
         "@com_github_google_googletest//:gtest_main",
-    ],
+    ] + select({
+        # We support backward lib only for macOS and Linux.
+        # The support for Windows might be added in future.
+        # https://github.com/3rdparty/eventuals/issues/450
+        "@bazel_tools//src/conditions:windows": [],
+        "//conditions:default": [
+            ":backward",
+        ],
+    }),
 )
