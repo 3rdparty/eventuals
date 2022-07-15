@@ -38,25 +38,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "backward",
-    srcs = ["backward-stacktrace.cc"],
-    hdrs = ["backward-stacktrace.h"],
-    copts = copts(),
-    # By default this target is visible from current package
-    # (test/BUILD.bazel). We need to make it visible for
-    # 'test/concurrent' and 'test/grpc' packages too.
-    visibility = [
-        "//test/concurrent:__pkg__",
-        "//test/grpc:__pkg__",
-    ],
-    deps = [
-        "@com_github_backward_cpp//:backward",
-        "@com_github_google_googletest//:gtest",
-    ],
-    alwayslink = True,
-)
-
 cc_test(
     name = "eventuals",
     srcs = [
@@ -114,7 +95,7 @@ cc_test(
         # https://github.com/3rdparty/eventuals/issues/450
         "@bazel_tools//src/conditions:windows": [],
         "//conditions:default": [
-            ":backward",
+            "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
         ],
     }),
 )

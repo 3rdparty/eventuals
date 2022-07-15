@@ -22,7 +22,7 @@ cc_binary(
         # https://github.com/3rdparty/eventuals/issues/450
         "@bazel_tools//src/conditions:windows": [],
         "//conditions:default": [
-            "//test:backward",
+            "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
         ],
     }),
 )
@@ -43,7 +43,7 @@ cc_binary(
         # https://github.com/3rdparty/eventuals/issues/450
         "@bazel_tools//src/conditions:windows": [],
         "//conditions:default": [
-            "//test:backward",
+            "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
         ],
     }),
 )
@@ -91,9 +91,9 @@ cc_test(
     deps = [
         ":death-constants",
         "//eventuals/grpc",
-        "//test:backward",
         "//test:promisify-for-test",
         "@bazel_tools//tools/cpp/runfiles",
+        "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
         "@com_github_google_googletest//:gtest",
         "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
         "@com_github_grpc_grpc//examples/protos:keyvaluestore",

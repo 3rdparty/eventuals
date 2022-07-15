@@ -46,7 +46,7 @@ cc_library(
         # https://github.com/3rdparty/eventuals/issues/450
         "@bazel_tools//src/conditions:windows": [],
         "//conditions:default": [
-            "//test:backward",
+            "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
         ],
     }),
     # Setting it to False or leaving it absent will prevent concurrent
