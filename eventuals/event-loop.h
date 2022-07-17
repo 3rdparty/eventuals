@@ -160,7 +160,7 @@ class EventLoop final : public Scheduler {
 
     std::chrono::nanoseconds Now();
 
-    auto Timer(std::chrono::nanoseconds&& nanoseconds);
+    auto Timer(std::chrono::nanoseconds nanoseconds);
 
     bool Paused();
 
@@ -197,9 +197,9 @@ class EventLoop final : public Scheduler {
         Continuation(
             K_ k,
             stout::borrowed_ref<Clock> clock,
-            std::chrono::nanoseconds&& nanoseconds)
+            std::chrono::nanoseconds nanoseconds)
           : clock_(std::move(clock)),
-            nanoseconds_(std::move(nanoseconds)),
+            nanoseconds_(nanoseconds),
             context_(&clock_->loop(), "Timer (start/fail/stop)"),
             interrupt_context_(&clock_->loop(), "Timer (interrupt)"),
             k_(std::move(k)) {}
@@ -427,7 +427,7 @@ class EventLoop final : public Scheduler {
           return Continuation<K>(
               std::move(k),
               std::move(clock_),
-              std::move(nanoseconds_));
+              nanoseconds_);
         }
 
         stout::borrowed_ref<Clock> clock_;
@@ -1279,12 +1279,12 @@ inline std::chrono::nanoseconds EventLoop::Clock::Now() {
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto EventLoop::Clock::Timer(
-    std::chrono::nanoseconds&& nanoseconds) {
+    std::chrono::nanoseconds nanoseconds) {
   // NOTE: we use a 'RescheduleAfter()' to ensure we use current
   // scheduling context to invoke the continuation after the timer has
   // fired (or was interrupted).
   return RescheduleAfter(
-      _Timer::Composable{Borrow(), std::move(nanoseconds)});
+      _Timer::Composable{Borrow(), nanoseconds});
 }
 
 ////////////////////////////////////////////////////////////////////////

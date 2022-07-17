@@ -21,9 +21,7 @@ class Request final {
 
   Request(const Request&) = delete;
   Request(Request&& that) noexcept
-    : request_(std::move(that.request_)) {
-    // Moving optional does not reset its state,
-    // we have to manually do it.
+    : request_(that.request_) {
     that.request_.reset();
   }
 
@@ -39,9 +37,7 @@ class Request final {
       uv_fs_req_cleanup(&*request_);
     }
 
-    // Moving optional does not reset its state,
-    // we have to manually do it.
-    request_ = std::move(that.request_);
+    request_ = that.request_;
     that.request_.reset();
 
     return *this;
@@ -89,9 +85,7 @@ class File final {
   File(const File& that) = delete;
 
   File(File&& that) noexcept
-    : descriptor_(std::move(that.descriptor_)) {
-    // Moving optional does not reset its state,
-    // we have to manually do it.
+    : descriptor_(that.descriptor_) {
     that.descriptor_.reset();
   }
 
@@ -108,9 +102,7 @@ class File final {
       uv_fs_close(nullptr, Request(), *descriptor_, NULL);
     }
 
-    // Moving optional does not reset its state,
-    // we have to manually do it.
-    descriptor_ = std::move(that.descriptor_);
+    descriptor_ = that.descriptor_;
     that.descriptor_.reset();
 
     return *this;

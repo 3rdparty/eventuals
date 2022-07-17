@@ -118,7 +118,7 @@ class Key::_Builder final : public builder::Builder {
   auto bits(int bits) && {
     static_assert(!has_bits_, "Duplicate 'bits'");
     return Construct<_Builder>(
-        bits_.Set(std::move(bits)),
+        bits_.Set(bits),
         std::move(exponent_));
   }
 
@@ -126,7 +126,7 @@ class Key::_Builder final : public builder::Builder {
     static_assert(!has_exponent_, "Duplicate 'exponent'");
     return Construct<_Builder>(
         std::move(bits_),
-        exponent_.Set(std::move(exponent)));
+        exponent_.Set(exponent));
   }
 
   eventuals::expected<Key> Build() &&;

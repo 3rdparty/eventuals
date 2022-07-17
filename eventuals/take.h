@@ -123,7 +123,7 @@ struct _TakeLastN final {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Arg>(std::move(k), std::move(n_));
+      return Continuation<K, Arg>(std::move(k), n_);
     }
 
     size_t n_;

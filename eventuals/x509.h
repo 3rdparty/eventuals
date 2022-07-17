@@ -143,7 +143,7 @@ class Certificate::_Builder final : public builder::Builder {
         std::move(subject_key_),
         std::move(sign_key_),
         std::move(parent_certificate_),
-        serial_.Set(std::move(serial)),
+        serial_.Set(serial),
         std::move(days_),
         std::move(hostname_),
         std::move(ip_),
@@ -157,7 +157,7 @@ class Certificate::_Builder final : public builder::Builder {
         std::move(sign_key_),
         std::move(parent_certificate_),
         std::move(serial_),
-        days_.Set(std::move(days)),
+        days_.Set(days),
         std::move(hostname_),
         std::move(ip_),
         std::move(organization_name_));

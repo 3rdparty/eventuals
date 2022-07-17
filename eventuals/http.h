@@ -118,7 +118,7 @@ class Request::_Builder final : public builder::Builder {
     static_assert(!has_method_, "Duplicate 'method'");
     return Construct<_Builder>(
         std::move(uri_),
-        method_.Set(std::move(method)),
+        method_.Set(method),
         std::move(timeout_),
         std::move(fields_),
         std::move(verify_peer_),
@@ -126,12 +126,12 @@ class Request::_Builder final : public builder::Builder {
         std::move(headers_));
   }
 
-  auto timeout(std::chrono::nanoseconds&& timeout) && {
+  auto timeout(std::chrono::nanoseconds timeout) && {
     static_assert(!has_timeout_, "Duplicate 'timeout'");
     return Construct<_Builder>(
         std::move(uri_),
         std::move(method_),
-        timeout_.Set(std::move(timeout)),
+        timeout_.Set(timeout),
         std::move(fields_),
         std::move(verify_peer_),
         std::move(certificate_),
@@ -158,7 +158,7 @@ class Request::_Builder final : public builder::Builder {
         std::move(method_),
         std::move(timeout_),
         std::move(fields_),
-        verify_peer_.Set(std::move(verify_peer)),
+        verify_peer_.Set(verify_peer),
         std::move(certificate_),
         std::move(headers_));
   }
@@ -329,12 +329,12 @@ class Client final {
 
   [[nodiscard]] auto Get(
       std::string&& uri,
-      std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0));
+      std::chrono::nanoseconds timeout = std::chrono::nanoseconds(0));
 
   [[nodiscard]] auto Post(
       std::string&& uri,
       PostFields&& fields,
-      std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0));
+      std::chrono::nanoseconds timeout = std::chrono::nanoseconds(0));
 
   [[nodiscard]] auto Do(Request&& request);
 
@@ -357,7 +357,7 @@ class Client::_Builder final : public builder::Builder {
     static_assert(!has_verify_peer_, "Duplicate 'verify_peer'");
     // TODO(benh): consider checking that the scheme is 'https'.
     return Construct<_Builder>(
-        verify_peer_.Set(std::move(verify_peer)),
+        verify_peer_.Set(verify_peer),
         std::move(certificate_));
   }
 
@@ -1226,12 +1226,12 @@ struct _HTTP final {
 
 [[nodiscard]] inline auto Client::Get(
     std::string&& uri,
-    std::chrono::nanoseconds&& timeout) {
+    std::chrono::nanoseconds timeout) {
   return Do(
       Request::Builder()
           .uri(std::move(uri))
           .method(GET)
-          .timeout(std::move(timeout))
+          .timeout(timeout)
           .Build());
 }
 
@@ -1240,12 +1240,12 @@ struct _HTTP final {
 [[nodiscard]] inline auto Client::Post(
     std::string&& uri,
     PostFields&& fields,
-    std::chrono::nanoseconds&& timeout) {
+    std::chrono::nanoseconds timeout) {
   return Do(
       Request::Builder()
           .uri(std::move(uri))
           .method(POST)
-          .timeout(std::move(timeout))
+          .timeout(timeout)
           .fields(std::move(fields))
           .Build());
 }
@@ -1254,8 +1254,8 @@ struct _HTTP final {
 
 [[nodiscard]] inline auto Get(
     std::string&& url,
-    std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0)) {
-  return Client().Get(std::move(url), std::move(timeout));
+    std::chrono::nanoseconds timeout = std::chrono::nanoseconds(0)) {
+  return Client().Get(std::move(url), timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1263,8 +1263,8 @@ struct _HTTP final {
 [[nodiscard]] inline auto Post(
     std::string&& url,
     PostFields&& fields,
-    std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0)) {
-  return Client().Post(std::move(url), std::move(fields), std::move(timeout));
+    std::chrono::nanoseconds timeout = std::chrono::nanoseconds(0)) {
+  return Client().Post(std::move(url), std::move(fields), timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////
