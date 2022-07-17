@@ -1,0 +1,7 @@
+# If there are too many errors, clangd, by default, does not show them, but instead
+# emits the error [clang: fatal_too_many_errors].
+# It's not helpful at all, so the following option disables this behaviour 
+# and forces clangd to continue running.
+# https://github.com/clangd/coc-clangd/issues/255
+CompileFlags:
+  Add: -ferror-limit=0
