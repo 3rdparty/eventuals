@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 // See the 'Contributor Guide' in README.md for documentation about
 // how to create your own compile-time "builder".
 
