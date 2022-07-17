@@ -445,7 +445,7 @@ eventuals::expected<Certificate> Certificate::_Builder<
           "Only IPv4 is currently supported");
     }
 
-    in_addr in;
+    in_addr in = {};
     in.s_addr = ip_->to_v4().to_ulong();
 
 #ifdef _WIN32

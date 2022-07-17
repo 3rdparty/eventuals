@@ -207,7 +207,7 @@ struct _ConcurrentOrderedAdaptor final {
 
     std::optional<int> index_;
 
-    TypeErasedStream* upstream_;
+    TypeErasedStream* upstream_ = nullptr;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

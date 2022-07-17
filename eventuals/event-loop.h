@@ -391,7 +391,7 @@ class EventLoop final : public Scheduler {
         stout::borrowed_ref<Clock> clock_;
         std::chrono::nanoseconds nanoseconds_ = std::chrono::nanoseconds(0);
 
-        uv_timer_t timer_;
+        uv_timer_t timer_ = {};
 
         bool started_ = false;
         bool completed_ = false;
@@ -708,7 +708,7 @@ class EventLoop final : public Scheduler {
       EventLoop& loop_;
       const int signum_;
 
-      uv_signal_t signal_;
+      uv_signal_t signal_ = {};
 
       bool started_ = false;
       bool completed_ = false;
@@ -999,7 +999,7 @@ class EventLoop final : public Scheduler {
       int fd_;
       PollEvents events_;
 
-      uv_poll_t poll_;
+      uv_poll_t poll_ = {};
 
       bool started_ = false;
       bool completed_ = false;
@@ -1043,9 +1043,9 @@ class EventLoop final : public Scheduler {
 
   void Check();
 
-  uv_loop_t loop_;
-  uv_check_t check_;
-  uv_async_t async_;
+  uv_loop_t loop_ = {};
+  uv_check_t check_ = {};
+  uv_async_t async_ = {};
 
   std::atomic<bool> running_ = false;
 
@@ -1241,7 +1241,7 @@ struct _EventLoopSchedule final {
     }
 
     E_ e_;
-    EventLoop* loop_;
+    EventLoop* loop_ = nullptr;
     std::string name_;
   };
 };

@@ -494,7 +494,7 @@ struct _HTTP final {
 
                   return; // Don't do anything else!
                 } else {
-                  curl_blob blob;
+                  curl_blob blob = {};
                   blob.data = pem_certificate->data();
                   blob.len = pem_certificate->size();
                   blob.flags = CURL_BLOB_COPY;
@@ -1153,7 +1153,7 @@ struct _HTTP final {
     std::unique_ptr<CURLM, decltype(&curl_multi_cleanup)> multi_;
     std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> curl_headers_;
 
-    uv_timer_t timer_;
+    uv_timer_t timer_ = {};
     std::vector<uv_poll_t*> polls_;
 
     // Response variables.

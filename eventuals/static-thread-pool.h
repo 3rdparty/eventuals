@@ -514,8 +514,8 @@ struct _StaticThreadPoolSchedule final {
           std::move(e_));
     }
 
-    StaticThreadPool* pool_;
-    StaticThreadPool::Requirements* requirements_;
+    StaticThreadPool* pool_ = nullptr;
+    StaticThreadPool::Requirements* requirements_ = nullptr;
     E_ e_;
     std::string name_ = "[StaticThreadPool::Schedule - anonymous]";
   };

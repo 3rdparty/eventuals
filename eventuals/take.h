@@ -178,8 +178,8 @@ struct _TakeRange final {
     }
 
     K_ k_;
-    size_t begin_;
-    size_t amount_;
+    size_t begin_ = 0;
+    size_t amount_ = 0;
     size_t i_ = 0;
     bool in_range_ = false;
 
