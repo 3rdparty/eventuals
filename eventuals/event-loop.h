@@ -56,13 +56,13 @@ class EventLoop final : public Scheduler {
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
     }
 
-    Buffer(const Buffer& that) {
-      data_ = that.data_;
+    Buffer(const Buffer& that)
+      : data_(that.data_) {
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
     }
 
-    Buffer(Buffer&& that) noexcept {
-      data_ = std::move(that.data_);
+    Buffer(Buffer&& that) noexcept
+      : data_(std::move(that.data_)) {
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
 
       that.buffer_.len = 0;
