@@ -2,6 +2,9 @@
 
 #include <optional>
 
+#include "eventuals/interrupt.h"
+#include "eventuals/type-traits.h"
+
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
