@@ -23,7 +23,7 @@ class Interrupt final {
 
     Handler(const Handler& that) = delete;
 
-    Handler(Handler&& that)
+    Handler(Handler&& that) noexcept
       : interrupt_(CHECK_NOTNULL(that.interrupt_)),
         callback_(std::move(that.callback_)) {
       CHECK(that.next_ == nullptr);

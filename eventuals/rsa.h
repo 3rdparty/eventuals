@@ -44,7 +44,7 @@ class Key final {
     return *this;
   }
 
-  Key& operator=(Key&& that) {
+  Key& operator=(Key&& that) noexcept {
     if (this == &that) {
       return *this;
     }

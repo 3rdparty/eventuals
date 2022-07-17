@@ -26,7 +26,7 @@ struct _ReorderAdaptor final {
     Continuation(K_ k)
       : k_(std::move(k)) {}
 
-    Continuation(Continuation&& that) = default;
+    Continuation(Continuation&& that) noexcept = default;
 
     ~Continuation() override = default;
 

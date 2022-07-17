@@ -147,7 +147,7 @@ struct _Acquire final {
       : lock_(lock),
         k_(std::move(k)) {}
 
-    Continuation(Continuation&& that)
+    Continuation(Continuation&& that) noexcept
       : lock_(that.lock_),
         k_(std::move(that.k_)) {
       CHECK(!waiter_.context) << "moving after starting";
@@ -573,7 +573,7 @@ struct _Wait final {
         f_(std::move(f)),
         k_(std::move(k)) {}
 
-    Continuation(Continuation&&) = default;
+    Continuation(Continuation&&) noexcept = default;
 
     ~Continuation() {
       CHECK(!waiting_) << "continuation still waiting for lock";

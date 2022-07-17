@@ -21,7 +21,7 @@ struct _TakeLastN final {
       : n_(n),
         k_(std::move(k)) {}
 
-    Continuation(Continuation&& that) = default;
+    Continuation(Continuation&& that) noexcept = default;
 
     ~Continuation() override = default;
 

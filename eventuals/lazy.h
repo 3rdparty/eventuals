@@ -18,7 +18,7 @@ struct _Lazy final {
   using Args =
       std::enable_if_t<sizeof...(Args_) == 0, _Lazy<T_, Arg, Args...>>;
 
-  _Lazy(_Lazy&& that)
+  _Lazy(_Lazy&& that) noexcept
     : args_(std::move(that.args_)) {
     CHECK(!t_) << "'Lazy' can not be moved after using";
   }

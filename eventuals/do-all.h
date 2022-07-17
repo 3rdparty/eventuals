@@ -21,7 +21,7 @@ struct _DoAll final {
       : k_(k),
         interrupt_(interrupt) {}
 
-    Adaptor(Adaptor&& that)
+    Adaptor(Adaptor&& that) noexcept
       : k_(that.k_),
         interrupt_(that.interrupt_) {
       CHECK(that.counter_.load() == sizeof...(Eventuals_))
@@ -190,7 +190,7 @@ struct _DoAll final {
       : eventuals_(std::move(eventuals)),
         k_(std::move(k)) {}
 
-    Continuation(Continuation&& that)
+    Continuation(Continuation&& that) noexcept
       : eventuals_(std::move(that.eventuals_)),
         adaptor_(std::move(that.adaptor_)),
         ks_(std::move(that.ks_)),

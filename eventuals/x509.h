@@ -48,7 +48,7 @@ class Certificate final {
     return *this;
   }
 
-  Certificate& operator=(Certificate&& that) {
+  Certificate& operator=(Certificate&& that) noexcept {
     if (this == &that) {
       return *this;
     }

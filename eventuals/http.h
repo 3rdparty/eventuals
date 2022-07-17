@@ -445,7 +445,7 @@ struct _HTTP final {
         interrupt_context_(&loop_, "HTTP (interrupt)"),
         k_(std::move(k)) {}
 
-    Continuation(Continuation&& that)
+    Continuation(Continuation&& that) noexcept
       : loop_(that.loop_),
         request_(std::move(that.request_)),
         fields_string_(std::move(that.fields_string_)),

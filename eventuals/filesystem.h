@@ -20,7 +20,7 @@ class Request final {
   Request() {}
 
   Request(const Request&) = delete;
-  Request(Request&& that)
+  Request(Request&& that) noexcept
     : request_(std::move(that.request_)) {
     // Moving optional does not reset its state,
     // we have to manually do it.
@@ -28,7 +28,7 @@ class Request final {
   }
 
   Request& operator=(const Request&) = delete;
-  Request& operator=(Request&& that) {
+  Request& operator=(Request&& that) noexcept {
     if (this == &that) {
       return *this;
     }
@@ -88,7 +88,7 @@ class File final {
 
   File(const File& that) = delete;
 
-  File(File&& that)
+  File(File&& that) noexcept
     : descriptor_(std::move(that.descriptor_)) {
     // Moving optional does not reset its state,
     // we have to manually do it.
@@ -97,7 +97,7 @@ class File final {
 
   File& operator=(const File& that) = delete;
 
-  File& operator=(File&& that) {
+  File& operator=(File&& that) noexcept {
     if (this == &that) {
       return *this;
     }

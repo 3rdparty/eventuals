@@ -35,7 +35,7 @@ struct Callback<R(Args...)> final {
     this->operator=(std::move(f));
   }
 
-  Callback& operator=(Callback&& that) {
+  Callback& operator=(Callback&& that) noexcept {
     if (this == &that) {
       return *this;
     }
@@ -77,7 +77,7 @@ struct Callback<R(Args...)> final {
     return *this;
   }
 
-  Callback(Callback&& that) {
+  Callback(Callback&& that) noexcept {
     if (that.base_ != nullptr) {
       base_ = that.base_->Move(&storage_);
 

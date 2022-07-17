@@ -61,7 +61,7 @@ class EventLoop final : public Scheduler {
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
     }
 
-    Buffer(Buffer&& that) {
+    Buffer(Buffer&& that) noexcept {
       data_ = std::move(that.data_);
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
 
@@ -90,7 +90,7 @@ class EventLoop final : public Scheduler {
       return *this;
     }
 
-    Buffer& operator=(Buffer&& that) {
+    Buffer& operator=(Buffer&& that) noexcept {
       if (this == &that) {
         return *this;
       }
@@ -204,7 +204,7 @@ class EventLoop final : public Scheduler {
             interrupt_context_(&clock_->loop(), "Timer (interrupt)"),
             k_(std::move(k)) {}
 
-        Continuation(Continuation&& that)
+        Continuation(Continuation&& that) noexcept
           : clock_(std::move(that.clock_)),
             nanoseconds_(std::move(that.nanoseconds_)),
             context_(&clock_->loop(), "Timer (start/fail/stop)"),
@@ -553,7 +553,7 @@ class EventLoop final : public Scheduler {
           interrupt_context_(&loop, "WaitForSignal (interrupt)"),
           k_(std::move(k)) {}
 
-      Continuation(Continuation&& that)
+      Continuation(Continuation&& that) noexcept
         : loop_(that.loop_),
           signum_(that.signum_),
           context_(&that.loop_, "WaitForSignal (start/fail/stop)"),
@@ -773,7 +773,7 @@ class EventLoop final : public Scheduler {
           interrupt_context_(&loop, "Poll (interrupt)"),
           k_(std::move(k)) {}
 
-      Continuation(Continuation&& that)
+      Continuation(Continuation&& that) noexcept
         : loop_(that.loop_),
           fd_(that.fd_),
           events_(that.events_),
