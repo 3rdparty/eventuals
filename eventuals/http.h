@@ -636,7 +636,7 @@ struct _HTTP final {
                           } else {
                             // Header already exists.
                             headers[key] += ", ";
-                            headers[key] += std::move(value);
+                            headers[key] += value;
                           }
                         }
 
@@ -958,7 +958,11 @@ struct _HTTP final {
 
               // Transform 'Request' headers to curl's linked list.
               for (const auto& [key, value] : request_.headers()) {
-                std::string header = key + ": " + value;
+                // TODO(folming): use fmt library to append strings.
+                // https://github.com/fmtlib/fmt
+                std::string header = key;
+                header.append(": ");
+                header.append(value);
 
                 // We should only be adding the headers once, so they
                 // shouldn't yet exist!
