@@ -62,6 +62,10 @@ build:windows --host_copt=-DNOGDI
 # Google cache read-only access.
 build --remote_cache=https://storage.googleapis.com/reboot-dev-eventuals-remote-cache
 build --remote_upload_local_results=false
+# Default timeout of 60 seconds is too long and bazel doesn't try to build
+# things locally while waiting for the timeout.
+# 10s was chosen arbitrarily as a not-too-long time by Folming and CodingCanuck.
+build --remote_timeout=10s
 
 # Allow users to add local preferences.
 try-import %workspace%/user.bazelrc
