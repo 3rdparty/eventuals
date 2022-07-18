@@ -99,3 +99,60 @@ cc_test(
         ],
     }),
 )
+
+cc_binary(
+    name = "sample-eventuals-grpc-binary-default-link",
+    srcs = ["sample-binary.cc"],
+    copts = copts(),
+    deps = ["//eventuals/grpc"],
+)
+
+cc_binary(
+    name = "sample-eventuals-grpc-binary-shared-link",
+    srcs = ["sample-binary.cc"],
+    copts = copts(),
+    linkshared = True,
+    deps = ["//eventuals/grpc"],
+)
+
+cc_binary(
+    name = "sample-grpc-and-jemalloc-binary-shared-link",
+    srcs = ["sample-binary.cc"],
+    copts = copts(),
+    linkshared = True,
+    deps = [
+        "@com_github_grpc_grpc//:grpc++",
+        "@com_github_jemalloc_jemalloc//:jemalloc",
+    ],
+)
+
+cc_binary(
+    name = "sample-eventuals-grpc-binary-static-link",
+    srcs = ["sample-binary.cc"],
+    copts = copts(),
+    linkstatic = True,
+    deps = ["//eventuals/grpc"],
+)
+
+cc_binary(
+    name = "sample-jemalloc-binary-default-link",
+    srcs = ["sample-binary.cc"],
+    copts = copts(),
+    deps = ["@com_github_jemalloc_jemalloc//:jemalloc"],
+)
+
+cc_binary(
+    name = "sample-jemalloc-binary-shared-link",
+    srcs = ["sample-binary.cc"],
+    copts = copts(),
+    linkshared = True,
+    deps = ["@com_github_jemalloc_jemalloc//:jemalloc"],
+)
+
+cc_binary(
+    name = "sample-jemalloc-binary-static-link",
+    srcs = ["sample-binary.cc"],
+    copts = copts(),
+    linkstatic = True,
+    deps = ["@com_github_jemalloc_jemalloc//:jemalloc"],
+)
