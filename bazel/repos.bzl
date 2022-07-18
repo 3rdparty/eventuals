@@ -24,6 +24,19 @@ def repos(repo_mapping = {}):
         repo_mapping = repo_mapping,
     )
 
+    # Hedron's Compile Commands Extractor for Bazel.
+    # Latest version available on 2022/07/18.
+    # Follow the link to learn how to set it up for your code editor:
+    # https://github.com/hedronvision/bazel-compile-commands-extractor
+    maybe(
+        git_repository,
+        name = "hedron_compile_commands",
+        commit = "05610f52a2ea3cda6ac27133b96f71c36358adf9",
+        remote = "https://github.com/hedronvision/bazel-compile-commands-extractor",
+        shallow_since = "1657677319 -0700",
+        repo_mapping = repo_mapping,
+    )
+
     maybe(
         http_archive,
         name = "rules_foreign_cc",

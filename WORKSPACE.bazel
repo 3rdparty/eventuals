@@ -19,23 +19,3 @@ load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
 grpc_extra_deps()
 
 ########################################################################
-
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
-
-# Hedron's Compile Commands Extractor for Bazel.
-# Latest version available on 2022/07/18.
-# Follow the link to learn how to set it up for your code editor:
-# https://github.com/hedronvision/bazel-compile-commands-extractor
-# TODO(folming): move the rules to a separate bazel file.
-git_repository(
-    name = "hedron_compile_commands",
-    commit = "05610f52a2ea3cda6ac27133b96f71c36358adf9",
-    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor",
-    shallow_since = "1657677319 -0700",
-)
-
-load("@hedron_compile_commands//:workspace_setup.bzl", "hedron_compile_commands_setup")
-
-hedron_compile_commands_setup()
-
-########################################################################
