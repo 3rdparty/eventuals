@@ -1,0 +1,17 @@
+# Provides better readability.
+UseColor: true
+
+# NOTE: The checks were taken from
+# https://github.com/3rdparty/eventuals/pull/210
+# TODO: Discuss if we want to add some extra checks.
+# Available checks can be found here:
+# https://clang.llvm.org/extra/clang-tidy/checks/list.html
+Checks: >
+    bugprone-*,
+    clang-analyzer-cplusplus*,
+    concurrency-*,
+    cppcoreguidelines-*,
+    google-*,
+    modernize-*,
+    performance-*,
+    readability-*,
