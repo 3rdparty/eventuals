@@ -1,6 +1,6 @@
 """Adds repositories/archives."""
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 load("@com_github_3rdparty_stout//bazel:repos.bzl", stout_repos = "repos")
@@ -100,7 +100,16 @@ def repos(repo_mapping = {}):
         git_repository,
         name = "com_github_3rdparty_bazel_rules_backward_cpp",
         remote = "https://github.com/3rdparty/bazel-rules-backward-cpp",
-        commit = "4a63b4ddbd192d3cba994bc79a78540b3924bfbd",
-        shallow_since = "1657266408 +0300",
+        commit = "be06f4fce52e2327d877493d050f42b9d082af3f",
+        shallow_since = "1658132298 +0300",
         repo_mapping = repo_mapping,
+    )
+
+    maybe(
+        new_git_repository,
+        name = "com_github_3rdparty_bazel_rules_backward_cpp_stacktrace",
+        remote = "https://github.com/3rdparty/bazel-rules-backward-cpp",
+        build_file = "@com_github_3rdparty_bazel_rules_backward_cpp//:BUILD.backward-stacktrace.bazel",
+        commit = "be06f4fce52e2327d877493d050f42b9d082af3f",
+        shallow_since = "1658132298 +0300",
     )
