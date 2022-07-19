@@ -20,4 +20,11 @@ refresh_compile_commands(
     },
 )
 
+refresh_compile_commands(
+    name = "refresh_cc_github_actions",
+    targets = {
+        "//test:eventuals": "",
+    },
+)
+
 ########################################################################
