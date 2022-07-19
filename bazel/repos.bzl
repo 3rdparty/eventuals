@@ -3,6 +3,7 @@
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
+load("@com_github_3rdparty_bazel_rules_jemalloc//bazel:repos.bzl", jemalloc_repos = "repos")
 load("@com_github_3rdparty_stout//bazel:repos.bzl", stout_repos = "repos")
 load("@com_github_reboot_dev_pyprotoc_plugin//bazel:repos.bzl", pyprotoc_plugin_repos = "repos")
 
@@ -13,6 +14,11 @@ def repos(repo_mapping = {}):
         repo_mapping: passed through to all other functions that expect/use
             repo_mapping, e.g., 'git_repository'
     """
+
+    jemalloc_repos(
+        external = False,
+        repo_mapping = repo_mapping,
+    )
 
     stout_repos(
         external = False,
@@ -61,15 +67,6 @@ def repos(repo_mapping = {}):
         remote = "https://github.com/3rdparty/bazel-rules-curl",
         commit = "5748da4b2594fab9410db9b5e6619b47cb5688e0",
         shallow_since = "1651700487 +0300",
-        repo_mapping = repo_mapping,
-    )
-
-    maybe(
-        git_repository,
-        name = "com_github_3rdparty_bazel_rules_jemalloc",
-        remote = "https://github.com/3rdparty/bazel-rules-jemalloc",
-        commit = "c82c0c3856f07d53c1b76e89beeb8abab8c2d0ad",
-        shallow_since = "1634918242 -0700",
         repo_mapping = repo_mapping,
     )
 

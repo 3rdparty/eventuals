@@ -23,3 +23,10 @@ def submodules(external = True):
         path = "submodules/stout",
         external = external,
     )
+
+    maybe(
+        submodule_repository,
+        name = "com_github_3rdparty_bazel_rules_jemalloc",
+        path = "submodules/bazel-rules-jemalloc",
+        external = external,
+    )
