@@ -10,3 +10,7 @@
 	path = submodules/stout
 	url = https://github.com/3rdparty/stout.git
 	branch = main
+[submodule "submodules/bazel-rules-jemalloc"]
+	path = submodules/bazel-rules-jemalloc
+	url = https://github.com/3rdparty/bazel-rules-jemalloc
+	branch = main
