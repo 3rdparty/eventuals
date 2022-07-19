@@ -82,6 +82,8 @@ cc_test(
         "unpack.cc",
     ],
     copts = copts(),
+    # TODO(xander): Document why we use jemalloc.
+    malloc = "@com_github_jemalloc_jemalloc//:jemalloc",
     deps = [
         ":generate-test-task-name",
         ":http-mock-server",

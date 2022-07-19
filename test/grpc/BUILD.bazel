@@ -12,6 +12,8 @@ cc_binary(
         "death-client.cc",
     ],
     copts = copts(),
+    # TODO(xander): Document why we use jemalloc.
+    malloc = "@com_github_jemalloc_jemalloc//:jemalloc",
     deps = [
         ":death-constants",
         "//eventuals/grpc",
@@ -33,6 +35,8 @@ cc_binary(
         "death-server.cc",
     ],
     copts = copts(),
+    # TODO(xander): Document why we use jemalloc.
+    malloc = "@com_github_jemalloc_jemalloc//:jemalloc",
     deps = [
         ":death-constants",
         "//eventuals/grpc",
@@ -77,6 +81,8 @@ cc_test(
         ":death-client",
         ":death-server",
     ],
+    # TODO(xander): Document why we use jemalloc.
+    malloc = "@com_github_jemalloc_jemalloc//:jemalloc",
     # This test is fairly fast, but our GitHub Action Runner compiles with
     # -c dbg --config=asan (~1s per test) and runs it 100x which often hits
     # the default "short" timeout without sharding.
