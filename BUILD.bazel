@@ -25,37 +25,17 @@ alias(
 # https://github.com/hedronvision/bazel-compile-commands-extractor
 # NOTE: This rule is crucial for clangd and clang-tidy to work.
 # Its output is used by clangd and clang-tidy to understand the build process.
-# TODO(folming): find a cleaner way to make it automatic depending on the platform.
-# select() doesn't work, produces the error: "unhashable type: 'select'".
 # TODO(folming): move the rules to a separate bazel file.
 
 refresh_compile_commands(
-    name = "refresh_cc_windows",
-    # Add additional targets in here if needed.
+    name = "refresh_cc",
+    # If the rule doesn't work for you, you can set explicitly which
+    # targets to extract compile commands from here.
     # The value for keys is meant for additional bazel build arguments, e.g.
     # "//test:eventuals": "--compilation_mode=dbg".
     targets = {
-        "//test:eventuals": "",
+        "...": "",
     },
-)
-
-refresh_compile_commands(
-    name = "refresh_cc_default",
-    # Add additional targets in here if needed.
-    # The value for keys is meant for additional bazel build arguments, e.g.
-    # "//test:eventuals": "--compilation_mode=dbg".
-    targets = {
-        "//test/grpc:grpc": "",
-        "//test:eventuals": "",
-    },
-)
-
-alias(
-    name = "refresh_cc",  # refresh_compile_commands
-    actual = select({
-        "@bazel_tools//src/conditions:windows": "refresh_cc_windows",
-        "//conditions:default": "refresh_cc_default",
-    }),
 )
 
 ########################################################################
