@@ -2,24 +2,6 @@ load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile
 
 ########################################################################
 
-# TODO(alexmc): Remove this alias.
-alias(
-    name = "eventuals",
-    actual = "//eventuals",
-    deprecation = "Prefer //eventuals",
-    visibility = ["//visibility:public"],
-)
-
-# TODO(alexmc): Remove this alias.
-alias(
-    name = "grpc",
-    actual = "//eventuals/grpc",
-    deprecation = "Prefer //eventuals/grpc",
-    visibility = ["//visibility:public"],
-)
-
-########################################################################
-
 # Hedron's Compile Commands Extractor for Bazel.
 # Follow the link to learn how to set it up for your code editor:
 # https://github.com/hedronvision/bazel-compile-commands-extractor
