@@ -90,6 +90,18 @@ def repos(repo_mapping = {}):
 
     maybe(
         http_archive,
+        name = "com_google_protobuf",
+        strip_prefix = "protobuf-3.19.1",
+        urls = [
+            "https://mirror.bazel.build/github.com/protocolbuffers/protobuf/archive/v3.19.1.tar.gz",
+            "https://github.com/protocolbuffers/protobuf/archive/v3.19.1.tar.gz",
+        ],
+        sha256 = "87407cd28e7a9c95d9f61a098a53cf031109d451a7763e7dd1253abf8b4df422",
+        repo_mapping = repo_mapping,
+    )
+
+    maybe(
+        http_archive,
         name = "com_github_grpc_grpc",
         urls = ["https://github.com/grpc/grpc/archive/refs/tags/v1.46.3.tar.gz"],
         strip_prefix = "grpc-1.46.3",
