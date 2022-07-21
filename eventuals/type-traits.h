@@ -64,6 +64,20 @@ struct HasEmplaceBack<
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename, typename = void>
+struct HasInsert : std::false_type {
+};
+
+template <typename T>
+struct HasInsert<
+    T,
+    std::void_t<decltype(std::declval<T>().insert(
+        std::declval<typename T::value_type&&>()))>>
+  : std::true_type {
+};
+
+////////////////////////////////////////////////////////////////////////
+
 template <typename Left, typename Right>
 using tuple_types_concatenate_t = decltype(std::tuple_cat(
     std::declval<Left>(),

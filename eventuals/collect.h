@@ -5,46 +5,58 @@
 #include "eventuals/loop.h"
 #include "eventuals/type-traits.h"
 
-// NOTE: The following include is a rather large one.
-#include "google/protobuf/repeated_field.h"
-
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Container>
-[[nodiscard]] auto Collect() {
+template <typename Container, typename InsertFunction>
+[[nodiscard]] auto Collect(InsertFunction&& function) {
+  struct Context {
+    InsertFunction insert_function;
+    Container container;
+  };
+
   return Loop<Container>()
-      .context(Container())
-      .body([](auto& data, auto& stream, auto&& value) {
-        if constexpr (
-            std::is_same_v<
-                Container,
-                google::protobuf::RepeatedField<
-                    typename Container::value_type>>) {
-          data.Add(value);
-        } else if constexpr (
-            std::is_same_v<
-                Container,
-                google::protobuf::RepeatedPtrField<
-                    typename Container::value_type>>) {
-          // Should probably use std::forward instead of std::move,
-          // but using std::forward results in a compiler error,
-          // because google::protobuf::RepeatedPtrField::Add
-          // expects an rvalue reference.
-          data.Add(std::move<decltype(value)>(value));
-        } else if constexpr (HasEmplaceBack<Container>::value) {
-          data.emplace_back(std::forward<decltype(value)>(value));
-        } else {
-          data.insert(data.cend(), std::forward<decltype(value)>(value));
-        }
+      .context(Context{std::forward<InsertFunction>(function), Container()})
+      .body([](auto& context, auto& stream, auto&& value) {
+        static_assert(
+            std::is_void_v<
+                std::invoke_result_t<
+                    InsertFunction,
+                    Container&,
+                    decltype(value)&&>>);
+        context.insert_function(
+            context.container,
+            std::forward<decltype(value)>(value));
         stream.Next();
       })
-      .ended([](auto& data, auto& k) {
-        k.Start(std::move(data));
+      .ended([](auto& context, auto& k) {
+        k.Start(std::move(context.container));
       });
+}
+
+////////////////////////////////////////////////////////////////////////
+
+// Provides a shorter version of Collect for STL containers.
+template <typename Container, bool NoMatch = false>
+[[nodiscard]] auto Collect() {
+  if constexpr (HasEmplaceBack<Container>::value) {
+    return Collect<Container>([](auto& container, auto&& value) {
+      container.emplace_back(std::forward<decltype(value)>(value));
+    });
+  } else if constexpr (HasInsert<Container>::value) {
+    return Collect<Container>([](auto& container, auto&& value) {
+      container.insert(std::forward<decltype(value)>(value));
+    });
+  } else {
+    // check_line_length skip
+    // https://stackoverflow.com/questions/38304847/constexpr-if-and-static-assert
+    []() {
+      static_assert(NoMatch, "Provide your own InsertFunction");
+    }();
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////
