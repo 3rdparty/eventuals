@@ -56,13 +56,13 @@ class EventLoop final : public Scheduler {
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
     }
 
-    Buffer(const Buffer& that) {
-      data_ = that.data_;
+    Buffer(const Buffer& that)
+      : data_(that.data_) {
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
     }
 
-    Buffer(Buffer&& that) {
-      data_ = std::move(that.data_);
+    Buffer(Buffer&& that) noexcept
+      : data_(std::move(that.data_)) {
       buffer_ = uv_buf_init(const_cast<char*>(data_.data()), data_.size());
 
       that.buffer_.len = 0;
@@ -90,7 +90,7 @@ class EventLoop final : public Scheduler {
       return *this;
     }
 
-    Buffer& operator=(Buffer&& that) {
+    Buffer& operator=(Buffer&& that) noexcept {
       if (this == &that) {
         return *this;
       }
@@ -160,7 +160,7 @@ class EventLoop final : public Scheduler {
 
     std::chrono::nanoseconds Now();
 
-    auto Timer(std::chrono::nanoseconds&& nanoseconds);
+    auto Timer(std::chrono::nanoseconds nanoseconds);
 
     bool Paused();
 
@@ -197,14 +197,14 @@ class EventLoop final : public Scheduler {
         Continuation(
             K_ k,
             stout::borrowed_ref<Clock> clock,
-            std::chrono::nanoseconds&& nanoseconds)
+            std::chrono::nanoseconds nanoseconds)
           : clock_(std::move(clock)),
-            nanoseconds_(std::move(nanoseconds)),
+            nanoseconds_(nanoseconds),
             context_(&clock_->loop(), "Timer (start/fail/stop)"),
             interrupt_context_(&clock_->loop(), "Timer (interrupt)"),
             k_(std::move(k)) {}
 
-        Continuation(Continuation&& that)
+        Continuation(Continuation&& that) noexcept
           : clock_(std::move(that.clock_)),
             nanoseconds_(std::move(that.nanoseconds_)),
             context_(&clock_->loop(), "Timer (start/fail/stop)"),
@@ -391,7 +391,7 @@ class EventLoop final : public Scheduler {
         stout::borrowed_ref<Clock> clock_;
         std::chrono::nanoseconds nanoseconds_ = std::chrono::nanoseconds(0);
 
-        uv_timer_t timer_;
+        uv_timer_t timer_ = {};
 
         bool started_ = false;
         bool completed_ = false;
@@ -427,7 +427,7 @@ class EventLoop final : public Scheduler {
           return Continuation<K>(
               std::move(k),
               std::move(clock_),
-              std::move(nanoseconds_));
+              nanoseconds_);
         }
 
         stout::borrowed_ref<Clock> clock_;
@@ -553,7 +553,7 @@ class EventLoop final : public Scheduler {
           interrupt_context_(&loop, "WaitForSignal (interrupt)"),
           k_(std::move(k)) {}
 
-      Continuation(Continuation&& that)
+      Continuation(Continuation&& that) noexcept
         : loop_(that.loop_),
           signum_(that.signum_),
           context_(&that.loop_, "WaitForSignal (start/fail/stop)"),
@@ -708,7 +708,7 @@ class EventLoop final : public Scheduler {
       EventLoop& loop_;
       const int signum_;
 
-      uv_signal_t signal_;
+      uv_signal_t signal_ = {};
 
       bool started_ = false;
       bool completed_ = false;
@@ -773,7 +773,7 @@ class EventLoop final : public Scheduler {
           interrupt_context_(&loop, "Poll (interrupt)"),
           k_(std::move(k)) {}
 
-      Continuation(Continuation&& that)
+      Continuation(Continuation&& that) noexcept
         : loop_(that.loop_),
           fd_(that.fd_),
           events_(that.events_),
@@ -999,7 +999,7 @@ class EventLoop final : public Scheduler {
       int fd_;
       PollEvents events_;
 
-      uv_poll_t poll_;
+      uv_poll_t poll_ = {};
 
       bool started_ = false;
       bool completed_ = false;
@@ -1043,9 +1043,9 @@ class EventLoop final : public Scheduler {
 
   void Check();
 
-  uv_loop_t loop_;
-  uv_check_t check_;
-  uv_async_t async_;
+  uv_loop_t loop_ = {};
+  uv_check_t check_ = {};
+  uv_async_t async_ = {};
 
   std::atomic<bool> running_ = false;
 
@@ -1241,7 +1241,7 @@ struct _EventLoopSchedule final {
     }
 
     E_ e_;
-    EventLoop* loop_;
+    EventLoop* loop_ = nullptr;
     std::string name_;
   };
 };
@@ -1279,12 +1279,12 @@ inline std::chrono::nanoseconds EventLoop::Clock::Now() {
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto EventLoop::Clock::Timer(
-    std::chrono::nanoseconds&& nanoseconds) {
+    std::chrono::nanoseconds nanoseconds) {
   // NOTE: we use a 'RescheduleAfter()' to ensure we use current
   // scheduling context to invoke the continuation after the timer has
   // fired (or was interrupted).
   return RescheduleAfter(
-      _Timer::Composable{Borrow(), std::move(nanoseconds)});
+      _Timer::Composable{Borrow(), nanoseconds});
 }
 
 ////////////////////////////////////////////////////////////////////////

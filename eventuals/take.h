@@ -21,7 +21,7 @@ struct _TakeLastN final {
       : n_(n),
         k_(std::move(k)) {}
 
-    Continuation(Continuation&& that) = default;
+    Continuation(Continuation&& that) noexcept = default;
 
     ~Continuation() override = default;
 
@@ -123,7 +123,7 @@ struct _TakeLastN final {
 
     template <typename Arg, typename K>
     auto k(K k) && {
-      return Continuation<K, Arg>(std::move(k), std::move(n_));
+      return Continuation<K, Arg>(std::move(k), n_);
     }
 
     size_t n_;
@@ -178,8 +178,8 @@ struct _TakeRange final {
     }
 
     K_ k_;
-    size_t begin_;
-    size_t amount_;
+    size_t begin_ = 0;
+    size_t amount_ = 0;
     size_t i_ = 0;
     bool in_range_ = false;
 

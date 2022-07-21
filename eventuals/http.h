@@ -118,7 +118,7 @@ class Request::_Builder final : public builder::Builder {
     static_assert(!has_method_, "Duplicate 'method'");
     return Construct<_Builder>(
         std::move(uri_),
-        method_.Set(std::move(method)),
+        method_.Set(method),
         std::move(timeout_),
         std::move(fields_),
         std::move(verify_peer_),
@@ -126,12 +126,12 @@ class Request::_Builder final : public builder::Builder {
         std::move(headers_));
   }
 
-  auto timeout(std::chrono::nanoseconds&& timeout) && {
+  auto timeout(std::chrono::nanoseconds timeout) && {
     static_assert(!has_timeout_, "Duplicate 'timeout'");
     return Construct<_Builder>(
         std::move(uri_),
         std::move(method_),
-        timeout_.Set(std::move(timeout)),
+        timeout_.Set(timeout),
         std::move(fields_),
         std::move(verify_peer_),
         std::move(certificate_),
@@ -158,7 +158,7 @@ class Request::_Builder final : public builder::Builder {
         std::move(method_),
         std::move(timeout_),
         std::move(fields_),
-        verify_peer_.Set(std::move(verify_peer)),
+        verify_peer_.Set(verify_peer),
         std::move(certificate_),
         std::move(headers_));
   }
@@ -329,12 +329,12 @@ class Client final {
 
   [[nodiscard]] auto Get(
       std::string&& uri,
-      std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0));
+      std::chrono::nanoseconds timeout = std::chrono::nanoseconds(0));
 
   [[nodiscard]] auto Post(
       std::string&& uri,
       PostFields&& fields,
-      std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0));
+      std::chrono::nanoseconds timeout = std::chrono::nanoseconds(0));
 
   [[nodiscard]] auto Do(Request&& request);
 
@@ -357,7 +357,7 @@ class Client::_Builder final : public builder::Builder {
     static_assert(!has_verify_peer_, "Duplicate 'verify_peer'");
     // TODO(benh): consider checking that the scheme is 'https'.
     return Construct<_Builder>(
-        verify_peer_.Set(std::move(verify_peer)),
+        verify_peer_.Set(verify_peer),
         std::move(certificate_));
   }
 
@@ -445,7 +445,7 @@ struct _HTTP final {
         interrupt_context_(&loop_, "HTTP (interrupt)"),
         k_(std::move(k)) {}
 
-    Continuation(Continuation&& that)
+    Continuation(Continuation&& that) noexcept
       : loop_(that.loop_),
         request_(std::move(that.request_)),
         fields_string_(std::move(that.fields_string_)),
@@ -494,7 +494,7 @@ struct _HTTP final {
 
                   return; // Don't do anything else!
                 } else {
-                  curl_blob blob;
+                  curl_blob blob = {};
                   blob.data = pem_certificate->data();
                   blob.len = pem_certificate->size();
                   blob.flags = CURL_BLOB_COPY;
@@ -636,7 +636,7 @@ struct _HTTP final {
                           } else {
                             // Header already exists.
                             headers[key] += ", ";
-                            headers[key] += std::move(value);
+                            headers[key] += value;
                           }
                         }
 
@@ -958,7 +958,11 @@ struct _HTTP final {
 
               // Transform 'Request' headers to curl's linked list.
               for (const auto& [key, value] : request_.headers()) {
-                std::string header = key + ": " + value;
+                // TODO(folming): use fmt library to append strings.
+                // https://github.com/fmtlib/fmt
+                std::string header = key;
+                header.append(": ");
+                header.append(value);
 
                 // We should only be adding the headers once, so they
                 // shouldn't yet exist!
@@ -1153,7 +1157,7 @@ struct _HTTP final {
     std::unique_ptr<CURLM, decltype(&curl_multi_cleanup)> multi_;
     std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> curl_headers_;
 
-    uv_timer_t timer_;
+    uv_timer_t timer_ = {};
     std::vector<uv_poll_t*> polls_;
 
     // Response variables.
@@ -1226,12 +1230,12 @@ struct _HTTP final {
 
 [[nodiscard]] inline auto Client::Get(
     std::string&& uri,
-    std::chrono::nanoseconds&& timeout) {
+    std::chrono::nanoseconds timeout) {
   return Do(
       Request::Builder()
           .uri(std::move(uri))
           .method(GET)
-          .timeout(std::move(timeout))
+          .timeout(timeout)
           .Build());
 }
 
@@ -1240,12 +1244,12 @@ struct _HTTP final {
 [[nodiscard]] inline auto Client::Post(
     std::string&& uri,
     PostFields&& fields,
-    std::chrono::nanoseconds&& timeout) {
+    std::chrono::nanoseconds timeout) {
   return Do(
       Request::Builder()
           .uri(std::move(uri))
           .method(POST)
-          .timeout(std::move(timeout))
+          .timeout(timeout)
           .fields(std::move(fields))
           .Build());
 }
@@ -1254,8 +1258,8 @@ struct _HTTP final {
 
 [[nodiscard]] inline auto Get(
     std::string&& url,
-    std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0)) {
-  return Client().Get(std::move(url), std::move(timeout));
+    std::chrono::nanoseconds timeout = std::chrono::nanoseconds(0)) {
+  return Client().Get(std::move(url), timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1263,8 +1267,8 @@ struct _HTTP final {
 [[nodiscard]] inline auto Post(
     std::string&& url,
     PostFields&& fields,
-    std::chrono::nanoseconds&& timeout = std::chrono::nanoseconds(0)) {
-  return Client().Post(std::move(url), std::move(fields), std::move(timeout));
+    std::chrono::nanoseconds timeout = std::chrono::nanoseconds(0)) {
+  return Client().Post(std::move(url), std::move(fields), timeout);
 }
 
 ////////////////////////////////////////////////////////////////////////

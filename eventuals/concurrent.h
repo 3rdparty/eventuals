@@ -586,7 +586,7 @@ struct _Concurrent final {
         k_(std::move(k)) {}
 
     // NOTE: explicit move-constructor because of 'std::atomic_flag'.
-    Continuation(Continuation&& that)
+    Continuation(Continuation&& that) noexcept
       : adaptor_(std::move(that.adaptor_.f_)),
         k_(std::move(that.k_)) {}
 

@@ -409,7 +409,7 @@ struct _Preempt final {
         e_(std::move(e)),
         k_(std::move(k)) {}
 
-    Continuation(Continuation&& that)
+    Continuation(Continuation&& that) noexcept
       : context_(
           Scheduler::Default(),
           std::move(const_cast<std::string&>(that.context_.name()))),

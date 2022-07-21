@@ -61,7 +61,7 @@ struct _FlatMap final {
       : f_(std::move(f)),
         k_(std::move(k)) {}
 
-    Continuation(Continuation&& that) = default;
+    Continuation(Continuation&& that) noexcept = default;
 
     ~Continuation() override = default;
 

@@ -162,9 +162,9 @@ struct _Stream final {
         stop_(std::move(stop)),
         k_(std::move(k)) {}
 
-    Continuation(Continuation&& that) = default;
+    Continuation(Continuation&& that) noexcept = default;
 
-    Continuation& operator=(Continuation&& that) {
+    Continuation& operator=(Continuation&& that) noexcept {
       if (this == &that) {
         return *this;
       }

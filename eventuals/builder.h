@@ -77,7 +77,7 @@ class FieldWithDefault<Value_, false> final : public Field<Value_, false> {
   FieldWithDefault(Value&& value)
     : default_(std::forward<Value>(value)) {}
 
-  FieldWithDefault(FieldWithDefault&&) = default;
+  FieldWithDefault(FieldWithDefault&&) noexcept = default;
 
   ~FieldWithDefault() override = default;
 
@@ -124,7 +124,7 @@ class FieldWithDefault<Value_, true> final : public Field<Value_, true> {
   FieldWithDefault(Value&& value)
     : Field<Value_, true>(std::forward<Value>(value)) {}
 
-  FieldWithDefault(FieldWithDefault&&) = default;
+  FieldWithDefault(FieldWithDefault&&) noexcept = default;
 
   ~FieldWithDefault() override = default;
 };
@@ -143,7 +143,7 @@ class RepeatedField<Value_, false> final : public Field<Value_, false> {
   RepeatedField(Value&& value)
     : default_(std::forward<Value>(value)) {}
 
-  RepeatedField(RepeatedField&&) = default;
+  RepeatedField(RepeatedField&&) noexcept = default;
 
   ~RepeatedField() override = default;
 
@@ -190,7 +190,7 @@ class RepeatedField<Value_, true> final : public Field<Value_, true> {
   RepeatedField(Value&& value)
     : Field<Value_, true>(std::forward<Value>(value)) {}
 
-  RepeatedField(RepeatedField&&) = default;
+  RepeatedField(RepeatedField&&) noexcept = default;
 
   ~RepeatedField() override = default;
 
