@@ -169,7 +169,7 @@ If you have a lambda that returns both `Expected()` and `Unexpected()` you'll ne
 auto get_full_name = [](const Person& person) -> Expected::Of<std::string> {
   if (person.has_first_name() && person.has_last_name()) {
     return Expected(person.first_name() + " " + person.last_name());
-  } else if (person.has_first_name()) {
+  } else if (!person.has_first_name()) {
     return Unexpected(InvalidPerson("missing first name"));
   } else {
     CHECK(!person.has_last_name());
