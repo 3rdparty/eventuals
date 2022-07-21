@@ -12,6 +12,7 @@ load("@com_github_3rdparty_bazel_rules_tl_expected//bazel:deps.bzl", expected_de
 load("@com_github_3rdparty_stout//bazel:deps.bzl", stout_deps = "deps")
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
 load("@com_github_reboot_dev_pyprotoc_plugin//bazel:deps.bzl", pyprotoc_plugin_deps = "deps")
+load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 load("@hedron_compile_commands//:workspace_setup.bzl", "hedron_compile_commands_setup")
 
 def deps(repo_mapping = {}):
@@ -106,5 +107,7 @@ def deps(repo_mapping = {}):
     pyprotoc_plugin_deps(
         repo_mapping = repo_mapping,
     )
+
+    protobuf_deps()
 
     grpc_deps()
