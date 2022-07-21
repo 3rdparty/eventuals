@@ -1,0 +1,15 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("//bazel:copts.bzl", "copts")
+
+cc_library(
+    name = "protobuf",
+    hdrs = [
+        "collectors.h",
+    ],
+    copts = copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        "//eventuals",
+        "@com_google_protobuf//:protobuf",
+    ],
+)

@@ -5,45 +5,67 @@
 #include "eventuals/loop.h"
 #include "eventuals/type-traits.h"
 
-// NOTE: The following include is a rather large one.
-#include "google/protobuf/repeated_field.h"
-
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Container>
+template <typename Collection, typename = void>
+struct Collector {
+  template <typename T>
+  static void Collect(Collection& collection, T&& value) {
+    // This static_assert will always fail
+    // if the compiler needs to compile this implementation.
+    static_assert(
+        always_false_v<T>,
+        "Provide your own EventualsCollector");
+  }
+};
+
+////////////////////////////////////////////////////////////////////////
+
+// Collectors for STL collections.
+
+template <typename Collection>
+struct Collector<
+    Collection,
+    std::enable_if_t<
+        eventuals::HasEmplaceBack<Collection>::value>> {
+  template <typename T>
+  static void Collect(Collection& collection, T&& value) {
+    static_assert(std::is_convertible_v<T, typename Collection::value_type>);
+    collection.emplace_back(std::forward<T>(value));
+  }
+};
+
+template <typename Collection>
+struct Collector<
+    Collection,
+    std::enable_if_t<
+        eventuals::HasInsert<Collection>::value>> {
+  template <typename T>
+  static void Collect(Collection& collection, T&& value) {
+    static_assert(std::is_convertible_v<T, typename Collection::value_type>);
+    collection.insert(std::forward<T>(value));
+  }
+};
+
+////////////////////////////////////////////////////////////////////////
+
+// TODO(folming): Issue #486.
+template <typename Collection>
 [[nodiscard]] auto Collect() {
-  return Loop<Container>()
-      .context(Container())
-      .body([](auto& data, auto& stream, auto&& value) {
-        if constexpr (
-            std::is_same_v<
-                Container,
-                google::protobuf::RepeatedField<
-                    typename Container::value_type>>) {
-          data.Add(value);
-        } else if constexpr (
-            std::is_same_v<
-                Container,
-                google::protobuf::RepeatedPtrField<
-                    typename Container::value_type>>) {
-          // Should probably use std::forward instead of std::move,
-          // but using std::forward results in a compiler error,
-          // because google::protobuf::RepeatedPtrField::Add
-          // expects an rvalue reference.
-          data.Add(std::move<decltype(value)>(value));
-        } else if constexpr (HasEmplaceBack<Container>::value) {
-          data.emplace_back(std::forward<decltype(value)>(value));
-        } else {
-          data.insert(data.cend(), std::forward<decltype(value)>(value));
-        }
+  return Loop<Collection>()
+      .context(Collection())
+      .body([](auto& collection, auto& stream, auto&& value) {
+        Collector<Collection>::Collect(
+            collection,
+            std::forward<decltype(value)>(value));
         stream.Next();
       })
-      .ended([](auto& data, auto& k) {
-        k.Start(std::move(data));
+      .ended([](auto& collection, auto& k) {
+        k.Start(std::move(collection));
       });
 }
 

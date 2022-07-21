@@ -25,6 +25,11 @@ struct void_template {
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename>
+inline constexpr bool always_false_v = false;
+
+////////////////////////////////////////////////////////////////////////
+
 // TODO(benh): Replace with std::type_identity from C++20.
 template <typename T>
 struct type_identity {
@@ -58,6 +63,20 @@ template <typename T>
 struct HasEmplaceBack<
     T,
     std::void_t<decltype(std::declval<T>().emplace_back(
+        std::declval<typename T::value_type&&>()))>>
+  : std::true_type {
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename, typename = void>
+struct HasInsert : std::false_type {
+};
+
+template <typename T>
+struct HasInsert<
+    T,
+    std::void_t<decltype(std::declval<T>().insert(
         std::declval<typename T::value_type&&>()))>>
   : std::true_type {
 };
