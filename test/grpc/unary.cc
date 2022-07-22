@@ -41,17 +41,17 @@ void TestUnaryWithClient(
 
   auto serve = [&]() {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
-        | Head()
-        | Then(Let([](auto& call) {
+        >> Head()
+        >> Then(Let([](auto& call) {
              return call.Reader().Read()
-                 | Head() // Only get the first element.
-                 | Then([](auto&& request) {
+                 >> Head() // Only get the first element.
+                 >> Then([](auto&& request) {
                       HelloReply reply;
                       std::string prefix("Hello ");
                       reply.set_message(prefix + request.name());
                       return reply;
                     })
-                 | UnaryEpilogue(call);
+                 >> UnaryEpilogue(call);
            }));
   };
 
@@ -64,16 +64,16 @@ void TestUnaryWithClient(
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-        | Then(Let([](auto& call) {
+        >> Then(Let([](auto& call) {
              HelloRequest request;
              request.set_name("emily");
              return call.Writer().WriteLast(request)
-                 | call.Reader().Read()
-                 | Map([](auto&& response) {
+                 >> call.Reader().Read()
+                 >> Map([](auto&& response) {
                       EXPECT_EQ("Hello emily", response.message());
                     })
-                 | Loop()
-                 | call.Finish();
+                 >> Loop()
+                 >> call.Finish();
            }));
   };
 

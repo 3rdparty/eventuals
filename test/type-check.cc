@@ -14,7 +14,7 @@ TEST(TypeCheck, Lvalue) {
 
   auto s = [&]() {
     return TypeCheck<int&>(Iterate(v))
-        | Collect<std::vector<int>>();
+        >> Collect<std::vector<int>>();
   };
 
   EXPECT_EQ(v, *s());
@@ -24,7 +24,7 @@ TEST(TypeCheck, Lvalue) {
 TEST(TypeCheck, Rvalue) {
   auto s = []() {
     return TypeCheck<int>(Iterate(std::vector<int>({5, 12})))
-        | Collect<std::vector<int>>();
+        >> Collect<std::vector<int>>();
   };
 
   EXPECT_EQ(std::vector<int>({5, 12}), *s());

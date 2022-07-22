@@ -110,20 +110,6 @@ template <
             HasValueFrom<Left>,
             HasValueFrom<Right>>,
         int> = 0>
-[[nodiscard]] auto operator|(Left left, Right right) {
-  return Composed<Left, Right>{std::move(left), std::move(right)};
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <
-    typename Left,
-    typename Right,
-    std::enable_if_t<
-        std::conjunction_v<
-            HasValueFrom<Left>,
-            HasValueFrom<Right>>,
-        int> = 0>
 [[nodiscard]] auto operator>>(Left left, Right right) {
   return Composed<Left, Right>{std::move(left), std::move(right)};
 }

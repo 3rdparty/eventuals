@@ -337,7 +337,7 @@ struct _Concurrent final {
                  notify_done_();
                }
              }))
-          | Terminal();
+          >> Terminal();
     }
 
     // Returns an eventual which will wait for the upstream stream to
@@ -358,10 +358,10 @@ struct _Concurrent final {
                          || !fibers_done_;
                    };
                  }))
-          | Then([callback = std::move(callback)]() mutable {
+          >> Then([callback = std::move(callback)]() mutable {
                callback();
              })
-          | Terminal();
+          >> Terminal();
     }
 
     // Returns an eventual which handles when "downstream" requests
@@ -398,7 +398,7 @@ struct _Concurrent final {
                // like function that you can call _before_ calling
                // 'Done()' on the 'Concurrent()'.
              }))
-          | Terminal();
+          >> Terminal();
     }
 
     // Head of linked list of fibers.
@@ -456,14 +456,14 @@ struct _Concurrent final {
                  // down below even though we know we only have a
                  // single 'arg' to iterate from the top.
                  Iterate({std::move(arg)})
-                 | f_())
-          | Synchronized(Map([this](auto&& value) {
+                 >> f_())
+          >> Synchronized(Map([this](auto&& value) {
                values_.push_back(std::forward<decltype(value)>(value));
                notify_egress_();
              }))
-          | Loop()
-          | FiberEpilogue(fiber)
-          | Terminal();
+          >> Loop()
+          >> FiberEpilogue(fiber)
+          >> Terminal();
     }
 
     // Returns an upcasted 'TypeErasedFiber' from our typeful 'Fiber'.
@@ -498,7 +498,7 @@ struct _Concurrent final {
     [[nodiscard]] auto Ingress() {
       return Map(Let([this](Arg_& arg) {
                return CreateOrReuseFiber()
-                   | Then([&](TypeErasedFiber* fiber) {
+                   >> Then([&](TypeErasedFiber* fiber) {
                         // A nullptr indicates that we should tell
                         // upstream we're "done" because something
                         // failed or an interrupt was received.
@@ -511,10 +511,10 @@ struct _Concurrent final {
                         return done;
                       });
              }))
-          | Until([](bool done) { return done; })
-          | Loop() // Eagerly try to get next value to run concurrently!
-          | IngressEpilogue()
-          | Terminal();
+          >> Until([](bool done) { return done; })
+          >> Loop() // Eagerly try to get next value to run concurrently!
+          >> IngressEpilogue()
+          >> Terminal();
     }
 
     // Returns an eventual which implements the logic for handling
@@ -534,7 +534,7 @@ struct _Concurrent final {
                  // Need to check for an exception _before_
                  // 'Until()' because we have no way of hooking
                  // into "ended" after 'Until()'.
-                 | Map([this]() {
+                 >> Map([this]() {
                      return Eventual<std::optional<Value_>>()
                          .start([this](auto& k) {
                            if (exception_ && upstream_done_ && fibers_done_) {
@@ -556,10 +556,10 @@ struct _Concurrent final {
                            }
                          });
                    }))
-          | Until([](std::optional<Value_>& value) {
+          >> Until([](std::optional<Value_>& value) {
                return !value;
              })
-          | Map([](std::optional<Value_>&& value) {
+          >> Map([](std::optional<Value_>&& value) {
                CHECK(value);
                return std::move(*value);
              });

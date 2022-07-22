@@ -33,7 +33,7 @@ TEST(StaticThreadPoolTest, Schedulable) {
                  Then([this]() {
                    return i;
                  }))
-          | Then([](auto i) {
+          >> Then([](auto i) {
                return i + 1;
              });
     }
@@ -65,11 +65,11 @@ TEST(StaticThreadPoolTest, Reschedulable) {
                            });
                        thread.detach();
                      })
-              | Eventual<void>()
-                    .start([&id](auto& k) {
-                      EXPECT_EQ(id, std::this_thread::get_id());
-                      k.Start();
-                    });
+              >> Eventual<void>()
+                     .start([&id](auto& k) {
+                       EXPECT_EQ(id, std::this_thread::get_id());
+                       k.Start();
+                     });
         }));
   };
 
@@ -84,12 +84,12 @@ TEST(StaticThreadPoolTest, PingPong) {
 
     auto Stream() {
       return Repeat()
-          | Until([this]() {
+          >> Until([this]() {
                return Schedule(Then([this]() {
                  return count > 5;
                }));
              })
-          | Schedule(Map([this]() mutable {
+          >> Schedule(Map([this]() mutable {
                return count++;
              }));
     }
@@ -106,8 +106,8 @@ TEST(StaticThreadPoolTest, PingPong) {
                count++;
                return i;
              }))
-          | Loop()
-          | Then([this](auto&&...) {
+          >> Loop()
+          >> Then([this](auto&&...) {
                return count;
              });
     }
@@ -118,7 +118,7 @@ TEST(StaticThreadPoolTest, PingPong) {
   Streamer streamer(Pinned::ExactCPU(0));
   Listener listener(Pinned::ExactCPU(1));
 
-  EXPECT_EQ(6, *(streamer.Stream() | listener.Listen()));
+  EXPECT_EQ(6, *(streamer.Stream() >> listener.Listen()));
 }
 
 
@@ -139,11 +139,11 @@ TEST(StaticThreadPoolTest, Spawn) {
                            });
                        thread.detach();
                      })
-              | Eventual<void>()
-                    .start([&id](auto& k) {
-                      EXPECT_EQ(id, std::this_thread::get_id());
-                      k.Start();
-                    });
+              >> Eventual<void>()
+                     .start([&id](auto& k) {
+                       EXPECT_EQ(id, std::this_thread::get_id());
+                       k.Start();
+                     });
         }));
   };
 
@@ -173,11 +173,11 @@ TEST(StaticThreadPoolTest, SpawnFail) {
                            });
                        thread.detach();
                      })
-              | Eventual<void>()
-                    .start([&id](auto& k) {
-                      EXPECT_EQ(id, std::this_thread::get_id());
-                      k.Start();
-                    });
+              >> Eventual<void>()
+                     .start([&id](auto& k) {
+                       EXPECT_EQ(id, std::this_thread::get_id());
+                       k.Start();
+                     });
         }));
   };
 
@@ -199,7 +199,7 @@ TEST(StaticThreadPoolTest, Concurrent) {
         "static thread pool",
         &requirements,
         Iterate({1, 2, 3})
-            | Concurrent([&requirements]() {
+            >> Concurrent([&requirements]() {
                 auto parent = Scheduler::Context::Get().reborrow();
                 EXPECT_EQ(
                     parent->name(),
@@ -216,7 +216,7 @@ TEST(StaticThreadPoolTest, Concurrent) {
                   return i;
                 });
               })
-            | Collect<std::vector<int>>());
+            >> Collect<std::vector<int>>());
   };
 
   EXPECT_THAT(*e(), UnorderedElementsAre(1, 2, 3));

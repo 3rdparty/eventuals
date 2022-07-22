@@ -28,12 +28,12 @@ TEST_F(FilesystemTest, OpenAndCloseFileSucceed) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   auto e = OpenFile(path, UV_FS_O_RDONLY, 0)
-      | Then([&path](auto&& file) {
+      >> Then([&path](auto&& file) {
              return Closure([&path, file = std::move(file)]() mutable {
                EXPECT_TRUE(file.IsOpen());
                EXPECT_TRUE(std::filesystem::exists(path));
                return CloseFile(std::move(file))
-                   | Then([&path]() {
+                   >> Then([&path]() {
                         std::filesystem::remove(path);
                         EXPECT_FALSE(std::filesystem::exists(path));
                       });
@@ -89,14 +89,14 @@ TEST_F(FilesystemTest, ReadFileSucceed) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   auto e = OpenFile(path, UV_FS_O_RDONLY, 0)
-      | Then([&](File&& file) {
+      >> Then([&](File&& file) {
              return Closure([&, file = std::move(file)]() mutable {
                return ReadFile(file, test_string.size(), 0)
-                   | Then([&](auto&& data) {
+                   >> Then([&](auto&& data) {
                         EXPECT_EQ(test_string, data);
                         return CloseFile(std::move(file));
                       })
-                   | Then([&]() {
+                   >> Then([&]() {
                         std::filesystem::remove(path);
                         EXPECT_FALSE(std::filesystem::exists(path));
                       });
@@ -125,10 +125,10 @@ TEST_F(FilesystemTest, ReadFileFail) {
 
   // Try to read from a File opened with WriteOnly flag.
   auto e = OpenFile(path, UV_FS_O_WRONLY, 0)
-      | Then([&](File&& file) {
+      >> Then([&](File&& file) {
              return Closure([&, file = std::move(file)]() mutable {
                return ReadFile(file, test_string.size(), 0)
-                   | Then([&](auto&& data) {
+                   >> Then([&](auto&& data) {
                         EXPECT_EQ(test_string, data);
                         return CloseFile(std::move(file));
                       });
@@ -159,13 +159,13 @@ TEST_F(FilesystemTest, WriteFileSucceed) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   auto e = OpenFile(path, UV_FS_O_WRONLY, 0)
-      | Then([&](File&& file) {
+      >> Then([&](File&& file) {
              return Closure([&, file = std::move(file)]() mutable {
                return WriteFile(file, test_string, 0)
-                   | Then([&]() {
+                   >> Then([&]() {
                         return CloseFile(std::move(file));
                       })
-                   | Then([&]() {
+                   >> Then([&]() {
                         std::ifstream ifs(path);
                         std::string ifs_read_string;
                         ifs_read_string.resize(test_string.size());
@@ -201,10 +201,10 @@ TEST_F(FilesystemTest, WriteFileFail) {
 
   // Try to write to a File opened with ReadOnly flag.
   auto e = OpenFile(path, UV_FS_O_RDONLY, 0)
-      | Then([&](File&& file) {
+      >> Then([&](File&& file) {
              return Closure([&, file = std::move(file)]() mutable {
                return WriteFile(file, test_string, 0)
-                   | Then([&]() {
+                   >> Then([&]() {
                         return CloseFile(std::move(file));
                       });
              });
@@ -232,7 +232,7 @@ TEST_F(FilesystemTest, UnlinkFileSucceed) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   auto e = UnlinkFile(path)
-      | Then([&]() {
+      >> Then([&]() {
              EXPECT_FALSE(std::filesystem::exists(path));
            });
   auto [future, k] = PromisifyForTest(std::move(e));
@@ -270,7 +270,7 @@ TEST_F(FilesystemTest, MakeDirectorySucceed) {
   const std::filesystem::path path = "test_mkdir_succeed";
 
   auto e = MakeDirectory(path, 0)
-      | Then([&]() {
+      >> Then([&]() {
              EXPECT_TRUE(std::filesystem::exists(path));
              std::filesystem::remove(path);
              EXPECT_FALSE(std::filesystem::exists(path));
@@ -317,7 +317,7 @@ TEST_F(FilesystemTest, RemoveDirectorySucceed) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   auto e = RemoveDirectory(path)
-      | Then([&]() {
+      >> Then([&]() {
              EXPECT_FALSE(std::filesystem::exists(path));
            });
   auto [future, k] = PromisifyForTest(std::move(e));
@@ -362,7 +362,7 @@ TEST_F(FilesystemTest, CopyFileSucceed) {
   EXPECT_FALSE(std::filesystem::exists(dst));
 
   auto e = CopyFile(src, dst, 0)
-      | Then([&]() {
+      >> Then([&]() {
              EXPECT_TRUE(std::filesystem::exists(src));
              EXPECT_TRUE(std::filesystem::exists(dst));
              std::filesystem::remove(src);
@@ -417,7 +417,7 @@ TEST_F(FilesystemTest, RenameFileSucceed) {
   EXPECT_FALSE(std::filesystem::exists(dst));
 
   auto e = RenameFile(src, dst)
-      | Then([&]() {
+      >> Then([&]() {
              EXPECT_FALSE(std::filesystem::exists(src));
              EXPECT_TRUE(std::filesystem::exists(dst));
              std::filesystem::remove(src);

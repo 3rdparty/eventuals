@@ -34,12 +34,12 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
                    k.Emit(i);
                  }
                })
-        | this->ConcurrentOrConcurrentOrdered([]() {
+        >> this->ConcurrentOrConcurrentOrdered([]() {
             return Map([](int i) {
               return std::to_string(i);
             });
           })
-        | Collect<std::vector<std::string>>();
+        >> Collect<std::vector<std::string>>();
   };
 
   static_assert(

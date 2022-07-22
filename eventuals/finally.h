@@ -63,7 +63,7 @@ struct _Finally final {
 template <typename F>
 [[nodiscard]] auto Finally(F f) {
   return _Finally::Composable()
-      | Then(std::move(f));
+      >> Then(std::move(f));
 }
 
 ////////////////////////////////////////////////////////////////////////

@@ -19,7 +19,7 @@ TEST(Foreach, Test) {
                  [&](int i) {
                    v.push_back(i);
                  })
-          | Then([&]() {
+          >> Then([&]() {
                return std::move(v);
              });
     });

@@ -35,7 +35,7 @@ TEST(AcceptTest, ServeValidate) {
                  keyvaluestore::KeyValueStore,
                  keyvaluestore::Request,
                  Stream<keyvaluestore::Response>>("GetValues")
-          | Head();
+          >> Head();
     };
 
     EXPECT_THAT(
@@ -50,7 +50,7 @@ TEST(AcceptTest, ServeValidate) {
                  keyvaluestore::KeyValueStore,
                  Stream<keyvaluestore::Request>,
                  keyvaluestore::Response>("GetValues")
-          | Head();
+          >> Head();
     };
 
     EXPECT_THAT(
@@ -63,7 +63,7 @@ TEST(AcceptTest, ServeValidate) {
     auto serve = [&]() {
       return server->Accept<Greeter, Stream<HelloRequest>, HelloReply>(
                  "SayHello")
-          | Head();
+          >> Head();
     };
 
     EXPECT_THAT(
@@ -76,7 +76,7 @@ TEST(AcceptTest, ServeValidate) {
     auto serve = [&]() {
       return server->Accept<Greeter, HelloRequest, Stream<HelloReply>>(
                  "SayHello")
-          | Head();
+          >> Head();
     };
 
     EXPECT_THAT(
@@ -91,7 +91,7 @@ TEST(AcceptTest, ServeValidate) {
                  keyvaluestore::KeyValueStore,
                  Stream<HelloRequest>,
                  Stream<keyvaluestore::Response>>("GetValues")
-          | Head();
+          >> Head();
     };
 
     EXPECT_THAT(
@@ -106,7 +106,7 @@ TEST(AcceptTest, ServeValidate) {
                  keyvaluestore::KeyValueStore,
                  Stream<keyvaluestore::Request>,
                  Stream<HelloReply>>("GetValues")
-          | Head();
+          >> Head();
     };
 
     EXPECT_THAT(

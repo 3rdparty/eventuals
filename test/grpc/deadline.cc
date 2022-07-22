@@ -38,8 +38,8 @@ TEST(DeadlineTest, DeadlineExceeded) {
 
   auto serve = [&]() {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
-        | Head()
-        | Then(Let([](auto& call) {
+        >> Head()
+        >> Then(Let([](auto& call) {
              return call.WaitForDone();
            }));
   };
@@ -57,18 +57,18 @@ TEST(DeadlineTest, DeadlineExceeded) {
 
   auto call = [&]() {
     return client.Context()
-        | Then([&](auto* context) {
+        >> Then([&](auto* context) {
              auto now = std::chrono::system_clock::now();
              context->set_deadline(now + std::chrono::milliseconds(100));
 
              return client.Call<Greeter, HelloRequest, HelloReply>(
                         "SayHello",
                         context)
-                 | Then(Let([](auto& call) {
+                 >> Then(Let([](auto& call) {
                       HelloRequest request;
                       request.set_name("emily");
                       return call.Writer().WriteLast(request)
-                          | call.Finish();
+                          >> call.Finish();
                     }));
            });
   };
