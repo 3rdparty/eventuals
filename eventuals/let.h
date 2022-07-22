@@ -24,9 +24,9 @@ namespace eventuals {
 // callable. For example, you can use 'Let()' with 'Then()':
 //
 // SomethingThatReturnsAFoo()
-//     | Then(Let([](auto& foo) {
+//     >> Then(Let([](auto& foo) {
 //         return DoSomethingAsynchronouslyWithFoo(foo)
-//             | Then([&]() {
+//             >> Then([&]() {
 //                  return DoSomethingSynchronouslyWithFoo(foo);
 //                });
 //       }));

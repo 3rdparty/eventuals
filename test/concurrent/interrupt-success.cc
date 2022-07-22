@@ -23,7 +23,7 @@ TYPED_TEST(ConcurrentTypedTest, InterruptSuccess) {
 
   auto e = [&]() {
     return Iterate({1, 2})
-        | this->ConcurrentOrConcurrentOrdered([&]() {
+        >> this->ConcurrentOrConcurrentOrdered([&]() {
             struct Data {
               void* k;
               int i;
@@ -40,7 +40,7 @@ TYPED_TEST(ConcurrentTypedTest, InterruptSuccess) {
                   });
             }));
           })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   static_assert(

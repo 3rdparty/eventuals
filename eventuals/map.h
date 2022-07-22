@@ -122,7 +122,7 @@ struct _Map final {
       // simpler composition graph to lessen the template instantiation
       // load and execution (i.e., graph walk/traversal) at runtime.
       if constexpr (Traits<K>::exists) {
-        auto e = std::move(e_) | std::move(k.e_);
+        auto e = std::move(e_) >> std::move(k.e_);
         using E = decltype(e);
         return Continuation<decltype(k.k_), E, Arg>(
             std::move(k.k_),

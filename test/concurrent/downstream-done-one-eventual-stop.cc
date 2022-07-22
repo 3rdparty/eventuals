@@ -22,7 +22,7 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualStop) {
 
   auto e = [&]() {
     return Iterate({1, 2})
-        | this->ConcurrentOrConcurrentOrdered([&]() {
+        >> this->ConcurrentOrConcurrentOrdered([&]() {
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
                   .interruptible()
@@ -41,7 +41,7 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualStop) {
                   });
             }));
           })
-        | Reduce(
+        >> Reduce(
                std::string(),
                [](auto& result) {
                  return Then([&](auto&& value) {

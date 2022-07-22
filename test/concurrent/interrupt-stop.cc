@@ -23,7 +23,7 @@ TYPED_TEST(ConcurrentTypedTest, InterruptStop) {
 
   auto e = [&]() {
     return Iterate({1, 2})
-        | this->ConcurrentOrConcurrentOrdered([&]() {
+        >> this->ConcurrentOrConcurrentOrdered([&]() {
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
                   .interruptible()
@@ -36,7 +36,7 @@ TYPED_TEST(ConcurrentTypedTest, InterruptStop) {
                   });
             }));
           })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   static_assert(

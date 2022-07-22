@@ -29,7 +29,9 @@ For an example of how to depend on eventuals via Bazel in your own project you'l
 
 Most of the time you'll use higher-level ***combinators*** for composing eventuals together. This guide will start with more basic ones and work our way up to creating your own eventuals.
 
-You ***compose*** eventuals together using an overloaded `operator|()`. You'll see some examples shortly. The syntax is similar to Bash "pipelines" and we reuse the term pipeline for eventuals as well.
+You ***compose*** eventuals together using an overloaded `operator>>()`. You'll see some examples shortly. The syntax is similar to Bash "pipelines" (but instead of `|` we use `>>`) and we reuse the term pipeline for eventuals as well.
+
+Note that we use `operator>>()` instead of `operator|()` because it provides safer expression evaluation order in C++17 and on. See [this paper](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2016/p0145r3.pdf) for more details.
 
 Because the result type of a composed pipeline is not type-erased you'll use `auto` generously, e.g., as function return types.
 
@@ -37,7 +39,7 @@ You must explicitly ***start*** an eventual in order for it to run. You'll only 
 
 ```cpp
 auto e = AsynchronousFunction()
-    | Terminal()
+    >> Terminal()
           .start([](auto&& result) {
             // Eventual pipeline succeeded!
           })
@@ -99,7 +101,7 @@ Probably the most used of all the combinators, `Then()` continues a pipeline wit
 
 ```cpp
 http::Get("https://3rdparty.dev")
-    | Then([](http::Response&& response) {
+    >> Then([](http::Response&& response) {
         // Return an eventual that will automatically get started.
         return SomeAsynchronousFunction(response);
       });
@@ -109,7 +111,7 @@ You don't have to return an eventual in the callable passed to `Then()`, you can
 
 ```cpp
 http::Get("https:://3rdparty.dev")
-    | Then([](auto&& response) {
+    >> Then([](auto&& response) {
         // Return a value that will automatically get propagated.
         return response.code == 200;
       });
@@ -121,7 +123,7 @@ When you need to _conditionally_ continue using two differently typed eventuals 
 
 ```cpp
 http::Get("https:://3rdparty.dev")
-    | Then([](auto&& response) {
+    >> Then([](auto&& response) {
         // Try for the 'www' host if we don't get a 200.
         return If(response.code != 200)
             .then(http::Get("https:://www.3rdparty.dev"))
@@ -133,7 +135,7 @@ http::Get("https:://3rdparty.dev")
 
 ```cpp
 http::Get("https:://3rdparty.dev")
-    | Then([](auto&& response) {
+    >> Then([](auto&& response) {
         // Try for the 'www' host if we don't get a 200.
         return If(response.code != 200)
             .then(http::Get("https:://www.3rdparty.dev"))
@@ -182,21 +184,21 @@ An `Expected:Of<T>` *composes* with other eventuals exactly as though it is an e
 
 ```cpp
 ReadPersonFromFile(file)
-    | Then([](Person&& person) {
+    >> Then([](Person&& person) {
         return GetFullName(person);
       })
-    | Then([](std::string&& full_name) {
+    >> Then([](std::string&& full_name) {
         ...
       });
 ```
 
-Or you can compose an eventual with `|` which can be useful in cases where want the error to propagate:
+Or you can compose an eventual with `>>` which can be useful in cases where want the error to propagate:
 
 ```cpp
 ReadPersonFromFile(file)
-    | Then(Let([](auto& person) {
+    >> Then(Let([](auto& person) {
         return GetFullName(person)
-            | Then([&](auto&& full_name) {
+            >> Then([&](auto&& full_name) {
                  if (person.has_suffix) {
                    return full_name + " " + person.suffix();
                  } else {
@@ -213,7 +215,7 @@ Working with *asynchronous* code is a little complicated because there might be 
 ```cpp
 auto GetBody(const std::string& uri) {
   return http::Get(uri)
-      | Then([](auto&& response) {
+      >> Then([](auto&& response) {
            return If(response.code == 200)
                .then(Just(response.body))
                .otherwise(Raise("HTTP GET failed w/ code " + std::to_string(response.code)));
@@ -226,7 +228,7 @@ But as we already saw `If()` is not _only_ useful for errors; it can also be use
 ```cpp
 auto GetOrRedirect(const std::string& uri, const std::string& redirect_uri) {
   return http::Get(uri)
-      | Then([redirect_uri](auto&& response) {
+      >> Then([redirect_uri](auto&& response) {
            // Redirect if 'Service Unavailable'.
            return If(response.code == 503)
                .then(http::get(redirect_uri))
@@ -244,11 +246,11 @@ Synchronization is just as necessary with asynchronous code as with synchronous 
 Lock lock;
 
 AsynchronousFunction()
-    | Acquire(&lock)
-    | Then([](auto&& result) {
+    >> Acquire(&lock)
+    >> Then([](auto&& result) {
         // Protected by 'lock' ...
       })
-    | Release(&lock);
+    >> Release(&lock);
 ```
 
 This is often used when capturing `this` to use as part of some asynchronous computation. To simplify this common pattern you can extend your classes with `Synchronizable` and then use `Synchronized()`:
@@ -282,14 +284,14 @@ class SomeAggregateSystem : public Synchronizable {
           return cooling_subsystem_initialized_
               && safety_subsystem_initialized_;
         })
-        | Then([](auto&& result) {
+        >> Then([](auto&& result) {
             // ...
           }));
   }
 
   auto InitializeCoolingSubsystem() {
     return CoolingSubsystemInitialization()
-        | Synchronized(
+        >> Synchronized(
                Then([this]() {
                  cooling_subsystem_initialized_ = true;
                  initialization_.Notify();
@@ -319,7 +321,7 @@ You can compose a `Task::Of` just like any other eventual as well:
 
 ```cpp
 auto e = Task::Of<int>([]() { return Asynchronous(); })
-    | Then([](int i) {
+    >> Then([](int i) {
            return stringify(i);
          });
 ```
@@ -362,7 +364,7 @@ class DerivedAsynchronous : public Base {
   Task::Of<std::string> Method() override {
     return []() {
       return AsynchronousFunction()
-          | Then([](bool condition) -> Expected::Of<std::string> {
+          >> Then([](bool condition) -> Expected::Of<std::string> {
                if (condition) {
                  return Expected("success");
                } else {
@@ -494,7 +496,7 @@ Stream<int>()
       ended(k);
     }
   })
-  | Loop<int>()
+  >> Loop<int>()
      .context(0)
      .body([](auto& sum, auto& stream, auto&& value) {
        sum += value;
@@ -519,10 +521,10 @@ Often times you'll want to perform some transformations on your stream. You can 
 
 ```cpp
 Iterate({1, 2, 3, 4, 5})
-    | Map([](int i) {
+    >> Map([](int i) {
         return i + 1;
       })
-    | Reduce(
+    >> Reduce(
         /* sum = */ 0,
         [](auto& sum) {
           return Then([&](auto&& value) {
@@ -538,8 +540,8 @@ Sometimes you'll have an infinite stream. You can loop over it infinitely by usi
 
 ```cpp
 SomeInfiniteStream()
-  | Map([](auto&& i) { return Foo(i); })
-  | Loop(); // Infinitely loop.
+  >> Map([](auto&& i) { return Foo(i); })
+  >> Loop(); // Infinitely loop.
 ```
 
 ### `http`
@@ -550,7 +552,7 @@ An HTTP `GET`:
 
 ```cpp
 http::Get("http://example.com") // Use 'https://' for TLS/SSL.
-    | Then([](http::Response&& response) {
+    >> Then([](http::Response&& response) {
         // ...
       });
 ```
@@ -561,7 +563,7 @@ An HTTP `POST`:
 http::Post(
     "https://jsonplaceholder.typicode.com/posts",
     {{"first", "emily"}, {"last", "schneider"}})
-    | Then([](auto&& response) {
+    >> Then([](auto&& response) {
         // ...
       });
 ```
@@ -576,7 +578,7 @@ http::Client client = http::Client::Builder()
 client.Post(
     "https://jsonplaceholder.typicode.com/posts",
     {{"first", "emily"}, {"last", "schneider"}})
-    | Then([](auto&& response) {
+    >> Then([](auto&& response) {
         // ...
       });
 ```
@@ -591,7 +593,7 @@ client.Do(
         .header("key", "value")
         .header("another", "example")
         .Build())
-    | Then([](auto&& response) {
+    >> Then([](auto&& response) {
         // ...
       });
 ```
@@ -605,7 +607,7 @@ client.Do(
         .method(http::GET)
         .verify_peer(true) // Overrides client!
         .Build())
-    | Then([](auto&& response) {
+    >> Then([](auto&& response) {
         // ...
       });
 ```
@@ -629,7 +631,7 @@ http::Client client = http::Client::Builder()
                           .Build();
 
 client.Get("https://3rdparty.dev")
-    | Then([](auto&& response) {
+    >> Then([](auto&& response) {
         // ...
       });
 ```
@@ -650,7 +652,7 @@ client.Do(
         .method(http::GET)
         .certificate(*certificate)
         .Build())
-    | Then([](auto&& response) {
+    >> Then([](auto&& response) {
         // ...
       });
 ```

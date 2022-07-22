@@ -33,8 +33,8 @@ TEST(ThenTest, Succeed) {
                      });
                  thread.detach();
                })
-        | Then([](int i) { return i + 1; })
-        | Then([&](auto&& i) {
+        >> Then([](int i) { return i + 1; })
+        >> Then([&](auto&& i) {
              return e("then");
            });
   };
@@ -46,7 +46,7 @@ TEST(ThenTest, SucceedVoid) {
   bool ran = false;
   auto e = [&]() {
     return Just()
-        | Then([&]() {
+        >> Then([&]() {
              ran = true;
            });
   };
@@ -77,8 +77,8 @@ TEST(ThenTest, Fail) {
                      });
                  thread.detach();
                })
-        | Then([](int i) { return i + 1; })
-        | Then([&](auto&& i) {
+        >> Then([](int i) { return i + 1; })
+        >> Then([&](auto&& i) {
              return e("then");
            });
   };
@@ -110,8 +110,8 @@ TEST(ThenTest, Interrupt) {
                .start([](auto& k) {
                  k.Start(0);
                })
-        | Then([](int i) { return i + 1; })
-        | Then([&](auto&& i) {
+        >> Then([](int i) { return i + 1; })
+        >> Then([&](auto&& i) {
              return e("then");
            });
   };

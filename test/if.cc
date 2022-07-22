@@ -19,7 +19,7 @@ using testing::ThrowsMessage;
 TEST(IfTest, Yes) {
   auto e = []() {
     return Just(1)
-        | Then([](int i) {
+        >> Then([](int i) {
              return If(i == 1)
                  .yes([]() { return Just("yes"); })
                  .no([]() { return Just("no"); });
@@ -38,7 +38,7 @@ TEST(IfTest, Yes) {
 TEST(IfTest, No) {
   auto e = []() {
     return Just(0)
-        | Then([](int i) {
+        >> Then([](int i) {
              return If(i == 1)
                  .yes([]() { return Just("yes"); })
                  .no([]() { return Just("no"); });
@@ -52,8 +52,8 @@ TEST(IfTest, No) {
 TEST(IfTest, Fail) {
   auto e = []() {
     return Just(0)
-        | Raise("error")
-        | Then([](int i) {
+        >> Raise("error")
+        >> Then([](int i) {
              return If(i == 1)
                  .yes([]() { return Just("yes"); })
                  .no([]() { return Just("no"); });
@@ -77,7 +77,7 @@ TEST(IfTest, Interrupt) {
 
   auto e = [&]() {
     return Just(1)
-        | Then([&](int i) {
+        >> Then([&](int i) {
              return If(i == 1)
                  .yes([&]() {
                    return Eventual<const char*>()
@@ -115,7 +115,7 @@ TEST(IfTest, Interrupt) {
 TEST(IfTest, Raise) {
   auto e = []() {
     return Just(1)
-        | Then([](int i) {
+        >> Then([](int i) {
              return If(i == 1)
                  .yes([]() { return 42; })
                  .no([]() { return Raise("raise"); });

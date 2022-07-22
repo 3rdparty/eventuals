@@ -46,81 +46,81 @@ struct _DoAll final {
     [[nodiscard]] auto BuildEventual(Eventual eventual) {
       return Build(
           std::move(eventual)
-          | Terminal()
-                .start([this](auto&&... value) {
-                  if constexpr (sizeof...(value) != 0) {
-                    std::get<index>(values_)
-                        .template emplace<std::decay_t<decltype(value)>...>(
-                            std::forward<decltype(value)>(value)...);
-                  } else {
-                    // Assume it's void, std::monostate will be the default.
-                  }
-                  if (counter_.fetch_sub(1) == 1) {
-                    // You're the last eventual so call the continuation.
-                    std::optional<std::exception_ptr> exception =
-                        GetExceptionIfExists();
+          >> Terminal()
+                 .start([this](auto&&... value) {
+                   if constexpr (sizeof...(value) != 0) {
+                     std::get<index>(values_)
+                         .template emplace<std::decay_t<decltype(value)>...>(
+                             std::forward<decltype(value)>(value)...);
+                   } else {
+                     // Assume it's void, std::monostate will be the default.
+                   }
+                   if (counter_.fetch_sub(1) == 1) {
+                     // You're the last eventual so call the continuation.
+                     std::optional<std::exception_ptr> exception =
+                         GetExceptionIfExists();
 
-                    if (exception) {
-                      try {
-                        std::rethrow_exception(*exception);
-                      } catch (const StoppedException&) {
-                        k_.Stop();
-                      } catch (...) {
-                        k_.Fail(std::current_exception());
-                      }
-                    } else {
-                      k_.Start(GetTupleOfValues());
-                    }
-                  }
-                })
-                .fail([this](auto&&... errors) {
-                  std::get<index>(values_)
-                      .template emplace<std::exception_ptr>(
-                          make_exception_ptr_or_forward(
-                              std::forward<decltype(errors)>(errors)...));
-                  if (counter_.fetch_sub(1) == 1) {
-                    // You're the last eventual so call the continuation.
-                    std::optional<std::exception_ptr> exception =
-                        GetExceptionIfExists();
+                     if (exception) {
+                       try {
+                         std::rethrow_exception(*exception);
+                       } catch (const StoppedException&) {
+                         k_.Stop();
+                       } catch (...) {
+                         k_.Fail(std::current_exception());
+                       }
+                     } else {
+                       k_.Start(GetTupleOfValues());
+                     }
+                   }
+                 })
+                 .fail([this](auto&&... errors) {
+                   std::get<index>(values_)
+                       .template emplace<std::exception_ptr>(
+                           make_exception_ptr_or_forward(
+                               std::forward<decltype(errors)>(errors)...));
+                   if (counter_.fetch_sub(1) == 1) {
+                     // You're the last eventual so call the continuation.
+                     std::optional<std::exception_ptr> exception =
+                         GetExceptionIfExists();
 
-                    CHECK(exception);
-                    try {
-                      std::rethrow_exception(*exception);
-                    } catch (const StoppedException&) {
-                      k_.Stop();
-                    } catch (...) {
-                      k_.Fail(std::current_exception());
-                    }
-                  } else {
-                    // Interrupt the remaining eventuals so we can
-                    // propagate the failure.
-                    interrupt_.Trigger();
-                  }
-                })
-                .stop([this]() {
-                  std::get<index>(values_)
-                      .template emplace<std::exception_ptr>(
-                          std::make_exception_ptr(
-                              StoppedException()));
-                  if (counter_.fetch_sub(1) == 1) {
-                    // You're the last eventual so call the continuation.
-                    std::optional<std::exception_ptr> exception =
-                        GetExceptionIfExists();
+                     CHECK(exception);
+                     try {
+                       std::rethrow_exception(*exception);
+                     } catch (const StoppedException&) {
+                       k_.Stop();
+                     } catch (...) {
+                       k_.Fail(std::current_exception());
+                     }
+                   } else {
+                     // Interrupt the remaining eventuals so we can
+                     // propagate the failure.
+                     interrupt_.Trigger();
+                   }
+                 })
+                 .stop([this]() {
+                   std::get<index>(values_)
+                       .template emplace<std::exception_ptr>(
+                           std::make_exception_ptr(
+                               StoppedException()));
+                   if (counter_.fetch_sub(1) == 1) {
+                     // You're the last eventual so call the continuation.
+                     std::optional<std::exception_ptr> exception =
+                         GetExceptionIfExists();
 
-                    CHECK(exception);
-                    try {
-                      std::rethrow_exception(*exception);
-                    } catch (const StoppedException&) {
-                      k_.Stop();
-                    } catch (...) {
-                      k_.Fail(std::current_exception());
-                    }
-                  } else {
-                    // Interrupt the remaining eventuals so we can
-                    // propagate the stop.
-                    interrupt_.Trigger();
-                  }
-                }));
+                     CHECK(exception);
+                     try {
+                       std::rethrow_exception(*exception);
+                     } catch (const StoppedException&) {
+                       k_.Stop();
+                     } catch (...) {
+                       k_.Fail(std::current_exception());
+                     }
+                   } else {
+                     // Interrupt the remaining eventuals so we can
+                     // propagate the stop.
+                     interrupt_.Trigger();
+                   }
+                 }));
     }
 
     std::tuple<

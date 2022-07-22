@@ -47,21 +47,21 @@ TEST(StreamTest, Succeed) {
                .done([&](auto&, auto&) {
                  done.Call();
                })
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              })
-              .fail([&](auto&, auto&, auto&&) {
-                fail.Call();
-              })
-              .stop([&](auto&, auto&) {
-                stop.Call();
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               })
+               .fail([&](auto&, auto&, auto&&) {
+                 fail.Call();
+               })
+               .stop([&](auto&, auto&) {
+                 stop.Call();
+               });
   };
 
   EXPECT_EQ(15, *s());
@@ -87,24 +87,24 @@ TEST(StreamTest, Done) {
                .done([](auto&, auto& k) {
                  k.Ended();
                })
-        | Loop<int>()
-              .context(0)
-              .body([](auto& count, auto& stream, auto&&) {
-                if (++count == 2) {
-                  stream.Done();
-                } else {
-                  stream.Next();
-                }
-              })
-              .ended([](auto& count, auto& k) {
-                k.Start(count);
-              })
-              .fail([&](auto&, auto&, auto&&) {
-                fail.Call();
-              })
-              .stop([&](auto&, auto&) {
-                stop.Call();
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& count, auto& stream, auto&&) {
+                 if (++count == 2) {
+                   stream.Done();
+                 } else {
+                   stream.Next();
+                 }
+               })
+               .ended([](auto& count, auto& k) {
+                 k.Start(count);
+               })
+               .fail([&](auto&, auto&, auto&&) {
+                 fail.Call();
+               })
+               .stop([&](auto&, auto&) {
+                 stop.Call();
+               });
   };
 
   EXPECT_EQ(2, *s());
@@ -137,21 +137,21 @@ TEST(StreamTest, Fail) {
                .done([&](auto&, auto&) {
                  done.Call();
                })
-        | Loop<int>()
-              .context(0)
-              .raises<std::runtime_error>()
-              .body([](auto&, auto& stream, auto&&) {
-                stream.Next();
-              })
-              .ended([&](auto&, auto&) {
-                ended.Call();
-              })
-              .fail([&](auto&, auto& k, auto&& error) {
-                k.Fail(std::forward<decltype(error)>(error));
-              })
-              .stop([&](auto&, auto&) {
-                stop.Call();
-              });
+        >> Loop<int>()
+               .context(0)
+               .raises<std::runtime_error>()
+               .body([](auto&, auto& stream, auto&&) {
+                 stream.Next();
+               })
+               .ended([&](auto&, auto&) {
+                 ended.Call();
+               })
+               .fail([&](auto&, auto& k, auto&& error) {
+                 k.Fail(std::forward<decltype(error)>(error));
+               })
+               .stop([&](auto&, auto&) {
+                 stop.Call();
+               });
   };
 
   static_assert(
@@ -203,26 +203,26 @@ TEST(StreamTest, InterruptStream) {
                .done([&](auto&, auto&, auto&) {
                  done.Call();
                })
-        | Loop<int>()
-              .body([&](auto& k, auto&&) {
-                auto thread = std::thread(
-                    [&]() mutable {
-                      while (!triggered.load()) {
-                        std::this_thread::yield();
-                      }
-                      k.Next();
-                    });
-                thread.detach();
-              })
-              .ended([&](auto&) {
-                ended.Call();
-              })
-              .fail([&](auto&, auto&&) {
-                fail.Call();
-              })
-              .stop([](auto& k) {
-                k.Stop();
-              });
+        >> Loop<int>()
+               .body([&](auto& k, auto&&) {
+                 auto thread = std::thread(
+                     [&]() mutable {
+                       while (!triggered.load()) {
+                         std::this_thread::yield();
+                       }
+                       k.Next();
+                     });
+                 thread.detach();
+               })
+               .ended([&](auto&) {
+                 ended.Call();
+               })
+               .fail([&](auto&, auto&&) {
+                 fail.Call();
+               })
+               .stop([](auto& k) {
+                 k.Stop();
+               });
   };
 
   auto [future, k] = PromisifyForTest(s());
@@ -261,42 +261,42 @@ TEST(StreamTest, InterruptLoop) {
                .done([](auto& k) {
                  k.Ended();
                })
-        | Loop<int>()
-              .context(Lazy<std::atomic<bool>>(false))
-              .interruptible()
-              .raises<std::runtime_error>()
-              .begin([](auto& interrupted,
-                        auto& k,
-                        auto& handler) {
-                CHECK(handler) << "Test expects interrupt to be registered";
-                handler->Install([&interrupted]() {
-                  interrupted->store(true);
-                });
-                k.Next();
-              })
-              .body([&](auto&, auto& k, auto&, auto&&) {
-                auto thread = std::thread(
-                    [&]() mutable {
-                      while (!triggered.load()) {
-                        std::this_thread::yield();
-                      }
-                      k.Done();
-                    });
-                thread.detach();
-              })
-              .ended([](auto& interrupted, auto& k, auto&) {
-                if (interrupted->load()) {
-                  k.Stop();
-                } else {
-                  k.Fail(std::runtime_error("error"));
-                }
-              })
-              .fail([&](auto&, auto&, auto&&) {
-                fail.Call();
-              })
-              .stop([&](auto&, auto&) {
-                stop.Call();
-              });
+        >> Loop<int>()
+               .context(Lazy<std::atomic<bool>>(false))
+               .interruptible()
+               .raises<std::runtime_error>()
+               .begin([](auto& interrupted,
+                         auto& k,
+                         auto& handler) {
+                 CHECK(handler) << "Test expects interrupt to be registered";
+                 handler->Install([&interrupted]() {
+                   interrupted->store(true);
+                 });
+                 k.Next();
+               })
+               .body([&](auto&, auto& k, auto&, auto&&) {
+                 auto thread = std::thread(
+                     [&]() mutable {
+                       while (!triggered.load()) {
+                         std::this_thread::yield();
+                       }
+                       k.Done();
+                     });
+                 thread.detach();
+               })
+               .ended([](auto& interrupted, auto& k, auto&) {
+                 if (interrupted->load()) {
+                   k.Stop();
+                 } else {
+                   k.Fail(std::runtime_error("error"));
+                 }
+               })
+               .fail([&](auto&, auto&, auto&&) {
+                 fail.Call();
+               })
+               .stop([&](auto&, auto&) {
+                 stop.Call();
+               });
   };
 
   static_assert(
@@ -331,8 +331,8 @@ TEST(StreamTest, InfiniteLoop) {
                    k.Ended();
                  }
                })
-        | Map([](int i) { return i + 1; })
-        | Loop();
+        >> Map([](int i) { return i + 1; })
+        >> Loop();
   };
 
   *s();
@@ -350,16 +350,16 @@ TEST(StreamTest, MapThenLoop) {
                    k.Ended();
                  }
                })
-        | Map([](int i) { return i + 1; })
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Map([](int i) { return i + 1; })
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(20, *s());
@@ -380,10 +380,10 @@ TEST(StreamTest, MapThenReduce) {
                .done([](auto&, auto& k) {
                  k.Ended();
                })
-        | Map([](int i) {
+        >> Map([](int i) {
              return i + 1;
            })
-        | Reduce(
+        >> Reduce(
                /* sum = */ 0,
                [](auto& sum) {
                  return Then([&](auto&& value) {
@@ -403,7 +403,7 @@ TEST(StreamTest, Head) {
                .next([](auto& k) {
                  k.Emit(42);
                })
-        | Head();
+        >> Head();
   };
 
   EXPECT_EQ(42, *s1());
@@ -413,7 +413,7 @@ TEST(StreamTest, Head) {
                .next([](auto& k) {
                  k.Ended();
                })
-        | Head();
+        >> Head();
   };
 
   EXPECT_THAT(
@@ -424,11 +424,11 @@ TEST(StreamTest, Head) {
 TEST(StreamTest, PropagateError) {
   auto e = []() {
     return Raise(std::runtime_error("error"))
-        | Stream<int>()
-              .next([](auto& k) {
-                k.Ended();
-              })
-        | Head();
+        >> Stream<int>()
+               .next([](auto& k) {
+                 k.Ended();
+               })
+        >> Head();
   };
 
   static_assert(
@@ -444,20 +444,20 @@ TEST(StreamTest, PropagateError) {
 TEST(StreamTest, ThrowSpecificError) {
   auto e = []() {
     return Raise(std::bad_alloc())
-        | Stream<int>()
-              .raises<std::runtime_error>()
-              .fail([](auto& k, auto&& error) {
-                static_assert(
-                    std::is_same_v<
-                        std::decay_t<decltype(error)>,
-                        std::bad_alloc>);
+        >> Stream<int>()
+               .raises<std::runtime_error>()
+               .fail([](auto& k, auto&& error) {
+                 static_assert(
+                     std::is_same_v<
+                         std::decay_t<decltype(error)>,
+                         std::bad_alloc>);
 
-                k.Fail(std::runtime_error("error"));
-              })
-              .next([](auto& k) {
-                k.Ended();
-              })
-        | Head();
+                 k.Fail(std::runtime_error("error"));
+               })
+               .next([](auto& k) {
+                 k.Ended();
+               })
+        >> Head();
   };
 
   static_assert(
@@ -473,20 +473,20 @@ TEST(StreamTest, ThrowSpecificError) {
 TEST(StreamTest, ThrowGeneralError) {
   auto e = []() {
     return Raise(std::bad_alloc())
-        | Stream<int>()
-              .raises() // Same as 'raises<std::exception>'.
-              .fail([](auto& k, auto&& error) {
-                static_assert(
-                    std::is_same_v<
-                        std::decay_t<decltype(error)>,
-                        std::bad_alloc>);
+        >> Stream<int>()
+               .raises() // Same as 'raises<std::exception>'.
+               .fail([](auto& k, auto&& error) {
+                 static_assert(
+                     std::is_same_v<
+                         std::decay_t<decltype(error)>,
+                         std::bad_alloc>);
 
-                k.Fail(std::runtime_error("error"));
-              })
-              .next([](auto& k) {
-                k.Ended();
-              })
-        | Head();
+                 k.Fail(std::runtime_error("error"));
+               })
+               .next([](auto& k) {
+                 k.Ended();
+               })
+        >> Head();
   };
 
   static_assert(

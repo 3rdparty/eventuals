@@ -28,13 +28,13 @@ TEST(RepeatTest, Succeed) {
 
   auto r = [&]() {
     return Repeat([i = 0]() mutable { return i++; })
-        | Until([](auto& i) {
+        >> Until([](auto& i) {
              return i == 5;
            })
-        | Map([&](auto&& i) {
+        >> Map([&](auto&& i) {
              return e(i);
            })
-        | Reduce(
+        >> Reduce(
                /* sum = */ 0,
                [](auto& sum) {
                  return Then([&](auto&& i) {
@@ -59,13 +59,13 @@ TEST(RepeatTest, Fail) {
 
   auto r = [&]() {
     return Repeat([i = 0]() mutable { return i++; })
-        | Until([](auto& i) {
+        >> Until([](auto& i) {
              return i == 5;
            })
-        | Map([&](auto&& i) {
+        >> Map([&](auto&& i) {
              return e(i);
            })
-        | Reduce(
+        >> Reduce(
                /* sum = */ 0,
                [](auto& sum) {
                  return Then([&](auto&& i) {
@@ -99,13 +99,13 @@ TEST(RepeatTest, Interrupt) {
 
   auto r = [&]() {
     return Repeat([i = 0]() mutable { return i++; })
-        | Until([](auto& i) {
+        >> Until([](auto& i) {
              return i == 5;
            })
-        | Map([&](auto&& i) {
+        >> Map([&](auto&& i) {
              return e(i);
            })
-        | Reduce(
+        >> Reduce(
                /* sum = */ 0,
                [](auto& sum) {
                  return Then([&](auto&& i) {
@@ -135,25 +135,25 @@ TEST(RepeatTest, Interrupt) {
 TEST(RepeatTest, Map) {
   auto r = []() {
     return Repeat()
-        | Map([]() {
+        >> Map([]() {
              return Eventual<int>()
                  .start([](auto& k) {
                    k.Start(1);
                  });
            })
-        | Loop<int>()
-              .context(0)
-              .body([](auto&& count, auto& repeated, auto&& value) {
-                count += value;
-                if (count >= 5) {
-                  repeated.Done();
-                } else {
-                  repeated.Next();
-                }
-              })
-              .ended([](auto& count, auto& k) {
-                k.Start(std::move(count));
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto&& count, auto& repeated, auto&& value) {
+                 count += value;
+                 if (count >= 5) {
+                   repeated.Done();
+                 } else {
+                   repeated.Next();
+                 }
+               })
+               .ended([](auto& count, auto& k) {
+                 k.Start(std::move(count));
+               });
   };
 
   EXPECT_EQ(5, *r());
@@ -170,24 +170,24 @@ TEST(RepeatTest, MapAcquire) {
                    k.Start(1);
                  });
            })
-        | Acquire(&lock)
-        | Map([](auto&& i) {
+        >> Acquire(&lock)
+        >> Map([](auto&& i) {
              return i;
            })
-        | Release(&lock)
-        | Loop<int>()
-              .context(0)
-              .body([](auto&& count, auto& repeated, auto&& value) {
-                count += value;
-                if (count >= 5) {
-                  repeated.Done();
-                } else {
-                  repeated.Next();
-                }
-              })
-              .ended([](auto& count, auto& k) {
-                k.Start(std::move(count));
-              });
+        >> Release(&lock)
+        >> Loop<int>()
+               .context(0)
+               .body([](auto&& count, auto& repeated, auto&& value) {
+                 count += value;
+                 if (count >= 5) {
+                   repeated.Done();
+                 } else {
+                   repeated.Next();
+                 }
+               })
+               .ended([](auto& count, auto& k) {
+                 k.Start(std::move(count));
+               });
   };
 
   EXPECT_EQ(5, *r());

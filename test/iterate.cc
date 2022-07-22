@@ -26,15 +26,15 @@ TEST(Iterate, VectorLvalue) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -46,15 +46,15 @@ TEST(Iterate, VectorBeginEnd) {
 
   auto s = [&]() {
     return Iterate(v.begin(), v.end() - 1)
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(5, *s());
@@ -64,15 +64,15 @@ TEST(Iterate, VectorBeginEnd) {
 TEST(Iterate, VectorRvalue) {
   auto s = [&]() {
     return Iterate(std::vector<int>({5, 12}))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -84,15 +84,15 @@ TEST(Iterate, VectorMove) {
 
   auto s = [&]() {
     return Iterate(std::move(v))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -105,15 +105,15 @@ TEST(Iterate, SetLvalue) {
 
   auto s = [&]() {
     return Iterate(container)
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -125,15 +125,15 @@ TEST(Iterate, SetBeginEnd) {
 
   auto s = [&]() {
     return Iterate(container.begin(), container.end())
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -143,15 +143,15 @@ TEST(Iterate, SetBeginEnd) {
 TEST(Iterate, SetRvalue) {
   auto s = [&]() {
     return Iterate(std::set<int>({5, 12}))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -163,15 +163,15 @@ TEST(Iterate, SetMove) {
 
   auto s = [&]() {
     return Iterate(std::move(container))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -184,15 +184,15 @@ TEST(Iterate, ListLvalue) {
 
   auto s = [&]() {
     return Iterate(container)
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -204,15 +204,15 @@ TEST(Iterate, ListBeginEnd) {
 
   auto s = [&]() {
     return Iterate(container.begin(), container.end())
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -222,15 +222,15 @@ TEST(Iterate, ListBeginEnd) {
 TEST(Iterate, ListRvalue) {
   auto s = [&]() {
     return Iterate(std::list<int>({5, 12}))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -242,15 +242,15 @@ TEST(Iterate, ListMove) {
 
   auto s = [&]() {
     return Iterate(std::move(container))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -263,15 +263,15 @@ TEST(Iterate, DequeLvalue) {
 
   auto s = [&]() {
     return Iterate(container)
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -283,15 +283,15 @@ TEST(Iterate, DequeBeginEnd) {
 
   auto s = [&]() {
     return Iterate(container.begin() + 1, container.end())
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(12, *s());
@@ -301,15 +301,15 @@ TEST(Iterate, DequeBeginEnd) {
 TEST(Iterate, DequeRvalue) {
   auto s = [&]() {
     return Iterate(std::deque<int>({5, 12}))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -321,15 +321,15 @@ TEST(Iterate, DequeMove) {
 
   auto s = [&]() {
     return Iterate(std::move(container))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -342,15 +342,15 @@ TEST(Iterate, MapLvalue) {
 
   auto s = [&]() {
     return Iterate(container)
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value.second;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value.second;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -362,15 +362,15 @@ TEST(Iterate, MapBeginEnd) {
 
   auto s = [&]() {
     return Iterate(container.begin(), container.end())
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value.second;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value.second;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -380,15 +380,15 @@ TEST(Iterate, MapBeginEnd) {
 TEST(Iterate, MapRvalue) {
   auto s = [&]() {
     return Iterate(std::map<int, int>{{1, 5}, {2, 12}})
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value.second;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value.second;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -400,15 +400,15 @@ TEST(Iterate, MapMove) {
 
   auto s = [&]() {
     return Iterate(std::move(container))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value.second;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value.second;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -421,15 +421,15 @@ TEST(Iterate, UnorderedSetLvalue) {
 
   auto s = [&]() {
     return Iterate(container)
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -441,15 +441,15 @@ TEST(Iterate, UnorderedSetBeginEnd) {
 
   auto s = [&]() {
     return Iterate(container.begin(), container.end())
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -459,15 +459,15 @@ TEST(Iterate, UnorderedSetBeginEnd) {
 TEST(Iterate, UnorderedSetRvalue) {
   auto s = [&]() {
     return Iterate(std::unordered_set<int>{5, 12})
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -479,15 +479,15 @@ TEST(Iterate, UnorderedSetMove) {
 
   auto s = [&]() {
     return Iterate(std::move(container))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -500,15 +500,15 @@ TEST(Iterate, UnorderedMapLvalue) {
 
   auto s = [&]() {
     return Iterate(container)
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value.second;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value.second;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -520,15 +520,15 @@ TEST(Iterate, UnorderedMapBeginEnd) {
 
   auto s = [&]() {
     return Iterate(container.begin(), container.end())
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value.second;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value.second;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -538,15 +538,15 @@ TEST(Iterate, UnorderedMapBeginEnd) {
 TEST(Iterate, UnorderedMapRvalue) {
   auto s = [&]() {
     return Iterate(std::unordered_map<int, int>{{1, 5}, {2, 12}})
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value.second;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value.second;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -558,15 +558,15 @@ TEST(Iterate, UnorderedMapMove) {
 
   auto s = [&]() {
     return Iterate(std::move(container))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value.second;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value.second;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -579,15 +579,15 @@ TEST(Iterate, ArrayLvalue) {
 
   auto s = [&]() {
     return Iterate(container)
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -599,15 +599,15 @@ TEST(Iterate, ArrayBeginEnd) {
 
   auto s = [&]() {
     return Iterate(container.begin(), container.end() - 1)
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(5, *s());
@@ -617,15 +617,15 @@ TEST(Iterate, ArrayBeginEnd) {
 TEST(Iterate, ArrayRvalue) {
   auto s = [&]() {
     return Iterate(std::array<int, 2>({5, 12}))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -637,15 +637,15 @@ TEST(Iterate, ArrayMove) {
 
   auto s = [&]() {
     return Iterate(std::move(container))
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -657,15 +657,15 @@ TEST(Iterate, ArrayStringMove) {
 
   auto s = [&]() {
     return Iterate(std::move(container))
-        | Loop<std::string>()
-              .context(std::string(""))
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<std::string>()
+               .context(std::string(""))
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ("HelloWorld", *s());
@@ -679,15 +679,15 @@ TEST(Iterate, CommonArrayPointer) {
 
   auto s = [&]() {
     return Iterate(&container[0], &container[1] + 1)
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -699,15 +699,15 @@ TEST(Iterate, CommonArraySize) {
 
   auto s = [&]() {
     return Iterate(container, 2)
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(17, *s());
@@ -719,18 +719,18 @@ TEST(Iterate, VectorStringConcatenate) {
 
   auto s = [&]() {
     return Iterate(container)
-        | Loop<std::string>()
-              .context(std::string(""))
-              .body([](auto& s, auto& stream, auto&& value) {
-                if (!s.empty()) {
-                  s += ' ';
-                }
-                s += value;
-                stream.Next();
-              })
-              .ended([](auto& s, auto& k) {
-                k.Start(s);
-              });
+        >> Loop<std::string>()
+               .context(std::string(""))
+               .body([](auto& s, auto& stream, auto&& value) {
+                 if (!s.empty()) {
+                   s += ' ';
+                 }
+                 s += value;
+                 stream.Next();
+               })
+               .ended([](auto& s, auto& k) {
+                 k.Start(s);
+               });
   };
 
   EXPECT_EQ("Hello World !", *s());
@@ -742,18 +742,18 @@ TEST(Iterate, VectorStringContcatenatePartial) {
 
   auto s = [&]() {
     return Iterate(container.begin() + 2, container.end() - 1)
-        | Loop<std::string>()
-              .context(std::string(""))
-              .body([](auto& s, auto& stream, auto&& value) {
-                if (!s.empty()) {
-                  s += ' ';
-                }
-                s += value;
-                stream.Next();
-              })
-              .ended([](auto& s, auto& k) {
-                k.Start(s);
-              });
+        >> Loop<std::string>()
+               .context(std::string(""))
+               .body([](auto& s, auto& stream, auto&& value) {
+                 if (!s.empty()) {
+                   s += ' ';
+                 }
+                 s += value;
+                 stream.Next();
+               })
+               .ended([](auto& s, auto& k) {
+                 k.Start(s);
+               });
   };
 
   EXPECT_EQ("Hello World", *s());
@@ -762,15 +762,15 @@ TEST(Iterate, VectorStringContcatenatePartial) {
 TEST(Iterate, InitializerList) {
   auto s = []() {
     return Iterate({5, 12, 13})
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(30, *s());
@@ -784,11 +784,11 @@ TEST(Iterate, UniquePtr) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Map([](auto& i) -> decltype(i) {
+        >> Map([](auto& i) -> decltype(i) {
              (*i)++;
              return i;
            })
-        | Reduce(
+        >> Reduce(
                /* sum = */ 0,
                [](auto& sum) {
                  return Then([&](auto& i) {

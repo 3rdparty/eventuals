@@ -61,16 +61,16 @@ void test_client_behavior(Handler handler) {
                Stream<keyvaluestore::Request>,
                Stream<keyvaluestore::Response>>(
                "keyvaluestore.KeyValueStore.GetValues")
-        | Head()
-        | Then(Let([](auto& call) {
+        >> Head()
+        >> Then(Let([](auto& call) {
              return call.Reader().Read()
-                 | Map([&](auto&& request) {
+                 >> Map([&](auto&& request) {
                       keyvaluestore::Response response;
                       response.set_value(request.key());
                       return call.Writer().Write(response);
                     })
-                 | Loop()
-                 | Closure([]() {
+                 >> Loop()
+                 >> Closure([]() {
                       std::vector<keyvaluestore::Response> responses;
                       for (size_t i = 0; i < 3; i++) {
                         keyvaluestore::Response response;
@@ -79,7 +79,7 @@ void test_client_behavior(Handler handler) {
                       }
                       return Iterate(std::move(responses));
                     })
-                 | StreamingEpilogue(call);
+                 >> StreamingEpilogue(call);
            }));
   };
 
@@ -99,7 +99,7 @@ void test_client_behavior(Handler handler) {
                Stream<keyvaluestore::Request>,
                Stream<keyvaluestore::Response>>(
                "keyvaluestore.KeyValueStore.GetValues")
-        | std::move(handler);
+        >> std::move(handler);
   };
 
   auto status = *call();
@@ -116,35 +116,35 @@ TEST(StreamingTest, WriteLast_AfterReply_TwoRequests) {
         keyvaluestore::Request request;
         request.set_key("1");
         return call.Writer().Write(request)
-            | call.Reader().Read()
-            | Head()
-            | Then([&](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([&](auto&& response) {
                  EXPECT_EQ("1", response.value());
                  keyvaluestore::Request request;
                  request.set_key("2");
                  return call.Writer().WriteLast(request);
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("2", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("10", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("11", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("12", response.value());
                })
-            | call.Finish();
+            >> call.Finish();
       })));
 }
 
@@ -154,27 +154,27 @@ TEST(StreamingTest, WriteLast_BeforeReply_OneRequest) {
         keyvaluestore::Request request;
         request.set_key("1");
         return call.Writer().WriteLast(request)
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("1", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("10", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("11", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("12", response.value());
                })
-            | call.Finish();
+            >> call.Finish();
       })));
 }
 
@@ -184,37 +184,37 @@ TEST(StreamingTest, WriteLast_BeforeReply_TwoRequests) {
         keyvaluestore::Request request1;
         request1.set_key("1");
         return call.Writer().Write(request1)
-            | Then([&]() {
+            >> Then([&]() {
                  keyvaluestore::Request request2;
                  request2.set_key("2");
                  return call.Writer().WriteLast(request2);
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("1", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("2", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("10", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("11", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("12", response.value());
                })
-            | call.Finish();
+            >> call.Finish();
       })));
 }
 
@@ -224,28 +224,28 @@ TEST(StreamingTest, WritesDone_AfterReply_OneRequest) {
         keyvaluestore::Request request;
         request.set_key("1");
         return call.Writer().Write(request)
-            | call.Reader().Read()
-            | Head()
-            | Then([&](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([&](auto&& response) {
                  EXPECT_EQ("1", response.value());
                  return call.WritesDone();
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("10", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("11", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("12", response.value());
                })
-            | call.Finish();
+            >> call.Finish();
       })));
 }
 
@@ -255,36 +255,36 @@ TEST(StreamingTest, WritesDone_AfterReply_TwoRequests) {
         keyvaluestore::Request request;
         request.set_key("1");
         return call.Writer().Write(request)
-            | call.Reader().Read()
-            | Head()
-            | Then([&](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([&](auto&& response) {
                  EXPECT_EQ("1", response.value());
                  keyvaluestore::Request request;
                  request.set_key("2");
                  return call.Writer().Write(request);
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([&](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([&](auto&& response) {
                  EXPECT_EQ("2", response.value());
                  return call.WritesDone();
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("10", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("11", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("12", response.value());
                })
-            | call.Finish();
+            >> call.Finish();
       })));
 }
 
@@ -294,28 +294,28 @@ TEST(StreamingTest, WritesDone_BeforeReply_OneRequest) {
         keyvaluestore::Request request1;
         request1.set_key("1");
         return call.Writer().Write(request1)
-            | call.WritesDone()
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.WritesDone()
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("1", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("10", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("11", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("12", response.value());
                })
-            | call.Finish();
+            >> call.Finish();
       })));
 }
 
@@ -325,38 +325,38 @@ TEST(StreamingTest, WritesDone_BeforeReply_TwoRequests) {
         keyvaluestore::Request request1;
         request1.set_key("1");
         return call.Writer().Write(request1)
-            | Then([&]() {
+            >> Then([&]() {
                  keyvaluestore::Request request2;
                  request2.set_key("2");
                  return call.Writer().Write(request2)
-                     | call.WritesDone();
+                     >> call.WritesDone();
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("1", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("2", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("10", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("11", response.value());
                })
-            | call.Reader().Read()
-            | Head()
-            | Then([](auto&& response) {
+            >> call.Reader().Read()
+            >> Head()
+            >> Then([](auto&& response) {
                  EXPECT_EQ("12", response.value());
                })
-            | call.Finish();
+            >> call.Finish();
       })));
 }
 

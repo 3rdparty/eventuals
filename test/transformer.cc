@@ -33,11 +33,11 @@ TEST(Transformer, Succeed) {
 
   auto e = [&]() {
     return Iterate({100})
-        | transformer()
-        | Map([](std::string s) {
+        >> transformer()
+        >> Map([](std::string s) {
              return s;
            })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   EXPECT_THAT(*e(), ElementsAre("100"));
@@ -64,12 +64,12 @@ TEST(Transformer, Stop) {
                .next([](auto& k) {
                  k.Stop();
                })
-        | transformer()
-        | Map([&](std::string s) {
+        >> transformer()
+        >> Map([&](std::string s) {
              map_start.Call();
              return s;
            })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   EXPECT_THROW(*e(), eventuals::StoppedException);
@@ -97,12 +97,12 @@ TEST(Transformer, Fail) {
                .next([](auto& k) {
                  k.Fail(std::runtime_error("error"));
                })
-        | transformer()
-        | Map([&](std::string s) {
+        >> transformer()
+        >> Map([&](std::string s) {
              map_start.Call();
              return s;
            })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   static_assert(
@@ -153,12 +153,12 @@ TEST(Transformer, Interrupt) {
                .done([&](auto&, auto&) {
                  done.Call();
                })
-        | transformer()
-        | Map([&](std::string s) {
+        >> transformer()
+        >> Map([&](std::string s) {
              map_start.Call();
              return s;
            })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   Interrupt interrupt;
@@ -192,12 +192,12 @@ TEST(Transformer, PropagateStop) {
 
   auto e = [&]() {
     return Iterate({100})
-        | transformer()
-        | Map([&](std::string s) {
+        >> transformer()
+        >> Map([&](std::string s) {
              map_start.Call();
              return s;
            })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   EXPECT_THROW(*e(), eventuals::StoppedException);
@@ -224,12 +224,12 @@ TEST(Transformer, PropagateFail) {
 
   auto e = [&]() {
     return Iterate({100})
-        | transformer()
-        | Map([&](std::string s) {
+        >> transformer()
+        >> Map([&](std::string s) {
              map_start.Call();
              return s;
            })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   static_assert(

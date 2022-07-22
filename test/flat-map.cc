@@ -29,8 +29,8 @@ using testing::ElementsAre;
 TEST(FlatMap, TwoLevelLoop) {
   auto s = []() {
     return Range(2)
-        | FlatMap([](int x) { return Range(2); })
-        | Collect<std::vector>();
+        >> FlatMap([](int x) { return Range(2); })
+        >> Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(0, 1, 0, 1));
@@ -39,9 +39,9 @@ TEST(FlatMap, TwoLevelLoop) {
 TEST(FlatMap, FlatMapMapped) {
   auto s = []() {
     return Range(2)
-        | FlatMap([](int x) { return Range(2); })
-        | Map([](int x) { return x + 1; })
-        | Collect<std::vector>();
+        >> FlatMap([](int x) { return Range(2); })
+        >> Map([](int x) { return x + 1; })
+        >> Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(1, 2, 1, 2));
@@ -50,12 +50,12 @@ TEST(FlatMap, FlatMapMapped) {
 TEST(FlatMap, FlatMapIterate) {
   auto s = []() {
     return Range(2)
-        | FlatMap([](int x) {
+        >> FlatMap([](int x) {
              std::vector<int> v = {1, 2, 3};
              return Iterate(std::move(v));
            })
-        | Map([](int x) { return x + 1; })
-        | Collect<std::vector>();
+        >> Map([](int x) { return x + 1; })
+        >> Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(2, 3, 4, 2, 3, 4));
@@ -64,7 +64,7 @@ TEST(FlatMap, FlatMapIterate) {
 TEST(FlatMap, TwoIndexesSum) {
   auto s = []() {
     return Range(3)
-        | FlatMap([](int x) {
+        >> FlatMap([](int x) {
              return Stream<int>()
                  .next([container = std::vector<int>({1, 2}),
                         i = 0u,
@@ -79,7 +79,7 @@ TEST(FlatMap, TwoIndexesSum) {
                    k.Ended();
                  });
            })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(1, 2, 2, 3, 3, 4));
@@ -88,11 +88,11 @@ TEST(FlatMap, TwoIndexesSum) {
 TEST(FlatMap, TwoIndexesSumMap) {
   auto s = []() {
     return Range(3)
-        | FlatMap([](int x) {
+        >> FlatMap([](int x) {
              return Range(1, 3)
-                 | Map([x](int y) { return x + y; });
+                 >> Map([x](int y) { return x + y; });
            })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(1, 2, 2, 3, 3, 4));
@@ -101,13 +101,13 @@ TEST(FlatMap, TwoIndexesSumMap) {
 TEST(FlatMap, Let) {
   auto s = []() {
     return Iterate({1, 2})
-        | FlatMap(Let([](int& x) {
+        >> FlatMap(Let([](int& x) {
              return Iterate({1, 2})
-                 | FlatMap(Let([&x](int& y) {
+                 >> FlatMap(Let([&x](int& y) {
                       return Iterate({x, y});
                     }));
            }))
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(1, 1, 1, 2, 2, 1, 2, 2));
@@ -116,12 +116,12 @@ TEST(FlatMap, Let) {
 TEST(FlatMap, FlatMapIterateString) {
   auto s = []() {
     return Iterate(std::vector<std::string>({"abc", "abc"}))
-        | FlatMap([](std::string x) {
+        >> FlatMap([](std::string x) {
              std::vector<int> v = {1, 2, 3};
              return Iterate(std::move(v));
            })
-        | Map([](int x) { return x + 1; })
-        | Collect<std::vector>();
+        >> Map([](int x) { return x + 1; })
+        >> Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(2, 3, 4, 2, 3, 4));
@@ -130,9 +130,9 @@ TEST(FlatMap, FlatMapIterateString) {
 TEST(FlatMap, ThreeLevelLoop) {
   auto s = []() {
     return Range(2)
-        | FlatMap([](int x) { return Range(2); })
-        | FlatMap([](int x) { return Range(2); })
-        | Collect<std::vector>();
+        >> FlatMap([](int x) { return Range(2); })
+        >> FlatMap([](int x) { return Range(2); })
+        >> Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1));
@@ -141,13 +141,13 @@ TEST(FlatMap, ThreeLevelLoop) {
 TEST(FlatMap, ThreeLevelLoopInside) {
   auto s = []() {
     return Range(2)
-        | FlatMap([](int x) {
+        >> FlatMap([](int x) {
              return Range(2)
-                 | FlatMap([](int y) {
+                 >> FlatMap([](int y) {
                       return Range(2);
                     });
            })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1));
@@ -156,15 +156,15 @@ TEST(FlatMap, ThreeLevelLoopInside) {
 TEST(FlatMap, ThreeIndexesSumMap) {
   auto s = []() {
     return Range(3)
-        | FlatMap([](int x) {
+        >> FlatMap([](int x) {
              return Range(1, 3)
-                 | Map([x](int y) { return x + y; });
+                 >> Map([x](int y) { return x + y; });
            })
-        | FlatMap([](int sum) {
+        >> FlatMap([](int sum) {
              return Range(1, 3)
-                 | Map([sum](int z) { return sum + z; });
+                 >> Map([sum](int z) { return sum + z; });
            })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(2, 3, 3, 4, 3, 4, 4, 5, 4, 5, 5, 6));
@@ -174,14 +174,14 @@ TEST(FlatMap, ThreeIndexesSumMap) {
 TEST(FlatMap, VectorVector) {
   auto s = []() {
     return Iterate(std::vector<int>({2, 3, 14}))
-        | FlatMap([](int x) {
+        >> FlatMap([](int x) {
              std::vector<std::vector<int>> c;
              c.push_back(std::vector<int>());
              c.push_back(std::vector<int>());
              return Iterate(std::move(c));
            })
-        | FlatMap([](std::vector<int> x) { return Range(2); })
-        | Collect<std::vector>();
+        >> FlatMap([](std::vector<int> x) { return Range(2); })
+        >> Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1));
@@ -192,15 +192,15 @@ class FlatMapTest : public EventLoopTest {};
 TEST_F(FlatMapTest, Interrupt) {
   auto e = []() {
     return Iterate(std::vector<int>(1000))
-        | Map([](int x) {
+        >> Map([](int x) {
              return Timer(std::chrono::milliseconds(100))
-                 | Just(x);
+                 >> Just(x);
            })
-        | FlatMap([](int x) { return Iterate({1, 2}); })
-        | Collect<std::vector<int>>()
-              .stop([](auto& collection, auto& k) {
-                k.Start(std::move(collection));
-              });
+        >> FlatMap([](int x) { return Iterate({1, 2}); })
+        >> Collect<std::vector<int>>()
+               .stop([](auto& collection, auto& k) {
+                 k.Start(std::move(collection));
+               });
   };
 
   auto [future, k] = PromisifyForTest(e());
@@ -225,7 +225,7 @@ TEST(FlatMap, InterruptReturn) {
 
   auto e = [&]() {
     return Iterate(std::vector<int>(1000))
-        | FlatMap([&](int x) {
+        >> FlatMap([&](int x) {
              return Stream<int>()
                  .interruptible()
                  .begin([&](auto& k, auto& handler) {
@@ -239,7 +239,7 @@ TEST(FlatMap, InterruptReturn) {
                    k.Ended();
                  });
            })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   auto [future, k] = PromisifyForTest(e());

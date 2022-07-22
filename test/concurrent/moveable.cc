@@ -21,12 +21,12 @@ TYPED_TEST(ConcurrentTypedTest, Moveable) {
 
   auto e = [&]() {
     return Iterate({Moveable()})
-        | this->ConcurrentOrConcurrentOrdered([]() {
+        >> this->ConcurrentOrConcurrentOrdered([]() {
             return Map(Let([](auto& moveable) {
               return 42;
             }));
           })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   static_assert(

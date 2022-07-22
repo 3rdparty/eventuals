@@ -41,22 +41,22 @@ TEST(EventualTest, Succeed) {
                      });
                  thread.detach();
                })
-        | Then([](int i) { return i + 2; })
-        | Eventual<int>()
-              .context(9)
-              .start([](auto& context, auto& k, auto&& value) {
-                auto thread = std::thread(
-                    [value, &context, &k]() mutable {
-                      k.Start(context - value);
-                    });
-                thread.detach();
-              })
-              .fail([&](auto&, auto&, auto&&) {
-                fail.Call();
-              })
-              .stop([&](auto&, auto&) {
-                stop.Call();
-              });
+        >> Then([](int i) { return i + 2; })
+        >> Eventual<int>()
+               .context(9)
+               .start([](auto& context, auto& k, auto&& value) {
+                 auto thread = std::thread(
+                     [value, &context, &k]() mutable {
+                       k.Start(context - value);
+                     });
+                 thread.detach();
+               })
+               .fail([&](auto&, auto&, auto&&) {
+                 fail.Call();
+               })
+               .stop([&](auto&, auto&) {
+                 stop.Call();
+               });
   };
 
   EXPECT_EQ(2, *e());
@@ -84,14 +84,14 @@ TEST(EventualTest, Fail) {
                      });
                  thread.detach();
                })
-        | Then([](int i) { return i + 2; })
-        | Eventual<int>()
-              .start([&](auto& k, auto&& value) {
-                start.Call();
-              })
-              .stop([&](auto&) {
-                stop.Call();
-              });
+        >> Then([](int i) { return i + 2; })
+        >> Eventual<int>()
+               .start([&](auto& k, auto&& value) {
+                 start.Call();
+               })
+               .stop([&](auto&) {
+                 stop.Call();
+               });
   };
 
   EXPECT_THAT(
@@ -119,17 +119,17 @@ TEST(EventualTest, Interrupt) {
                  });
                  start.Call();
                })
-        | Then([](int i) { return i + 2; })
-        | Eventual<int>()
-              .start([&](auto&, auto&&) {
-                start.Call();
-              })
-              .fail([&](auto&, auto&&) {
-                fail.Call();
-              })
-              .stop([](auto& k) {
-                k.Stop();
-              });
+        >> Then([](int i) { return i + 2; })
+        >> Eventual<int>()
+               .start([&](auto&, auto&&) {
+                 start.Call();
+               })
+               .fail([&](auto&, auto&&) {
+                 fail.Call();
+               })
+               .stop([](auto& k) {
+                 k.Stop();
+               });
   };
 
   auto [future, k] = PromisifyForTest(e());
@@ -160,31 +160,31 @@ TEST(EventualTest, Reuse) {
                       });
                   thread.detach();
                 }))
-        | Then([](int i) { return i + 2; })
-        | Eventual<int>()
-              .context(9)
-              .start([](auto& context, auto& k, auto&& value) {
-                auto thread = std::thread(
-                    [value, &context, &k]() mutable {
-                      k.Start(context - value);
-                    });
-                thread.detach();
-              })
-        | Terminal()
-              .context(std::move(promise))
-              .start([](auto& promise, auto&& value) {
-                promise.set_value(std::forward<decltype(value)>(value));
-              })
-              .fail([](auto& promise, auto&& error) {
-                promise.set_exception(
-                    make_exception_ptr_or_forward(
-                        std::forward<decltype(error)>(error)));
-              })
-              .stop([](auto& promise) {
-                promise.set_exception(
-                    std::make_exception_ptr(
-                        eventuals::StoppedException()));
-              });
+        >> Then([](int i) { return i + 2; })
+        >> Eventual<int>()
+               .context(9)
+               .start([](auto& context, auto& k, auto&& value) {
+                 auto thread = std::thread(
+                     [value, &context, &k]() mutable {
+                       k.Start(context - value);
+                     });
+                 thread.detach();
+               })
+        >> Terminal()
+               .context(std::move(promise))
+               .start([](auto& promise, auto&& value) {
+                 promise.set_value(std::forward<decltype(value)>(value));
+               })
+               .fail([](auto& promise, auto&& error) {
+                 promise.set_exception(
+                     make_exception_ptr_or_forward(
+                         std::forward<decltype(error)>(error)));
+               })
+               .stop([](auto& promise) {
+                 promise.set_exception(
+                     std::make_exception_ptr(
+                         eventuals::StoppedException()));
+               });
   };
 
   using Operation = decltype(Build(operation(int(), std::promise<int>())));
@@ -215,9 +215,9 @@ TEST(EventualTest, Reuse) {
 TEST(EventualTest, Raise) {
   auto e = []() {
     return Just(42)
-        | Raise("error")
-        | Raise("another error")
-        | Just(12);
+        >> Raise("error")
+        >> Raise("another error")
+        >> Just(12);
   };
 
   static_assert(
@@ -234,11 +234,11 @@ TEST(EventualTest, Raise) {
 TEST(EventualTest, Catch) {
   auto e = []() {
     return Just(41)
-        | Raise("error")
-        | Catch([](auto&&... error) { // The same as 'std::exception_ptr&&'.
+        >> Raise("error")
+        >> Catch([](auto&&... error) { // The same as 'std::exception_ptr&&'.
              return 42;
            })
-        | Then([](int&& value) {
+        >> Then([](int&& value) {
              return value;
            });
   };
@@ -255,8 +255,8 @@ TEST(EventualTest, Catch) {
 TEST(EventualTest, CatchVoid) {
   auto e = []() {
     return Just()
-        | Raise("error")
-        | Catch(Let([](auto& error) {
+        >> Raise("error")
+        >> Catch(Let([](auto& error) {
              return Then([&]() {
                try {
                  std::rethrow_exception(error);
@@ -265,7 +265,7 @@ TEST(EventualTest, CatchVoid) {
                }
              });
            }))
-        | Then([]() {
+        >> Then([]() {
              return 42;
            });
   };
@@ -277,10 +277,10 @@ TEST(EventualTest, CatchVoid) {
 TEST(EventualTest, Then) {
   auto e = []() {
     return Just(20)
-        | Then([](auto i) {
+        >> Then([](auto i) {
              return i + 1;
            })
-        | Then([](auto j) {
+        >> Then([](auto j) {
              return j * 2;
            });
   };
@@ -296,7 +296,7 @@ TEST(EventualTest, ConstRef) {
     return Eventual<const int&>([&](auto& k) {
              k.Start(std::cref(x));
            })
-        | Then([](const int& x) {
+        >> Then([](const int& x) {
              return std::cref(x);
            });
   };
@@ -318,7 +318,7 @@ TEST(EventualTest, Ref) {
     return Eventual<int&>([&](auto& k) {
              k.Start(std::ref(x));
            })
-        | Then([](int& x) {
+        >> Then([](int& x) {
              x += 100;
            });
   };
