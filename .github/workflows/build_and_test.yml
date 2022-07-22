@@ -43,6 +43,9 @@ jobs:
             bazel-command: "dazel"
             bazel-config: "--config=asan"
             output-user_root: ""
+            eventuals-tidy-regex: |
+              "eventuals[\\\/]eventuals[\\\/]eventuals[\\\/][^.]+.(cc|h)" \
+              "eventuals[\\\/]eventuals[\\\/]test[\\\/][^.]+.(cc|h)"
           - os: windows-2019
             sudo-command: "" # The Windows runner already runs as root.
             # Explicitly not using `dazel` here as we don't want to
@@ -51,6 +54,9 @@ jobs:
             bazel-config: ""
             # Fixes issue #248.
             output-user_root: "--output_user_root=C:/bzl"
+            eventuals-tidy-regex: |
+              "eventuals[\\\/]eventuals[\\\/]eventuals[\\\/][^.]+.(cc|h)" \
+              "eventuals[\\\/]eventuals[\\\/]test[\\\/][^.]+.(cc|h)"
       # Don't fail all workflows if one fails as we're still getting
       # to a stable build right now and when one fails it doesn't mean
       # they all will fail.
@@ -135,6 +141,24 @@ jobs:
             test/... \
             --test_arg=--gtest_shuffle \
             --test_arg=--gtest_repeat=100
+
+      - name: Extract Compile Commands
+        run: |
+          ${{ matrix.bazel-command }} \
+            ${{ matrix.output-user_root }} \
+            run \
+            refresh_cc_github_actions \
+            -- \
+            ${{ matrix.bazel-config }} \
+            ${{ env.BAZEL_REMOTE_CACHE }} \
+            --verbose_failures \
+            --compilation_mode=dbg \
+            --strip="never"
+
+      - name: Run clang-tidy
+        run: |
+          run-clang-tidy \
+          ${{ matrix.eventuals-tidy-regex }}
 
       - name: Debug using tmate (if failure)
         uses: mxschmitt/action-tmate@v3
