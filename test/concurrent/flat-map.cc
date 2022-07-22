@@ -7,9 +7,9 @@
 #include "eventuals/collect.h"
 #include "eventuals/flat-map.h"
 #include "eventuals/iterate.h"
+#include "eventuals/promisify.h"
 #include "eventuals/range.h"
 #include "test/concurrent/concurrent.h"
-#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -32,11 +32,7 @@ TYPED_TEST(ConcurrentTypedTest, FlatMap) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<>>);
 
-  auto [future, k] = PromisifyForTest(e());
-
-  k.Start();
-
-  EXPECT_THAT(future.get(), this->OrderedOrUnorderedElementsAre(0, 0, 1));
+  EXPECT_THAT(*e(), this->OrderedOrUnorderedElementsAre(0, 0, 1));
 }
 
 } // namespace

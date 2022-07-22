@@ -29,15 +29,9 @@ TEST_F(DomainNameResolveTest, Succeed) {
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = PromisifyForTest(std::move(e));
-
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
   EXPECT_TRUE(
       std::regex_match(
-          future.get(),
+          *std::move(e),
           std::regex{R"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"}));
 }
 
@@ -52,19 +46,8 @@ TEST_F(DomainNameResolveTest, Fail) {
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = PromisifyForTest(std::move(e));
-
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
   EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
+      [&]() { *std::move(e); },
       ThrowsMessage<std::runtime_error>(StrEq("EAI_NONAME")));
 }
 
@@ -87,13 +70,7 @@ TEST_F(DomainNameResolveTest, Stop) {
              return std::to_string(data);
            });
 
-  auto [future, k] = PromisifyForTest(std::move(e));
-
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(*std::move(e), eventuals::StoppedException);
 }
 
 TEST_F(DomainNameResolveTest, Raises) {
@@ -120,19 +97,8 @@ TEST_F(DomainNameResolveTest, Raises) {
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error, std::overflow_error>>);
 
-  auto [future, k] = PromisifyForTest(std::move(e));
-
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
   EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
+      [&]() { *std::move(e); },
       ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 

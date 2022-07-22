@@ -115,6 +115,20 @@ cc_library(
 )
 
 cc_library(
+    name = "promisify",
+    hdrs = [
+        "promisify.h",
+    ],
+    copts = copts(),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":base",
+        ":events",
+        "@com_github_3rdparty_stout//:stout",
+    ],
+)
+
+cc_library(
     name = "eventuals",
     copts = copts(),
     visibility = ["//visibility:public"],
@@ -122,6 +136,7 @@ cc_library(
         ":base",
         ":events",
         ":http",
+        ":promisify",
         "@com_github_3rdparty_stout//:stout",
     ],
 )

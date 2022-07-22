@@ -3,9 +3,9 @@
 
 #include "eventuals/collect.h"
 #include "eventuals/map.h"
+#include "eventuals/promisify.h"
 #include "eventuals/stream.h"
 #include "test/concurrent/concurrent.h"
-#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -30,11 +30,7 @@ TYPED_TEST(ConcurrentTypedTest, StreamStop) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<>>);
 
-  auto [future, k] = PromisifyForTest(e());
-
-  k.Start();
-
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(*e(), eventuals::StoppedException);
 }
 
 } // namespace

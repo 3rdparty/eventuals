@@ -43,19 +43,14 @@ TEST_P(HttpTest, Get) {
         socket->Close();
       });
 
-  auto e = client.Get(server.uri());
+  auto e = [&]() { return client.Get(server.uri()); };
 
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
-          typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
-  auto response = future.get();
+  auto response = *e();
 
   EXPECT_EQ(200, response.code());
   EXPECT_THAT(
@@ -98,26 +93,22 @@ TEST_P(HttpTest, GetGet) {
         socket->Close();
       });
 
-  auto e = client.Get(server.uri())
-      | Then(Let([&](auto& response1) {
+  auto e = [&]() {
+    return client.Get(server.uri())
+        | Then(Let([&](auto& response1) {
              return client.Get(server.uri())
                  | Then([&](auto&& response2) {
                       return std::tuple{response1, response2};
                     });
            }));
+  };
 
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
-          typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = PromisifyForTest(std::move(e));
-
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
-  auto [response1, response2] = future.get();
+  auto [response1, response2] = *e();
 
   EXPECT_EQ(200, response1.code());
   EXPECT_THAT(
@@ -136,40 +127,34 @@ TEST_P(HttpTest, GetGet) {
 TEST_P(HttpTest, GetFailTimeout) {
   std::string scheme = GetParam();
 
-  auto e = Get(scheme + "example.com", std::chrono::milliseconds(1));
+  auto e =
+      [&]() {
+        return Get(scheme + "example.com", std::chrono::milliseconds(1));
+      };
 
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
-          typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
-
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
 
   // NOTE: not checking 'what()' of error because it differs across
   // operating systems.
-  EXPECT_THROW(future.get(), std::runtime_error);
+  EXPECT_THROW(*e(), std::runtime_error);
 }
 
 
 TEST_P(HttpTest, PostFailTimeout) {
   std::string scheme = GetParam();
 
-  auto e = Post(
-      scheme + "jsonplaceholder.typicode.com/posts",
-      {{"title", "test"},
-       {"body", "message"}},
-      std::chrono::milliseconds(1));
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
+  auto e = [&]() { return Post(
+                       scheme + "jsonplaceholder.typicode.com/posts",
+                       {{"title", "test"},
+                        {"body", "message"}},
+                       std::chrono::milliseconds(1)); };
 
   // NOTE: not checking 'what()' of error because it differs across
   // operating systems.
-  EXPECT_THROW(future.get(), std::runtime_error);
+  EXPECT_THROW(*e(), std::runtime_error);
 }
 
 
@@ -304,18 +289,14 @@ TEST_P(HttpTest, GetHeaders) {
         socket->Close();
       });
 
-  auto e = client.Do(
-      Request::Builder()
-          .uri(server.uri())
-          .method(GET)
-          .header("foo", "bar")
-          .Build());
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
+  auto e = [&]() { return client.Do(
+                       Request::Builder()
+                           .uri(server.uri())
+                           .method(GET)
+                           .header("foo", "bar")
+                           .Build()); };
 
-  EventLoop::Default().RunUntil(future);
-
-  auto response = future.get();
+  auto response = *e();
 
   EXPECT_EQ(200, response.code());
   EXPECT_THAT(
@@ -352,19 +333,15 @@ TEST_P(HttpTest, GetDuplicateHeaders) {
         socket->Close();
       });
 
-  auto e = client.Do(
-      Request::Builder()
-          .uri(server.uri())
-          .method(GET)
-          .header("foo", "bar1")
-          .header("foo", "bar2")
-          .Build());
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
+  auto e = [&]() { return client.Do(
+                       Request::Builder()
+                           .uri(server.uri())
+                           .method(GET)
+                           .header("foo", "bar1")
+                           .header("foo", "bar2")
+                           .Build()); };
 
-  EventLoop::Default().RunUntil(future);
-
-  auto response = future.get();
+  auto response = *e();
 
   EXPECT_EQ(200, response.code());
   EXPECT_THAT(

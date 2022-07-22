@@ -1,6 +1,7 @@
 #include "eventuals/grpc/client.h"
 #include "eventuals/grpc/server.h"
 #include "eventuals/let.h"
+#include "eventuals/promisify.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
 #include "test/grpc/test.h"

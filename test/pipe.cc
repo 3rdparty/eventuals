@@ -4,6 +4,7 @@
 #include <thread>
 
 #include "eventuals/collect.h"
+#include "eventuals/promisify.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

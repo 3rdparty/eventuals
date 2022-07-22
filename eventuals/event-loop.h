@@ -457,6 +457,8 @@ class EventLoop final : public Scheduler {
   static void ConstructDefault();
   static void DestructDefault();
 
+  static bool HasDefault();
+
   static void ConstructDefaultAndRunForeverDetached();
 
   EventLoop();

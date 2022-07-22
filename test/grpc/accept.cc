@@ -1,5 +1,6 @@
 #include "eventuals/grpc/server.h"
 #include "eventuals/head.h"
+#include "eventuals/promisify.h"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 #include "gmock/gmock.h"
