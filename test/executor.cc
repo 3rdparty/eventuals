@@ -22,10 +22,10 @@ TEST(ExecutorTest, Succeed) {
                      executed = true;
                      return Just();
                    }))
-        | Then([&]() {
+        >> Then([&]() {
              return executor.Shutdown();
            })
-        | Then([&]() {
+        >> Then([&]() {
              return executor.Wait();
            });
   };
@@ -54,10 +54,10 @@ TEST(ExecutorTest, Interrupt) {
                            });
                          });
                    }))
-        | Then([&]() {
+        >> Then([&]() {
              return executor.InterruptAndShutdown();
            })
-        | Then([&]() {
+        >> Then([&]() {
              return executor.Wait();
            });
   };

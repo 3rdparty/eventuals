@@ -37,17 +37,17 @@ TEST(MultipleHostsTest, Success) {
 
   auto serve = [&](auto&& host) {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello", host)
-        | Head()
-        | Then(Let([](auto& call) {
+        >> Head()
+        >> Then(Let([](auto& call) {
              return call.Reader().Read()
-                 | Head() // Only get the first element.
-                 | Then([](auto&& request) {
+                 >> Head() // Only get the first element.
+                 >> Then([](auto&& request) {
                       HelloReply reply;
                       std::string prefix("Hello ");
                       reply.set_message(prefix + request.name());
                       return reply;
                     })
-                 | UnaryEpilogue(call);
+                 >> UnaryEpilogue(call);
            }));
   };
 
@@ -68,13 +68,13 @@ TEST(MultipleHostsTest, Success) {
 
   auto call = [&](auto&& host) {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", host)
-        | Then(Let([](auto& call) {
+        >> Then(Let([](auto& call) {
              HelloRequest request;
              request.set_name("Emily");
              return call.Writer().WriteLast(request)
-                 | call.Reader().Read()
-                 | Head() // Expecting but ignoring the response.
-                 | call.Finish();
+                 >> call.Reader().Read()
+                 >> Head() // Expecting but ignoring the response.
+                 >> call.Finish();
            }));
   };
 

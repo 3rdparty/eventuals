@@ -29,7 +29,7 @@ class SignalTest : public EventLoopTest {};
 
 TEST_F(SignalTest, SignalComposition) {
   auto e = WaitForSignal(SIGQUIT)
-      | Then([]() {
+      >> Then([]() {
              return "quit";
            });
 

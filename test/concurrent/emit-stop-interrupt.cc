@@ -32,7 +32,7 @@ TYPED_TEST(ConcurrentTypedTest, EmitStopInterrupt) {
                    k.Emit(i);
                  }
                })
-        | this->ConcurrentOrConcurrentOrdered([&]() {
+        >> this->ConcurrentOrConcurrentOrdered([&]() {
             return Map(Let([&](int& i) {
               return Eventual<std::string>([&](auto& k) {
                 k.Stop();
@@ -40,7 +40,7 @@ TYPED_TEST(ConcurrentTypedTest, EmitStopInterrupt) {
               });
             }));
           })
-        | Collect<std::vector<std::string>>();
+        >> Collect<std::vector<std::string>>();
   };
 
   static_assert(

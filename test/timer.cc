@@ -36,7 +36,7 @@ TEST_F(EventLoopTest, PauseAndAdvanceClock) {
 
   auto e = []() {
     return Timer(std::chrono::seconds(5))
-        | Just(42);
+        >> Just(42);
   };
 
   auto [future, k] = PromisifyForTest(e());
@@ -151,7 +151,7 @@ TEST_F(EventLoopTest, PauseClockInterruptTimer) {
 TEST_F(EventLoopTest, TimerAfterTimer) {
   auto e = []() {
     return Timer(std::chrono::milliseconds(5))
-        | Timer(std::chrono::milliseconds(5));
+        >> Timer(std::chrono::milliseconds(5));
   };
 
   auto [future, k] = PromisifyForTest(e());

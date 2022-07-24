@@ -125,33 +125,9 @@ template <
     typename T,
     typename E,
     std::enable_if_t<HasValueFrom<Left>::value, int> = 0>
-[[nodiscard]] auto operator|(Left left, tl::expected<T, E>&& expected) {
-  return std::move(left)
-      | ExpectedToEventual(std::move(expected));
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <
-    typename Right,
-    typename T,
-    typename E,
-    std::enable_if_t<HasValueFrom<Right>::value, int> = 0>
-[[nodiscard]] auto operator|(tl::expected<T, E>&& expected, Right right) {
-  return ExpectedToEventual(std::move(expected))
-      | std::move(right);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-template <
-    typename Left,
-    typename T,
-    typename E,
-    std::enable_if_t<HasValueFrom<Left>::value, int> = 0>
 [[nodiscard]] auto operator>>(Left left, tl::expected<T, E>&& expected) {
   return std::move(left)
-      | ExpectedToEventual(std::move(expected));
+      >> ExpectedToEventual(std::move(expected));
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -163,7 +139,7 @@ template <
     std::enable_if_t<HasValueFrom<Right>::value, int> = 0>
 [[nodiscard]] auto operator>>(tl::expected<T, E>&& expected, Right right) {
   return ExpectedToEventual(std::move(expected))
-      | std::move(right);
+      >> std::move(right);
 }
 
 ////////////////////////////////////////////////////////////////////////

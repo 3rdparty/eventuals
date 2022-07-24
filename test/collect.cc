@@ -14,7 +14,7 @@ TEST(Collect, CommonVectorPass) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<std::vector<int>>();
+        >> Collect<std::vector<int>>();
   };
 
   std::vector<int> result = *s();
@@ -29,7 +29,7 @@ TEST(Collect, CommonSetPass) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<std::set<int>>();
+        >> Collect<std::set<int>>();
   };
 
   std::set<int> result = *s();
@@ -44,7 +44,7 @@ TEST(Collect, VectorToRepeatedPtrField) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<google::protobuf::RepeatedPtrField<std::string>>();
+        >> Collect<google::protobuf::RepeatedPtrField<std::string>>();
   };
 
   google::protobuf::RepeatedPtrField<std::string> result = *s();
@@ -59,7 +59,7 @@ TEST(Collect, VectorToRepeatedField) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<google::protobuf::RepeatedField<int>>();
+        >> Collect<google::protobuf::RepeatedField<int>>();
   };
 
   google::protobuf::RepeatedField<int> result = *s();

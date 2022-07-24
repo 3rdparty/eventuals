@@ -99,9 +99,9 @@ TEST_P(HttpTest, GetGet) {
       });
 
   auto e = client.Get(server.uri())
-      | Then(Let([&](auto& response1) {
+      >> Then(Let([&](auto& response1) {
              return client.Get(server.uri())
-                 | Then([&](auto&& response2) {
+                 >> Then([&](auto&& response2) {
                       return std::tuple{response1, response2};
                     });
            }));

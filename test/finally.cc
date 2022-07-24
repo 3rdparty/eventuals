@@ -20,7 +20,7 @@ using testing::ThrowsMessage;
 TEST(Finally, Succeed) {
   auto e = []() {
     return Just(42)
-        | Finally([](auto&& expected) {
+        >> Finally([](auto&& expected) {
              return Just(std::move(expected));
            });
   };
@@ -35,8 +35,8 @@ TEST(Finally, Succeed) {
 TEST(Finally, Fail) {
   auto e = []() {
     return Just(42)
-        | Raise("error")
-        | Finally([](auto&& expected) {
+        >> Raise("error")
+        >> Finally([](auto&& expected) {
              return Just(std::move(expected));
            });
   };
@@ -55,7 +55,7 @@ TEST(Finally, Stop) {
     return Eventual<std::string>([](auto& k) {
              k.Stop();
            })
-        | Finally([](auto&& expected) {
+        >> Finally([](auto&& expected) {
              return Just(std::move(expected));
            });
   };
@@ -72,7 +72,7 @@ TEST(Finally, Stop) {
 TEST(Finally, VoidSucceed) {
   auto e = []() {
     return Just()
-        | Finally([](auto&& exception) {
+        >> Finally([](auto&& exception) {
              return Just(std::move(exception));
            });
   };
@@ -85,8 +85,8 @@ TEST(Finally, VoidSucceed) {
 TEST(Finally, VoidFail) {
   auto e = []() {
     return Just()
-        | Raise("error")
-        | Finally([](auto&& exception) {
+        >> Raise("error")
+        >> Finally([](auto&& exception) {
              return Just(std::move(exception));
            });
   };
@@ -105,7 +105,7 @@ TEST(Finally, VoidStop) {
     return Eventual<void>([](auto& k) {
              k.Stop();
            })
-        | Finally([](auto&& exception) {
+        >> Finally([](auto&& exception) {
              return Just(std::move(exception));
            });
   };
@@ -122,23 +122,23 @@ TEST(Finally, VoidStop) {
 TEST(Finally, FinallyInsideThen) {
   auto e = []() {
     return Just(1)
-        | Then([](int status) {
+        >> Then([](int status) {
              return Eventual<void>()
                         .raises<std::runtime_error>()
                         .start([](auto& k) {
                           k.Fail(std::runtime_error("error"));
                         })
-                 | Finally([](expected<void, std::exception_ptr>&& e) {
+                 >> Finally([](expected<void, std::exception_ptr>&& e) {
                       return If(e.has_value())
                           .no([e = std::move(e)]() {
                             return Raise(std::move(e.error()))
-                                | Catch()
-                                      .raised<std::exception>(
-                                          [](std::exception&& e) {
-                                            EXPECT_STREQ(
-                                                e.what(),
-                                                "error");
-                                          });
+                                >> Catch()
+                                       .raised<std::exception>(
+                                           [](std::exception&& e) {
+                                             EXPECT_STREQ(
+                                                 e.what(),
+                                                 "error");
+                                           });
                           })
                           .yes([]() {
                             return Raise("another error");

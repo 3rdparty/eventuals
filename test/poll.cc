@@ -43,7 +43,7 @@ TEST_F(PollTest, Succeed) {
   auto e = [&]() {
     return DoAll(
                // Server:
-               Poll(server, PollEvents::Readable) | Reduce(
+               Poll(server, PollEvents::Readable) >> Reduce(
                    /* data = */ std::string(),
                    [&](auto& data) {
                      return Then([&](PollEvents events) {
@@ -63,7 +63,7 @@ TEST_F(PollTest, Succeed) {
                    }),
                // Client:
                Poll(client, PollEvents::Writable)
-                   | Map([&, first = true](PollEvents events) mutable {
+                   >> Map([&, first = true](PollEvents events) mutable {
                        if (first) {
                          first = false;
                          EXPECT_EQ(PollEvents::Writable, events);
@@ -79,14 +79,14 @@ TEST_F(PollTest, Succeed) {
                          return /* done = */ true;
                        }
                      })
-                   | Until([](bool done) {
+                   >> Until([](bool done) {
                        return done;
                      })
-                   | Loop()
-                   | Then([&]() {
+                   >> Loop()
+                   >> Then([&]() {
                        Close(client);
                      }))
-        | Then(Unpack([](std::string&& data, std::monostate) {
+        >> Then(Unpack([](std::string&& data, std::monostate) {
              return std::move(data);
            }));
   };

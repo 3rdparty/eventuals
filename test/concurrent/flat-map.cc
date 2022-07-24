@@ -19,12 +19,12 @@ namespace {
 TYPED_TEST(ConcurrentTypedTest, FlatMap) {
   auto e = [&]() {
     return Iterate({1, 2})
-        | this->ConcurrentOrConcurrentOrdered([]() {
+        >> this->ConcurrentOrConcurrentOrdered([]() {
             return FlatMap([](int i) {
               return Range(i);
             });
           })
-        | Collect<std::vector<int>>();
+        >> Collect<std::vector<int>>();
   };
 
   static_assert(

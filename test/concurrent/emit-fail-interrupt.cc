@@ -42,7 +42,7 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailInterrupt) {
                    k.Emit(i);
                  }
                })
-        | this->ConcurrentOrConcurrentOrdered([&]() {
+        >> this->ConcurrentOrConcurrentOrdered([&]() {
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
                   .raises<std::runtime_error>()
@@ -52,7 +52,7 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailInterrupt) {
                   });
             }));
           })
-        | Collect<std::vector<std::string>>();
+        >> Collect<std::vector<std::string>>();
   };
 
   static_assert(

@@ -39,30 +39,30 @@ TEST(Generator, Succeed) {
 
   auto e1 = [&]() {
     return stream()
-        | Collect<std::vector<int>>();
+        >> Collect<std::vector<int>>();
   };
 
   EXPECT_THAT(*e1(), ElementsAre(1, 2, 3));
 
   auto e2 = [&]() {
     return stream()
-        | Loop<int>()
-              .body([](auto& k, auto&&) {
-                k.Done();
-              })
-              .ended([](auto& k) {
-                k.Start(0);
-              });
+        >> Loop<int>()
+               .body([](auto& k, auto&&) {
+                 k.Done();
+               })
+               .ended([](auto& k) {
+                 k.Start(0);
+               });
   };
 
   EXPECT_EQ(*e2(), 0);
 
   auto e3 = [&stream]() {
     return stream()
-        | Map([](auto x) {
+        >> Map([](auto x) {
              return x + 1;
            })
-        | Collect<std::vector<int>>();
+        >> Collect<std::vector<int>>();
   };
 
   EXPECT_THAT(*e3(), ElementsAre(2, 3, 4));
@@ -77,7 +77,7 @@ TEST(Generator, Succeed) {
 
   auto e4 = [&stream2]() {
     return stream2()
-        | Collect<std::vector<int>>();
+        >> Collect<std::vector<int>>();
   };
 
   EXPECT_THAT(*e4(), ElementsAre(1, 2, 3));
@@ -101,15 +101,15 @@ TEST(Generator, GeneratorWithNonCopyable) {
 
   auto e = [&]() {
     return generator()
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(*e(), 100);
@@ -131,15 +131,15 @@ TEST(Generator, GeneratorWithPtr) {
 
   auto e = [&]() {
     return generator()
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(*e(), 100);
@@ -192,20 +192,20 @@ TEST(Generator, InterruptStream) {
 
   auto e = [&]() {
     return stream()
-        | Loop<int>()
-              .body([&](auto& k, auto&&) {
-                interrupt.Trigger();
-              })
-              .ended([&](auto&) {
-                functions.ended.Call();
-              })
-              .fail([&](auto&, auto&&) {
-                functions.fail.Call();
-              })
-              .stop([&](auto& k) {
-                functions.stop.Call();
-                k.Stop();
-              });
+        >> Loop<int>()
+               .body([&](auto& k, auto&&) {
+                 interrupt.Trigger();
+               })
+               .ended([&](auto&) {
+                 functions.ended.Call();
+               })
+               .fail([&](auto&, auto&&) {
+                 functions.fail.Call();
+               })
+               .stop([&](auto& k) {
+                 functions.stop.Call();
+                 k.Stop();
+               });
   };
 
   auto [future, k] = PromisifyForTest(e());
@@ -270,23 +270,23 @@ TEST(Generator, FailStream) {
                .start([](auto& k) {
                  k.Fail(std::runtime_error("error"));
                })
-        | stream()
-        | Loop<int>()
-              .body([&](auto& k, auto&&) {
-                functions.body.Call();
-              })
-              .ended([&](auto&) {
-                functions.ended.Call();
-              })
-              .fail([&](auto& k, auto&& error) {
-                // No need to specify 'raises' because type of error is
-                // 'std::exception_ptr', that just propagates.
-                functions.fail.Call();
-                k.Fail(std::forward<decltype(error)>(error));
-              })
-              .stop([&](auto& k) {
-                functions.stop.Call();
-              });
+        >> stream()
+        >> Loop<int>()
+               .body([&](auto& k, auto&&) {
+                 functions.body.Call();
+               })
+               .ended([&](auto&) {
+                 functions.ended.Call();
+               })
+               .fail([&](auto& k, auto&& error) {
+                 // No need to specify 'raises' because type of error is
+                 // 'std::exception_ptr', that just propagates.
+                 functions.fail.Call();
+                 k.Fail(std::forward<decltype(error)>(error));
+               })
+               .stop([&](auto& k) {
+                 functions.stop.Call();
+               });
   };
 
   auto [future, k] = PromisifyForTest(e());
@@ -357,21 +357,21 @@ TEST(Generator, StopStream) {
                .start([](auto& k) {
                  k.Stop();
                })
-        | stream()
-        | Loop<int>()
-              .body([&](auto& k, auto&&) {
-                functions.body.Call();
-              })
-              .ended([&](auto&) {
-                functions.ended.Call();
-              })
-              .fail([&](auto& k, auto&& error) {
-                functions.fail.Call();
-              })
-              .stop([&](auto& k) {
-                functions.stop.Call();
-                k.Stop();
-              });
+        >> stream()
+        >> Loop<int>()
+               .body([&](auto& k, auto&&) {
+                 functions.body.Call();
+               })
+               .ended([&](auto&) {
+                 functions.ended.Call();
+               })
+               .fail([&](auto& k, auto&& error) {
+                 functions.fail.Call();
+               })
+               .stop([&](auto& k) {
+                 functions.stop.Call();
+                 k.Stop();
+               });
   };
 
   auto [future, k] = PromisifyForTest(e());
@@ -391,7 +391,7 @@ TEST(Generator, TaskWithGenerator) {
   auto task = [&]() -> Task::Of<std::vector<int>> {
     return [&]() {
       return stream()
-          | Collect<std::vector<int>>();
+          >> Collect<std::vector<int>>();
     };
   };
 
@@ -438,15 +438,15 @@ TEST(Generator, Void) {
 
   auto e = [&]() {
     return stream()
-        | Loop<void>()
-              .body([&](auto& stream) {
-                functions.body.Call();
-                stream.Done();
-              })
-              .ended([&](auto& k) {
-                functions.ended.Call();
-                k.Start();
-              });
+        >> Loop<void>()
+               .body([&](auto& stream) {
+                 functions.body.Call();
+                 stream.Done();
+               })
+               .ended([&](auto& k) {
+                 functions.ended.Call();
+                 k.Start();
+               });
   };
 
   *e();
@@ -456,7 +456,7 @@ TEST(Generator, FlatMap) {
   auto stream = []() -> Generator::Of<int> {
     return []() {
       return Iterate({1, 2, 3})
-          | FlatMap([](int i) {
+          >> FlatMap([](int i) {
                return Range(0, i);
              });
     };
@@ -464,7 +464,7 @@ TEST(Generator, FlatMap) {
 
   auto e = [&]() {
     return stream()
-        | Collect<std::vector<int>>();
+        >> Collect<std::vector<int>>();
   };
 
   EXPECT_THAT(*e(), ElementsAre(0, 0, 1, 0, 1, 2));
@@ -480,7 +480,7 @@ TEST(Generator, ConstRef) {
 
   auto e = [&]() {
     return stream()
-        | Collect<std::vector<int>>();
+        >> Collect<std::vector<int>>();
   };
 
   EXPECT_THAT(*e(), ElementsAre(1, 2, 3));
@@ -497,7 +497,7 @@ TEST(Generator, FromTo) {
                      }
                    });
                  })
-              | Closure([&]() {
+              >> Closure([&]() {
                    return Iterate(std::move(data));
                  });
         });
@@ -505,8 +505,8 @@ TEST(Generator, FromTo) {
 
   auto e = [&]() {
     return Just(std::string("123"))
-        | stream()
-        | Collect<std::vector<int>>();
+        >> stream()
+        >> Collect<std::vector<int>>();
   };
 
   EXPECT_THAT(*e(), ElementsAre(1, 2, 3));
@@ -523,14 +523,14 @@ TEST(Generator, FromToLValue) {
                      }
                    });
                  })
-              | Iterate(data);
+              >> Iterate(data);
         });
   };
 
   auto e = [&]() {
     return Just(std::string("123"))
-        | stream()
-        | Collect<std::vector<int>>();
+        >> stream()
+        >> Collect<std::vector<int>>();
   };
 
   EXPECT_THAT(*e(), ElementsAre(1, 2, 3));
@@ -549,7 +549,7 @@ TEST(Generator, Raises) {
 
   auto e = [&]() {
     return stream()
-        | Collect<std::vector<int>>();
+        >> Collect<std::vector<int>>();
   };
 
   static_assert(

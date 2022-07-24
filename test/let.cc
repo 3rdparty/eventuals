@@ -20,12 +20,12 @@ TEST_F(LetTest, Let) {
 
   auto e = []() {
     return Just(Foo{41})
-        | Then(Let([](auto& foo) {
+        >> Then(Let([](auto& foo) {
              return Then([&]() {
                       foo.i += 1;
                     })
-                 | Timer(std::chrono::milliseconds(1))
-                 | Then([&]() {
+                 >> Timer(std::chrono::milliseconds(1))
+                 >> Then([&]() {
                       return foo.i;
                     });
            }));

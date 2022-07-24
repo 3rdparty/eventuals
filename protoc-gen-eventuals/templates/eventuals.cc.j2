@@ -48,12 +48,12 @@ Task::Of<void> {{ service.name }}::TypeErasedService::Serve{{ method.name }}() {
           {{ namespaces | join('::') }}::{{ service.name }},
           {{ input_type  }},
           {{ output_type  }}>("{{ method.name }}")
-          | Concurrent([this]() {
+          >> Concurrent([this]() {
               return Map(Let([this](auto& call) {
 {%- if not method.server_streaming and not method.client_streaming %}
 {#- No streaming #}
                 return UnaryPrologue(call)
-                    | Then(Let([&](auto& request) {
+                    >> Then(Let([&](auto& request) {
                         return Then(
                             [&,
                               // NOTE: using a tuple because need
@@ -66,7 +66,7 @@ Task::Of<void> {{ service.name }}::TypeErasedService::Serve{{ method.name }}() {
                                   call.context(),
                                   &request}]() mutable {
                               return TypeErased{{ method.name }}(&args)
-                                  | UnaryEpilogue(call);
+                                  >> UnaryEpilogue(call);
                             });
                       }));
 {%- elif not method.server_streaming and method.client_streaming %}
@@ -83,12 +83,12 @@ Task::Of<void> {{ service.name }}::TypeErasedService::Serve{{ method.name }}() {
                         call.context(),
                         &call.Reader()}]() mutable {
                       return TypeErased{{ method.name }}(&args)
-                          | UnaryEpilogue(call);
+                          >> UnaryEpilogue(call);
                     });
 {%- elif method.server_streaming and not method.client_streaming %}
 {#- Server streaming #}
                 return UnaryPrologue(call)
-                    | Then(Let([&](auto& request) {
+                    >> Then(Let([&](auto& request) {
                         return Then(
                             [&,
                               // NOTE: using a tuple because need
@@ -101,7 +101,7 @@ Task::Of<void> {{ service.name }}::TypeErasedService::Serve{{ method.name }}() {
                                   call.context(),
                                   &request}]() mutable {
                               return TypeErased{{ method.name }}(&args)
-                                  | StreamingEpilogue(call);
+                                  >> StreamingEpilogue(call);
                             });
                       }));
 {%- elif method.server_streaming and method.client_streaming %}
@@ -118,12 +118,12 @@ Task::Of<void> {{ service.name }}::TypeErasedService::Serve{{ method.name }}() {
                         call.context(),
                         &call.Reader()}]() mutable {
                       return TypeErased{{ method.name }}(&args)
-                          | StreamingEpilogue(call);
+                          >> StreamingEpilogue(call);
                     });
 {%- endif %}
               }));{# Map #}
           }){# Concurrent #}
-          | Loop();
+          >> Loop();
         };
 }
 {% endfor %}
@@ -134,7 +134,7 @@ Task::Of<void> {{ service.name }}::TypeErasedService::Serve() {
 {%- for method in service.methods %}
       Serve{{ method.name }}(){%- if not loop.last -%},{%- endif %}
 {% endfor %}
-    ) | Just(); // Return 'void'.
+    ) >> Just(); // Return 'void'.
   };
 }
 {% endfor %}

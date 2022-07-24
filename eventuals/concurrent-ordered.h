@@ -247,23 +247,23 @@ template <typename F>
   return Map([i = 1](auto&& value) mutable {
            return std::make_tuple(i++, std::forward<decltype(value)>(value));
          })
-      | Concurrent([f = std::move(f)]() {
+      >> Concurrent([f = std::move(f)]() {
            return FlatMap([&f, j = 1](auto&& tuple) mutable {
              j = std::get<0>(tuple);
              return Iterate({std::move(std::get<1>(tuple))})
-                 | f()
-                 | Map([j](auto&& value) {
+                 >> f()
+                 >> Map([j](auto&& value) {
                       return std::make_tuple(j, std::move(value));
                     })
                  // A special 'ConcurrentOrderedAdaptor()' allows us to handle
                  // the case when 'f()' has ended so we can propagate down to
                  // 'ReorderAdaptor()' that all elements for the 'i'th tranche
                  // of values has been emitted.
-                 | ConcurrentOrderedAdaptor();
+                 >> ConcurrentOrderedAdaptor();
            });
          })
       // Handles the reordering of values by the propagated indexes.
-      | ReorderAdaptor();
+      >> ReorderAdaptor();
 }
 
 /////////////////////////////////////////////////////////////////////

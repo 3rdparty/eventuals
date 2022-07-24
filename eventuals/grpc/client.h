@@ -479,10 +479,10 @@ class Client {
       std::string name,
       std::optional<std::string> host = std::nullopt) {
     return Context()
-        | Then([this,
-                name = std::move(name),
-                host = std::move(host)](
-                   ::grpc::ClientContext* context) mutable {
+        >> Then([this,
+                 name = std::move(name),
+                 host = std::move(host)](
+                    ::grpc::ClientContext* context) mutable {
              return Call<Request, Response>(
                  std::move(name),
                  context,

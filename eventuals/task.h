@@ -556,11 +556,11 @@ class _Task final {
 
     k_.emplace(Build(
         Reschedule(context_->Borrow())
-        | std::move(e_)
-        | Terminal()
-              .start(std::move(start))
-              .fail(std::move(fail))
-              .stop(std::move(stop))));
+        >> std::move(e_)
+        >> Terminal()
+               .start(std::move(start))
+               .fail(std::move(fail))
+               .stop(std::move(stop))));
 
     k_->Register(interrupt_);
 
@@ -642,11 +642,11 @@ class _Task final {
 
     k_.emplace(Build(
         Reschedule(context_->Borrow())
-        | std::move(e_)
-        | Terminal()
-              .start(std::move(start))
-              .fail(std::move(fail))
-              .stop(std::move(stop))));
+        >> std::move(e_)
+        >> Terminal()
+               .start(std::move(start))
+               .fail(std::move(fail))
+               .stop(std::move(stop))));
 
     k_->Register(interrupt_);
 
@@ -675,11 +675,11 @@ class _Task final {
 
     k_.emplace(Build(
         Reschedule(context_->Borrow())
-        | std::move(e_)
-        | Terminal()
-              .start(std::move(start))
-              .fail(std::move(fail))
-              .stop(std::move(stop))));
+        >> std::move(e_)
+        >> Terminal()
+               .start(std::move(start))
+               .fail(std::move(fail))
+               .stop(std::move(stop))));
 
     k_->Register(interrupt_);
 
@@ -803,11 +803,11 @@ class _Task final {
       Undefined,
       decltype(Build(
           Reschedule(context_->Borrow())
-          | std::move(e_)
-          | Terminal()
-                .start(std::declval<Callback<function_type_t<void, To_>>&&>())
-                .fail(std::declval<Callback<void(std::exception_ptr)>&&>())
-                .stop(std::declval<Callback<void()>&&>())))>;
+          >> std::move(e_)
+          >> Terminal()
+                 .start(std::declval<Callback<function_type_t<void, To_>>&&>())
+                 .fail(std::declval<Callback<void(std::exception_ptr)>&&>())
+                 .stop(std::declval<Callback<void()>&&>())))>;
 
   // NOTE: we store 'k_' as the _last_ member so it will be
   // destructed _first_ and thus we won't have any use-after-delete

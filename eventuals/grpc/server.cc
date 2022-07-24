@@ -158,8 +158,8 @@ Server::Server(
                 return Repeat([&]() mutable {
                          context = std::make_unique<ServerContext>();
                          return RequestCall(context.get(), cq)
-                             | Lookup(context.get())
-                             | Conditional(
+                             >> Lookup(context.get())
+                             >> Conditional(
                                     [](auto* endpoint) {
                                       return endpoint != nullptr;
                                     },
@@ -171,20 +171,20 @@ Server::Server(
                                       return Unimplemented(context.release());
                                     });
                        })
-                    | Loop()
-                    | Catch()
-                          .raised<std::exception>(
-                              [this](std::exception&& e) {
-                                EVENTUALS_GRPC_LOG(1)
-                                    << "Failed to accept a call: "
-                                    << e.what() << "; shutting down";
+                    >> Loop()
+                    >> Catch()
+                           .raised<std::exception>(
+                               [this](std::exception&& e) {
+                                 EVENTUALS_GRPC_LOG(1)
+                                     << "Failed to accept a call: "
+                                     << e.what() << "; shutting down";
 
-                                // TODO(benh): refactor so we only call
-                                // 'ShutdownEndpoints()' once on server
-                                // shutdown, not for each worker (which
-                                // should be harmless but unnecessary).
-                                return ShutdownEndpoints();
-                              });
+                                 // TODO(benh): refactor so we only call
+                                 // 'ShutdownEndpoints()' once on server
+                                 // shutdown, not for each worker (which
+                                 // should be harmless but unnecessary).
+                                 return ShutdownEndpoints();
+                               });
               });
         });
 
