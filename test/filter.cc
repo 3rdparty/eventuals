@@ -41,6 +41,7 @@ TEST(Filter, OddLoopFlow) {
   EXPECT_EQ(22, *s());
 }
 
+
 TEST(Filter, OddCollectFlow) {
   std::vector<int> v = {5, 12, 17};
   auto begin = v.begin();
@@ -54,6 +55,7 @@ TEST(Filter, OddCollectFlow) {
 
   EXPECT_THAT(*s(), ElementsAre(5, 17));
 }
+
 
 TEST(Filter, OddMapLoopFlow) {
   std::vector<int> v = {5, 12, 17};
@@ -75,6 +77,7 @@ TEST(Filter, OddMapLoopFlow) {
 
   EXPECT_EQ(24, *s());
 }
+
 
 TEST(Filter, OddMapCollectFlow) {
   std::vector<int> v = {5, 12, 17};

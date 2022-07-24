@@ -1,11 +1,49 @@
 #include "eventuals/collect.h"
 
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "eventuals/iterate.h"
 #include "google/protobuf/repeated_field.h"
 #include "gtest/gtest.h"
+
+template <typename Collection>
+struct eventuals::EventualsCollector<
+    Collection,
+    std::enable_if_t<
+        std::is_same_v<
+            Collection,
+            google::protobuf::RepeatedPtrField<
+                typename Collection::value_type>>>> {
+  // Since 'Add(T&& value)' takes ownership of value, we pass a copy.
+  template <typename T>
+  std::enable_if_t<
+      std::is_convertible_v<
+          T,
+          typename Collection::value_type>>
+  Collect(Collection& collection, T value) {
+    collection.Add(std::move(value));
+  }
+};
+
+template <typename Collection>
+struct eventuals::EventualsCollector<
+    Collection,
+    std::enable_if_t<
+        std::is_same_v<
+            Collection,
+            google::protobuf::RepeatedField<
+                typename Collection::value_type>>>> {
+  template <typename T>
+  std::enable_if_t<
+      std::is_convertible_v<
+          T,
+          typename Collection::value_type>>
+  Collect(Collection& collection, T&& value) {
+    collection.Add(value);
+  }
+};
 
 namespace eventuals::test {
 namespace {
@@ -52,39 +90,12 @@ TEST(Collect, SetPass) {
 }
 
 
-TEST(Collect, DoNothing) {
+TEST(Collect, VectorToRepeatedPtrField) {
   std::vector<std::string> v = {"Hello", "World"};
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<std::vector<std::string>>(
-               [](auto& container, auto&& value) {
-                 // Literally do nothing.
-                 (void) container;
-                 (void) value;
-               });
-  };
-
-  std::vector<std::string> result = *s();
-
-  ASSERT_EQ(0, result.size());
-
-  // The initial vector should remain unchanged.
-  ASSERT_EQ(2, v.size());
-  EXPECT_EQ("Hello", *v.begin());
-  EXPECT_EQ("World", *(v.begin() + 1));
-}
-
-
-TEST(Collect, VectorToRepeatedPtrFieldCopy) {
-  std::vector<std::string> v = {"Hello", "World"};
-
-  auto s = [&]() {
-    return Iterate(v)
-        | Collect<google::protobuf::RepeatedPtrField<std::string>>(
-               [](auto& container, auto value) {
-                 container.Add(std::move(value));
-               });
+        | Collect<google::protobuf::RepeatedPtrField<std::string>>();
   };
 
   google::protobuf::RepeatedPtrField<std::string> result = *s();
@@ -100,45 +111,12 @@ TEST(Collect, VectorToRepeatedPtrFieldCopy) {
 }
 
 
-TEST(Collect, VectorToRepeatedPtrFieldMove) {
-  std::vector<std::string> v = {"Hello", "World"};
-
-  auto s = [&]() {
-    return Iterate(v)
-        | Collect<google::protobuf::RepeatedPtrField<std::string>>(
-               [](auto& container, auto&& value) {
-                 container.Add(std::move(value));
-               });
-  };
-
-  google::protobuf::RepeatedPtrField<std::string> result = *s();
-
-  ASSERT_EQ(2, result.size());
-  EXPECT_EQ("Hello", *result.begin());
-  EXPECT_EQ("World", *(result.begin() + 1));
-
-  // The initial vector should have empty strings.
-  ASSERT_EQ(2, v.size());
-  EXPECT_EQ("", *v.begin());
-  EXPECT_EQ("", *(v.begin() + 1));
-}
-
-
-// No need to have a separate move test, since google::protobuf::RepeatedField
-// must be used with primitive types.
-// Quote: RepeatedField is used to represent repeated fields of a primitive type
-// (in other words, everything except strings and nested Messages).
-// check_line_length skip
-// Source: https://developers.google.com/protocol-buffers/docs/reference/cpp/google.protobuf.repeated_field
-TEST(Collect, VectorToRepeatedFieldCopy) {
+TEST(Collect, VectorToRepeatedField) {
   std::vector<int> v = {42, 25};
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<google::protobuf::RepeatedField<int>>(
-               [](auto& container, auto&& value) {
-                 container.Add(value);
-               });
+        | Collect<google::protobuf::RepeatedField<int>>();
   };
 
   google::protobuf::RepeatedField<int> result = *s();
