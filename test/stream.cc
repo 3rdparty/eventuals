@@ -236,7 +236,7 @@ TEST(StreamTest, InterruptStream) {
 
   triggered.store(true);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 
@@ -314,7 +314,7 @@ TEST(StreamTest, InterruptLoop) {
 
   triggered.store(true);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 

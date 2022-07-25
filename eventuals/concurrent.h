@@ -250,7 +250,7 @@ struct _Concurrent final {
 
                 if (!exception_) {
                   exception_ = std::make_exception_ptr(
-                      eventuals::StoppedException());
+                      eventuals::Stopped());
                 }
 
                 fibers_done_ = FibersDone();
@@ -307,7 +307,7 @@ struct _Concurrent final {
 
                 if (!exception_) {
                   exception_ = std::make_exception_ptr(
-                      eventuals::StoppedException());
+                      eventuals::Stopped());
                 }
 
                 fibers_done_ = !InterruptFibers();
@@ -427,7 +427,7 @@ struct _Concurrent final {
 
   // 'Adaptor' is our typeful adaptor that the concurrent continuation
   // uses in order to implement the semantics of 'Concurrent()'.
-  template <typename F_, typename Arg_>
+  template <typename F_, typename Arg_, typename Errors_>
   struct Adaptor final : TypeErasedAdaptor {
     Adaptor(F_ f)
       : f_(std::move(f)) {}
@@ -541,7 +541,7 @@ struct _Concurrent final {
                              // TODO(benh): flush remaining values first?
                              try {
                                std::rethrow_exception(*exception_);
-                             } catch (const StoppedException&) {
+                             } catch (const Stopped&) {
                                k.Stop();
                              } catch (...) {
                                k.Fail(std::current_exception());
@@ -567,7 +567,7 @@ struct _Concurrent final {
 
     F_ f_;
 
-    using Value_ = typename decltype(f_())::template ValueFrom<Arg_>;
+    using Value_ = typename decltype(f_())::template ValueFrom<Arg_, Errors_>;
     std::deque<Value_> values_;
   };
 
@@ -578,7 +578,7 @@ struct _Concurrent final {
   // 'Adaptor'. We also use 'Continuation' to store the the eventuals
   // returned from 'Adaptor' (vs having to heap allocate them by
   // having them all return 'Task' or 'Generator').
-  template <typename K_, typename F_, typename Arg_>
+  template <typename K_, typename F_, typename Errors_, typename Arg_>
   struct Continuation final : public TypeErasedStream {
     // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, F_ f)
@@ -595,7 +595,7 @@ struct _Concurrent final {
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
 
-      ingress_.emplace(Build<Arg_>(adaptor_.Ingress()));
+      ingress_.emplace(Build<Arg_, Errors_>(adaptor_.Ingress()));
 
       // NOTE: we don't register an interrupt for 'ingress_' since we
       // explicitly handle interrupts with 'Adaptor::Interrupt()'.
@@ -689,13 +689,13 @@ struct _Concurrent final {
       handler_->Install();
     }
 
-    Adaptor<F_, Arg_> adaptor_;
+    Adaptor<F_, Arg_, Errors_> adaptor_;
 
     TypeErasedStream* stream_ = nullptr;
 
     std::atomic_flag next_ = ATOMIC_FLAG_INIT;
 
-    using Ingress_ = decltype(Build<Arg_>(adaptor_.Ingress()));
+    using Ingress_ = decltype(Build<Arg_, Errors_>(adaptor_.Ingress()));
     std::optional<Ingress_> ingress_;
 
     using Egress_ = decltype(Build(adaptor_.Egress(), std::declval<K_>()));
@@ -724,19 +724,19 @@ struct _Concurrent final {
   struct Composable final {
     using E_ = typename std::invoke_result_t<F_>;
 
-    template <typename Arg>
-    using ValueFrom = typename E_::template ValueFrom<Arg>;
+    template <typename Arg, typename Errors>
+    using ValueFrom = typename E_::template ValueFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       static_assert(
-          !std::is_void_v<ValueFrom<Arg>>,
+          !std::is_void_v<ValueFrom<Arg, Errors>>,
           "'Concurrent' does not (yet) support 'void' eventual values");
 
-      return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
+      return Continuation<K, F_, Errors, Arg>(std::move(k), std::move(f_));
     }
 
     F_ f_;

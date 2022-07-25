@@ -278,6 +278,32 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////
 
+static_assert(
+    std::is_same_v<
+        std::variant<int, double>,
+        TupleToVariant<std::tuple<int, double>>::type>);
+
+////////////////////////////////////////////////////////////////////////
+
+static_assert(!CheckErrorsTypesForVariant<int>::value);
+
+static_assert(
+    !CheckErrorsTypesForVariant<std::variant<int, std::string>>::value);
+
+static_assert(
+    !CheckErrorsTypesForVariant<
+        std::variant<std::string, std::runtime_error>>::value);
+
+static_assert(
+    CheckErrorsTypesForVariant<
+        std::variant<std::exception_ptr, std::runtime_error>>::value);
+
+static_assert(
+    CheckErrorsTypesForVariant<
+        std::variant<std::overflow_error, std::runtime_error>>::value);
+
+////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace eventuals::test
 

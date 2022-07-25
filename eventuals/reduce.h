@@ -36,7 +36,12 @@ struct _Reduce final {
     TypeErasedStream* stream_;
   };
 
-  template <typename K_, typename T_, typename F_, typename Arg_>
+  template <
+      typename K_,
+      typename T_,
+      typename F_,
+      typename Errors_,
+      typename Arg_>
   struct Continuation final {
     Continuation(K_ k, T_ t, F_ f)
       : t_(std::move(t)),
@@ -65,7 +70,7 @@ struct _Reduce final {
       if (!adapted_) {
         adapted_.emplace(
             f_(static_cast<T_&>(t_))
-                .template k<Arg_>(Adaptor<K_>{k_, stream_}));
+                .template k<Arg_, Errors_>(Adaptor<K_>{k_, stream_}));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
@@ -94,10 +99,10 @@ struct _Reduce final {
     using E_ = std::invoke_result_t<F_, std::add_lvalue_reference_t<T_>>;
 
     static_assert(
-        std::is_same_v<bool, typename E_::template ValueFrom<Arg_>>,
+        std::is_same_v<bool, typename E_::template ValueFrom<Arg_, Errors_>>,
         "expecting an eventually returned bool for 'Reduce'");
 
-    using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
+    using Adapted_ = decltype(std::declval<E_>().template k<Arg_, Errors_>(
         std::declval<Adaptor<K_>>()));
 
     std::optional<Adapted_> adapted_;
@@ -111,7 +116,7 @@ struct _Reduce final {
 
   template <typename T_, typename F_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = T_;
 
     using E_ =
@@ -122,9 +127,9 @@ struct _Reduce final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, T_, F_, Arg>(
+      return Continuation<K, T_, F_, Errors, Arg>(
           std::move(k),
           std::move(t_),
           std::move(f_));

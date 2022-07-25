@@ -471,13 +471,13 @@ struct _Acquire final {
   };
 
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, Arg>(std::move(k), lock_);
     }
@@ -548,13 +548,13 @@ struct _Release final {
   };
 
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K>(std::move(k), lock_);
     }
@@ -776,13 +776,13 @@ struct _Wait final {
 
   template <typename F_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, F_, Arg>(std::move(k), lock_, std::move(f_));
     }

@@ -34,6 +34,7 @@ struct _Eventual {
       // only types derived from 'std::exception' are used.
       static_assert(
           std::disjunction_v<
+              CheckErrorsTypesForVariant<std::decay_t<Error>>,
               std::is_same<std::exception_ptr, std::decay_t<Error>>,
               std::is_base_of<std::exception, std::decay_t<Error>>>,
           "Expecting a type derived from std::exception");
@@ -55,7 +56,7 @@ struct _Eventual {
       (*k_)().Register(interrupt);
     }
 
-    Reschedulable<K_, Value_>* k_ = nullptr;
+    Reschedulable<K_, Errors_, Value_>* k_ = nullptr;
   };
 
   template <
@@ -69,7 +70,7 @@ struct _Eventual {
       typename Errors_>
   struct Continuation final {
     Continuation(
-        Reschedulable<K_, Value_> k,
+        Reschedulable<K_, Errors_, Value_> k,
         Context_ context,
         Start_ start,
         Fail_ fail,
@@ -169,7 +170,7 @@ struct _Eventual {
     // destructed _first_ and thus we won't have any use-after-delete
     // issues during destruction of 'k_' if it holds any references or
     // pointers to any (or within any) of the above members.
-    Reschedulable<K_, Value_> k_;
+    Reschedulable<K_, Errors_, Value_> k_;
   };
 
   template <
@@ -181,7 +182,7 @@ struct _Eventual {
       typename Value_,
       typename Errors_ = std::tuple<>>
   struct Builder final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Value_;
 
     template <typename Arg, typename Errors>
@@ -214,7 +215,7 @@ struct _Eventual {
           std::move(stop)};
     }
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<
           K,
@@ -225,7 +226,7 @@ struct _Eventual {
           Interruptible_,
           Value_,
           Errors_>(
-          Reschedulable<K, Value_>{std::move(k)},
+          Reschedulable<K, Errors_, Value_>{std::move(k)},
           std::move(context_),
           std::move(start_),
           std::move(fail_),

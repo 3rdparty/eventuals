@@ -1,7 +1,9 @@
 #pragma once
 
+#include <exception>
 #include <tuple>
 #include <type_traits>
+#include <variant>
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -276,6 +278,29 @@ struct apply_tuple_types<T, std::tuple<Types...>> {
 
 template <template <typename...> class T, typename Tuple>
 using apply_tuple_types_t = typename apply_tuple_types<T, Tuple>::type;
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename...>
+struct TupleToVariant;
+
+template <typename... Types>
+struct TupleToVariant<std::tuple<Types...>> {
+  using type = std::variant<Types...>;
+};
+
+template <typename...>
+struct CheckErrorsTypesForVariant {
+  static constexpr bool value = false;
+};
+
+template <typename... Errors>
+struct CheckErrorsTypesForVariant<std::variant<Errors...>> {
+  static constexpr bool value = std::conjunction_v<
+      std::disjunction<
+          std::is_base_of<std::exception, std::decay_t<Errors>>,
+          std::is_base_of<std::exception_ptr, std::decay_t<Errors>>>...>;
+};
 
 ////////////////////////////////////////////////////////////////////////
 

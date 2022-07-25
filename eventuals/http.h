@@ -1186,7 +1186,7 @@ struct _HTTP final {
   };
 
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Response;
 
     template <typename Arg, typename Errors>
@@ -1194,7 +1194,7 @@ struct _HTTP final {
         Errors,
         std::tuple<std::runtime_error>>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K>(std::move(k), loop_, std::move(request_));
     }

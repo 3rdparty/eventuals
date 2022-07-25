@@ -11,7 +11,7 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 struct _If final {
-  template <typename K_, typename YesE_, typename NoE_>
+  template <typename K_, typename YesE_, typename NoE_, typename Errors_>
   struct Continuation final {
     Continuation(K_ k, bool condition, YesE_ yes, NoE_ no)
       : condition_(condition),
@@ -23,7 +23,7 @@ struct _If final {
     void Start(Args&&...) {
       if (condition_) {
         yes_adapted_.emplace(
-            std::move(yes_).template k<void>(_Then::Adaptor<K_>{k_}));
+            std::move(yes_).template k<void, Errors_>(_Then::Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
           yes_adapted_->Register(*interrupt_);
@@ -32,7 +32,7 @@ struct _If final {
         yes_adapted_->Start();
       } else {
         no_adapted_.emplace(
-            std::move(no_).template k<void>(_Then::Adaptor<K_>{k_}));
+            std::move(no_).template k<void, Errors_>(_Then::Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
           no_adapted_->Register(*interrupt_);
@@ -63,8 +63,8 @@ struct _If final {
 
     Interrupt* interrupt_ = nullptr;
 
-    using YesValue_ = typename YesE_::template ValueFrom<void>;
-    using NoValue_ = typename NoE_::template ValueFrom<void>;
+    using YesValue_ = typename YesE_::template ValueFrom<void, Errors_>;
+    using NoValue_ = typename NoE_::template ValueFrom<void, Errors_>;
 
     static_assert(
         std::disjunction_v<
@@ -75,11 +75,11 @@ struct _If final {
         "an eventual value of the same type");
 
     using YesAdapted_ =
-        decltype(std::declval<YesE_>().template k<void>(
+        decltype(std::declval<YesE_>().template k<void, Errors_>(
             std::declval<_Then::Adaptor<K_>>()));
 
     using NoAdapted_ =
-        decltype(std::declval<NoE_>().template k<void>(
+        decltype(std::declval<NoE_>().template k<void, Errors_>(
             std::declval<_Then::Adaptor<K_>>()));
 
     std::optional<YesAdapted_> yes_adapted_;
@@ -103,7 +103,7 @@ struct _If final {
             type_identity<NoValue>,
             std::enable_if<std::is_void_v<NoValue>, YesValue>>>::type;
 
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Unify_<
         // NOTE: we propagate 'void' as the value type for both
         // 'YesE_' and 'NoE_' until they are defined (which
@@ -112,11 +112,11 @@ struct _If final {
         typename std::conditional_t<
             IsUndefined<YesE_>::value,
             decltype(Eventual<void>()),
-            YesE_>::template ValueFrom<void>,
+            YesE_>::template ValueFrom<void, Errors>,
         typename std::conditional_t<
             IsUndefined<NoE_>::value,
             decltype(Eventual<void>()),
-            NoE_>::template ValueFrom<void>>;
+            NoE_>::template ValueFrom<void, Errors>>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_all_t<
@@ -139,12 +139,12 @@ struct _If final {
     }
 
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       static_assert(!IsUndefined<YesE_>::value, "Missing 'yes'");
       static_assert(!IsUndefined<NoE_>::value, "Missing 'no'");
 
-      return Continuation<K, YesE_, NoE_>(
+      return Continuation<K, YesE_, NoE_, Errors>(
           std::move(k),
           condition_,
           std::move(yes_),

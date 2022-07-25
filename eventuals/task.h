@@ -19,7 +19,7 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E_, typename From_, typename To_>
+template <typename E_, typename Errors_, typename From_, typename To_>
 struct HeapTask final {
   struct Adaptor final {
     Adaptor(
@@ -60,7 +60,7 @@ struct HeapTask final {
 
   HeapTask(E_ e)
     : adapted_(
-        std::move(e).template k<From_>(
+        std::move(e).template k<From_, Errors_>(
             Adaptor{&start_, &fail_, &stop_})) {}
 
   void Start(
@@ -124,7 +124,7 @@ struct HeapTask final {
   Callback<void(std::exception_ptr)> fail_;
   Callback<void()> stop_;
 
-  using Adapted_ = decltype(std::declval<E_>().template k<From_>(
+  using Adapted_ = decltype(std::declval<E_>().template k<From_, Errors_>(
       std::declval<Adaptor>()));
 
   Adapted_ adapted_;
@@ -312,7 +312,7 @@ struct _TaskFromToWith final {
       typename Errors_,
       typename... Args_>
   struct Composable final {
-    template <typename>
+    template <typename Arg, typename Errors>
     using ValueFrom = To_;
 
     template <typename Arg, typename Errors>
@@ -364,7 +364,7 @@ struct _TaskFromToWith final {
           "'Task' expects a callable (e.g., a lambda) that "
           "returns an eventual but you're not returning anything");
 
-      using Value = typename E::template ValueFrom<From_>;
+      using Value = typename E::template ValueFrom<From_, Errors_>;
 
       using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
 
@@ -390,13 +390,13 @@ struct _TaskFromToWith final {
                                Callback<void()>&& stop) mutable {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapTask<E, From_, To_>(f(args...)),
+              new HeapTask<E, Errors_, From_, To_>(f(args...)),
               [](void* e) {
-                delete static_cast<HeapTask<E, From_, To_>*>(e);
+                delete static_cast<HeapTask<E, Errors_, From_, To_>*>(e);
               });
         }
 
-        auto* e = static_cast<HeapTask<E, From_, To_>*>(e_.get());
+        auto* e = static_cast<HeapTask<E, Errors_, From_, To_>*>(e_.get());
 
         switch (action) {
           case Action::Start:
@@ -437,13 +437,18 @@ struct _TaskFromToWith final {
       : value_or_dispatch_(std::move(value_or_dispatch)),
         args_(std::move(args)) {}
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       static_assert(
           !std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
           "'Task' 'From' or 'To' type is not specified");
 
-      return Continuation<K, From_, To_, Errors_, Args_...>(
+      return Continuation<
+          K,
+          From_,
+          To_,
+          tuple_types_union_t<Errors, Errors_>,
+          Args_...>(
           std::move(k),
           std::move(args_),
           std::move(value_or_dispatch_.value()));
@@ -475,7 +480,7 @@ template <
     typename... Args_>
 class _Task final {
  public:
-  template <typename Arg>
+  template <typename Arg, typename Errors>
   using ValueFrom = To_;
 
   template <typename Arg, typename Errors>
@@ -528,13 +533,13 @@ class _Task final {
 
   ~_Task() = default;
 
-  template <typename Arg, typename K>
+  template <typename Arg, typename Errors, typename K>
   auto k(K k) && {
     static_assert(
         !std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
         "'Task' 'From' or 'To' type is not specified");
 
-    return std::move(e_).template k<Arg>(std::move(k));
+    return std::move(e_).template k<Arg, Errors>(std::move(k));
   }
 
   // Treat this task as a continuation and "start" it. Every task gets
@@ -600,7 +605,7 @@ class _Task final {
           CHECK(promise_.has_value());
           promise_->set_exception(
               std::make_exception_ptr(
-                  StoppedException()));
+                  Stopped()));
         });
 
     return future;
