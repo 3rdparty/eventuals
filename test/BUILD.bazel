@@ -92,7 +92,6 @@ cc_test(
         "//eventuals",
         "//test/concurrent",
         "@com_github_google_googletest//:gtest_main",
-        "@com_google_protobuf//:protobuf",
     ] + select({
         # We support backward lib only for macOS and Linux.
         # The support for Windows might be added in future.

@@ -25,6 +25,11 @@ struct void_template {
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename>
+inline constexpr bool always_false_v = false;
+
+////////////////////////////////////////////////////////////////////////
+
 // TODO(benh): Replace with std::type_identity from C++20.
 template <typename T>
 struct type_identity {
