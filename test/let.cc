@@ -3,10 +3,10 @@
 #include "event-loop-test.h"
 #include "eventuals/event-loop.h"
 #include "eventuals/just.h"
+#include "eventuals/promisify.h"
 #include "eventuals/then.h"
 #include "eventuals/timer.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -31,13 +31,7 @@ TEST_F(LetTest, Let) {
            }));
   };
 
-  auto [future, k] = PromisifyForTest(e());
-
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
-  EXPECT_EQ(42, future.get());
+  EXPECT_EQ(42, *e());
 }
 
 } // namespace

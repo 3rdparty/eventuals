@@ -4,6 +4,7 @@
 
 #include "eventuals/collect.h"
 #include "eventuals/iterate.h"
+#include "eventuals/promisify.h"
 #include "gtest/gtest.h"
 
 namespace eventuals::test {

@@ -5,10 +5,10 @@
 
 #include "event-loop-test.h"
 #include "eventuals/closure.h"
+#include "eventuals/promisify.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
 
 namespace eventuals::filesystem::test {
 namespace {
@@ -27,8 +27,9 @@ TEST_F(FilesystemTest, OpenAndCloseFileSucceed) {
 
   EXPECT_TRUE(std::filesystem::exists(path));
 
-  auto e = OpenFile(path, UV_FS_O_RDONLY, 0)
-      | Then([&path](auto&& file) {
+  auto e = [&path]() {
+    return OpenFile(path, UV_FS_O_RDONLY, 0)
+        | Then([&path](auto&& file) {
              return Closure([&path, file = std::move(file)]() mutable {
                EXPECT_TRUE(file.IsOpen());
                EXPECT_TRUE(std::filesystem::exists(path));
@@ -39,13 +40,9 @@ TEST_F(FilesystemTest, OpenAndCloseFileSucceed) {
                       });
              });
            });
+  };
 
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
-  future.get();
+  *e();
 }
 
 
@@ -54,22 +51,13 @@ TEST_F(FilesystemTest, OpenFileFail) {
 
   EXPECT_FALSE(std::filesystem::exists(path));
 
-  auto e = OpenFile(path, UV_FS_O_RDONLY, 0);
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
-  EXPECT_FALSE(std::filesystem::exists(path));
+  auto e = [&path]() { return OpenFile(path, UV_FS_O_RDONLY, 0); };
 
   EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
+      [&]() { *e(); },
       ThrowsMessage<std::runtime_error>(StrEq("no such file or directory")));
+
+  EXPECT_FALSE(std::filesystem::exists(path));
 }
 
 
@@ -88,8 +76,9 @@ TEST_F(FilesystemTest, ReadFileSucceed) {
 
   EXPECT_TRUE(std::filesystem::exists(path));
 
-  auto e = OpenFile(path, UV_FS_O_RDONLY, 0)
-      | Then([&](File&& file) {
+  auto e = [&]() {
+    return OpenFile(path, UV_FS_O_RDONLY, 0)
+        | Then([&](File&& file) {
              return Closure([&, file = std::move(file)]() mutable {
                return ReadFile(file, test_string.size(), 0)
                    | Then([&](auto&& data) {
@@ -102,13 +91,9 @@ TEST_F(FilesystemTest, ReadFileSucceed) {
                       });
              });
            });
+  };
 
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
-  future.get();
+  *e();
 }
 
 
@@ -124,8 +109,9 @@ TEST_F(FilesystemTest, ReadFileFail) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   // Try to read from a File opened with WriteOnly flag.
-  auto e = OpenFile(path, UV_FS_O_WRONLY, 0)
-      | Then([&](File&& file) {
+  auto e = [&]() {
+    return OpenFile(path, UV_FS_O_WRONLY, 0)
+        | Then([&](File&& file) {
              return Closure([&, file = std::move(file)]() mutable {
                return ReadFile(file, test_string.size(), 0)
                    | Then([&](auto&& data) {
@@ -134,18 +120,14 @@ TEST_F(FilesystemTest, ReadFileFail) {
                       });
              });
            });
-
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
-  std::filesystem::remove(path);
-  EXPECT_FALSE(std::filesystem::exists(path));
+  };
 
   // NOTE: not checking 'what()' of error because it differs across
   // operating systems.
-  EXPECT_THROW(future.get(), std::runtime_error);
+  EXPECT_THROW(*e(), std::runtime_error);
+
+  std::filesystem::remove(path);
+  EXPECT_FALSE(std::filesystem::exists(path));
 }
 
 
@@ -158,8 +140,9 @@ TEST_F(FilesystemTest, WriteFileSucceed) {
 
   EXPECT_TRUE(std::filesystem::exists(path));
 
-  auto e = OpenFile(path, UV_FS_O_WRONLY, 0)
-      | Then([&](File&& file) {
+  auto e = [&]() {
+    return OpenFile(path, UV_FS_O_WRONLY, 0)
+        | Then([&](File&& file) {
              return Closure([&, file = std::move(file)]() mutable {
                return WriteFile(file, test_string, 0)
                    | Then([&]() {
@@ -181,12 +164,9 @@ TEST_F(FilesystemTest, WriteFileSucceed) {
                       });
              });
            });
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
+  };
 
-  EventLoop::Default().RunUntil(future);
-
-  future.get();
+  *e();
 }
 
 
@@ -200,8 +180,9 @@ TEST_F(FilesystemTest, WriteFileFail) {
   EXPECT_TRUE(std::filesystem::exists(path));
 
   // Try to write to a File opened with ReadOnly flag.
-  auto e = OpenFile(path, UV_FS_O_RDONLY, 0)
-      | Then([&](File&& file) {
+  auto e = [&]() {
+    return OpenFile(path, UV_FS_O_RDONLY, 0)
+        | Then([&](File&& file) {
              return Closure([&, file = std::move(file)]() mutable {
                return WriteFile(file, test_string, 0)
                    | Then([&]() {
@@ -209,17 +190,14 @@ TEST_F(FilesystemTest, WriteFileFail) {
                       });
              });
            });
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
-  std::filesystem::remove(path);
-  EXPECT_FALSE(std::filesystem::exists(path));
+  };
 
   // NOTE: not checking 'what()' of error because it differs across
   // operating systems.
-  EXPECT_THROW(future.get(), std::runtime_error);
+  EXPECT_THROW(*e(), std::runtime_error);
+
+  std::filesystem::remove(path);
+  EXPECT_FALSE(std::filesystem::exists(path));
 }
 
 
@@ -231,16 +209,14 @@ TEST_F(FilesystemTest, UnlinkFileSucceed) {
 
   EXPECT_TRUE(std::filesystem::exists(path));
 
-  auto e = UnlinkFile(path)
-      | Then([&]() {
+  auto e = [&path]() {
+    return UnlinkFile(path)
+        | Then([&]() {
              EXPECT_FALSE(std::filesystem::exists(path));
            });
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
+  };
 
-  EventLoop::Default().RunUntil(future);
-
-  future.get();
+  *e();
 }
 
 
@@ -249,19 +225,10 @@ TEST_F(FilesystemTest, UnlinkFileFail) {
 
   EXPECT_FALSE(std::filesystem::exists(path));
 
-  auto e = UnlinkFile(path);
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
+  auto e = [&path]() { return UnlinkFile(path); };
 
   EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
+      [&]() { *e(); },
       ThrowsMessage<std::runtime_error>(StrEq("no such file or directory")));
 }
 
@@ -269,18 +236,16 @@ TEST_F(FilesystemTest, UnlinkFileFail) {
 TEST_F(FilesystemTest, MakeDirectorySucceed) {
   const std::filesystem::path path = "test_mkdir_succeed";
 
-  auto e = MakeDirectory(path, 0)
-      | Then([&]() {
+  auto e = [&]() {
+    return MakeDirectory(path, 0)
+        | Then([&]() {
              EXPECT_TRUE(std::filesystem::exists(path));
              std::filesystem::remove(path);
              EXPECT_FALSE(std::filesystem::exists(path));
            });
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
+  };
 
-  EventLoop::Default().RunUntil(future);
-
-  future.get();
+  *e();
 }
 
 
@@ -290,23 +255,14 @@ TEST_F(FilesystemTest, MakeDirectoryFail) {
   std::filesystem::create_directory(path);
   EXPECT_TRUE(std::filesystem::exists(path));
 
-  auto e = MakeDirectory(path, 0);
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
+  auto e = [&]() { return MakeDirectory(path, 0); };
 
-  EventLoop::Default().RunUntil(future);
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<std::runtime_error>(StrEq("file already exists")));
 
   std::filesystem::remove(path);
   EXPECT_FALSE(std::filesystem::exists(path));
-
-  EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
-      ThrowsMessage<std::runtime_error>(StrEq("file already exists")));
 }
 
 
@@ -316,16 +272,14 @@ TEST_F(FilesystemTest, RemoveDirectorySucceed) {
   std::filesystem::create_directory(path);
   EXPECT_TRUE(std::filesystem::exists(path));
 
-  auto e = RemoveDirectory(path)
-      | Then([&]() {
+  auto e = [&]() {
+    return RemoveDirectory(path)
+        | Then([&]() {
              EXPECT_FALSE(std::filesystem::exists(path));
            });
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
+  };
 
-  EventLoop::Default().RunUntil(future);
-
-  future.get();
+  *e();
 }
 
 
@@ -334,19 +288,10 @@ TEST_F(FilesystemTest, RemoveDirectoryFail) {
 
   EXPECT_FALSE(std::filesystem::exists(path));
 
-  auto e = RemoveDirectory(path);
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
+  auto e = [&]() { return RemoveDirectory(path); };
 
   EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
+      [&]() { *e(); },
       ThrowsMessage<std::runtime_error>(StrEq("no such file or directory")));
 }
 
@@ -361,8 +306,9 @@ TEST_F(FilesystemTest, CopyFileSucceed) {
   EXPECT_TRUE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
 
-  auto e = CopyFile(src, dst, 0)
-      | Then([&]() {
+  auto e = [&]() {
+    return CopyFile(src, dst, 0)
+        | Then([&]() {
              EXPECT_TRUE(std::filesystem::exists(src));
              EXPECT_TRUE(std::filesystem::exists(dst));
              std::filesystem::remove(src);
@@ -370,12 +316,9 @@ TEST_F(FilesystemTest, CopyFileSucceed) {
              EXPECT_FALSE(std::filesystem::exists(src));
              EXPECT_FALSE(std::filesystem::exists(dst));
            });
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
+  };
 
-  EventLoop::Default().RunUntil(future);
-
-  future.get();
+  *e();
 }
 
 
@@ -386,23 +329,14 @@ TEST_F(FilesystemTest, CopyFileFail) {
   EXPECT_FALSE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
 
-  auto e = CopyFile(src, dst, 0);
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
+  auto e = [&]() { return CopyFile(src, dst, 0); };
 
-  EventLoop::Default().RunUntil(future);
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<std::runtime_error>(StrEq("no such file or directory")));
 
   EXPECT_FALSE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
-
-  EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
-      ThrowsMessage<std::runtime_error>(StrEq("no such file or directory")));
 }
 
 
@@ -416,8 +350,9 @@ TEST_F(FilesystemTest, RenameFileSucceed) {
   EXPECT_TRUE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
 
-  auto e = RenameFile(src, dst)
-      | Then([&]() {
+  auto e = [&]() {
+    return RenameFile(src, dst)
+        | Then([&]() {
              EXPECT_FALSE(std::filesystem::exists(src));
              EXPECT_TRUE(std::filesystem::exists(dst));
              std::filesystem::remove(src);
@@ -425,12 +360,9 @@ TEST_F(FilesystemTest, RenameFileSucceed) {
              EXPECT_FALSE(std::filesystem::exists(src));
              EXPECT_FALSE(std::filesystem::exists(dst));
            });
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
+  };
 
-  EventLoop::Default().RunUntil(future);
-
-  future.get();
+  *e();
 }
 
 
@@ -441,23 +373,14 @@ TEST_F(FilesystemTest, RenameFileFail) {
   EXPECT_FALSE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
 
-  auto e = RenameFile(src, dst);
-  auto [future, k] = PromisifyForTest(std::move(e));
-  k.Start();
+  auto e = [&]() { return RenameFile(src, dst); };
 
-  EventLoop::Default().RunUntil(future);
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<std::runtime_error>(StrEq("no such file or directory")));
 
   EXPECT_FALSE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
-
-  EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
-      ThrowsMessage<std::runtime_error>(StrEq("no such file or directory")));
 }
 
 } // namespace

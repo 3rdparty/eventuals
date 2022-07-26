@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "eventuals/promisify.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

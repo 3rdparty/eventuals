@@ -1,6 +1,7 @@
 #include "eventuals/foreach.h"
 
 #include "eventuals/closure.h"
+#include "eventuals/promisify.h"
 #include "eventuals/range.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"

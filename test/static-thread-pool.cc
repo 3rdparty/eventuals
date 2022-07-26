@@ -10,6 +10,7 @@
 #include "eventuals/let.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
+#include "eventuals/promisify.h"
 #include "eventuals/repeat.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/then.h"

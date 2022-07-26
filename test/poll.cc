@@ -5,6 +5,7 @@
 #include "eventuals/event-loop.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
+#include "eventuals/promisify.h"
 #include "eventuals/reduce.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
@@ -12,7 +13,6 @@
 #include "eventuals/until.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -91,13 +91,7 @@ TEST_F(PollTest, Succeed) {
            }));
   };
 
-  auto [future, k] = PromisifyForTest(e());
-
-  k.Start();
-
-  EventLoop::Default().RunUntil(future);
-
-  EXPECT_EQ(data1 + data2, future.get());
+  EXPECT_EQ(data1 + data2, *e());
 }
 
 } // namespace

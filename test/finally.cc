@@ -6,6 +6,7 @@
 #include "eventuals/finally.h"
 #include "eventuals/if.h"
 #include "eventuals/just.h"
+#include "eventuals/promisify.h"
 #include "eventuals/raise.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"

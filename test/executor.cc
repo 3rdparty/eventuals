@@ -2,6 +2,7 @@
 
 #include "eventuals/eventual.h"
 #include "eventuals/just.h"
+#include "eventuals/promisify.h"
 #include "eventuals/task.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"

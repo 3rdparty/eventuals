@@ -1,8 +1,8 @@
+#include "eventuals/promisify.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {

@@ -3,6 +3,7 @@
 #include "eventuals/let.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
+#include "eventuals/promisify.h"
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
 #include "test/grpc/helloworld.eventuals.h"
