@@ -60,7 +60,7 @@ build:windows --copt=-DNOGDI
 build:windows --host_copt=-DNOGDI
 
 # Google cache read-only access.
-build --remote_cache=https://storage.googleapis.com/reboot-dev-eventuals-remote-cache
+build --remote_cache=https://storage.googleapis.com/reboot-dev-bazel-remote-cache-eventuals-us
 build --remote_upload_local_results=false
 # Default timeout of 60 seconds is too long and bazel doesn't try to build
 # things locally while waiting for the timeout.
