@@ -43,7 +43,7 @@ TYPED_TEST(ConcurrentTypedTest, StopBeforeStart) {
                   });
             }));
           })
-        | Collect<std::vector<std::string>>();
+        | Collect<std::vector>();
   };
 
   static_assert(
