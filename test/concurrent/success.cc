@@ -37,7 +37,7 @@ TYPED_TEST(ConcurrentTypedTest, Success) {
                   });
             }));
           })
-        | Collect<std::vector<std::string>>();
+        | Collect<std::vector>();
   };
 
   static_assert(

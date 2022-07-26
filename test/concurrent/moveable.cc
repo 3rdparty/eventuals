@@ -26,7 +26,7 @@ TYPED_TEST(ConcurrentTypedTest, Moveable) {
               return 42;
             }));
           })
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   static_assert(

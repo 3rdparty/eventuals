@@ -19,7 +19,7 @@ TEST(Take, IterateTakeLastCollect) {
   auto s = [&]() {
     return Iterate(v)
         | TakeLastN(2)
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(17, 3));
@@ -31,7 +31,7 @@ TEST(Take, IterateTakeLastAllCollect) {
   auto s = [&]() {
     return Iterate(v)
         | TakeLastN(4)
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(5, 12, 17, 3));
@@ -43,7 +43,7 @@ TEST(Take, IterateTakeRangeCollect) {
   auto s = [&]() {
     return Iterate(v)
         | TakeRange(1, 2)
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(12, 17));
@@ -56,7 +56,7 @@ TEST(Take, IterateTakeRangeFilterCollect) {
     return Iterate(v)
         | TakeRange(1, 2)
         | Filter([](int x) { return x % 2 == 0; })
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(12));
@@ -68,7 +68,7 @@ TEST(Take, IterateTakeFirstCollect) {
   auto s = [&]() {
     return Iterate(v)
         | TakeFirstN(3)
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(5, 12, 17));
@@ -82,7 +82,7 @@ TEST(Take, IterateTakeFirstFilterCollect) {
     return Iterate(v)
         | TakeFirstN(3)
         | Filter([](int x) { return x % 2 == 1; })
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(5, 17));
@@ -94,7 +94,7 @@ TEST(Take, TakeLastOutOfRange) {
   auto s = [&]() {
     return Iterate(v)
         | TakeLastN(100)
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(5, 12, 17, 3));
@@ -106,7 +106,7 @@ TEST(Take, TakeFirstOutOfRange) {
   auto s = [&]() {
     return Iterate(v)
         | TakeFirstN(100)
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(5, 12, 17, 3));
@@ -118,7 +118,7 @@ TEST(Take, TakeRangeStartOutOfRange) {
   auto s = [&]() {
     return Iterate(v)
         | TakeRange(100, 100)
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre());
@@ -130,7 +130,7 @@ TEST(Take, TakeRangeAmountOutOfRange) {
   auto s = [&]() {
     return Iterate(v)
         | TakeRange(1, 100)
-        | Collect<std::vector<std::string>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*s(), ElementsAre("12", "17", "3"));
@@ -145,7 +145,7 @@ TEST(Take, UniquePtr) {
   auto s = [&]() {
     return Iterate(std::move(v))
         | TakeRange(0, 100)
-        | Collect<std::vector<std::unique_ptr<int>>>();
+        | Collect<std::vector>();
   };
 
   auto result = *s();

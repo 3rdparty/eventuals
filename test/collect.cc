@@ -18,7 +18,7 @@ TEST(Collect, VectorPass) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   std::vector<int> result = *s();
@@ -37,7 +37,7 @@ TEST(Collect, SetPass) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<std::set<int>>();
+        | Collect<std::set>();
   };
 
   std::set<int> result = *s();
@@ -49,6 +49,26 @@ TEST(Collect, SetPass) {
   ASSERT_EQ(2, v.size());
   EXPECT_THAT(v, ElementsAre(5, 12));
 }
+
+
+TEST(Collect, TypedCollection) {
+  std::vector<int> v = {5, 12};
+
+  auto s = [&]() {
+    return Iterate(v)
+        | Collect<std::vector<long long>>();
+  };
+
+  std::vector<long long> result = *s();
+
+  ASSERT_EQ(2, result.size());
+  EXPECT_THAT(v, ElementsAre(5, 12));
+
+  // The initial vector should remain unchanged.
+  ASSERT_EQ(2, v.size());
+  EXPECT_THAT(v, ElementsAre(5, 12));
+}
+
 
 } // namespace
 } // namespace eventuals::test

@@ -14,7 +14,7 @@ TEST(Collect, VectorToRepeatedPtrField) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<google::protobuf::RepeatedPtrField<std::string>>();
+        | Collect<google::protobuf::RepeatedPtrField>();
   };
 
   google::protobuf::RepeatedPtrField<std::string> result = *s();
@@ -33,7 +33,7 @@ TEST(Collect, VectorToRepeatedField) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<google::protobuf::RepeatedField<int>>();
+        | Collect<google::protobuf::RepeatedField>();
   };
 
   google::protobuf::RepeatedField<int> result = *s();
