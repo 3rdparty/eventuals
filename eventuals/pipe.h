@@ -75,6 +75,12 @@ class Pipe final : public Synchronizable {
     }));
   }
 
+  [[nodiscard]] auto IsClosed() {
+    return Synchronized(Then([this]() {
+      return is_closed_;
+    }));
+  }
+
  private:
   ConditionVariable has_values_or_closed_;
   std::deque<T> values_;
