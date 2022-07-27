@@ -169,30 +169,19 @@ EventLoop::EventLoop()
   // do about that except 'RunForever()' or application-level
   // synchronization).
   uv_check_init(&loop_, &check_);
-  uv_check_init(&loop_, &asio_check_);
 
   check_.data = this;
-  asio_check_.data = this;
 
   uv_check_start(&check_, [](uv_check_t* check) {
-    ((EventLoop*) check->data)->Check();
-  });
-
-  uv_check_start(&asio_check_, [](uv_check_t* check) {
-    ((EventLoop*) check->data)->AsioCheck();
+    // Poll ASIO handles before scheduling.
+    ((EventLoop*) check->data)->AsioPoll();
+    ((EventLoop*) check->data)->Check(); // Schedules waiters.
   });
 
   // NOTE: we unreference 'check_' so that when we run the event
   // loop it's presence doesn't factor into whether or not the loop is
   // considered alive.
   uv_unref((uv_handle_t*) &check_);
-
-  // TODO: we should consider event loop to be alive
-  // while this check is running.
-  // Before we find a better way to determine if there are
-  // still pending jobs in the asio io_context,
-  // we will just unreference this check.
-  uv_unref((uv_handle_t*) &asio_check_);
 
   uv_async_init(&loop_, &async_, nullptr);
 
@@ -207,9 +196,6 @@ EventLoop::~EventLoop() {
 
   uv_check_stop(&check_);
   uv_close((uv_handle_t*) &check_, nullptr);
-
-  uv_check_stop(&asio_check_);
-  uv_close((uv_handle_t*) &asio_check_, nullptr);
 
   uv_close((uv_handle_t*) &async_, nullptr);
 
@@ -235,14 +221,21 @@ EventLoop::~EventLoop() {
   static constexpr size_t ITERATIONS = 100000;
   size_t iterations = ITERATIONS;
 
-  auto alive = Alive();
+  CHECK(uv_loop_alive(&loop_))
+      << "should still have check and async handles to close";
 
-  CHECK(alive) << "should still have check and async handles to close";
+  size_t active_handles = 0;
 
   do {
-    alive = uv_run(&loop_, UV_RUN_NOWAIT);
+    active_handles = uv_run(&loop_, UV_RUN_NOWAIT);
 
-    if (alive && --iterations == 0) {
+    // Is needed for the following 'io_context.run()'.
+    io_context_.restart();
+
+    // BLOCKS! Returns 0 ONLY if there are no active handles left.
+    active_handles += io_context_.run_one();
+
+    if (active_handles > 0 && --iterations == 0) {
       std::ostringstream out;
 
       out << "destructing EventLoop with active handles:\n";
@@ -280,9 +273,12 @@ EventLoop::~EventLoop() {
 
       LOG(WARNING) << out.str();
 
+      // NOTE: there's currently no way for us to print out active
+      // ASIO handles.
+
       iterations = ITERATIONS;
     }
-  } while (alive);
+  } while (active_handles > 0);
 
   CHECK_EQ(uv_loop_close(&loop_), 0);
 }
@@ -403,7 +399,7 @@ void EventLoop::Check() {
 
 ////////////////////////////////////////////////////////////////////////
 
-void EventLoop::AsioCheck() {
+void EventLoop::AsioPoll() {
   io_context().restart();
   io_context().poll();
 }

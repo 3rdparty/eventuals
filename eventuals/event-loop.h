@@ -529,10 +529,6 @@ class EventLoop final : public Scheduler {
   template <typename E>
   [[nodiscard]] auto Schedule(std::string&& name, E e);
 
-  bool Alive() {
-    return uv_loop_alive(&loop_);
-  }
-
   bool Running() {
     return running_.load();
   }
@@ -1062,11 +1058,10 @@ class EventLoop final : public Scheduler {
 
   void Check();
 
-  void AsioCheck();
+  void AsioPoll();
 
   uv_loop_t loop_ = {};
   uv_check_t check_ = {};
-  uv_check_t asio_check_ = {};
   uv_async_t async_ = {};
 
   asio::io_context io_context_;
