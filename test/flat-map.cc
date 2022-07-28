@@ -228,13 +228,14 @@ TEST(FlatMap, InterruptReturn) {
         | FlatMap([&](int x) {
              return Stream<int>()
                  .interruptible()
-                 .begin([&](auto& k, Interrupt::Handler& handler) {
-                   handler.Install([&k]() {
+                 .begin([&](auto& k, auto& handler) {
+                   CHECK(handler) << "Test expects interrupt to be registered";
+                   handler->Install([&k]() {
                      k.Stop();
                    });
                    waiting.store(true);
                  })
-                 .next([](auto& k) {
+                 .next([](auto& k, auto&) {
                    k.Ended();
                  });
            })

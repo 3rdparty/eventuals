@@ -27,8 +27,9 @@ TYPED_TEST(ConcurrentTypedTest, InterruptStop) {
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
                   .interruptible()
-                  .start([&](auto& k, Interrupt::Handler& handler) mutable {
-                    handler.Install([&k]() {
+                  .start([&](auto& k, auto& handler) mutable {
+                    CHECK(handler) << "Test expects interrupt to be registered";
+                    handler->Install([&k]() {
                       k.Stop();
                     });
                     callbacks.emplace_back([]() {});

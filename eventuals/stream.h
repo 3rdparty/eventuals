@@ -187,13 +187,11 @@ struct _Stream final {
         adaptor().Begin(std::forward<Args>(args)...);
       } else {
         if constexpr (!IsUndefined<Context_>::value && Interruptible_) {
-          CHECK(handler_);
-          begin_(context_, adaptor(), *handler_, std::forward<Args>(args)...);
+          begin_(context_, adaptor(), handler_, std::forward<Args>(args)...);
         } else if constexpr (!IsUndefined<Context_>::value && !Interruptible_) {
           begin_(context_, adaptor(), std::forward<Args>(args)...);
         } else if constexpr (IsUndefined<Context_>::value && Interruptible_) {
-          CHECK(handler_);
-          begin_(adaptor(), *handler_, std::forward<Args>(args)...);
+          begin_(adaptor(), handler_, std::forward<Args>(args)...);
         } else {
           begin_(adaptor(), std::forward<Args>(args)...);
         }
@@ -210,9 +208,17 @@ struct _Stream final {
         adaptor();
         k_.Fail(std::forward<Error>(error));
       } else if constexpr (IsUndefined<Context_>::value) {
-        fail_(adaptor(), std::forward<Error>(error));
+        if constexpr (Interruptible_) {
+          fail_(adaptor(), handler_, std::forward<Error>(error));
+        } else {
+          fail_(adaptor(), std::forward<Error>(error));
+        }
       } else {
-        fail_(context_, adaptor(), std::forward<Error>(error));
+        if constexpr (Interruptible_) {
+          fail_(context_, adaptor(), handler_, std::forward<Error>(error));
+        } else {
+          fail_(context_, adaptor(), std::forward<Error>(error));
+        }
       }
     }
 
@@ -220,9 +226,17 @@ struct _Stream final {
       if constexpr (IsUndefined<Stop_>::value) {
         adaptor().Stop();
       } else if constexpr (IsUndefined<Context_>::value) {
-        stop_(adaptor());
+        if constexpr (Interruptible_) {
+          stop_(adaptor(), handler_);
+        } else {
+          stop_(adaptor());
+        }
       } else {
-        stop_(context_, adaptor());
+        if constexpr (Interruptible_) {
+          stop_(context_, adaptor(), handler_);
+        } else {
+          stop_(context_, adaptor());
+        }
       }
     }
 
@@ -243,9 +257,17 @@ struct _Stream final {
       // of 'Start', 'Fail', 'Stop'.
       previous_->Continue([this]() {
         if constexpr (IsUndefined<Context_>::value) {
-          next_(adaptor_);
+          if constexpr (Interruptible_) {
+            next_(adaptor_, handler_);
+          } else {
+            next_(adaptor_);
+          }
         } else {
-          next_(context_, adaptor_);
+          if constexpr (Interruptible_) {
+            next_(context_, adaptor_, handler_);
+          } else {
+            next_(context_, adaptor_);
+          }
         }
       });
     }
@@ -257,9 +279,17 @@ struct _Stream final {
         if constexpr (IsUndefined<Done_>::value) {
           k_.Ended();
         } else if constexpr (IsUndefined<Context_>::value) {
-          done_(adaptor_);
+          if constexpr (Interruptible_) {
+            done_(adaptor_, handler_);
+          } else {
+            done_(adaptor_);
+          }
         } else {
-          done_(context_, adaptor_);
+          if constexpr (Interruptible_) {
+            done_(context_, adaptor_, handler_);
+          } else {
+            done_(context_, adaptor_);
+          }
         }
       });
     }

@@ -172,17 +172,18 @@ TEST(Generator, InterruptStream) {
       return Stream<int>()
           .context(Lazy<std::atomic<bool>>(false))
           .interruptible()
-          .begin([](auto&, auto& k, Interrupt::Handler& handler) {
-            handler.Install([&k]() {
+          .begin([](auto&, auto& k, auto& handler) {
+            CHECK(handler) << "Test expects interrupt to be registered";
+            handler->Install([&k]() {
               k.Stop();
             });
             k.Begin();
           })
-          .next([&](auto& interrupted, auto& k) {
+          .next([&](auto& interrupted, auto& k, auto&) {
             functions.next.Call();
             k.Emit(1);
           })
-          .done([&](auto&, auto& k) {
+          .done([&](auto&, auto& k, auto&) {
             functions.done.Call();
           });
     };

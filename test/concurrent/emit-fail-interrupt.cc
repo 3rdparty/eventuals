@@ -30,13 +30,14 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailInterrupt) {
   auto e = [&]() {
     return Stream<int>()
                .interruptible()
-               .begin([](auto& k, Interrupt::Handler& handler) {
-                 handler.Install([&k]() {
+               .begin([](auto& k, auto& handler) {
+                 CHECK(handler) << "Test expects interrupt to be registered";
+                 handler->Install([&k]() {
                    k.Stop();
                  });
                  k.Begin();
                })
-               .next([i = 0](auto& k) mutable {
+               .next([i = 0](auto& k, auto&) mutable {
                  i++;
                  if (i == 1) {
                    k.Emit(i);

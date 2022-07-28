@@ -26,13 +26,14 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualStop) {
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
                   .interruptible()
-                  .start([&](auto& k, Interrupt::Handler& handler) mutable {
+                  .start([&](auto& k, auto& handler) mutable {
+                    CHECK(handler) << "Test expects interrupt to be registered";
                     if (i == 1) {
                       callbacks.emplace_back([&k]() {
                         k.Start("1");
                       });
                     } else {
-                      handler.Install([&k]() {
+                      handler->Install([&k]() {
                         k.Stop();
                       });
                       callbacks.emplace_back([]() {});

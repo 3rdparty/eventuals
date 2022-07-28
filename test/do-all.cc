@@ -103,7 +103,9 @@ TEST(DoAllTest, Interrupt) {
   auto e = [&start, &fail]() {
     return DoAll(Eventual<int>()
                      .interruptible()
-                     .start([&start](auto& k, Interrupt::Handler& handler) {
+                     .start([&start](auto& k, auto& handler) {
+                       CHECK(handler)
+                           << "Test expects interrupt to be registered";
                        start.Call();
                        k.Stop();
                      })

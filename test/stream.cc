@@ -186,20 +186,21 @@ TEST(StreamTest, InterruptStream) {
                .interruptible()
                .begin([](auto& interrupted,
                          auto& k,
-                         Interrupt::Handler& handler) {
-                 handler.Install([&interrupted]() {
+                         auto& handler) {
+                 CHECK(handler) << "Test expects interrupt to be registered";
+                 handler->Install([&interrupted]() {
                    interrupted->store(true);
                  });
                  k.Begin();
                })
-               .next([](auto& interrupted, auto& k) {
+               .next([](auto& interrupted, auto& k, auto&) {
                  if (!interrupted->load()) {
                    k.Emit(0);
                  } else {
                    k.Stop();
                  }
                })
-               .done([&](auto&, auto&) {
+               .done([&](auto&, auto&, auto&) {
                  done.Call();
                })
         | Loop<int>()
@@ -266,13 +267,14 @@ TEST(StreamTest, InterruptLoop) {
               .raises<std::runtime_error>()
               .begin([](auto& interrupted,
                         auto& k,
-                        Interrupt::Handler& handler) {
-                handler.Install([&interrupted]() {
+                        auto& handler) {
+                CHECK(handler) << "Test expects interrupt to be registered";
+                handler->Install([&interrupted]() {
                   interrupted->store(true);
                 });
                 k.Next();
               })
-              .body([&](auto&, auto& k, auto&&) {
+              .body([&](auto&, auto& k, auto&, auto&&) {
                 auto thread = std::thread(
                     [&]() mutable {
                       while (!triggered.load()) {
@@ -282,17 +284,17 @@ TEST(StreamTest, InterruptLoop) {
                     });
                 thread.detach();
               })
-              .ended([](auto& interrupted, auto& k) {
+              .ended([](auto& interrupted, auto& k, auto&) {
                 if (interrupted->load()) {
                   k.Stop();
                 } else {
                   k.Fail(std::runtime_error("error"));
                 }
               })
-              .fail([&](auto&, auto&&) {
+              .fail([&](auto&, auto&, auto&&) {
                 fail.Call();
               })
-              .stop([&](auto&) {
+              .stop([&](auto&, auto&) {
                 stop.Call();
               });
   };

@@ -48,8 +48,10 @@ TEST(ExecutorTest, Interrupt) {
                    [&]() {
                      return Eventual<void>()
                          .interruptible()
-                         .start([&](auto& k, Interrupt::Handler& handler) {
-                           handler.Install([&]() {
+                         .start([&](auto& k, auto& handler) {
+                           CHECK(handler)
+                               << "Test expects interrupt to be registered";
+                           handler->Install([&]() {
                              interrupted = true;
                              k.Stop();
                            });
