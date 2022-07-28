@@ -140,16 +140,17 @@ TEST(Transformer, Interrupt) {
   auto e = [&]() {
     return Stream<int>()
                .interruptible()
-               .begin([](auto& k, Interrupt::Handler& handler) {
-                 handler.Install([&]() {
+               .begin([](auto& k, auto& handler) {
+                 CHECK(handler) << "Test expects interrupt to be registered";
+                 handler->Install([&]() {
                    k.Stop();
                  });
                  k.Begin();
                })
-               .next([&](auto&) {
+               .next([&](auto&, auto&) {
                  next.Call();
                })
-               .done([&](auto&) {
+               .done([&](auto&, auto&) {
                  done.Call();
                })
         | transformer()

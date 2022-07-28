@@ -88,8 +88,9 @@ TEST(RepeatTest, Interrupt) {
   auto e = [&](auto s) {
     return Eventual<int>()
         .interruptible()
-        .start([&](auto& k, Interrupt::Handler& handler) {
-          handler.Install([&k]() {
+        .start([&](auto& k, auto& handler) {
+          CHECK(handler) << "Test expects interrupt to be registered";
+          handler->Install([&k]() {
             k.Stop();
           });
           start.Call();

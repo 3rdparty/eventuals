@@ -108,13 +108,11 @@ struct _Loop final {
         stream_->Next();
       } else {
         if constexpr (!IsUndefined<Context_>::value && Interruptible_) {
-          CHECK(handler_);
-          begin_(context_, *stream_, *handler_);
+          begin_(context_, *stream_, handler_);
         } else if constexpr (!IsUndefined<Context_>::value && !Interruptible_) {
           begin_(context_, *stream_);
         } else if constexpr (IsUndefined<Context_>::value && Interruptible_) {
-          CHECK(handler_);
-          begin_(*stream_, *handler_);
+          begin_(*stream_, handler_);
         } else {
           begin_(*stream_);
         }
@@ -126,9 +124,17 @@ struct _Loop final {
       if constexpr (IsUndefined<Fail_>::value) {
         k_().Fail(std::forward<Error>(error));
       } else if constexpr (IsUndefined<Context_>::value) {
-        fail_(adaptor(), std::forward<Error>(error));
+        if constexpr (Interruptible_) {
+          fail_(adaptor(), handler_, std::forward<Error>(error));
+        } else {
+          fail_(adaptor(), std::forward<Error>(error));
+        }
       } else {
-        fail_(context_, adaptor(), std::forward<Error>(error));
+        if constexpr (Interruptible_) {
+          fail_(context_, adaptor(), handler_, std::forward<Error>(error));
+        } else {
+          fail_(context_, adaptor(), std::forward<Error>(error));
+        }
       }
     }
 
@@ -136,9 +142,17 @@ struct _Loop final {
       if constexpr (IsUndefined<Stop_>::value) {
         k_().Stop();
       } else if constexpr (IsUndefined<Context_>::value) {
-        stop_(adaptor());
+        if constexpr (Interruptible_) {
+          stop_(adaptor(), handler_);
+        } else {
+          stop_(adaptor());
+        }
       } else {
-        stop_(context_, adaptor());
+        if constexpr (Interruptible_) {
+          stop_(context_, adaptor(), handler_);
+        } else {
+          stop_(context_, adaptor());
+        }
       }
     }
 
@@ -155,9 +169,17 @@ struct _Loop final {
       if constexpr (IsUndefined<Body_>::value) {
         stream_->Next();
       } else if constexpr (IsUndefined<Context_>::value) {
-        body_(*stream_, std::forward<Args>(args)...);
+        if constexpr (Interruptible_) {
+          body_(*stream_, handler_, std::forward<Args>(args)...);
+        } else {
+          body_(*stream_, std::forward<Args>(args)...);
+        }
       } else {
-        body_(context_, *stream_, std::forward<Args>(args)...);
+        if constexpr (Interruptible_) {
+          body_(context_, *stream_, handler_, std::forward<Args>(args)...);
+        } else {
+          body_(context_, *stream_, std::forward<Args>(args)...);
+        }
       }
     }
 
@@ -169,9 +191,17 @@ struct _Loop final {
       if constexpr (IsUndefined<Ended_>::value) {
         k_().Start();
       } else if constexpr (IsUndefined<Context_>::value) {
-        ended_(adaptor());
+        if constexpr (Interruptible_) {
+          ended_(adaptor(), handler_);
+        } else {
+          ended_(adaptor());
+        }
       } else {
-        ended_(context_, adaptor());
+        if constexpr (Interruptible_) {
+          ended_(context_, adaptor(), handler_);
+        } else {
+          ended_(context_, adaptor());
+        }
       }
     }
 

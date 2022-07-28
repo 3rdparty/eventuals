@@ -22,13 +22,13 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
     return Stream<int>()
                .raises<std::runtime_error>()
                .interruptible()
-               .begin([](auto& k, Interrupt::Handler& handler) {
-                 handler.Install([&k]() {
+               .begin([](auto& k, auto& handler) {
+                 handler->Install([&k]() {
                    k.Fail(std::runtime_error("error"));
                  });
                  k.Begin();
                })
-               .next([i = 0](auto& k) mutable {
+               .next([i = 0](auto& k, auto&) mutable {
                  i++;
                  if (i == 1) {
                    k.Emit(i);

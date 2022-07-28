@@ -116,8 +116,9 @@ TEST(LockTest, Stop) {
     return Acquire(&lock)
         | Eventual<std::string>()
               .interruptible()
-              .start([&](auto& k, Interrupt::Handler& handler) {
-                handler.Install([&k]() {
+              .start([&](auto& k, auto& handler) {
+                CHECK(handler) << "Test expects interrupt to be registered";
+                handler->Install([&k]() {
                   k.Stop();
                 });
                 start.Call();

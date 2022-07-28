@@ -104,13 +104,11 @@ struct _Eventual {
           "Undefined 'start' (and no default)");
 
       if constexpr (!IsUndefined<Context_>::value && Interruptible_) {
-        CHECK(handler_);
-        start_(context_, adaptor(), *handler_, std::forward<Args>(args)...);
+        start_(context_, adaptor(), handler_, std::forward<Args>(args)...);
       } else if constexpr (!IsUndefined<Context_>::value && !Interruptible_) {
         start_(context_, adaptor(), std::forward<Args>(args)...);
       } else if constexpr (IsUndefined<Context_>::value && Interruptible_) {
-        CHECK(handler_);
-        start_(adaptor(), *handler_, std::forward<Args>(args)...);
+        start_(adaptor(), handler_, std::forward<Args>(args)...);
       } else {
         start_(adaptor(), std::forward<Args>(args)...);
       }
@@ -121,9 +119,17 @@ struct _Eventual {
       if constexpr (IsUndefined<Fail_>::value) {
         k_().Fail(std::forward<Error>(error));
       } else if constexpr (IsUndefined<Context_>::value) {
-        fail_(adaptor(), std::forward<Error>(error));
+        if constexpr (Interruptible_) {
+          fail_(adaptor(), handler_, std::forward<Error>(error));
+        } else {
+          fail_(adaptor(), std::forward<Error>(error));
+        }
       } else {
-        fail_(context_, adaptor(), std::forward<Error>(error));
+        if constexpr (Interruptible_) {
+          fail_(context_, adaptor(), handler_, std::forward<Error>(error));
+        } else {
+          fail_(context_, adaptor(), std::forward<Error>(error));
+        }
       }
     }
 
@@ -131,9 +137,17 @@ struct _Eventual {
       if constexpr (IsUndefined<Stop_>::value) {
         k_().Stop();
       } else if constexpr (IsUndefined<Context_>::value) {
-        stop_(adaptor());
+        if constexpr (Interruptible_) {
+          stop_(adaptor(), handler_);
+        } else {
+          stop_(adaptor());
+        }
       } else {
-        stop_(context_, adaptor());
+        if constexpr (Interruptible_) {
+          stop_(context_, adaptor(), handler_);
+        } else {
+          stop_(context_, adaptor());
+        }
       }
     }
 
