@@ -1,0 +1,25 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("//bazel:copts.bzl", "copts")
+load("//bazel:malloc.bzl", "malloc")
+
+cc_test(
+    name = "protobuf",
+    srcs = [
+        "collect.cc",
+    ],
+    copts = copts(),
+    malloc = malloc(),
+    deps = [
+        "//eventuals/protobuf",
+        "@com_github_google_googletest//:gtest_main",
+        "@com_google_protobuf//:protobuf",
+    ] + select({
+        # We support backward lib only for macOS and Linux.
+        # The support for Windows might be added in future.
+        # https://github.com/3rdparty/eventuals/issues/450
+        "@bazel_tools//src/conditions:windows": [],
+        "//conditions:default": [
+            "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
+        ],
+    }),
+)

@@ -198,8 +198,8 @@ TEST_F(FlatMapTest, Interrupt) {
            })
         | FlatMap([](int x) { return Iterate({1, 2}); })
         | Collect<std::vector<int>>()
-              .stop([](auto& data, auto& k) {
-                k.Start(std::move(data));
+              .stop([](auto& collection, auto& k) {
+                k.Start(std::move(collection));
               });
   };
 
