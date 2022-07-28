@@ -595,6 +595,11 @@ struct _Concurrent final {
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
 
+      // Will be installed if not triggered.
+      if (handler_.has_value()) {
+        handler_->Install();
+      }
+
       ingress_.emplace(Build<Arg_>(adaptor_.Ingress()));
 
       // NOTE: we don't register an interrupt for 'ingress_' since we
@@ -633,11 +638,15 @@ struct _Concurrent final {
     }
 
     void Stop() {
-      if (!ingress_) {
-        CHECK(!egress_);
-        k_.Stop();
+      if (handler_.has_value() && !handler_->Install()) {
+        handler_->Invoke();
       } else {
-        ingress_->Stop();
+        if (!ingress_) {
+          CHECK(!egress_);
+          k_.Stop();
+        } else {
+          ingress_->Stop();
+        }
       }
     }
 
@@ -677,16 +686,14 @@ struct _Concurrent final {
     }
 
     void Register(Interrupt& interrupt) {
-      handler_.emplace(&interrupt, [this]() {
-        interrupt_.emplace(Build(adaptor_.Interrupt()));
+      interrupt.linked_interrupt_.exchange(&inner_interrupt_);
+      handler_.emplace(&inner_interrupt_, [this]() {
+        interrupt_adaptor_.emplace(Build(adaptor_.Interrupt()));
 
         // NOTE: we don't register an interrupt for 'done_' since we
         // explicitly handle interrupts with 'Adaptor::Interrupt()'.
-
-        interrupt_->Start();
+        interrupt_adaptor_->Start();
       });
-
-      handler_->Install();
     }
 
     Adaptor<F_, Arg_> adaptor_;
@@ -701,16 +708,18 @@ struct _Concurrent final {
     using Egress_ = decltype(Build(adaptor_.Egress(), std::declval<K_>()));
     std::optional<Egress_> egress_;
 
-    using WaitForDone_ = decltype(Build(
-        adaptor_.WaitForDone(std::declval<Callback<void()>>())));
+    using WaitForDone_ =
+        decltype(Build(
+            adaptor_.WaitForDone(std::declval<Callback<void()>>())));
     std::optional<WaitForDone_> wait_for_done_;
 
     using Done_ = decltype(Build(adaptor_.Done()));
     std::optional<Done_> done_;
 
-    using Interrupt_ = decltype(Build(adaptor_.Interrupt()));
-    std::optional<Interrupt_> interrupt_;
+    using InterruptAdaptor_ = decltype(Build(adaptor_.Interrupt()));
+    std::optional<InterruptAdaptor_> interrupt_adaptor_;
 
+    Interrupt inner_interrupt_;
     std::optional<Interrupt::Handler> handler_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be

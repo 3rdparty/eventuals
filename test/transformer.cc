@@ -146,10 +146,10 @@ TEST(Transformer, Interrupt) {
                  });
                  k.Begin();
                })
-               .next([&](auto&) {
+               .next([&](auto&, Interrupt::Handler& handler) {
                  next.Call();
                })
-               .done([&](auto&) {
+               .done([&](auto&, Interrupt::Handler& handler) {
                  done.Call();
                })
         | transformer()

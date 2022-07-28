@@ -173,16 +173,16 @@ TEST(Generator, InterruptStream) {
           .context(Lazy<std::atomic<bool>>(false))
           .interruptible()
           .begin([](auto&, auto& k, Interrupt::Handler& handler) {
+            k.Begin();
+          })
+          .next([&](auto& interrupted, auto& k, Interrupt::Handler& handler) {
             handler.Install([&k]() {
               k.Stop();
             });
-            k.Begin();
-          })
-          .next([&](auto& interrupted, auto& k) {
             functions.next.Call();
             k.Emit(1);
           })
-          .done([&](auto&, auto& k) {
+          .done([&](auto&, auto& k, Interrupt::Handler& handler) {
             functions.done.Call();
           });
     };
