@@ -39,6 +39,18 @@ class SocketBase {
  public:
   SocketBase() = delete;
 
+  SocketBase(const SocketBase& that) = delete;
+  // TODO(folming): implement move.
+  // It should be possible since asio provides move
+  // operations on their socket implementation.
+  SocketBase(SocketBase&& that) = delete;
+
+  SocketBase& operator=(const SocketBase& that) = delete;
+  // TODO(folming): implement move.
+  // It should be possible since asio provides move
+  // operations on their socket implementation.
+  SocketBase& operator=(SocketBase&& that) = delete;
+
   virtual ~SocketBase() {
     CHECK(!IsOpen()) << "Close the socket before destructing";
   }
@@ -54,7 +66,7 @@ class SocketBase {
   // NOTE: It's not possible to implement a virtual auto
   // method, so we have to omit a Close() method here
   // and make its implementations in Socket and ssl::Socket.
-  // TODO: Implement Close() method here instead of being
+  // TODO(folming): Implement Close() method here instead of being
   // two different implementations for Socket and ssl::Socket.
 
   bool IsOpen() {
@@ -62,7 +74,7 @@ class SocketBase {
   }
 
  protected:
-  SocketBase(Protocol protocol, EventLoop& loop = EventLoop::Default())
+  explicit SocketBase(Protocol protocol, EventLoop& loop = EventLoop::Default())
     : loop_(loop),
       protocol_(protocol) {}
 
@@ -94,13 +106,17 @@ class SocketBase {
           .interruptible()
           .raises<std::runtime_error>()
           .context(this)
-          .start([](auto& socket, auto& k, Interrupt::Handler& handler) {
+          .start([](SocketBase*& socket,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             asio::post(
                 socket->io_context(),
                 [&]() {
-                  if (handler.interrupt().Triggered()) {
-                    k.Stop();
-                    return;
+                  if (handler.has_value()) {
+                    if (handler->interrupt().Triggered()) {
+                      k.Stop();
+                      return;
+                    }
                   }
 
                   if (socket->IsOpen()) {
@@ -136,7 +152,7 @@ class SocketBase {
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto SocketBase::Bind(std::string&& ip, uint16_t port) {
-  struct Data {
+  struct Context {
     SocketBase* socket;
     std::string ip;
     uint16_t port;
@@ -146,22 +162,26 @@ class SocketBase {
       Eventual<void>()
           .interruptible()
           .raises<std::runtime_error>()
-          .context(Data{this, std::move(ip), port})
-          .start([](auto& data, auto& k, Interrupt::Handler& handler) {
+          .context(Context{this, std::move(ip), port})
+          .start([](Context& context,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             asio::post(
-                data.socket->io_context(),
+                context.socket->io_context(),
                 [&]() {
-                  if (handler.interrupt().Triggered()) {
-                    k.Stop();
-                    return;
+                  if (handler.has_value()) {
+                    if (handler->interrupt().Triggered()) {
+                      k.Stop();
+                      return;
+                    }
                   }
 
-                  if (!data.socket->socket_handle().is_open()) {
+                  if (!context.socket->socket_handle().is_open()) {
                     k.Fail(std::runtime_error("Socket is closed"));
                     return;
                   }
 
-                  if (data.socket->is_connected_) {
+                  if (context.socket->is_connected_) {
                     k.Fail(
                         std::runtime_error(
                             "Bind call is forbidden "
@@ -172,16 +192,16 @@ class SocketBase {
                   asio::error_code error;
                   asio::ip::tcp::endpoint endpoint;
 
-                  switch (data.socket->protocol_) {
+                  switch (context.socket->protocol_) {
                     case Protocol::IPV4:
                       endpoint = asio::ip::tcp::endpoint(
-                          asio::ip::make_address_v4(data.ip, error),
-                          data.port);
+                          asio::ip::make_address_v4(context.ip, error),
+                          context.port);
                       break;
                     case Protocol::IPV6:
                       endpoint = asio::ip::tcp::endpoint(
-                          asio::ip::make_address_v6(data.ip, error),
-                          data.port);
+                          asio::ip::make_address_v6(context.ip, error),
+                          context.port);
                       break;
                   }
 
@@ -191,7 +211,7 @@ class SocketBase {
                     return;
                   }
 
-                  data.socket->socket_handle().bind(endpoint, error);
+                  context.socket->socket_handle().bind(endpoint, error);
 
                   if (!error) {
                     k.Start();
@@ -207,7 +227,7 @@ class SocketBase {
 [[nodiscard]] inline auto SocketBase::Connect(
     std::string&& ip,
     uint16_t port) {
-  struct Data {
+  struct Context {
     SocketBase* socket;
     std::string ip;
     uint16_t port;
@@ -225,53 +245,59 @@ class SocketBase {
       Eventual<void>()
           .interruptible()
           .raises<std::runtime_error>()
-          .context(Data{this, std::move(ip), port})
-          .start([](auto& data, auto& k, Interrupt::Handler& handler) {
+          .context(Context{this, std::move(ip), port})
+          .start([](Context& context,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             using K = std::decay_t<decltype(k)>;
-            data.k = &k;
+            context.k = &k;
 
-            handler.Install([&data]() {
-              asio::post(data.socket->io_context(), [&]() {
-                K& k = *static_cast<K*>(data.k);
+            if (handler.has_value()) {
+              handler->Install([&context]() {
+                asio::post(context.socket->io_context(), [&]() {
+                  K& k = *static_cast<K*>(context.k);
 
-                if (!data.started) {
-                  data.completed = true;
-                  k.Stop();
-                } else if (!data.completed) {
-                  data.completed = true;
-                  asio::error_code error;
-                  data.socket->socket_handle().cancel(error);
-
-                  if (!error) {
+                  if (!context.started) {
+                    context.completed = true;
                     k.Stop();
-                  } else {
-                    k.Fail(std::runtime_error(error.message()));
+                  } else if (!context.completed) {
+                    context.completed = true;
+                    asio::error_code error;
+                    context.socket->socket_handle().cancel(error);
+
+                    if (!error) {
+                      k.Stop();
+                    } else {
+                      k.Fail(std::runtime_error(error.message()));
+                    }
                   }
-                }
+                });
               });
-            });
+            }
 
             asio::post(
-                data.socket->io_context(),
+                context.socket->io_context(),
                 [&]() {
-                  if (!data.completed) {
-                    if (handler.interrupt().Triggered()) {
-                      data.completed = true;
-                      k.Stop();
-                      return;
+                  if (!context.completed) {
+                    if (handler.has_value()) {
+                      if (handler->interrupt().Triggered()) {
+                        context.completed = true;
+                        k.Stop();
+                        return;
+                      }
                     }
 
-                    CHECK(!data.started);
-                    data.started = true;
+                    CHECK(!context.started);
+                    context.started = true;
 
-                    if (!data.socket->socket_handle().is_open()) {
-                      data.completed = true;
+                    if (!context.socket->socket_handle().is_open()) {
+                      context.completed = true;
                       k.Fail(std::runtime_error("Socket is closed"));
                       return;
                     }
 
-                    if (data.socket->is_connected_) {
-                      data.completed = true;
+                    if (context.socket->is_connected_) {
+                      context.completed = true;
                       k.Fail(
                           std::runtime_error(
                               "Socket is already connected"));
@@ -281,33 +307,33 @@ class SocketBase {
                     asio::error_code error;
                     asio::ip::tcp::endpoint endpoint;
 
-                    switch (data.socket->protocol_) {
+                    switch (context.socket->protocol_) {
                       case Protocol::IPV4:
                         endpoint = asio::ip::tcp::endpoint(
-                            asio::ip::make_address_v4(data.ip, error),
-                            data.port);
+                            asio::ip::make_address_v4(context.ip, error),
+                            context.port);
                         break;
                       case Protocol::IPV6:
                         endpoint = asio::ip::tcp::endpoint(
-                            asio::ip::make_address_v6(data.ip, error),
-                            data.port);
+                            asio::ip::make_address_v6(context.ip, error),
+                            context.port);
                         break;
                     }
 
                     if (error) {
-                      data.completed = true;
+                      context.completed = true;
                       k.Fail(std::runtime_error(error.message()));
                       return;
                     }
 
-                    data.socket->socket_handle().async_connect(
+                    context.socket->socket_handle().async_connect(
                         endpoint,
                         [&](const asio::error_code& error) {
-                          if (!data.completed) {
-                            data.completed = true;
+                          if (!context.completed) {
+                            context.completed = true;
 
                             if (!error) {
-                              data.socket->is_connected_ = true;
+                              context.socket->is_connected_ = true;
                               k.Start();
                             } else {
                               k.Fail(std::runtime_error(error.message()));
@@ -322,7 +348,7 @@ class SocketBase {
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto SocketBase::Shutdown(ShutdownType shutdown_type) {
-  struct Data {
+  struct Context {
     SocketBase* socket;
     ShutdownType shutdown_type;
   };
@@ -331,27 +357,31 @@ class SocketBase {
       Eventual<void>()
           .interruptible()
           .raises<std::runtime_error>()
-          .context(Data{this, shutdown_type})
-          .start([](auto& data, auto& k, Interrupt::Handler& handler) {
+          .context(Context{this, shutdown_type})
+          .start([](Context& context,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             asio::post(
-                data.socket->io_context(),
+                context.socket->io_context(),
                 [&]() {
-                  if (handler.interrupt().Triggered()) {
-                    k.Stop();
-                    return;
+                  if (handler.has_value()) {
+                    if (handler->interrupt().Triggered()) {
+                      k.Stop();
+                      return;
+                    }
                   }
 
-                  if (!data.socket->IsOpen()) {
+                  if (!context.socket->IsOpen()) {
                     k.Fail(std::runtime_error("Socket is closed"));
                     return;
                   }
 
                   asio::error_code error;
 
-                  data.socket->socket_handle().shutdown(
+                  context.socket->socket_handle().shutdown(
                       static_cast<
                           asio::socket_base::shutdown_type>(
-                          data.shutdown_type),
+                          context.shutdown_type),
                       error);
 
                   if (!error) {

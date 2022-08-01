@@ -50,6 +50,8 @@ class Socket final : public SocketBase {
   // operations on their socket implementation.
   Socket& operator=(Socket&& that) = delete;
 
+  ~Socket() override = default;
+
   [[nodiscard]] auto Handshake(HandshakeType handshake_type);
 
   [[nodiscard]] auto Receive(
@@ -80,7 +82,7 @@ class Socket final : public SocketBase {
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto Socket::Handshake(HandshakeType handshake_type) {
-  struct Data {
+  struct Context {
     Socket* socket;
     HandshakeType handshake_type;
 
@@ -97,76 +99,82 @@ class Socket final : public SocketBase {
       Eventual<void>()
           .interruptible()
           .raises<std::runtime_error>()
-          .context(Data{this, handshake_type})
-          .start([](auto& data, auto& k, Interrupt::Handler& handler) {
+          .context(Context{this, handshake_type})
+          .start([](Context& context,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             using K = std::decay_t<decltype(k)>;
-            data.k = &k;
+            context.k = &k;
 
-            handler.Install([&data]() {
-              asio::post(data.socket->io_context(), [&]() {
-                K& k = *static_cast<K*>(data.k);
+            if (handler.has_value()) {
+              handler->Install([&context]() {
+                asio::post(context.socket->io_context(), [&]() {
+                  K& k = *static_cast<K*>(context.k);
 
-                if (!data.started) {
-                  data.completed = true;
-                  k.Stop();
-                } else if (!data.completed) {
-                  data.completed = true;
-                  asio::error_code error;
-                  data.socket->socket_handle().cancel(error);
-
-                  if (!error) {
+                  if (!context.started) {
+                    context.completed = true;
                     k.Stop();
-                  } else {
-                    k.Fail(std::runtime_error(error.message()));
+                  } else if (!context.completed) {
+                    context.completed = true;
+                    asio::error_code error;
+                    context.socket->socket_handle().cancel(error);
+
+                    if (!error) {
+                      k.Stop();
+                    } else {
+                      k.Fail(std::runtime_error(error.message()));
+                    }
                   }
-                }
+                });
               });
-            });
+            }
 
             asio::post(
-                data.socket->io_context(),
+                context.socket->io_context(),
                 [&]() {
-                  if (!data.completed) {
-                    if (handler.interrupt().Triggered()) {
-                      data.completed = true;
-                      k.Stop();
-                      return;
+                  if (!context.completed) {
+                    if (handler.has_value()) {
+                      if (handler->interrupt().Triggered()) {
+                        context.completed = true;
+                        k.Stop();
+                        return;
+                      }
                     }
 
-                    CHECK(!data.started);
-                    data.started = true;
+                    CHECK(!context.started);
+                    context.started = true;
 
-                    if (!data.socket->IsOpen()) {
-                      data.completed = true;
+                    if (!context.socket->IsOpen()) {
+                      context.completed = true;
                       k.Fail(std::runtime_error("Socket is closed"));
                       return;
                     }
 
-                    if (!data.socket->is_connected_) {
-                      data.completed = true;
+                    if (!context.socket->is_connected_) {
+                      context.completed = true;
                       k.Fail(std::runtime_error("Socket is not connected"));
                       return;
                     }
 
-                    if (data.socket->completed_handshake_) {
-                      data.completed = true;
+                    if (context.socket->completed_handshake_) {
+                      context.completed = true;
                       k.Fail(
                           std::runtime_error(
                               "Handshake was already completed"));
                       return;
                     }
 
-                    data.socket->stream_handle().async_handshake(
+                    context.socket->stream_handle().async_handshake(
                         static_cast<
                             asio::ssl::stream<
                                 asio::ip::tcp::socket>::handshake_type>(
-                            data.handshake_type),
+                            context.handshake_type),
                         [&](const asio::error_code& error) {
-                          if (!data.completed) {
-                            data.completed = true;
+                          if (!context.completed) {
+                            context.completed = true;
 
                             if (!error) {
-                              data.socket->completed_handshake_ = true;
+                              context.socket->completed_handshake_ = true;
                               k.Start();
                             } else {
                               k.Fail(std::runtime_error(error.message()));
@@ -184,7 +192,7 @@ class Socket final : public SocketBase {
     void* destination,
     size_t destination_size,
     size_t bytes_to_read) {
-  struct Data {
+  struct Context {
     Socket* socket;
     void* destination;
     size_t destination_size;
@@ -203,59 +211,65 @@ class Socket final : public SocketBase {
       Eventual<size_t>()
           .interruptible()
           .raises<std::runtime_error>()
-          .context(Data{this, destination, destination_size, bytes_to_read})
-          .start([](auto& data, auto& k, Interrupt::Handler& handler) {
+          .context(Context{this, destination, destination_size, bytes_to_read})
+          .start([](Context& context,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             using K = std::decay_t<decltype(k)>;
-            data.k = &k;
+            context.k = &k;
 
-            handler.Install([&data]() {
-              asio::post(data.socket->io_context(), [&]() {
-                K& k = *static_cast<K*>(data.k);
+            if (handler.has_value()) {
+              handler->Install([&context]() {
+                asio::post(context.socket->io_context(), [&]() {
+                  K& k = *static_cast<K*>(context.k);
 
-                if (!data.started) {
-                  data.completed = true;
-                  k.Stop();
-                } else if (!data.completed) {
-                  data.completed = true;
-                  asio::error_code error;
-                  data.socket->socket_handle().cancel(error);
-
-                  if (!error) {
+                  if (!context.started) {
+                    context.completed = true;
                     k.Stop();
-                  } else {
-                    k.Fail(std::runtime_error(error.message()));
+                  } else if (!context.completed) {
+                    context.completed = true;
+                    asio::error_code error;
+                    context.socket->socket_handle().cancel(error);
+
+                    if (!error) {
+                      k.Stop();
+                    } else {
+                      k.Fail(std::runtime_error(error.message()));
+                    }
                   }
-                }
+                });
               });
-            });
+            }
 
             asio::post(
-                data.socket->io_context(),
+                context.socket->io_context(),
                 [&]() {
-                  if (!data.completed) {
-                    if (handler.interrupt().Triggered()) {
-                      data.completed = true;
-                      k.Stop();
-                      return;
+                  if (!context.completed) {
+                    if (handler.has_value()) {
+                      if (handler->interrupt().Triggered()) {
+                        context.completed = true;
+                        k.Stop();
+                        return;
+                      }
                     }
 
-                    CHECK(!data.started);
-                    data.started = true;
+                    CHECK(!context.started);
+                    context.started = true;
 
-                    if (!data.socket->IsOpen()) {
-                      data.completed = true;
+                    if (!context.socket->IsOpen()) {
+                      context.completed = true;
                       k.Fail(std::runtime_error("Socket is closed"));
                       return;
                     }
 
-                    if (!data.socket->is_connected_) {
-                      data.completed = true;
+                    if (!context.socket->is_connected_) {
+                      context.completed = true;
                       k.Fail(std::runtime_error("Socket is not connected"));
                       return;
                     }
 
-                    if (!data.socket->completed_handshake_) {
-                      data.completed = true;
+                    if (!context.socket->completed_handshake_) {
+                      context.completed = true;
                       k.Fail(
                           std::runtime_error(
                               "Must Handshake before trying to Receive"));
@@ -263,13 +277,13 @@ class Socket final : public SocketBase {
                     }
 
                     // Do not allow to read more than destination_size.
-                    data.bytes_to_read = std::min(
-                        data.bytes_to_read,
-                        data.destination_size);
+                    context.bytes_to_read = std::min(
+                        context.bytes_to_read,
+                        context.destination_size);
 
                     // Do not call async_read() if there're 0 bytes to be read.
-                    if (data.bytes_to_read == 0) {
-                      data.completed = true;
+                    if (context.bytes_to_read == 0) {
+                      context.completed = true;
                       k.Start(0);
                       return;
                     }
@@ -277,12 +291,14 @@ class Socket final : public SocketBase {
                     // Start receiving.
                     // Will only succeed after the supplied buffer is full.
                     asio::async_read(
-                        data.socket->stream_handle(),
-                        asio::buffer(data.destination, data.bytes_to_read),
+                        context.socket->stream_handle(),
+                        asio::buffer(
+                            context.destination,
+                            context.bytes_to_read),
                         [&](const asio::error_code& error,
                             size_t bytes_transferred) {
-                          if (!data.completed) {
-                            data.completed = true;
+                          if (!context.completed) {
+                            context.completed = true;
 
                             if (!error) {
                               k.Start(bytes_transferred);
@@ -301,7 +317,7 @@ class Socket final : public SocketBase {
 [[nodiscard]] inline auto Socket::Send(
     const void* source,
     size_t source_size) {
-  struct Data {
+  struct Context {
     Socket* socket;
     const void* source;
     size_t source_size;
@@ -319,59 +335,65 @@ class Socket final : public SocketBase {
       Eventual<size_t>()
           .interruptible()
           .raises<std::runtime_error>()
-          .context(Data{this, source, source_size})
-          .start([](auto& data, auto& k, Interrupt::Handler& handler) {
+          .context(Context{this, source, source_size})
+          .start([](Context& context,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             using K = std::decay_t<decltype(k)>;
-            data.k = &k;
+            context.k = &k;
 
-            handler.Install([&data]() {
-              asio::post(data.socket->io_context(), [&]() {
-                K& k = *static_cast<K*>(data.k);
+            if (handler.has_value()) {
+              handler->Install([&context]() {
+                asio::post(context.socket->io_context(), [&]() {
+                  K& k = *static_cast<K*>(context.k);
 
-                if (!data.started) {
-                  data.completed = true;
-                  k.Stop();
-                } else if (!data.completed) {
-                  data.completed = true;
-                  asio::error_code error;
-                  data.socket->socket_handle().cancel(error);
-
-                  if (!error) {
+                  if (!context.started) {
+                    context.completed = true;
                     k.Stop();
-                  } else {
-                    k.Fail(std::runtime_error(error.message()));
+                  } else if (!context.completed) {
+                    context.completed = true;
+                    asio::error_code error;
+                    context.socket->socket_handle().cancel(error);
+
+                    if (!error) {
+                      k.Stop();
+                    } else {
+                      k.Fail(std::runtime_error(error.message()));
+                    }
                   }
-                }
+                });
               });
-            });
+            }
 
             asio::post(
-                data.socket->io_context(),
+                context.socket->io_context(),
                 [&]() {
-                  if (!data.completed) {
-                    if (handler.interrupt().Triggered()) {
-                      data.completed = true;
-                      k.Stop();
-                      return;
+                  if (!context.completed) {
+                    if (handler.has_value()) {
+                      if (handler->interrupt().Triggered()) {
+                        context.completed = true;
+                        k.Stop();
+                        return;
+                      }
                     }
 
-                    CHECK(!data.started);
-                    data.started = true;
+                    CHECK(!context.started);
+                    context.started = true;
 
-                    if (!data.socket->IsOpen()) {
-                      data.completed = true;
+                    if (!context.socket->IsOpen()) {
+                      context.completed = true;
                       k.Fail(std::runtime_error("Socket is closed"));
                       return;
                     }
 
-                    if (!data.socket->is_connected_) {
-                      data.completed = true;
+                    if (!context.socket->is_connected_) {
+                      context.completed = true;
                       k.Fail(std::runtime_error("Socket is not connected"));
                       return;
                     }
 
-                    if (!data.socket->completed_handshake_) {
-                      data.completed = true;
+                    if (!context.socket->completed_handshake_) {
+                      context.completed = true;
                       k.Fail(
                           std::runtime_error(
                               "Must Handshake before trying to Send"));
@@ -380,8 +402,8 @@ class Socket final : public SocketBase {
 
                     // Do not call async_write()
                     // if there're 0 bytes to be sent.
-                    if (data.source_size == 0) {
-                      data.completed = true;
+                    if (context.source_size == 0) {
+                      context.completed = true;
                       k.Start(0);
                       return;
                     }
@@ -389,12 +411,12 @@ class Socket final : public SocketBase {
                     // Will only succeed after
                     // writing all of the data to socket.
                     asio::async_write(
-                        data.socket->stream_handle(),
-                        asio::buffer(data.source, data.source_size),
+                        context.socket->stream_handle(),
+                        asio::buffer(context.source, context.source_size),
                         [&](const asio::error_code& error,
                             size_t bytes_transferred) {
-                          if (!data.completed) {
-                            data.completed = true;
+                          if (!context.completed) {
+                            context.completed = true;
 
                             if (!error) {
                               k.Start(bytes_transferred);
@@ -416,13 +438,17 @@ class Socket final : public SocketBase {
           .interruptible()
           .raises<std::runtime_error>()
           .context(this)
-          .start([](auto& socket, auto& k, Interrupt::Handler& handler) {
+          .start([](Socket*& socket,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             asio::post(
                 socket->io_context(),
                 [&]() {
-                  if (handler.interrupt().Triggered()) {
-                    k.Stop();
-                    return;
+                  if (handler.has_value()) {
+                    if (handler->interrupt().Triggered()) {
+                      k.Stop();
+                      return;
+                    }
                   }
 
                   if (!socket->IsOpen()) {

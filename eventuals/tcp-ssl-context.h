@@ -1,6 +1,7 @@
 #pragma once
 
 #include "asio/ssl.hpp"
+#include "glog/logging.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -61,14 +62,14 @@ enum class SSLVersion {
 class SSLContext final {
  public:
   SSLContext(const SSLContext& that) = delete;
-  SSLContext(SSLContext&& that)
+  SSLContext(SSLContext&& that) noexcept
     : context_(std::move(that.context_)),
       moved_out_(that.moved_out_) {
     that.moved_out_ = true;
   }
 
   SSLContext& operator=(const SSLContext& that) = delete;
-  SSLContext& operator=(SSLContext&& that) {
+  SSLContext& operator=(SSLContext&& that) noexcept {
     context_ = std::move(that.context_);
     moved_out_ = that.moved_out_;
     that.moved_out_ = true;
@@ -76,12 +77,14 @@ class SSLContext final {
     return *this;
   }
 
+  ~SSLContext() = default;
+
   // Constructs a new ssl::SSLContext "builder" with the default
   // undefined values.
   static auto Builder();
 
  private:
-  SSLContext(SSLVersion ssl_version)
+  explicit SSLContext(SSLVersion ssl_version)
     : context_(static_cast<asio::ssl::context::method>(ssl_version)) {}
 
   asio::ssl::context& ssl_context_handle() {
@@ -127,4 +130,6 @@ class SSLContext final {
 
 ////////////////////////////////////////////////////////////////////////
 
-#include "tcp-ssl-context-builder.h"
+#include "eventuals/tcp-ssl-context-builder.h"
+
+////////////////////////////////////////////////////////////////////////

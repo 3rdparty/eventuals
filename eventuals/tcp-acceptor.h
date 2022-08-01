@@ -15,7 +15,7 @@ namespace tcp {
 
 class Acceptor final {
  public:
-  Acceptor(Protocol protocol, EventLoop& loop = EventLoop::Default())
+  explicit Acceptor(Protocol protocol, EventLoop& loop = EventLoop::Default())
     : loop_(loop),
       protocol_(protocol),
       acceptor_(loop.io_context()) {
@@ -42,7 +42,7 @@ class Acceptor final {
 
   [[nodiscard]] auto Bind(std::string&& ip, uint16_t port);
 
-  [[nodiscard]] auto Listen(const int backlog);
+  [[nodiscard]] auto Listen(int backlog);
 
   [[nodiscard]] auto Accept(SocketBase& socket);
 
@@ -102,13 +102,17 @@ class Acceptor final {
           .interruptible()
           .raises<std::runtime_error>()
           .context(this)
-          .start([](auto& acceptor, auto& k, Interrupt::Handler& handler) {
+          .start([](Acceptor*& acceptor,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             asio::post(
                 acceptor->io_context(),
                 [&]() {
-                  if (handler.interrupt().Triggered()) {
-                    k.Stop();
-                    return;
+                  if (handler.has_value()) {
+                    if (handler->interrupt().Triggered()) {
+                      k.Stop();
+                      return;
+                    }
                   }
 
                   if (acceptor->IsOpen()) {
@@ -144,7 +148,7 @@ class Acceptor final {
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto Acceptor::Bind(std::string&& ip, uint16_t port) {
-  struct Data {
+  struct Context {
     Acceptor* acceptor;
     std::string ip;
     uint16_t port;
@@ -154,22 +158,26 @@ class Acceptor final {
       Eventual<void>()
           .interruptible()
           .raises<std::runtime_error>()
-          .context(Data{this, std::move(ip), port})
-          .start([](auto& data, auto& k, Interrupt::Handler& handler) {
+          .context(Context{this, std::move(ip), port})
+          .start([](Context& context,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             asio::post(
-                data.acceptor->io_context(),
+                context.acceptor->io_context(),
                 [&]() {
-                  if (handler.interrupt().Triggered()) {
-                    k.Stop();
-                    return;
+                  if (handler.has_value()) {
+                    if (handler->interrupt().Triggered()) {
+                      k.Stop();
+                      return;
+                    }
                   }
 
-                  if (!data.acceptor->IsOpen()) {
+                  if (!context.acceptor->IsOpen()) {
                     k.Fail(std::runtime_error("Acceptor is closed"));
                     return;
                   }
 
-                  if (data.acceptor->is_listening_) {
+                  if (context.acceptor->is_listening_) {
                     k.Fail(
                         std::runtime_error(
                             "Bind call is forbidden "
@@ -180,16 +188,16 @@ class Acceptor final {
                   asio::error_code error;
                   asio::ip::tcp::endpoint endpoint;
 
-                  switch (data.acceptor->protocol_) {
+                  switch (context.acceptor->protocol_) {
                     case Protocol::IPV4:
                       endpoint = asio::ip::tcp::endpoint(
-                          asio::ip::make_address_v4(data.ip, error),
-                          data.port);
+                          asio::ip::make_address_v4(context.ip, error),
+                          context.port);
                       break;
                     case Protocol::IPV6:
                       endpoint = asio::ip::tcp::endpoint(
-                          asio::ip::make_address_v6(data.ip, error),
-                          data.port);
+                          asio::ip::make_address_v6(context.ip, error),
+                          context.port);
                       break;
                   }
 
@@ -199,7 +207,7 @@ class Acceptor final {
                     return;
                   }
 
-                  data.acceptor->acceptor_handle().bind(endpoint, error);
+                  context.acceptor->acceptor_handle().bind(endpoint, error);
 
                   if (!error) {
                     k.Start();
@@ -213,7 +221,7 @@ class Acceptor final {
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto Acceptor::Listen(const int backlog) {
-  struct Data {
+  struct Context {
     Acceptor* acceptor;
     const int backlog;
   };
@@ -222,22 +230,26 @@ class Acceptor final {
       Eventual<void>()
           .interruptible()
           .raises<std::runtime_error>()
-          .context(Data{this, backlog})
-          .start([](auto& data, auto& k, Interrupt::Handler& handler) {
+          .context(Context{this, backlog})
+          .start([](Context& context,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             asio::post(
-                data.acceptor->io_context(),
+                context.acceptor->io_context(),
                 [&]() {
-                  if (handler.interrupt().Triggered()) {
-                    k.Stop();
-                    return;
+                  if (handler.has_value()) {
+                    if (handler->interrupt().Triggered()) {
+                      k.Stop();
+                      return;
+                    }
                   }
 
-                  if (!data.acceptor->IsOpen()) {
+                  if (!context.acceptor->IsOpen()) {
                     k.Fail(std::runtime_error("Acceptor is closed"));
                     return;
                   }
 
-                  if (data.acceptor->is_listening_) {
+                  if (context.acceptor->is_listening_) {
                     k.Fail(
                         std::runtime_error(
                             "Acceptor is already listening"));
@@ -246,20 +258,21 @@ class Acceptor final {
 
                   asio::error_code error;
 
-                  data.acceptor->acceptor_handle().listen(
-                      data.backlog,
+                  context.acceptor->acceptor_handle().listen(
+                      context.backlog,
                       error);
 
                   if (!error) {
-                    data.acceptor->is_listening_ = true;
-                    data.acceptor->port_.store(data.acceptor->acceptor_handle()
-                                                   .local_endpoint()
-                                                   .port());
-                    std::lock_guard<std::mutex> lk(data.acceptor->ip_mutex_);
-                    data.acceptor->ip_ = data.acceptor->acceptor_handle()
-                                             .local_endpoint()
-                                             .address()
-                                             .to_string();
+                    context.acceptor->is_listening_ = true;
+                    context.acceptor->port_.store(
+                        context.acceptor->acceptor_handle()
+                            .local_endpoint()
+                            .port());
+                    std::lock_guard<std::mutex> lk(context.acceptor->ip_mutex_);
+                    context.acceptor->ip_ = context.acceptor->acceptor_handle()
+                                                .local_endpoint()
+                                                .address()
+                                                .to_string();
                     k.Start();
                   } else {
                     k.Fail(std::runtime_error(error.message()));
@@ -271,7 +284,7 @@ class Acceptor final {
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto Acceptor::Accept(SocketBase& socket) {
-  struct Data {
+  struct Context {
     Acceptor* acceptor;
     SocketBase* socket;
 
@@ -288,68 +301,75 @@ class Acceptor final {
       Eventual<void>()
           .interruptible()
           .raises<std::runtime_error>()
-          .context(Data{this, &socket})
-          .start([](auto& data, auto& k, Interrupt::Handler& handler) {
+          .context(Context{this, &socket})
+          .start([](Context& context,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             using K = std::decay_t<decltype(k)>;
-            data.k = &k;
+            context.k = &k;
 
-            handler.Install([&data]() {
-              asio::post(data.acceptor->io_context(), [&]() {
-                K& k = *static_cast<K*>(data.k);
+            if (handler.has_value()) {
+              handler->Install([&context]() {
+                asio::post(context.acceptor->io_context(), [&]() {
+                  K& k = *static_cast<K*>(context.k);
 
-                if (!data.started) {
-                  data.completed = true;
-                  k.Stop();
-                  return;
-                } else if (!data.completed) {
-                  data.completed = true;
-                  asio::error_code error;
-                  data.acceptor->acceptor_handle().cancel(error);
-
-                  if (!error) {
+                  if (!context.started) {
+                    context.completed = true;
                     k.Stop();
-                  } else {
-                    k.Fail(std::runtime_error(error.message()));
+                    return;
+                  } else if (!context.completed) {
+                    context.completed = true;
+                    asio::error_code error;
+                    context.acceptor->acceptor_handle().cancel(error);
+
+                    if (!error) {
+                      k.Stop();
+                    } else {
+                      k.Fail(std::runtime_error(error.message()));
+                    }
                   }
-                }
+                });
               });
-            });
+            }
 
             asio::post(
-                data.acceptor->io_context(),
+                context.acceptor->io_context(),
                 [&]() {
-                  if (!data.completed) {
-                    if (handler.interrupt().Triggered()) {
-                      data.completed = true;
-                      k.Stop();
-                      return;
+                  if (!context.completed) {
+                    if (handler.has_value()) {
+                      if (handler->interrupt().Triggered()) {
+                        context.completed = true;
+                        k.Stop();
+                        return;
+                      }
                     }
 
-                    CHECK(!data.started);
-                    data.started = true;
+                    CHECK(!context.started);
+                    context.started = true;
 
-                    if (!data.acceptor->IsOpen()) {
-                      data.completed = true;
+                    if (!context.acceptor->IsOpen()) {
+                      context.completed = true;
                       k.Fail(std::runtime_error("Acceptor is closed"));
                       return;
                     }
 
-                    if (!data.acceptor->is_listening_) {
-                      data.completed = true;
+                    if (!context.acceptor->is_listening_) {
+                      context.completed = true;
                       k.Fail(std::runtime_error("Acceptor is not listening"));
                       return;
                     }
 
-                    if (data.socket->IsOpen()) {
-                      data.completed = true;
+                    if (context.socket->IsOpen()) {
+                      context.completed = true;
                       k.Fail(
                           std::runtime_error(
                               "Passed socket is not closed"));
                       return;
                     }
 
-                    if (data.acceptor->protocol_ != data.socket->protocol_) {
-                      data.completed = true;
+                    if (context.acceptor->protocol_
+                        != context.socket->protocol_) {
+                      context.completed = true;
                       k.Fail(
                           std::runtime_error(
                               "Passed socket's protocol "
@@ -357,15 +377,15 @@ class Acceptor final {
                       return;
                     }
 
-                    data.acceptor->acceptor_handle().async_accept(
-                        data.socket->socket_handle(),
+                    context.acceptor->acceptor_handle().async_accept(
+                        context.socket->socket_handle(),
                         [&](const asio::error_code& error) {
-                          if (!data.completed) {
-                            data.completed = true;
+                          if (!context.completed) {
+                            context.completed = true;
 
                             if (!error) {
-                              data.socket->is_open_.store(true);
-                              data.socket->is_connected_ = true;
+                              context.socket->is_open_.store(true);
+                              context.socket->is_connected_ = true;
                               k.Start();
                             } else {
                               k.Fail(std::runtime_error(error.message()));
@@ -385,13 +405,17 @@ class Acceptor final {
           .interruptible()
           .raises<std::runtime_error>()
           .context(this)
-          .start([](auto& acceptor, auto& k, Interrupt::Handler& handler) {
+          .start([](Acceptor*& acceptor,
+                    auto& k,
+                    std::optional<Interrupt::Handler>& handler) {
             asio::post(
                 acceptor->io_context(),
                 [&]() {
-                  if (handler.interrupt().Triggered()) {
-                    k.Stop();
-                    return;
+                  if (handler.has_value()) {
+                    if (handler->interrupt().Triggered()) {
+                      k.Stop();
+                      return;
+                    }
                   }
 
                   if (!acceptor->IsOpen()) {

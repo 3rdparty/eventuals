@@ -1,6 +1,8 @@
 #pragma once
 
+#include "asio/ssl.hpp"
 #include "eventuals/builder.h"
+#include "eventuals/tcp-ssl-context.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -151,7 +153,6 @@ class SSLContext::_Builder final : public builder::Builder {
  public:
   ~_Builder() override = default;
 
- public:
   auto ssl_version(
       SSLVersion ssl_version) && {
     static_assert(!has_method_, "Duplicate 'ssl_version'");
@@ -177,6 +178,7 @@ class SSLContext::_Builder final : public builder::Builder {
         std::move(tmp_dh_),
         std::move(tmp_dh_file_));
   }
+
 
   // This function is used to add one trusted certification authority
   // from a memory buffer.
