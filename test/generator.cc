@@ -39,7 +39,7 @@ TEST(Generator, Succeed) {
 
   auto e1 = [&]() {
     return stream()
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*e1(), ElementsAre(1, 2, 3));
@@ -62,7 +62,7 @@ TEST(Generator, Succeed) {
         | Map([](auto x) {
              return x + 1;
            })
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*e3(), ElementsAre(2, 3, 4));
@@ -77,7 +77,7 @@ TEST(Generator, Succeed) {
 
   auto e4 = [&stream2]() {
     return stream2()
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*e4(), ElementsAre(1, 2, 3));
@@ -392,7 +392,7 @@ TEST(Generator, TaskWithGenerator) {
   auto task = [&]() -> Task::Of<std::vector<int>> {
     return [&]() {
       return stream()
-          | Collect<std::vector<int>>();
+          | Collect<std::vector>();
     };
   };
 
@@ -465,7 +465,7 @@ TEST(Generator, FlatMap) {
 
   auto e = [&]() {
     return stream()
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*e(), ElementsAre(0, 0, 1, 0, 1, 2));
@@ -481,7 +481,7 @@ TEST(Generator, ConstRef) {
 
   auto e = [&]() {
     return stream()
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*e(), ElementsAre(1, 2, 3));
@@ -507,7 +507,7 @@ TEST(Generator, FromTo) {
   auto e = [&]() {
     return Just(std::string("123"))
         | stream()
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*e(), ElementsAre(1, 2, 3));
@@ -531,7 +531,7 @@ TEST(Generator, FromToLValue) {
   auto e = [&]() {
     return Just(std::string("123"))
         | stream()
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*e(), ElementsAre(1, 2, 3));
@@ -550,7 +550,7 @@ TEST(Generator, Raises) {
 
   auto e = [&]() {
     return stream()
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   static_assert(

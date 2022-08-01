@@ -37,7 +37,7 @@ TEST(Transformer, Succeed) {
         | Map([](std::string s) {
              return s;
            })
-        | Collect<std::vector<std::string>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*e(), ElementsAre("100"));
@@ -69,7 +69,7 @@ TEST(Transformer, Stop) {
              map_start.Call();
              return s;
            })
-        | Collect<std::vector<std::string>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THROW(*e(), eventuals::StoppedException);
@@ -102,7 +102,7 @@ TEST(Transformer, Fail) {
              map_start.Call();
              return s;
            })
-        | Collect<std::vector<std::string>>();
+        | Collect<std::vector>();
   };
 
   static_assert(
@@ -158,7 +158,7 @@ TEST(Transformer, Interrupt) {
              map_start.Call();
              return s;
            })
-        | Collect<std::vector<std::string>>();
+        | Collect<std::vector>();
   };
 
   Interrupt interrupt;
@@ -197,7 +197,7 @@ TEST(Transformer, PropagateStop) {
              map_start.Call();
              return s;
            })
-        | Collect<std::vector<std::string>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THROW(*e(), eventuals::StoppedException);
@@ -229,7 +229,7 @@ TEST(Transformer, PropagateFail) {
              map_start.Call();
              return s;
            })
-        | Collect<std::vector<std::string>>();
+        | Collect<std::vector>();
   };
 
   static_assert(

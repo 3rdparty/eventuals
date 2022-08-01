@@ -22,7 +22,7 @@ TYPED_TEST(ConcurrentTypedTest, StreamStop) {
               return std::to_string(i);
             });
           })
-        | Collect<std::vector<std::string>>();
+        | Collect<std::vector>();
   };
 
   static_assert(

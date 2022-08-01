@@ -21,7 +21,7 @@ TEST(Pipe, UniqueValue) {
 
   auto e = [&pipe]() {
     return pipe.Read()
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*e(), ElementsAre(1));
@@ -40,7 +40,7 @@ TEST(Pipe, Values) {
 
   auto e = [&pipe]() {
     return pipe.Read()
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*e(), ElementsAre(1, 2, 3, 4, 5));
@@ -59,7 +59,7 @@ TEST(Pipe, Close) {
 
   auto e = [&pipe]() {
     return pipe.Read()
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_THAT(*e(), ElementsAre(1, 2));
@@ -75,7 +75,7 @@ TEST(Pipe, Size) {
 
   auto e = [&pipe]() {
     return pipe.Read()
-        | Collect<std::vector<std::string>>();
+        | Collect<std::vector>();
   };
 
   EXPECT_EQ(*pipe.Size(), 2);

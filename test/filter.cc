@@ -51,7 +51,7 @@ TEST(Filter, OddCollectFlow) {
   auto s = [&]() {
     return Iterate(begin, end)
         | Filter([](int x) { return x % 2 == 1; })
-        | Collect<std::set<int>>();
+        | Collect<std::set>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(5, 17));
@@ -87,7 +87,7 @@ TEST(Filter, OddMapCollectFlow) {
     return Iterate(v)
         | Filter([](int x) { return x % 2 == 1; })
         | Map([](int x) { return x + 1; })
-        | Collect<std::unordered_set<int>>();
+        | Collect<std::unordered_set>();
   };
 
   EXPECT_THAT(*s(), UnorderedElementsAre(6, 18));
