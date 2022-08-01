@@ -217,7 +217,7 @@ TEST(StaticThreadPoolTest, Concurrent) {
                   return i;
                 });
               })
-            | Collect<std::vector<int>>());
+            | Collect<std::vector>());
   };
 
   EXPECT_THAT(*e(), UnorderedElementsAre(1, 2, 3));

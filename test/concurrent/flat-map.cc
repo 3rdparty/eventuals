@@ -24,7 +24,7 @@ TYPED_TEST(ConcurrentTypedTest, FlatMap) {
               return Range(i);
             });
           })
-        | Collect<std::vector<int>>();
+        | Collect<std::vector>();
   };
 
   static_assert(

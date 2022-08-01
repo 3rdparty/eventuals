@@ -53,7 +53,9 @@ struct Collector<
 
 ////////////////////////////////////////////////////////////////////////
 
-// TODO(folming): Issue #486.
+// Used when Collection is a completely defined type, e.g.:
+// Collect<std::vector<int>>
+
 template <typename Collection>
 [[nodiscard]] auto Collect() {
   return Loop<Collection>()
@@ -67,6 +69,31 @@ template <typename Collection>
       .ended([](auto& collection, auto& k) {
         k.Start(std::move(collection));
       });
+}
+
+////////////////////////////////////////////////////////////////////////
+
+struct _Collect final {
+  template <template <typename...> class Collection_>
+  struct Composable final {
+    template <typename Arg>
+    using ValueFrom = Collection_<std::decay_t<Arg>>;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = Errors;
+
+    template <typename Arg, typename K>
+    auto k(K k) && {
+      return Build(Collect<Collection_<std::decay_t<Arg>>>(), std::move(k));
+    }
+  };
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <template <typename...> class Collection>
+[[nodiscard]] auto Collect() {
+  return _Collect::Composable<Collection>();
 }
 
 ////////////////////////////////////////////////////////////////////////

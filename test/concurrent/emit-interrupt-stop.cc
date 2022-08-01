@@ -35,7 +35,7 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptStop) {
               return std::to_string(i);
             });
           })
-        | Collect<std::vector<std::string>>();
+        | Collect<std::vector>();
   };
 
   static_assert(
