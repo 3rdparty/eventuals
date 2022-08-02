@@ -343,7 +343,7 @@ template <typename E>
 [[nodiscard]] auto RescheduleAfter(E e) {
   return Closure([e = std::move(e)]() mutable {
     return std::move(e)
-        | Reschedule(Scheduler::Context::Get().reborrow());
+        >> Reschedule(Scheduler::Context::Get().reborrow());
   });
 }
 
@@ -452,8 +452,8 @@ struct _Preempt final {
 
       adapted_.emplace(
           (Reschedule(context_.Borrow())
-           | std::move(e_)
-           | Reschedule(std::move(previous)))
+           >> std::move(e_)
+           >> Reschedule(std::move(previous)))
               .template k<Value_>(std::move(k_)));
 
       if (interrupt_ != nullptr) {
@@ -471,8 +471,8 @@ struct _Preempt final {
 
     using Adapted_ =
         decltype((std::declval<_Reschedule::Composable>()
-                  | std::declval<E_>()
-                  | std::declval<_Reschedule::Composable>())
+                  >> std::declval<E_>()
+                  >> std::declval<_Reschedule::Composable>())
                      .template k<Value_>(std::declval<K_>()));
 
     std::optional<Adapted_> adapted_;

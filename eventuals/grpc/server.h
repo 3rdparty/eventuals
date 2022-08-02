@@ -41,7 +41,7 @@ namespace grpc {
 
 ////////////////////////////////////////////////////////////////////////
 
-using eventuals::operator|;
+using eventuals::operator>>;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -680,11 +680,11 @@ inline auto Server::Insert(std::unique_ptr<Endpoint>&& endpoint) {
 inline auto Server::ShutdownEndpoints() {
   return Synchronized(Then([this]() {
     return Iterate(endpoints_)
-        | Map([](auto& entry) {
+        >> Map([](auto& entry) {
              auto& [_, endpoint] = entry;
              return endpoint->Shutdown();
            })
-        | Loop();
+        >> Loop();
   }));
 }
 
@@ -729,14 +729,14 @@ auto Server::Accept(std::string name, std::string host) {
   // 'Insert()' fails so we won't be using a dangling pointer.
   auto Dequeue = [endpoint = endpoint.get()]() {
     return endpoint->Dequeue()
-        | Map([](auto&& context) {
+        >> Map([](auto&& context) {
              return ServerCall<Request, Response>(std::move(context));
            });
   };
 
   return Validate<Request, Response>(name)
-      | Insert(std::move(endpoint))
-      | Dequeue();
+      >> Insert(std::move(endpoint))
+      >> Dequeue();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -745,7 +745,7 @@ auto Server::Accept(std::string name, std::string host) {
 template <typename Request, typename Response>
 [[nodiscard]] auto UnaryPrologue(ServerCall<Request, Response>& call) {
   return call.Reader().Read()
-      | Head(); // Only get the first request.
+      >> Head(); // Only get the first request.
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -758,34 +758,34 @@ template <typename Request, typename Response>
            return call.Writer().WriteLast(
                std::forward<decltype(response)>(response));
          })
-      | Just(::grpc::Status::OK)
-      | Catch()
-            .raised<std::exception>([](std::exception&& e) {
-              return ::grpc::Status(::grpc::UNKNOWN, e.what());
-            })
-      | Then([&](::grpc::Status status) {
+      >> Just(::grpc::Status::OK)
+      >> Catch()
+             .raised<std::exception>([](std::exception&& e) {
+               return ::grpc::Status(::grpc::UNKNOWN, e.what());
+             })
+      >> Then([&](::grpc::Status status) {
            return call.Finish(status)
-               | Finally([&](expected<void, std::exception_ptr>&& e) {
+               >> Finally([&](expected<void, std::exception_ptr>&& e) {
                     return If(e.has_value())
                                .no([e = std::move(e), &call]() {
                                  return Raise(std::move(e.error()))
-                                     | Catch()
-                                           .raised<std::exception>(
-                                               [&call](std::exception&& e) {
-                                                 EVENTUALS_GRPC_LOG(1)
-                                                     << "Finishing call ("
-                                                     << call.context() << ")"
-                                                     << " for host = "
-                                                     << call.context()->host()
-                                                     << " and path = "
-                                                     << call.context()
-                                                            ->method()
-                                                     << " failed: "
-                                                     << e.what();
-                                               });
+                                     >> Catch()
+                                            .raised<std::exception>(
+                                                [&call](std::exception&& e) {
+                                                  EVENTUALS_GRPC_LOG(1)
+                                                      << "Finishing call ("
+                                                      << call.context() << ")"
+                                                      << " for host = "
+                                                      << call.context()->host()
+                                                      << " and path = "
+                                                      << call.context()
+                                                             ->method()
+                                                      << " failed: "
+                                                      << e.what();
+                                                });
                                })
                                .yes([]() { return Just(); })
-                        | call.WaitForDone();
+                        >> call.WaitForDone();
                   });
          });
 }
@@ -799,35 +799,35 @@ template <typename Request, typename Response>
   return Map([&](auto&& response) {
            return call.Writer().Write(response);
          })
-      | Loop()
-      | Just(::grpc::Status::OK)
-      | Catch()
-            .raised<std::exception>([](std::exception&& e) {
-              return ::grpc::Status(::grpc::UNKNOWN, e.what());
-            })
-      | Then([&](::grpc::Status status) {
+      >> Loop()
+      >> Just(::grpc::Status::OK)
+      >> Catch()
+             .raised<std::exception>([](std::exception&& e) {
+               return ::grpc::Status(::grpc::UNKNOWN, e.what());
+             })
+      >> Then([&](::grpc::Status status) {
            return call.Finish(status)
-               | Finally([&](expected<void, std::exception_ptr>&& e) {
+               >> Finally([&](expected<void, std::exception_ptr>&& e) {
                     return If(e.has_value())
                                .no([e = std::move(e), &call]() {
                                  return Raise(std::move(e.error()))
-                                     | Catch()
-                                           .raised<std::exception>(
-                                               [&call](std::exception&& e) {
-                                                 EVENTUALS_GRPC_LOG(1)
-                                                     << "Finishing call ("
-                                                     << call.context() << ")"
-                                                     << " for host = "
-                                                     << call.context()->host()
-                                                     << " and path = "
-                                                     << call.context()
-                                                            ->method()
-                                                     << " failed: "
-                                                     << e.what();
-                                               });
+                                     >> Catch()
+                                            .raised<std::exception>(
+                                                [&call](std::exception&& e) {
+                                                  EVENTUALS_GRPC_LOG(1)
+                                                      << "Finishing call ("
+                                                      << call.context() << ")"
+                                                      << " for host = "
+                                                      << call.context()->host()
+                                                      << " and path = "
+                                                      << call.context()
+                                                             ->method()
+                                                      << " failed: "
+                                                      << e.what();
+                                                });
                                })
                                .yes([]() { return Just(); })
-                        | call.WaitForDone();
+                        >> call.WaitForDone();
                   });
          });
 }

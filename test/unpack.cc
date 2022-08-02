@@ -13,7 +13,7 @@ namespace {
 TEST(Unpack, Unpack) {
   auto e = []() {
     return Just(std::tuple{4, "2"})
-        | Then(Unpack([](int i, std::string&& s) {
+        >> Then(Unpack([](int i, std::string&& s) {
              return std::to_string(i) + s;
            }));
   };

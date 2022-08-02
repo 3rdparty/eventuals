@@ -38,13 +38,13 @@ namespace eventuals {
 template <size_t N>
 [[nodiscard]] auto WaitForOneOfSignals(int(&&signums)[N]) {
   return Iterate(std::move(signums))
-      | Concurrent([]() {
+      >> Concurrent([]() {
            return Map([](int signum) {
              return WaitForSignal(signum)
-                 | Just(signum);
+                 >> Just(signum);
            });
          })
-      | Head();
+      >> Head();
 }
 
 ////////////////////////////////////////////////////////////////////////

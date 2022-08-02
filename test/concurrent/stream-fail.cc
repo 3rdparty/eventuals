@@ -22,12 +22,12 @@ TYPED_TEST(ConcurrentTypedTest, StreamFail) {
                .next([](auto& k) {
                  k.Fail(std::runtime_error("error"));
                })
-        | this->ConcurrentOrConcurrentOrdered([]() {
+        >> this->ConcurrentOrConcurrentOrdered([]() {
             return Map([](int i) {
               return std::to_string(i);
             });
           })
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   static_assert(

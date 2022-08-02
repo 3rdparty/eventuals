@@ -29,7 +29,7 @@ using testing::ThrowsMessage;
 TEST(ClosureTest, Then) {
   auto e = []() {
     return Just(1)
-        | Closure([i = 41]() {
+        >> Closure([i = 41]() {
              return Then([&](auto&& value) { return i + value; });
            });
   };
@@ -49,7 +49,7 @@ TEST(ClosureTest, Functor) {
 
   auto e = []() {
     return Just(1)
-        | Closure(Functor{41});
+        >> Closure(Functor{41});
   };
 
   EXPECT_EQ(42, *e());
@@ -59,7 +59,7 @@ TEST(ClosureTest, Functor) {
 TEST(ClosureTest, OuterRepeat) {
   auto e = []() {
     return Repeat([]() { return 1; })
-        | Closure([i = 41]() {
+        >> Closure([i = 41]() {
              return Reduce(
                  i,
                  [](auto& i) {
@@ -79,15 +79,15 @@ TEST(ClosureTest, InnerRepeat) {
   auto e = []() {
     return Closure([strings = deque<string>{"hello", "world"}]() mutable {
       return Repeat()
-          | Until([&]() {
+          >> Until([&]() {
                return strings.empty();
              })
-          | Map([&]() mutable {
+          >> Map([&]() mutable {
                auto s = std::move(strings.front());
                strings.pop_front();
                return s;
              })
-          | Reduce(
+          >> Reduce(
                  deque<string>(),
                  [](auto& results) {
                    return Then([&](auto&& result) mutable {
@@ -107,7 +107,7 @@ TEST(ClosureTest, InnerRepeat) {
 TEST(ClosureTest, Fail) {
   auto e = []() {
     return Raise("error")
-        | Closure([i = 41]() {
+        >> Closure([i = 41]() {
              return Then([&]() { return i + 1; });
            });
   };
@@ -129,7 +129,7 @@ TEST(ClosureTest, Interrupt) {
 
   auto e = [&]() {
     return Just(1)
-        | Closure([&]() {
+        >> Closure([&]() {
              return Eventual<std::string>()
                  .interruptible()
                  .start([&](auto& k, auto& handler, auto&&) {

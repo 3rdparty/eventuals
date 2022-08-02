@@ -64,11 +64,11 @@ TEST(ServerDeathTest, ClientReceivesUnavailable) {
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-        | Then(Let([](ClientCall<HelloRequest, HelloReply>& call) {
+        >> Then(Let([](ClientCall<HelloRequest, HelloReply>& call) {
              HelloRequest request;
              request.set_name("emily");
              return call.Writer().WriteLast(request)
-                 | Finally(
+                 >> Finally(
                         [&](expected<void, std::exception_ptr>&&) {
                           return call.Finish();
                         });

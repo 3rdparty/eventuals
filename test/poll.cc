@@ -43,27 +43,28 @@ TEST_F(PollTest, Succeed) {
   auto e = [&]() {
     return DoAll(
                // Server:
-               Poll(server, PollEvents::Readable) | Reduce(
-                   /* data = */ std::string(),
-                   [&](auto& data) {
-                     return Then([&](PollEvents events) {
-                       EXPECT_EQ(
-                           events & PollEvents::Readable,
-                           PollEvents::Readable);
-                       char buffer[1024];
-                       int size = recv(server, buffer, 1024, 0);
-                       if (size > 0) {
-                         data += std::string(buffer, size);
-                         return /* continue = */ true;
-                       } else {
-                         // Reached EOF!
-                         return /* continue = */ false;
-                       }
-                     });
-                   }),
+               Poll(server, PollEvents::Readable)
+                   >> Reduce(
+                       /* data = */ std::string(),
+                       [&](auto& data) {
+                         return Then([&](PollEvents events) {
+                           EXPECT_EQ(
+                               events & PollEvents::Readable,
+                               PollEvents::Readable);
+                           char buffer[1024];
+                           int size = recv(server, buffer, 1024, 0);
+                           if (size > 0) {
+                             data += std::string(buffer, size);
+                             return /* continue = */ true;
+                           } else {
+                             // Reached EOF!
+                             return /* continue = */ false;
+                           }
+                         });
+                       }),
                // Client:
                Poll(client, PollEvents::Writable)
-                   | Map([&, first = true](PollEvents events) mutable {
+                   >> Map([&, first = true](PollEvents events) mutable {
                        if (first) {
                          first = false;
                          EXPECT_EQ(PollEvents::Writable, events);
@@ -79,14 +80,14 @@ TEST_F(PollTest, Succeed) {
                          return /* done = */ true;
                        }
                      })
-                   | Until([](bool done) {
+                   >> Until([](bool done) {
                        return done;
                      })
-                   | Loop()
-                   | Then([&]() {
+                   >> Loop()
+                   >> Then([&]() {
                        Close(client);
                      }))
-        | Then(Unpack([](std::string&& data, std::monostate) {
+        >> Then(Unpack([](std::string&& data, std::monostate) {
              return std::move(data);
            }));
   };

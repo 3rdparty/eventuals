@@ -37,7 +37,7 @@ class Executor final
       wait_until_finished_(&lock()),
       executor_(this->Borrow([this]() {
         return pipe_.Read()
-            | Concurrent([this]() {
+            >> Concurrent([this]() {
                  return Map([this](E_ e) {
                    // NOTE: we do 'RescheduleAfter()' here so that we
                    // make sure we don't end up borrowing any
@@ -47,19 +47,19 @@ class Executor final
                    return RescheduleAfter(std::move(e))
                        // NOTE: returning 'std::monostate' since
                        // 'Concurrent' does not yet support 'void'.
-                       | Just(std::monostate{})
-                       | Catch()
-                             .raised<std::exception>(
-                                 [this](std::exception&& e) {
-                                   EVENTUALS_LOG(1)
-                                       << "Executor '" << name_
-                                       << "' caught: " << e.what();
-                                   return std::monostate{};
-                                 });
+                       >> Just(std::monostate{})
+                       >> Catch()
+                              .raised<std::exception>(
+                                  [this](std::exception&& e) {
+                                    EVENTUALS_LOG(1)
+                                        << "Executor '" << name_
+                                        << "' caught: " << e.what();
+                                    return std::monostate{};
+                                  });
                  });
                })
-            | Loop()
-            | Synchronized(
+            >> Loop()
+            >> Synchronized(
                    Eventual<void>()
                        .start([this](auto& k) {
                          finished_ = true;

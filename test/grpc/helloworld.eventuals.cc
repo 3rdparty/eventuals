@@ -35,10 +35,10 @@ Task::Of<void> Greeter::TypeErasedService::Serve() {
                        helloworld::Greeter,
                        helloworld::HelloRequest,
                        helloworld::HelloReply>("SayHello")
-               | Concurrent([this]() {
+               >> Concurrent([this]() {
                    return Map(Let([this](auto& call) {
                      return UnaryPrologue(call)
-                         | Then(Let([&](auto& request) {
+                         >> Then(Let([&](auto& request) {
                               return Then(
                                   [&,
                                    // NOTE: using a tuple because need
@@ -51,13 +51,13 @@ Task::Of<void> Greeter::TypeErasedService::Serve() {
                                        call.context(),
                                        &request}]() mutable {
                                     return TypeErasedSayHello(&args)
-                                        | UnaryEpilogue(call);
+                                        >> UnaryEpilogue(call);
                                   });
                             }));
                    }));
                  })
-               | Loop())
-        | Just(); // Return 'void'.
+               >> Loop())
+        >> Just(); // Return 'void'.
   };
 }
 

@@ -35,13 +35,13 @@ class Pipe final : public Synchronizable {
 
   [[nodiscard]] auto Read() {
     return Repeat()
-        | Synchronized(
+        >> Synchronized(
                Map([this]() {
                  return has_values_or_closed_.Wait([this]() {
                    return values_.empty() && !is_closed_;
                  });
                })
-               | Map([this]() {
+               >> Map([this]() {
                    if (!values_.empty()) {
                      auto value = std::move(values_.front());
                      values_.pop_front();
@@ -51,10 +51,10 @@ class Pipe final : public Synchronizable {
                      return std::optional<T>();
                    }
                  }))
-        | Until([](auto& value) {
+        >> Until([](auto& value) {
              return !value.has_value();
            })
-        | Map([](auto&& value) {
+        >> Map([](auto&& value) {
              CHECK(value);
              // NOTE: need to use 'Just' here in case 'T' is an
              // eventual otherwise we'll try and compose with it here!

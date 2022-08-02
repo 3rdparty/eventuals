@@ -820,8 +820,8 @@ class Synchronizable {
   template <typename E>
   [[nodiscard]] auto Synchronized(E e) {
     return Acquire(&lock_)
-        | std::move(e)
-        | Release(&lock_);
+        >> std::move(e)
+        >> Release(&lock_);
   }
 
   template <typename F>

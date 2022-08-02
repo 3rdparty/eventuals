@@ -20,13 +20,13 @@ TEST(Expected, Compose) {
 
   auto e = [&]() {
     return f()
-        | Then([](int i) -> expected<int> {
+        >> Then([](int i) -> expected<int> {
              return tl::expected<int, std::string>(i + 1);
            })
-        | Then([](int i) {
+        >> Then([](int i) {
              return Just(expected<int>(i));
            })
-        | Then([](expected<int> e) {
+        >> Then([](expected<int> e) {
              CHECK(e.has_value());
              e = tl::expected<int, std::string>(e.value() + 1);
              return e;
@@ -43,7 +43,7 @@ TEST(Expected, NoRaisesDeclarationUnexpected) {
 
   auto e = [&]() {
     return f()
-        | Then([](int i) {
+        >> Then([](int i) {
              return i + 1;
            });
   };
@@ -71,7 +71,7 @@ TEST(Expected, NoRaisesDeclarationUnexpectedFromDerivedException) {
 
   auto e = [&]() {
     return f()
-        | Then([](int i) {
+        >> Then([](int i) {
              return i + 1;
            });
   };
@@ -99,7 +99,7 @@ TEST(Expected, RaisesDeclarationUnexpectedFromDerivedException) {
 
   auto e = [&]() {
     return f()
-        | Then([](int i) {
+        >> Then([](int i) {
              return i + 1;
            });
   };

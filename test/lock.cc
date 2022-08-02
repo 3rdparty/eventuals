@@ -32,8 +32,8 @@ TEST(LockTest, Succeed) {
                      });
                  thread.detach();
                })
-        | Acquire(&lock)
-        | Then([](auto&& value) { return std::move(value); });
+        >> Acquire(&lock)
+        >> Then([](auto&& value) { return std::move(value); });
   };
 
   auto e2 = [&]() {
@@ -45,13 +45,13 @@ TEST(LockTest, Succeed) {
                      });
                  thread.detach();
                })
-        | Acquire(&lock)
-        | Then([](auto&& value) { return std::move(value); });
+        >> Acquire(&lock)
+        >> Then([](auto&& value) { return std::move(value); });
   };
 
   auto e3 = [&]() {
     return Release(&lock)
-        | Then([]() { return "t3"; });
+        >> Then([]() { return "t3"; });
   };
 
   auto [future1, t1] = PromisifyForTest(e1());
@@ -77,22 +77,22 @@ TEST(LockTest, Fail) {
 
   auto e1 = [&]() {
     return Acquire(&lock)
-        | Eventual<std::string>()
-              .raises<std::runtime_error>()
-              .start([](auto& k) {
-                auto thread = std::thread(
-                    [&k]() mutable {
-                      k.Fail(std::runtime_error("error"));
-                    });
-                thread.detach();
-              })
-        | Release(&lock)
-        | Then([](auto&& value) { return std::move(value); });
+        >> Eventual<std::string>()
+               .raises<std::runtime_error>()
+               .start([](auto& k) {
+                 auto thread = std::thread(
+                     [&k]() mutable {
+                       k.Fail(std::runtime_error("error"));
+                     });
+                 thread.detach();
+               })
+        >> Release(&lock)
+        >> Then([](auto&& value) { return std::move(value); });
   };
 
   auto e2 = [&]() {
     return Acquire(&lock)
-        | Then([]() { return "t2"; });
+        >> Then([]() { return "t2"; });
   };
 
   EXPECT_THAT(
@@ -114,21 +114,21 @@ TEST(LockTest, Stop) {
 
   auto e1 = [&]() {
     return Acquire(&lock)
-        | Eventual<std::string>()
-              .interruptible()
-              .start([&](auto& k, auto& handler) {
-                CHECK(handler) << "Test expects interrupt to be registered";
-                handler->Install([&k]() {
-                  k.Stop();
-                });
-                start.Call();
-              })
-        | Release(&lock);
+        >> Eventual<std::string>()
+               .interruptible()
+               .start([&](auto& k, auto& handler) {
+                 CHECK(handler) << "Test expects interrupt to be registered";
+                 handler->Install([&k]() {
+                   k.Stop();
+                 });
+                 start.Call();
+               })
+        >> Release(&lock);
   };
 
   auto e2 = [&]() {
     return Acquire(&lock)
-        | Then([]() { return "t2"; });
+        >> Then([]() { return "t2"; });
   };
 
   auto [future1, k1] = PromisifyForTest(e1());
@@ -157,20 +157,19 @@ TEST(LockTest, Wait) {
                .start([](auto& k) {
                  k.Start("t1");
                })
-        | Acquire(&lock)
-        | Wait(&lock,
-               [&](auto notify) {
-                 callback = std::move(notify);
-                 return [waited = false](auto&& value) mutable {
-                   if (!waited) {
-                     waited = true;
-                     return true;
-                   } else {
-                     return false;
-                   }
-                 };
-               })
-        | Release(&lock);
+        >> Acquire(&lock)
+        >> Wait(&lock, [&](auto notify) {
+             callback = std::move(notify);
+             return [waited = false](auto&& value) mutable {
+               if (!waited) {
+                 waited = true;
+                 return true;
+               } else {
+                 return false;
+               }
+             };
+           })
+        >> Release(&lock);
   };
 
   auto [future1, t1] = PromisifyForTest(e1());
@@ -206,7 +205,7 @@ TEST(LockTest, SynchronizableWait) {
     auto Operation() {
       return Synchronized(
           Just("operation")
-          | Wait([](auto notify) {
+          >> Wait([](auto notify) {
               return [](auto&&...) {
                 return false;
               };
@@ -229,7 +228,7 @@ TEST(LockTest, SynchronizableThen) {
                  Then([]() {
                    return Just(42);
                  }))
-          | Then([](auto i) {
+          >> Then([](auto i) {
                return i;
              });
     }
@@ -251,7 +250,7 @@ TEST(LockTest, OwnedByCurrentSchedulerContext) {
                    }
                    return Just(42);
                  }))
-          | Then([this](auto i) {
+          >> Then([this](auto i) {
                if (lock().OwnedByCurrentSchedulerContext()) {
                  ADD_FAILURE() << "lock should not be owned";
                }
@@ -270,10 +269,10 @@ TEST(LockTest, SynchronizedMap) {
   struct Foo : public Synchronizable {
     auto Operation() {
       return Iterate({1, 2})
-          | Synchronized(Map([](int i) {
+          >> Synchronized(Map([](int i) {
                return ++i;
              }))
-          | Reduce(
+          >> Reduce(
                  /* sum = */ 0,
                  [](auto& sum) {
                    return Then([&](auto i) {

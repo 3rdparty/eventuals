@@ -36,8 +36,8 @@ void RunServer(const int pipe) {
 
   auto serve = [&]() {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
-        | Head()
-        | Then([](auto&& call) {
+        >> Head()
+        >> Then([](auto&& call) {
              // NOTE: need to use 'std::_Exit()' to avoid deadlock
              // waiting for borrowed contexts to get relinquished.
              std::_Exit(kProcessIntentionalExitCode);

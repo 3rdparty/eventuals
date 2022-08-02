@@ -84,7 +84,7 @@ template <typename F>
       !HasValueFrom<F>::value,
       "'Repeat' expects a callable (e.g., a lambda) not an eventual");
 
-  return _Repeat::Composable{} | Map(std::move(f));
+  return _Repeat::Composable{} >> Map(std::move(f));
 }
 
 [[nodiscard]] inline auto Repeat() {

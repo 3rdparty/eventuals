@@ -19,7 +19,7 @@ TEST(Collect, VectorPass) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<std::vector>();
+        >> Collect<std::vector>();
   };
 
   std::vector<int> result = *s();
@@ -38,7 +38,7 @@ TEST(Collect, SetPass) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<std::set>();
+        >> Collect<std::set>();
   };
 
   std::set<int> result = *s();
@@ -57,7 +57,7 @@ TEST(Collect, TypedCollection) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Collect<std::vector<long long>>();
+        >> Collect<std::vector<long long>>();
   };
 
   std::vector<long long> result = *s();

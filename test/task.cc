@@ -30,10 +30,10 @@ TEST(Task, Succeed) {
 
   auto e2 = [&]() {
     return e1()
-        | Then([](int i) {
+        >> Then([](int i) {
              return i + 1;
            })
-        | e1();
+        >> e1();
   };
 
   EXPECT_EQ(42, *e2());
@@ -52,10 +52,10 @@ TEST(Task, Succeed) {
 
   auto e4 = [&]() {
     return e3()
-        | Then([](int i) {
+        >> Then([](int i) {
              return i + 1;
            })
-        | e3();
+        >> e3();
   };
 
   EXPECT_EQ(42, *e4());
@@ -142,19 +142,19 @@ TEST(Task, FailOnCallback) {
                    functions.fail.Call();
                    k.Fail(std::runtime_error("error from fail"));
                  })
-          | Then([](int) { return 1; })
-          | Eventual<int>()
-                .start([&](auto& k, auto&& value) {
-                  functions.start.Call();
-                })
-                .stop([&](auto&) {
-                  functions.stop.Call();
-                })
-                .fail([&](auto& k, auto&& error) {
-                  functions.fail.Call();
-                  k.Fail(eventuals::make_exception_ptr_or_forward(
-                      std::forward<decltype(error)>(error)));
-                });
+          >> Then([](int) { return 1; })
+          >> Eventual<int>()
+                 .start([&](auto& k, auto&& value) {
+                   functions.start.Call();
+                 })
+                 .stop([&](auto&) {
+                   functions.stop.Call();
+                 })
+                 .fail([&](auto& k, auto&& error) {
+                   functions.fail.Call();
+                   k.Fail(eventuals::make_exception_ptr_or_forward(
+                       std::forward<decltype(error)>(error)));
+                 });
     };
   };
 
@@ -185,7 +185,7 @@ TEST(Task, FailTerminated) {
                    fail.Call();
                    k.Fail(std::runtime_error("error from fail"));
                  })
-          | Then([](int x) { return x + 1; });
+          >> Then([](int x) { return x + 1; });
     };
   };
 
@@ -393,8 +393,8 @@ TEST(Task, FromTo) {
 
   auto e = [&]() {
     return Just(10)
-        | task()
-        | Then([](std::string&& s) {
+        >> task()
+        >> Then([](std::string&& s) {
              s += "1";
              return std::move(s);
            });
@@ -418,9 +418,9 @@ TEST(Task, FromToFail) {
                .start([](auto& k) {
                  k.Fail(std::runtime_error("error"));
                })
-        | Just(10)
-        | task()
-        | Then([](std::string&& s) {
+        >> Just(10)
+        >> task()
+        >> Then([](std::string&& s) {
              s += "1";
              return std::move(s);
            });
@@ -450,9 +450,9 @@ TEST(Task, FromToStop) {
                .start([](auto& k) {
                  k.Stop();
                })
-        | Just(10)
-        | task()
-        | Then([](std::string&& s) {
+        >> Just(10)
+        >> task()
+        >> Then([](std::string&& s) {
              s += "1";
              return std::move(s);
            });
@@ -472,7 +472,7 @@ TEST(Task, Success) {
 
   auto e = [&]() {
     return f()
-        | g();
+        >> g();
   };
 
   EXPECT_EQ("hello", *e());
@@ -526,17 +526,17 @@ TEST(Task, Inheritance) {
 
   auto sync = [&]() {
     return f()
-        | Sync().GetTask();
+        >> Sync().GetTask();
   };
 
   auto async = [&]() {
     return f()
-        | Async().GetTask();
+        >> Async().GetTask();
   };
 
   auto failure = [&]() {
     return f()
-        | Failure().GetTask();
+        >> Failure().GetTask();
   };
 
   static_assert(
@@ -578,7 +578,7 @@ TEST(Task, ConstRefSuccess) {
 
   auto e1 = [&]() {
     return e()
-        | Then([](const int& value) {
+        >> Then([](const int& value) {
              return value + 10;
            });
   };
@@ -620,7 +620,7 @@ TEST(Task, RefFunction) {
 
   auto e1 = [&]() {
     return e()
-        | Then([](auto& v) {
+        >> Then([](auto& v) {
              v += 100;
            });
   };
@@ -638,7 +638,7 @@ TEST(Task, RefSuccess) {
 
   auto e1 = [&]() {
     return e()
-        | Then([](auto& v) {
+        >> Then([](auto& v) {
              v += 100;
            });
   };

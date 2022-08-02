@@ -35,8 +35,8 @@ TEST(ConditionalTest, Then) {
 
   auto c = [&]() {
     return Just(1)
-        | Then([](int i) { return i + 1; })
-        | Conditional(
+        >> Then([](int i) { return i + 1; })
+        >> Conditional(
                [](auto&& i) { return i > 1; },
                [&](auto&&) { return then(); },
                [&](auto&&) { return els3(); });
@@ -63,8 +63,8 @@ TEST(ConditionalTest, Else) {
 
   auto c = [&]() {
     return Just(0)
-        | Then([](int i) { return i + 1; })
-        | Conditional(
+        >> Then([](int i) { return i + 1; })
+        >> Conditional(
                [](auto&& i) { return i > 1; },
                [&](auto&&) { return then(); },
                [&](auto&&) { return els3(); });
@@ -99,8 +99,8 @@ TEST(ConditionalTest, Fail) {
                      });
                  thread.detach();
                })
-        | Then([](int i) { return i + 1; })
-        | Conditional(
+        >> Then([](int i) { return i + 1; })
+        >> Conditional(
                [](auto&& i) { return i > 1; },
                [&](auto&&) { return then(); },
                [&](auto&&) { return els3(); });
@@ -142,8 +142,8 @@ TEST(ConditionalTest, Interrupt) {
 
   auto c = [&]() {
     return Just(1)
-        | Then([](int i) { return i + 1; })
-        | Conditional(
+        >> Then([](int i) { return i + 1; })
+        >> Conditional(
                [](auto&& i) { return i > 1; },
                [&](auto&&) { return then(); },
                [&](auto&&) { return els3(); });
@@ -169,8 +169,8 @@ TEST(ConditionalTest, Interrupt) {
 TEST(ConditionalTest, Raise) {
   auto c = [&]() {
     return Just(1)
-        | Then([](int i) { return i + 1; })
-        | Conditional(
+        >> Then([](int i) { return i + 1; })
+        >> Conditional(
                [](auto&& i) { return i > 1; },
                [](auto&& i) { return Just(i); },
                [](auto&& i) { return Raise("raise"); });

@@ -42,7 +42,7 @@ TEST(UnimplementedTest, ClientCallsUnimplementedServerMethod) {
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-        | Then(Let([](auto& call) {
+        >> Then(Let([](auto& call) {
              return call.Finish();
            }));
   };

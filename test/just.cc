@@ -22,7 +22,7 @@ TEST(JustTest, Void) {
   bool ran = false;
   auto e = [&]() {
     return Just()
-        | Then([&]() {
+        >> Then([&]() {
              ran = true;
            });
   };
@@ -38,7 +38,7 @@ TEST(JustTest, Ref) {
 
   auto e = [&]() {
     return Just(std::ref(x))
-        | Then([](int& x) {
+        >> Then([](int& x) {
              x += 100;
            });
   };
@@ -52,7 +52,7 @@ TEST(JustTest, ConstRef) {
 
   auto e = [&]() {
     return Just(std::cref(x))
-        | Then([](const int& x) {
+        >> Then([](const int& x) {
              return std::cref(x);
            });
   };

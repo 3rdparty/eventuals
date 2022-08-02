@@ -25,18 +25,18 @@ TEST(Filter, OddLoopFlow) {
 
   auto s = [&]() {
     return Iterate(begin, end)
-        | Filter([](int x) {
+        >> Filter([](int x) {
              return x % 2 == 1;
            })
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(22, *s());
@@ -50,8 +50,8 @@ TEST(Filter, OddCollectFlow) {
 
   auto s = [&]() {
     return Iterate(begin, end)
-        | Filter([](int x) { return x % 2 == 1; })
-        | Collect<std::set>();
+        >> Filter([](int x) { return x % 2 == 1; })
+        >> Collect<std::set>();
   };
 
   EXPECT_THAT(*s(), ElementsAre(5, 17));
@@ -63,17 +63,17 @@ TEST(Filter, OddMapLoopFlow) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Filter([](int x) { return x % 2 == 1; })
-        | Map([](int x) { return x + 1; })
-        | Loop<int>()
-              .context(0)
-              .body([](auto& sum, auto& stream, auto&& value) {
-                sum += value;
-                stream.Next();
-              })
-              .ended([](auto& sum, auto& k) {
-                k.Start(sum);
-              });
+        >> Filter([](int x) { return x % 2 == 1; })
+        >> Map([](int x) { return x + 1; })
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
   };
 
   EXPECT_EQ(24, *s());
@@ -85,9 +85,9 @@ TEST(Filter, OddMapCollectFlow) {
 
   auto s = [&]() {
     return Iterate(v)
-        | Filter([](int x) { return x % 2 == 1; })
-        | Map([](int x) { return x + 1; })
-        | Collect<std::unordered_set>();
+        >> Filter([](int x) { return x % 2 == 1; })
+        >> Map([](int x) { return x + 1; })
+        >> Collect<std::unordered_set>();
   };
 
   EXPECT_THAT(*s(), UnorderedElementsAre(6, 18));
