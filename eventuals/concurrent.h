@@ -350,7 +350,7 @@ struct _Concurrent final {
     // preventing us from doing so.
     [[nodiscard]] auto WaitForDone(Callback<void()>&& callback) {
       return Synchronized(
-                 Wait([this](auto notify) {
+                 Wait(&lock(), [this](auto notify) {
                    notify_done_ = std::move(notify);
                    return [this]() {
                      return !downstream_done_
@@ -358,16 +358,16 @@ struct _Concurrent final {
                          || !fibers_done_;
                    };
                  }))
-          >> Terminal()
-                 .start([callback = std::move(callback)]() mutable {
-                   // NOTE: we need to move 'callback' on the stack
-                   // and invoke it in a 'Terminal' so that in the
-                   // event invoking it will cause this eventual that
-                   // we're currently executing to get cleaned up we
-                   // won't have a possible heap-after-use issue.
-                   Callback<void()> callback_on_stack = std::move(callback);
-                   callback_on_stack();
-                 })
+          >> Terminal().start([callback = std::move(callback)]() mutable {
+                         // NOTE: we need to move 'callback' on the stack
+                         // and invoke it in a 'Terminal' so that in the
+                         // event invoking it will cause this eventual that
+                         // we're currently executing to get cleaned up we
+                         // won't have a possible heap-after-use issue.
+                         Callback<void()> callback_on_stack =
+                             std::move(callback);
+                         callback_on_stack();
+                       })
                  .fail([](auto&& unreachable) {
                    static_assert(
                        always_false_v<decltype(unreachable)>,
@@ -537,7 +537,7 @@ struct _Concurrent final {
     // each value emitted from our fibers and moving them downstream.
     [[nodiscard]] auto Egress() {
       return Synchronized(
-                 Wait([this](auto notify) {
+                 Wait(&lock(), [this](auto notify) {
                    notify_egress_ = std::move(notify);
                    return [this]() {
                      if (values_.empty()) {

@@ -836,6 +836,8 @@ struct _Wait final {
 
 ////////////////////////////////////////////////////////////////////////
 
+// This is a private API that should only be used by lock.h: external callers
+// should instead use ConditionVariable.
 template <typename F>
 [[nodiscard]] auto Wait(Lock* lock, F f) {
   return _Wait::Composable<F>{lock, std::move(f)};
@@ -884,11 +886,6 @@ class Synchronizable {
     return _Synchronized::Composable<E>{&lock_, std::move(e)};
   }
 
-  template <typename F>
-  [[nodiscard]] auto Wait(F f) {
-    return eventuals::Wait(&lock_, std::move(f));
-  }
-
   Lock& lock() {
     return lock_;
   }
@@ -904,6 +901,25 @@ class ConditionVariable final {
   ConditionVariable(Lock* lock)
     : lock_(CHECK_NOTNULL(lock)) {}
 
+  // Waits while the given predicate 'f' returns true.
+  //
+  // The predicate is evaluated once for an initial check: if it returns true
+  // (indicating that waiting is required), it is checked again on future calls
+  // to `ConditionVariable::Notify()` so long as it continues to return true.
+  //
+  // Note: the caller must call `ConditionVariable::lock()->Acquire()` before
+  // calling `ConditionVariable::Wait()` (and must similarly make a matching
+  // call to `ConditionVariable::lock()->Release()` when appropriate).
+  //
+  // Equivalent semantically to the following:
+  //
+  //   while (f()) {
+  //     condition_variable.Wait();
+  //   }
+  //
+  // TODO(benh, xander): document the type signature of F: it looks like it
+  // must return a boolean, and it takes no arguments (unless it's passed the
+  // private EmptyCondition via the no-arg Wait() method).
   template <typename F>
   [[nodiscard]] auto Wait(F f) {
     return eventuals::Wait(
@@ -914,6 +930,7 @@ class ConditionVariable final {
               std::is_same_v<F, EmptyCondition>;
 
           // Helper to determine if we need to wait or not.
+          CHECK(lock_->OwnedByCurrentSchedulerContext());
           auto should_wait = [&]() {
             if constexpr (using_empty_condition) {
               return f(waiter);

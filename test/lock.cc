@@ -1,8 +1,10 @@
 #include "eventuals/lock.h"
 
+#include <optional>
 #include <thread>
 
 #include "eventuals/if.h"
+#include "eventuals/interrupt.h"
 #include "eventuals/iterate.h"
 #include "eventuals/just.h"
 #include "eventuals/map.h"
@@ -26,10 +28,9 @@ TEST(LockTest, Succeed) {
   auto e1 = [&]() {
     return Eventual<std::string>()
                .start([](auto& k) {
-                 std::thread thread(
-                     [&k]() mutable {
-                       k.Start("t1");
-                     });
+                 std::thread thread([&k]() {
+                   k.Start("t1");
+                 });
                  thread.detach();
                })
         >> Acquire(&lock)
@@ -39,10 +40,9 @@ TEST(LockTest, Succeed) {
   auto e2 = [&]() {
     return Eventual<std::string>()
                .start([](auto& k) {
-                 std::thread thread(
-                     [&k]() mutable {
-                       k.Start("t2");
-                     });
+                 std::thread thread([&k]() {
+                   k.Start("t2");
+                 });
                  thread.detach();
                })
         >> Acquire(&lock)
@@ -80,10 +80,9 @@ TEST(LockTest, Fail) {
         >> Eventual<std::string>()
                .raises<std::runtime_error>()
                .start([](auto& k) {
-                 std::thread thread(
-                     [&k]() mutable {
-                       k.Fail(std::runtime_error("error"));
-                     });
+                 std::thread thread([&k]() {
+                   k.Fail(std::runtime_error("error"));
+                 });
                  thread.detach();
                })
         >> Release(&lock)
@@ -116,7 +115,7 @@ TEST(LockTest, Stop) {
     return Acquire(&lock)
         >> Eventual<std::string>()
                .interruptible()
-               .start([&](auto& k, auto& handler) {
+               .start([&](auto& k, std::optional<Interrupt::Handler>& handler) {
                  CHECK(handler) << "Test expects interrupt to be registered";
                  handler->Install([&k]() {
                    k.Stop();
@@ -147,80 +146,6 @@ TEST(LockTest, Stop) {
 }
 
 
-TEST(LockTest, Wait) {
-  Lock lock;
-
-  Callback<void()> callback;
-
-  auto e1 = [&]() {
-    return Eventual<std::string>()
-               .start([](auto& k) {
-                 k.Start("t1");
-               })
-        >> Acquire(&lock)
-        >> Wait(&lock, [&](auto notify) {
-             callback = std::move(notify);
-             return [waited = false](std::string&& value) mutable {
-               if (!waited) {
-                 waited = true;
-                 return true;
-               } else {
-                 return false;
-               }
-             };
-           })
-        >> Release(&lock);
-  };
-
-  auto [future1, t1] = PromisifyForTest(e1());
-
-  Interrupt interrupt;
-
-  t1.Register(interrupt);
-
-  t1.Start();
-
-  ASSERT_TRUE(callback);
-
-  Lock::Waiter waiter;
-  waiter.context = Scheduler::Context::Get();
-
-  ASSERT_TRUE(lock.AcquireFast(&waiter));
-
-  callback();
-
-  lock.Release();
-
-  EXPECT_EQ("t1", future1.get());
-}
-
-
-TEST(LockTest, SynchronizableWait) {
-  struct Foo : public Synchronizable {
-    Foo() {}
-
-    Foo(Foo&& that)
-      : Synchronizable() {}
-
-    auto Operation() {
-      return Synchronized(
-          Just("operation")
-          >> Wait([](auto notify) {
-              return [](auto&&...) {
-                return false;
-              };
-            }));
-    }
-  };
-
-  Foo foo;
-
-  Foo foo2 = std::move(foo);
-
-  EXPECT_EQ("operation", *foo2.Operation());
-}
-
-
 TEST(LockTest, SynchronizableThen) {
   struct Foo : public Synchronizable {
     auto Operation() {
@@ -228,7 +153,7 @@ TEST(LockTest, SynchronizableThen) {
                  Then([]() {
                    return Just(42);
                  }))
-          >> Then([](auto i) {
+          >> Then([](int i) {
                return i;
              });
     }
@@ -250,7 +175,7 @@ TEST(LockTest, OwnedByCurrentSchedulerContext) {
                    }
                    return Just(42);
                  }))
-          >> Then([this](auto i) {
+          >> Then([this](int i) {
                if (lock().OwnedByCurrentSchedulerContext()) {
                  ADD_FAILURE() << "lock should not be owned";
                }
@@ -275,7 +200,7 @@ TEST(LockTest, SynchronizedMap) {
           >> Reduce(
                  /* sum = */ 0,
                  [](int& sum) {
-                   return Then([&](auto i) {
+                   return Then([&](int i) {
                      sum += i;
                      return true;
                    });
@@ -289,6 +214,7 @@ TEST(LockTest, SynchronizedMap) {
 }
 
 
+// TODO(benh): add tests that pass predicates to ConditionVariable::Wait().
 TEST(LockTest, ConditionVariable) {
   struct Foo : public Synchronizable {
     auto WaitFor(int id) {
@@ -386,7 +312,7 @@ TEST(LockTest, ConditionVariable_UseAfterFree) {
       : condition_variable_(&lock()) {}
 
     auto NotifyAll() {
-      return Synchronized(Then([this]() mutable {
+      return Synchronized(Then([this]() {
         condition_variable_.NotifyAll();
       }));
     }
