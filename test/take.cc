@@ -19,7 +19,7 @@ TEST(Take, IterateTakeLastCollect) {
 
   auto s = [&]() {
     return Iterate(v)
-        | TakeLastN(2)
+        | TakeLast(2)
         | Collect<std::vector>();
   };
 
@@ -31,7 +31,7 @@ TEST(Take, IterateTakeLastAllCollect) {
 
   auto s = [&]() {
     return Iterate(v)
-        | TakeLastN(4)
+        | TakeLast(4)
         | Collect<std::vector>();
   };
 
@@ -68,7 +68,7 @@ TEST(Take, IterateTakeFirstCollect) {
 
   auto s = [&]() {
     return Iterate(v)
-        | TakeFirstN(3)
+        | TakeFirst(3)
         | Collect<std::vector>();
   };
 
@@ -81,7 +81,7 @@ TEST(Take, IterateTakeFirstFilterCollect) {
 
   auto s = [&]() {
     return Iterate(v)
-        | TakeFirstN(3)
+        | TakeFirst(3)
         | Filter([](int x) { return x % 2 == 1; })
         | Collect<std::vector>();
   };
@@ -94,7 +94,7 @@ TEST(Take, TakeLastOutOfRange) {
 
   auto s = [&]() {
     return Iterate(v)
-        | TakeLastN(100)
+        | TakeLast(100)
         | Collect<std::vector>();
   };
 
@@ -106,7 +106,7 @@ TEST(Take, TakeFirstOutOfRange) {
 
   auto s = [&]() {
     return Iterate(v)
-        | TakeFirstN(100)
+        | TakeFirst(100)
         | Collect<std::vector>();
   };
 
@@ -157,6 +157,21 @@ TEST(Take, UniquePtr) {
   ASSERT_EQ(2, result.size());
   EXPECT_EQ(1, *result[0]);
   EXPECT_EQ(2, *result[1]);
+}
+
+TEST(Take, TakeRangeInfiniteStream) {
+  auto s = []() {
+    return Stream<int>()
+               .next([i = 0](auto& k) mutable {
+                 if (i < 2) {
+                   k.Emit(i++);
+                 }
+               })
+        | TakeRange(0, 2)
+        | Collect<std::vector>();
+  };
+
+  EXPECT_THAT(*s(), ElementsAre(0, 1));
 }
 
 } // namespace
