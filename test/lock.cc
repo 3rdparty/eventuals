@@ -1,8 +1,10 @@
 #include "eventuals/lock.h"
 
+#include <optional>
 #include <thread>
 
 #include "eventuals/if.h"
+#include "eventuals/interrupt.h"
 #include "eventuals/iterate.h"
 #include "eventuals/just.h"
 #include "eventuals/map.h"
@@ -26,27 +28,27 @@ TEST(LockTest, Succeed) {
   auto e1 = [&]() {
     return Eventual<std::string>()
                .start([](auto& k) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&k]() mutable {
                        k.Start("t1");
                      });
                  thread.detach();
                })
         >> Acquire(&lock)
-        >> Then([](auto&& value) { return std::move(value); });
+        >> Then([](std::string&& value) { return std::move(value); });
   };
 
   auto e2 = [&]() {
     return Eventual<std::string>()
                .start([](auto& k) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&k]() mutable {
                        k.Start("t2");
                      });
                  thread.detach();
                })
         >> Acquire(&lock)
-        >> Then([](auto&& value) { return std::move(value); });
+        >> Then([](std::string&& value) { return std::move(value); });
   };
 
   auto e3 = [&]() {
@@ -80,14 +82,14 @@ TEST(LockTest, Fail) {
         >> Eventual<std::string>()
                .raises<std::runtime_error>()
                .start([](auto& k) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&k]() mutable {
                        k.Fail(std::runtime_error("error"));
                      });
                  thread.detach();
                })
         >> Release(&lock)
-        >> Then([](auto&& value) { return std::move(value); });
+        >> Then([](std::string&& value) { return std::move(value); });
   };
 
   auto e2 = [&]() {
@@ -116,7 +118,7 @@ TEST(LockTest, Stop) {
     return Acquire(&lock)
         >> Eventual<std::string>()
                .interruptible()
-               .start([&](auto& k, auto& handler) {
+               .start([&](auto& k, std::optional<Interrupt::Handler>& handler) {
                  CHECK(handler) << "Test expects interrupt to be registered";
                  handler->Install([&k]() {
                    k.Stop();
@@ -152,21 +154,28 @@ TEST(LockTest, Wait) {
 
   Callback<void()> callback;
 
+  int wait_call_count = 0;
   auto e1 = [&]() {
     return Eventual<std::string>()
                .start([](auto& k) {
                  k.Start("t1");
                })
         >> Acquire(&lock)
-        >> Wait(&lock, [&](auto notify) {
+        >> Wait(&lock, [&](Callback<void()> notify) {
              callback = std::move(notify);
-             return [waited = false](auto&& value) mutable {
-               if (!waited) {
-                 waited = true;
-                 return true;
-               } else {
-                 return false;
-               }
+             // This predicate returns true on the first call (signaling
+             // the need to wait) and false on the second call (signaling
+             // that waiting is no longer needed).
+             //
+             // TODO(xander, benh): Why isn't `value` arg used in this
+             // lambda? It's an r-value reference: if it's not used by the
+             // predicate, how does it reach the end of the eventual chain?
+             // Shouldn't this instead be an l-value reference? If so, why
+             // does this compile?
+             return [&wait_call_count](std::string&& value) {
+               ++wait_call_count;
+               // Only keep waiting on the first call.
+               return wait_call_count == 1;
              };
            })
         >> Release(&lock);
@@ -176,25 +185,43 @@ TEST(LockTest, Wait) {
 
   Interrupt interrupt;
 
+  // TODO(benh, xander): document why this is needed. Does anything assert that
+  // an Interrupt is registered? (For that matter, what's an Interrupt?)
   t1.Register(interrupt);
 
   t1.Start();
 
   ASSERT_TRUE(callback);
+  // The Wait() predicate is checked once when it's initially reached: our
+  // predicate returns true on the first call, so it will trigger a wait. The
+  // predicate will return false to unblock things when called again, but it
+  // won't be called again until we invoke the callback below.
+  //
+  // TODO(benh, xander): are predicates only called explicitly, i.e. when
+  // someone manually notifies by calling a callback? Document when predicates
+  // are called.
+  ASSERT_EQ(wait_call_count, 1);
 
   Lock::Waiter waiter;
   waiter.context = Scheduler::Context::Get();
 
   ASSERT_TRUE(lock.AcquireFast(&waiter));
 
+  // Notify the waiter that it should try running the predicate again.
+  //
+  // TODO(benh, xander): document exactly when the predicate is called. Is it
+  // during this callback, or in the Release() call below, or at an undefined
+  // point after the Release() call but before the future resolves?
   callback();
 
   lock.Release();
 
+  ASSERT_EQ(wait_call_count, 2);
   EXPECT_EQ("t1", future1.get());
 }
 
-
+// TODO(benh, xander): add tests that call Synchronizable::Wait() where the
+// predicate returns true to trigger waiting.
 TEST(LockTest, SynchronizableWait) {
   struct Foo : public Synchronizable {
     Foo() {}
@@ -205,7 +232,11 @@ TEST(LockTest, SynchronizableWait) {
     auto Operation() {
       return Synchronized(
           Just("operation")
-          >> Wait([](auto notify) {
+          // TODO(benh, xander): document why this lambda needs to take a
+          // notify callback arg, and what it should (or shouldn't) do with it.
+          // If users commonly won't need to do anything with the callback,
+          // should we add an ~overload that accepts an arg-free lambda?
+          >> Wait([](Callback<void()> notify) {
               return [](auto&&...) {
                 return false;
               };
@@ -215,6 +246,8 @@ TEST(LockTest, SynchronizableWait) {
 
   Foo foo;
 
+  // TODO(benh): document why we std::move here, rather than just having 1
+  // variable.
   Foo foo2 = std::move(foo);
 
   EXPECT_EQ("operation", *foo2.Operation());
@@ -228,7 +261,7 @@ TEST(LockTest, SynchronizableThen) {
                  Then([]() {
                    return Just(42);
                  }))
-          >> Then([](auto i) {
+          >> Then([](int i) {
                return i;
              });
     }
@@ -250,7 +283,7 @@ TEST(LockTest, OwnedByCurrentSchedulerContext) {
                    }
                    return Just(42);
                  }))
-          >> Then([this](auto i) {
+          >> Then([this](int i) {
                if (lock().OwnedByCurrentSchedulerContext()) {
                  ADD_FAILURE() << "lock should not be owned";
                }
@@ -274,8 +307,8 @@ TEST(LockTest, SynchronizedMap) {
              }))
           >> Reduce(
                  /* sum = */ 0,
-                 [](auto& sum) {
-                   return Then([&](auto i) {
+                 [](int& sum) {
+                   return Then([&](int i) {
                      sum += i;
                      return true;
                    });
@@ -289,12 +322,14 @@ TEST(LockTest, SynchronizedMap) {
 }
 
 
+// TODO(benh, xander): add tests that pass predicates to
+// ConditionVariable::Wait().
 TEST(LockTest, ConditionVariable) {
   struct Foo : public Synchronizable {
     auto WaitFor(int id) {
       return Synchronized(Then([this, id]() {
         auto [iterator, inserted] = condition_variables_.emplace(id, &lock());
-        auto& condition_variable = iterator->second;
+        ConditionVariable& condition_variable = iterator->second;
         return condition_variable.Wait();
       }));
     }
@@ -307,7 +342,7 @@ TEST(LockTest, ConditionVariable) {
               return false;
             })
             .no([iterator]() {
-              auto& condition_variable = iterator->second;
+              ConditionVariable& condition_variable = iterator->second;
               condition_variable.Notify();
               return true;
             });
@@ -322,7 +357,7 @@ TEST(LockTest, ConditionVariable) {
               return false;
             })
             .no([iterator]() {
-              auto& condition_variable = iterator->second;
+              ConditionVariable& condition_variable = iterator->second;
               condition_variable.NotifyAll();
               return true;
             });

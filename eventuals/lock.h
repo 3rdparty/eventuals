@@ -806,6 +806,14 @@ struct _Wait final {
 
 ////////////////////////////////////////////////////////////////////////
 
+// Waits until the given predicate functor returns false.
+//
+// The predicate is evaluated once for an initial check: if it returns true
+// (indicating that waiting is required), it is checked again on future calls
+// to `ConditionVariable::Notify()` so long as it continues to return true.
+//
+// TODO(benh, xander): document the type signature of F: it looks like it
+// must return a boolean, and it's not clear what arguments it requires.
 template <typename F>
 [[nodiscard]] auto Wait(Lock* lock, F f) {
   return _Wait::Composable<F>{lock, std::move(f)};
@@ -824,6 +832,15 @@ class Synchronizable {
         >> Release(&lock_);
   }
 
+  // Waits until the given predicate functor returns false.
+  //
+  // The predicate is evaluated once for an initial check: if it returns true
+  // (indicating that waiting is required), it is checked again in the future.
+  //
+  // TODO(benh, xander): document when the predicate is actually called.
+  // TODO(benh, xander): document the type signature of F: it looks like it
+  // must return a boolean, and it takes 1 argument (of what type? I think a
+  // Callback<void()>: what should the predicate do with that callback?).
   template <typename F>
   [[nodiscard]] auto Wait(F f) {
     return eventuals::Wait(&lock_, std::move(f));
@@ -844,6 +861,16 @@ class ConditionVariable final {
   ConditionVariable(Lock* lock)
     : lock_(CHECK_NOTNULL(lock)) {}
 
+
+  // Waits until the given predicate functor returns false.
+  //
+  // The predicate is evaluated once for an initial check: if it returns true
+  // (indicating that waiting is required), it is checked again on future calls
+  // to `ConditionVariable::Notify()` so long as it continues to return true.
+  //
+  // TODO(benh, xander): document the type signature of F: it looks like it
+  // must return a boolean, and it takes no arguments (unless it's passed the
+  // private EmptyCondition via the no-arg Wait() method).
   template <typename F>
   [[nodiscard]] auto Wait(F f) {
     return eventuals::Wait(
