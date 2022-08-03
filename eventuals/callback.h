@@ -24,7 +24,7 @@ struct Callback<R(Args...)> final {
   // where a delayed initialization requires std::optional so that a
   // user doesn't run into issues where they try and invoke a callback
   // that doesn't go anywhere.
-  Callback() {}
+  Callback() = default;
 
   template <typename F>
   Callback(F f) {

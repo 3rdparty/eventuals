@@ -39,8 +39,7 @@ struct Pinned {
     return cpu_;
   }
 
-  Pinned(const Pinned& that)
-    : cpu_(that.cpu_) {}
+  Pinned(const Pinned& that) = default;
 
  private:
   Pinned() = default;

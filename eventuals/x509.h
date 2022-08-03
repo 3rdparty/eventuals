@@ -208,7 +208,7 @@ class Certificate::_Builder final : public builder::Builder {
   friend class builder::Builder;
   friend class Certificate;
 
-  _Builder() {}
+  _Builder() = default;
 
   _Builder(
       builder::Field<rsa::Key, has_subject_key_> subject_key,

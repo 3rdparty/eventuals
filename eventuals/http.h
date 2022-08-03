@@ -393,7 +393,7 @@ class Client::_Builder final : public builder::Builder {
   friend class builder::Builder;
   friend class Client;
 
-  _Builder() {}
+  _Builder() = default;
 
   _Builder(
       builder::Field<bool, has_verify_peer_> verify_peer,
