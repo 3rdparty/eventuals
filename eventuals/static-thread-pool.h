@@ -6,6 +6,7 @@
 #include <string>
 #include <thread>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "eventuals/compose.h"
@@ -69,7 +70,7 @@ class StaticThreadPool final : public Scheduler {
   class Schedulable {
    public:
     Schedulable(Requirements requirements = Requirements("[anonymous]"))
-      : requirements_(requirements) {}
+      : requirements_(std::move(requirements)) {}
 
     Schedulable(Pinned pinned)
       : Schedulable(Requirements("[anonymous]", pinned)) {}
