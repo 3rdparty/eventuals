@@ -57,6 +57,8 @@ class Certificate final {
     return *this;
   }
 
+  ~Certificate() = default;
+
   operator X509*() {
     return CHECK_NOTNULL(certificate_.get());
   }
@@ -96,6 +98,12 @@ template <
     bool has_organization_name_>
 class Certificate::_Builder final : public builder::Builder {
  public:
+  _Builder(const _Builder&) = default;
+  _Builder(_Builder&&) noexcept = default;
+
+  _Builder& operator=(const _Builder&) = default;
+  _Builder& operator=(_Builder&&) noexcept = default;
+
   ~_Builder() override = default;
 
   auto subject_key(rsa::Key&& subject_key) && {

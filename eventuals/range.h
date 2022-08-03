@@ -18,7 +18,11 @@ struct _Range final {
         step_(step),
         k_(std::move(k)) {}
 
+    Continuation(const Continuation&) = delete;
     Continuation(Continuation&& that) noexcept = default;
+
+    Continuation& operator=(const Continuation&) = delete;
+    Continuation& operator=(Continuation&&) noexcept = delete;
 
     ~Continuation() override = default;
 

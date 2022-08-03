@@ -26,7 +26,11 @@ struct _ReorderAdaptor final {
     Continuation(K_ k)
       : k_(std::move(k)) {}
 
+    Continuation(const Continuation&) = delete;
     Continuation(Continuation&& that) noexcept = default;
+
+    Continuation& operator=(const Continuation&) = delete;
+    Continuation& operator=(Continuation&&) noexcept = delete;
 
     ~Continuation() override = default;
 
@@ -149,6 +153,12 @@ struct _ConcurrentOrderedAdaptor final {
   struct Continuation final : public TypeErasedStream {
     Continuation(K_ k)
       : k_(std::move(k)) {}
+
+    Continuation(const Continuation&) = default;
+    Continuation(Continuation&&) noexcept = default;
+
+    Continuation& operator=(const Continuation&) = default;
+    Continuation& operator=(Continuation&&) noexcept = default;
 
     ~Continuation() override = default;
 

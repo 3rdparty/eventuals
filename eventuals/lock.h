@@ -147,11 +147,16 @@ struct _Acquire final {
       : lock_(lock),
         k_(std::move(k)) {}
 
+    Continuation(const Continuation&) = delete;
+
     Continuation(Continuation&& that) noexcept
       : lock_(that.lock_),
         k_(std::move(that.k_)) {
       CHECK(!waiter_.context) << "moving after starting";
     }
+
+    Continuation& operator=(const Continuation&) = delete;
+    Continuation& operator=(Continuation&&) noexcept = delete;
 
     ~Continuation() {
       CHECK(!waiter_.f) << "continuation still waiting for lock";
@@ -573,7 +578,11 @@ struct _Wait final {
         f_(std::move(f)),
         k_(std::move(k)) {}
 
+    Continuation(const Continuation&) = delete;
     Continuation(Continuation&&) noexcept = default;
+
+    Continuation& operator=(const Continuation&) = delete;
+    Continuation& operator=(Continuation&&) noexcept = delete;
 
     ~Continuation() {
       CHECK(!waiting_) << "continuation still waiting for lock";
@@ -815,6 +824,18 @@ template <typename F>
 
 class Synchronizable {
  public:
+  Synchronizable() = default;
+
+  // Constructors and assignment operators are deleted, because
+  // 'Lock' class has std::atomic (which is not copyable/moveable),
+  // and doesn't provide its own copy/move constructors/assignment
+  // operators.
+  Synchronizable(const Synchronizable&) = delete;
+  Synchronizable(Synchronizable&&) noexcept = delete;
+
+  Synchronizable& operator=(const Synchronizable&) = delete;
+  Synchronizable& operator=(Synchronizable&&) noexcept = delete;
+
   virtual ~Synchronizable() = default;
 
   template <typename E>

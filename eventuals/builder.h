@@ -18,6 +18,14 @@ class Field;
 template <typename Value_>
 class Field<Value_, false> {
  public:
+  Field() = default;
+
+  Field(const Field&) = default;
+  Field(Field&&) noexcept = default;
+
+  Field& operator=(const Field&) = default;
+  Field& operator=(Field&&) noexcept = default;
+
   virtual ~Field() = default;
 
   template <typename... Args>
@@ -32,6 +40,12 @@ class Field<Value_, true> {
  public:
   Field(Value_ value)
     : value_(std::move(value)) {}
+
+  Field(const Field&) = default;
+  Field(Field&&) noexcept = default;
+
+  Field& operator=(const Field&) = default;
+  Field& operator=(Field&&) noexcept = default;
 
   virtual ~Field() = default;
 
@@ -77,7 +91,11 @@ class FieldWithDefault<Value_, false> final : public Field<Value_, false> {
   FieldWithDefault(Value&& value)
     : default_(std::forward<Value>(value)) {}
 
+  FieldWithDefault(const FieldWithDefault&) = delete;
   FieldWithDefault(FieldWithDefault&&) noexcept = default;
+
+  FieldWithDefault& operator=(const FieldWithDefault&) = delete;
+  FieldWithDefault& operator=(FieldWithDefault&&) noexcept = delete;
 
   ~FieldWithDefault() override = default;
 
@@ -124,7 +142,11 @@ class FieldWithDefault<Value_, true> final : public Field<Value_, true> {
   FieldWithDefault(Value&& value)
     : Field<Value_, true>(std::forward<Value>(value)) {}
 
+  FieldWithDefault(const FieldWithDefault&) = delete;
   FieldWithDefault(FieldWithDefault&&) noexcept = default;
+
+  FieldWithDefault& operator=(const FieldWithDefault&) = delete;
+  FieldWithDefault& operator=(FieldWithDefault&&) noexcept = delete;
 
   ~FieldWithDefault() override = default;
 };
@@ -143,7 +165,11 @@ class RepeatedField<Value_, false> final : public Field<Value_, false> {
   RepeatedField(Value&& value)
     : default_(std::forward<Value>(value)) {}
 
+  RepeatedField(const RepeatedField&) = delete;
   RepeatedField(RepeatedField&&) noexcept = default;
+
+  RepeatedField& operator=(const RepeatedField&) = delete;
+  RepeatedField& operator=(RepeatedField&&) noexcept = delete;
 
   ~RepeatedField() override = default;
 
@@ -190,7 +216,11 @@ class RepeatedField<Value_, true> final : public Field<Value_, true> {
   RepeatedField(Value&& value)
     : Field<Value_, true>(std::forward<Value>(value)) {}
 
+  RepeatedField(const RepeatedField&) = delete;
   RepeatedField(RepeatedField&&) noexcept = default;
+
+  RepeatedField& operator=(const RepeatedField&) = delete;
+  RepeatedField& operator=(RepeatedField&&) noexcept = delete;
 
   ~RepeatedField() override = default;
 
@@ -205,6 +235,14 @@ class RepeatedField<Value_, true> final : public Field<Value_, true> {
 
 class Builder {
  public:
+  Builder() = default;
+
+  Builder(const Builder&) = default;
+  Builder(Builder&&) noexcept = default;
+
+  Builder& operator=(const Builder&) = default;
+  Builder& operator=(Builder&&) noexcept = default;
+
   virtual ~Builder() = default;
 
  protected:

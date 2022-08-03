@@ -100,6 +100,12 @@ template <
     bool has_headers_>
 class Request::_Builder final : public builder::Builder {
  public:
+  _Builder(const _Builder&) = default;
+  _Builder(_Builder&&) noexcept = default;
+
+  _Builder& operator=(const _Builder&) = default;
+  _Builder& operator=(_Builder&&) noexcept = default;
+
   ~_Builder() override = default;
 
   auto uri(std::string&& uri) && {
@@ -289,6 +295,8 @@ struct Response final {
   Response& operator=(const Response&) = default;
   Response& operator=(Response&&) = default;
 
+  ~Response() = default;
+
   const auto& code() const {
     return code_;
   }
@@ -351,6 +359,12 @@ class Client final {
 template <bool has_verify_peer_, bool has_certificate_>
 class Client::_Builder final : public builder::Builder {
  public:
+  _Builder(const _Builder&) = default;
+  _Builder(_Builder&&) noexcept = default;
+
+  _Builder& operator=(const _Builder&) = default;
+  _Builder& operator=(_Builder&&) noexcept = default;
+
   ~_Builder() override = default;
 
   auto verify_peer(bool verify_peer) && {
@@ -445,6 +459,8 @@ struct _HTTP final {
         interrupt_context_(&loop_, "HTTP (interrupt)"),
         k_(std::move(k)) {}
 
+    Continuation(const Continuation&) = delete;
+
     Continuation(Continuation&& that) noexcept
       : loop_(that.loop_),
         request_(std::move(that.request_)),
@@ -458,6 +474,9 @@ struct _HTTP final {
       CHECK(!that.started_ || !that.completed_) << "moving after starting";
       CHECK(!handler_);
     }
+
+    Continuation& operator=(const Continuation&) = delete;
+    Continuation& operator=(Continuation&&) noexcept = delete;
 
     ~Continuation() {
       CHECK(!started_ || closed_);

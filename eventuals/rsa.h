@@ -53,6 +53,8 @@ class Key final {
     return *this;
   }
 
+  ~Key() = default;
+
   bool operator==(const Key& that) const {
     return EVP_PKEY_cmp(
         CHECK_NOTNULL(key_.get()),
@@ -113,6 +115,12 @@ class Key final {
 template <bool has_bits_, bool has_exponent_>
 class Key::_Builder final : public builder::Builder {
  public:
+  _Builder(const _Builder&) = default;
+  _Builder(_Builder&&) noexcept = default;
+
+  _Builder& operator=(const _Builder&) = default;
+  _Builder& operator=(_Builder&&) noexcept = default;
+
   ~_Builder() override = default;
 
   auto bits(int bits) && {

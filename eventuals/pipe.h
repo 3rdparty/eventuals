@@ -22,6 +22,12 @@ class Pipe final : public Synchronizable {
   Pipe()
     : has_values_or_closed_(&lock()) {}
 
+  Pipe(const Pipe&) = default;
+  Pipe(Pipe&&) noexcept = default;
+
+  Pipe& operator=(const Pipe&) = default;
+  Pipe& operator=(Pipe&&) noexcept = default;
+
   ~Pipe() override = default;
 
   [[nodiscard]] auto Write(T&& value) {

@@ -153,10 +153,16 @@ class EventLoop final : public Scheduler {
 
   class Clock final : public stout::enable_borrowable_from_this<Clock> {
    public:
-    Clock(const Clock&) = delete;
-
     Clock(EventLoop& loop)
       : loop_(loop) {}
+
+    Clock(const Clock&) = delete;
+    Clock(Clock&&) noexcept = delete;
+
+    Clock& operator=(const Clock&) = delete;
+    Clock& operator=(Clock&&) noexcept = delete;
+
+    ~Clock() override = default;
 
     std::chrono::nanoseconds Now();
 
@@ -204,6 +210,8 @@ class EventLoop final : public Scheduler {
             interrupt_context_(&clock_->loop(), "Timer (interrupt)"),
             k_(std::move(k)) {}
 
+        Continuation(const Continuation&) = delete;
+
         Continuation(Continuation&& that) noexcept
           : clock_(std::move(that.clock_)),
             nanoseconds_(std::move(that.nanoseconds_)),
@@ -213,6 +221,9 @@ class EventLoop final : public Scheduler {
           CHECK(!that.started_ || !that.completed_) << "moving after starting";
           CHECK(!handler_);
         }
+
+        Continuation& operator=(const Continuation&) = delete;
+        Continuation& operator=(Continuation&&) noexcept = delete;
 
         ~Continuation() {
           CHECK(!started_ || closed_);
@@ -462,7 +473,13 @@ class EventLoop final : public Scheduler {
   static void ConstructDefaultAndRunForeverDetached();
 
   EventLoop();
+
   EventLoop(const EventLoop&) = delete;
+  EventLoop(EventLoop&&) noexcept = delete;
+
+  EventLoop& operator=(const EventLoop&) = delete;
+  EventLoop& operator=(EventLoop&&) noexcept = delete;
+
   ~EventLoop() override;
 
   void RunForever();
@@ -555,6 +572,8 @@ class EventLoop final : public Scheduler {
           interrupt_context_(&loop, "WaitForSignal (interrupt)"),
           k_(std::move(k)) {}
 
+      Continuation(const Continuation&) = delete;
+
       Continuation(Continuation&& that) noexcept
         : loop_(that.loop_),
           signum_(that.signum_),
@@ -564,6 +583,9 @@ class EventLoop final : public Scheduler {
         CHECK(!that.started_ || !that.completed_) << "moving after starting";
         CHECK(!handler_);
       }
+
+      Continuation& operator=(const Continuation&) = delete;
+      Continuation& operator=(Continuation&&) noexcept = delete;
 
       ~Continuation() {
         CHECK(!started_ || closed_);
@@ -775,6 +797,8 @@ class EventLoop final : public Scheduler {
           interrupt_context_(&loop, "Poll (interrupt)"),
           k_(std::move(k)) {}
 
+      Continuation(const Continuation&) = delete;
+
       Continuation(Continuation&& that) noexcept
         : loop_(that.loop_),
           fd_(that.fd_),
@@ -785,6 +809,9 @@ class EventLoop final : public Scheduler {
         CHECK(!that.started_ || !that.completed_) << "moving after starting";
         CHECK(!handler_);
       }
+
+      Continuation& operator=(const Continuation&) = delete;
+      Continuation& operator=(Continuation&&) noexcept = delete;
 
       ~Continuation() {
         CHECK(!started_ || closed_);

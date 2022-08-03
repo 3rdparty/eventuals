@@ -162,7 +162,10 @@ struct _Stream final {
         stop_(std::move(stop)),
         k_(std::move(k)) {}
 
+    Continuation(const Continuation&) = delete;
     Continuation(Continuation&& that) noexcept = default;
+
+    Continuation& operator=(const Continuation&) = delete;
 
     Continuation& operator=(Continuation&& that) noexcept {
       if (this == &that) {

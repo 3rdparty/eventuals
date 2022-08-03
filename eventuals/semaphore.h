@@ -53,13 +53,15 @@ class Semaphore {
     semaphore = CHECK_NOTNULL(CreateSemaphore(nullptr, 0, LONG_MAX, nullptr));
   }
 
-  Semaphore(const Semaphore& other) = delete;
+  Semaphore(const Semaphore&) = delete;
+  Semaphore(Semaphore&&) = delete;
+
+  Semaphore& operator=(const Semaphore&) = delete;
+  Semaphore& operator=(Semaphore&&) noexcept = delete;
 
   ~Semaphore() {
     CHECK(CloseHandle(semaphore));
   }
-
-  Semaphore& operator=(const Semaphore& other) = delete;
 
   void Wait() {
     CHECK_EQ(WAIT_OBJECT_0, WaitForSingleObject(semaphore, INFINITE));

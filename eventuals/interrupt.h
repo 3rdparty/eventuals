@@ -29,6 +29,11 @@ class Interrupt final {
       CHECK(that.next_ == nullptr);
     }
 
+    Handler& operator=(const Handler&) = delete;
+    Handler& operator=(Handler&&) noexcept = delete;
+
+    ~Handler() = default;
+
     Interrupt& interrupt() {
       return *CHECK_NOTNULL(interrupt_);
     }

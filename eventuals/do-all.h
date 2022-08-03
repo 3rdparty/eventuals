@@ -21,12 +21,19 @@ struct _DoAll final {
       : k_(k),
         interrupt_(interrupt) {}
 
+    Adaptor(const Adaptor&) = delete;
+
     Adaptor(Adaptor&& that) noexcept
       : k_(that.k_),
         interrupt_(that.interrupt_) {
       CHECK(that.counter_.load() == sizeof...(Eventuals_))
           << "moving after starting is illegal";
     }
+
+    Adaptor& operator=(const Adaptor&) = delete;
+    Adaptor& operator=(Adaptor&&) noexcept = delete;
+
+    ~Adaptor() = default;
 
     K_& k_;
     Interrupt& interrupt_;
@@ -190,12 +197,19 @@ struct _DoAll final {
       : eventuals_(std::move(eventuals)),
         k_(std::move(k)) {}
 
+    Continuation(const Continuation&) = delete;
+
     Continuation(Continuation&& that) noexcept
       : eventuals_(std::move(that.eventuals_)),
         adaptor_(std::move(that.adaptor_)),
         ks_(std::move(that.ks_)),
         handler_(std::move(that.handler_)),
         k_(std::move(that.k_)) {}
+
+    Continuation& operator=(const Continuation&) = delete;
+    Continuation& operator=(Continuation&&) noexcept = delete;
+
+    ~Continuation() = default;
 
     template <typename... Args>
     void Start(Args&&...) {

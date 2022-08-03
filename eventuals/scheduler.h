@@ -46,17 +46,6 @@ class Scheduler {
 
   class Context final : public stout::enable_borrowable_from_this<Context> {
    public:
-    static stout::borrowed_ref<Context>& Get() {
-      return current_;
-    }
-
-    static stout::borrowed_ref<Context> Switch(
-        stout::borrowed_ref<Context> context) {
-      stout::borrowed_ref<Context> previous = std::move(current_);
-      current_ = std::move(context);
-      return previous;
-    }
-
     Context(Scheduler* scheduler, std::string&& name, void* data = nullptr)
       : data(data),
         scheduler_(CHECK_NOTNULL(scheduler)),
@@ -67,9 +56,11 @@ class Scheduler {
       scheduler()->Clone(*this);
     }
 
-    Context(const Context& that) = delete;
+    Context(const Context&) = delete;
+    Context(Context&&) noexcept = delete;
 
-    Context(Context&& that) = delete;
+    Context& operator=(const Context&) = delete;
+    Context& operator=(Context&&) noexcept = delete;
 
     ~Context() override {
       // We shouldn't be using the context we're destructing unless
@@ -83,6 +74,17 @@ class Scheduler {
       // relinquish the last borrow of 'this' leading us to deallocate
       // 'this' before it is safe.
       WaitUntilBorrowsEquals(0);
+    }
+
+    static stout::borrowed_ref<Context>& Get() {
+      return current_;
+    }
+
+    static stout::borrowed_ref<Context> Switch(
+        stout::borrowed_ref<Context> context) {
+      stout::borrowed_ref<Context> previous = std::move(current_);
+      current_ = std::move(context);
+      return previous;
     }
 
     Scheduler* scheduler() const {
@@ -149,6 +151,14 @@ class Scheduler {
 
     std::string name_;
   };
+
+  Scheduler() = default;
+
+  Scheduler(const Scheduler&) = default;
+  Scheduler(Scheduler&&) noexcept = default;
+
+  Scheduler& operator=(const Scheduler&) = default;
+  Scheduler& operator=(Scheduler&&) noexcept = default;
 
   virtual ~Scheduler() = default;
 
@@ -409,6 +419,8 @@ struct _Preempt final {
         e_(std::move(e)),
         k_(std::move(k)) {}
 
+    Continuation(const Continuation&) = delete;
+
     Continuation(Continuation&& that) noexcept
       : context_(
           Scheduler::Default(),
@@ -417,6 +429,9 @@ struct _Preempt final {
         k_(std::move(that.k_)) {
       CHECK_EQ(that.previous_, nullptr) << "moving after starting";
     }
+
+    Continuation& operator=(const Continuation&) = delete;
+    Continuation& operator=(Continuation&&) noexcept = delete;
 
     ~Continuation() = default;
 
