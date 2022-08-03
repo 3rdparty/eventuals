@@ -599,12 +599,8 @@ struct _HTTP final {
                           }
 
                           // Assign key and value.
-                          auto key = std::string(
-                              line.cbegin(),
-                              column_iterator);
-                          auto value = std::string(
-                              column_iterator + 1,
-                              line.cend());
+                          std::string key(line.cbegin(), column_iterator);
+                          std::string value(column_iterator + 1, line.cend());
 
                           // Remove leading and trailing spaces.
                           key = absl::StripAsciiWhitespace(key);

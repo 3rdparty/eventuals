@@ -27,7 +27,7 @@ TEST(ThenTest, Succeed) {
     return Eventual<int>()
                .context(1)
                .start([](auto& value, auto& k) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&value, &k]() mutable {
                        k.Start(value);
                      });
@@ -71,7 +71,7 @@ TEST(ThenTest, Fail) {
     return Eventual<int>()
                .raises<std::runtime_error>()
                .start([](auto& k) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&k]() mutable {
                        k.Fail(std::runtime_error("error"));
                      });

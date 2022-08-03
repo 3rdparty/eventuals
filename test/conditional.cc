@@ -93,7 +93,7 @@ TEST(ConditionalTest, Fail) {
     return Eventual<int>()
                .raises<std::runtime_error>()
                .start([](auto& k) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&k]() mutable {
                        k.Fail(std::runtime_error("error"));
                      });

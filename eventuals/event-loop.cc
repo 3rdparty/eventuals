@@ -147,7 +147,7 @@ bool EventLoop::HasDefault() {
 void EventLoop::ConstructDefaultAndRunForeverDetached() {
   ConstructDefault();
 
-  auto thread = std::thread([]() {
+  std::thread thread([]() {
     EventLoop::Default().RunForever();
   });
 

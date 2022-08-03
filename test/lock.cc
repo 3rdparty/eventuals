@@ -26,7 +26,7 @@ TEST(LockTest, Succeed) {
   auto e1 = [&]() {
     return Eventual<std::string>()
                .start([](auto& k) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&k]() mutable {
                        k.Start("t1");
                      });
@@ -39,7 +39,7 @@ TEST(LockTest, Succeed) {
   auto e2 = [&]() {
     return Eventual<std::string>()
                .start([](auto& k) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&k]() mutable {
                        k.Start("t2");
                      });
@@ -80,7 +80,7 @@ TEST(LockTest, Fail) {
         >> Eventual<std::string>()
                .raises<std::runtime_error>()
                .start([](auto& k) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&k]() mutable {
                        k.Fail(std::runtime_error("error"));
                      });
