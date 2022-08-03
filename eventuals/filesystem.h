@@ -17,7 +17,7 @@ namespace filesystem {
 // Moveable, not Copyable.
 class Request final {
  public:
-  Request() {}
+  Request() = default;
 
   Request(const Request&) = delete;
   Request(Request&& that) noexcept
@@ -79,7 +79,7 @@ class File final {
   // NOTE: default constructor should not exist or be used but is
   // necessary on Windows so this type can be used as a type parameter
   // to 'std::promise', see: https://bit.ly/VisualStudioStdPromiseBug
-  File() {}
+  File() = default;
 #endif
 
   File(const File& that) = delete;

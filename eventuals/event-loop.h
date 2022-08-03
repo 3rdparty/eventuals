@@ -118,7 +118,7 @@ class EventLoop final : public Scheduler {
       return *this;
     }
 
-    ~Buffer() {}
+    ~Buffer() = default;
 
     // Extracts the data from the buffer as a universal reference.
     // Empties out the buffer inside.

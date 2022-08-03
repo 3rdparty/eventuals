@@ -135,7 +135,7 @@ class Key::_Builder final : public builder::Builder {
   friend class builder::Builder;
   friend class Key;
 
-  _Builder() {}
+  _Builder() = default;
 
   _Builder(
       builder::FieldWithDefault<int, has_bits_> bits,

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "glog/logging.h"
+
 inline bool EventualsGrpcLog(int level) {
   // TODO(benh): Initialize logging if it hasn't already been done so?
   static const char* variable = std::getenv("EVENTUALS_GRPC_LOG");
