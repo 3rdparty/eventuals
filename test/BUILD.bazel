@@ -48,6 +48,7 @@ cc_test(
         "closure.cc",
         "collect.cc",
         "conditional.cc",
+        "control-loop.cc",
         "dns-resolver.cc",
         "do-all.cc",
         "event-loop-test.h",
