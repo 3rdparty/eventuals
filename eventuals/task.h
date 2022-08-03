@@ -521,10 +521,15 @@ class _Task final {
     CHECK(!that.k_.has_value()) << "moving after starting";
   }
 
+  _Task(const _Task&) = delete;
+
   _Task(_Task&& that) noexcept
     : e_(std::move(that.e_)) {
     CHECK(!that.k_.has_value()) << "moving after starting";
   }
+
+  _Task& operator=(const _Task&) = delete;
+  _Task& operator=(_Task&&) noexcept = delete;
 
   ~_Task() = default;
 

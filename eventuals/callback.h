@@ -35,6 +35,18 @@ struct Callback<R(Args...)> final {
     this->operator=(std::move(f));
   }
 
+  Callback(const Callback&) = delete;
+
+  Callback(Callback&& that) noexcept {
+    if (that.base_ != nullptr) {
+      base_ = that.base_->Move(&storage_);
+
+      // Set 'base_' to nullptr so we only destruct once.
+      that.base_ = nullptr;
+    }
+  }
+
+  Callback& operator=(const Callback&) = delete;
   Callback& operator=(Callback&& that) noexcept {
     if (this == &that) {
       return *this;
@@ -77,15 +89,6 @@ struct Callback<R(Args...)> final {
     return *this;
   }
 
-  Callback(Callback&& that) noexcept {
-    if (that.base_ != nullptr) {
-      base_ = that.base_->Move(&storage_);
-
-      // Set 'base_' to nullptr so we only destruct once.
-      that.base_ = nullptr;
-    }
-  }
-
   ~Callback() {
     if (base_ != nullptr) {
       base_->~Base();
@@ -102,6 +105,14 @@ struct Callback<R(Args...)> final {
   }
 
   struct Base {
+    Base() = default;
+
+    Base(const Base&) = default;
+    Base(Base&&) noexcept = default;
+
+    Base& operator=(const Base&) = default;
+    Base& operator=(Base&&) noexcept = default;
+
     virtual ~Base() = default;
 
     virtual R Invoke(Args... args) = 0;
@@ -113,6 +124,12 @@ struct Callback<R(Args...)> final {
   struct Handler final : Base {
     Handler(F f)
       : f_(std::move(f)) {}
+
+    Handler(const Handler&) = default;
+    Handler(Handler&&) noexcept = default;
+
+    Handler& operator=(const Handler&) = default;
+    Handler& operator=(Handler&&) noexcept = default;
 
     ~Handler() override = default;
 

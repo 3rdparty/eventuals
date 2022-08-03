@@ -80,7 +80,10 @@ struct _Eventual {
         stop_(std::move(stop)),
         k_(std::move(k)) {}
 
+    Continuation(const Continuation&) = delete;
     Continuation(Continuation&& that) noexcept = default;
+
+    Continuation& operator=(const Continuation&) = delete;
 
     Continuation& operator=(Continuation&& that) noexcept {
       if (this == &that) {
@@ -96,6 +99,8 @@ struct _Eventual {
 
       return *this;
     }
+
+    ~Continuation() = default;
 
     template <typename... Args>
     void Start(Args&&... args) {

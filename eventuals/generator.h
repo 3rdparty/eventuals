@@ -456,9 +456,13 @@ struct _Generator final {
       };
     }
 
-    ~Composable() = default;
+    Composable(const Composable&) = delete;
+    Composable(Composable&&) noexcept = default;
 
-    Composable(Composable&& that) noexcept = default;
+    Composable& operator=(const Composable&) = delete;
+    Composable& operator=(Composable&&) noexcept = delete;
+
+    ~Composable() = default;
 
     template <typename Arg, typename K>
     auto k(K k) && {

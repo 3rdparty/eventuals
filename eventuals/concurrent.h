@@ -70,6 +70,20 @@ struct _Concurrent final {
     // that have completed but haven't yet been pruned (see
     // 'CreateOrReuseFiber()').
     struct TypeErasedFiber {
+      TypeErasedFiber() = default;
+
+      // Constructors and assignment operators are deleted, because
+      // 'Interrupt' class has std::atomic (which is not copyable/moveable),
+      // and doesn't provide its own copy/move constructors/assignment
+      // operators.
+      TypeErasedFiber(const TypeErasedFiber&) = delete;
+      TypeErasedFiber(TypeErasedFiber&&) noexcept = delete;
+
+      TypeErasedFiber& operator=(const TypeErasedFiber&) = delete;
+      TypeErasedFiber& operator=(TypeErasedFiber&&) = delete;
+
+      virtual ~TypeErasedFiber() = default;
+
       void Reuse() {
         done = false;
         // Need to reinitialize the interrupt so that the
@@ -78,8 +92,6 @@ struct _Concurrent final {
         interrupt.~Interrupt();
         new (&interrupt) class Interrupt();
       }
-
-      virtual ~TypeErasedFiber() = default;
 
       // A fiber indicates it is done with this boolean.
       bool done = false;
@@ -432,6 +444,12 @@ struct _Concurrent final {
     Adaptor(F_ f)
       : f_(std::move(f)) {}
 
+    Adaptor(const Adaptor&) = default;
+    Adaptor(Adaptor&&) noexcept = default;
+
+    Adaptor& operator=(const Adaptor&) = default;
+    Adaptor& operator=(Adaptor&&) noexcept = default;
+
     ~Adaptor() override = default;
 
     // Our typeful fiber includes the continuation 'K' that we'll
@@ -585,10 +603,15 @@ struct _Concurrent final {
       : adaptor_(std::move(f)),
         k_(std::move(k)) {}
 
+    Continuation(const Continuation&) = delete;
+
     // NOTE: explicit move-constructor because of 'std::atomic_flag'.
     Continuation(Continuation&& that) noexcept
       : adaptor_(std::move(that.adaptor_.f_)),
         k_(std::move(that.k_)) {}
+
+    Continuation& operator=(const Continuation&) = delete;
+    Continuation& operator=(Continuation&&) noexcept = delete;
 
     ~Continuation() override = default;
 

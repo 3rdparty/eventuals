@@ -12,6 +12,14 @@ namespace eventuals {
 
 class DefaultScheduler final : public Scheduler {
  public:
+  DefaultScheduler() = default;
+
+  DefaultScheduler(const DefaultScheduler&) = default;
+  DefaultScheduler(DefaultScheduler&&) noexcept = default;
+
+  DefaultScheduler& operator=(const DefaultScheduler&) = default;
+  DefaultScheduler& operator=(DefaultScheduler&&) noexcept = default;
+
   ~DefaultScheduler() override = default;
 
   bool Continuable(const Context&) override {

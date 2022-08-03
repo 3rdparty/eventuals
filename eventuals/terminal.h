@@ -175,8 +175,12 @@ struct _Terminal final {
 
 struct StoppedException final : public std::exception {
   StoppedException() = default;
-  StoppedException(const StoppedException& that) = default;
-  StoppedException(StoppedException&& that) = default;
+
+  StoppedException(const StoppedException&) = default;
+  StoppedException(StoppedException&&) = default;
+
+  StoppedException& operator=(const StoppedException&) = delete;
+  StoppedException& operator=(StoppedException&&) noexcept = delete;
 
   ~StoppedException() override = default;
 

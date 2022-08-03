@@ -18,6 +18,8 @@ struct _Lazy final {
   using Args =
       std::enable_if_t<sizeof...(Args_) == 0, _Lazy<T_, Arg, Args...>>;
 
+  _Lazy(const _Lazy&) = delete;
+
   _Lazy(_Lazy&& that) noexcept
     : args_(std::move(that.args_)) {
     CHECK(!t_) << "'Lazy' can not be moved after using";
@@ -30,6 +32,11 @@ struct _Lazy final {
           int> = 0>
   _Lazy(Args&&... args)
     : args_(std::forward<Args>(args)...) {}
+
+  _Lazy& operator=(const _Lazy&) = delete;
+  _Lazy& operator=(_Lazy&&) noexcept = delete;
+
+  ~_Lazy() = default;
 
   T_* get() {
     if (!t_) {

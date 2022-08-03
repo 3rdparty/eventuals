@@ -41,6 +41,12 @@ struct Pinned {
   }
 
   Pinned(const Pinned& that) = default;
+  Pinned(Pinned&&) = default;
+
+  Pinned& operator=(const Pinned&) = default;
+  Pinned& operator=(Pinned&&) noexcept = default;
+
+  ~Pinned() = default;
 
  private:
   Pinned() = default;
@@ -57,7 +63,7 @@ class StaticThreadPool final : public Scheduler {
  public:
   struct Requirements final {
     Requirements(const char* name, Pinned pinned = Pinned::Any())
-      : Requirements(std::string(name), std::move(pinned)) {}
+      : Requirements(std::string(name), pinned) {}
 
     Requirements(std::string name, Pinned pinned = Pinned::Any())
       : name(std::move(name)),
@@ -74,6 +80,12 @@ class StaticThreadPool final : public Scheduler {
 
     Schedulable(Pinned pinned)
       : Schedulable(Requirements("[anonymous]", pinned)) {}
+
+    Schedulable(const Schedulable&) = default;
+    Schedulable(Schedulable&&) noexcept = default;
+
+    Schedulable& operator=(const Schedulable&) = default;
+    Schedulable& operator=(Schedulable&&) noexcept = default;
 
     virtual ~Schedulable() = default;
 
@@ -96,6 +108,18 @@ class StaticThreadPool final : public Scheduler {
     return pool;
   }
 
+  StaticThreadPool();
+
+  // Can not use default copy/move constructors/assignment
+  // operators because of std::atomic field.
+  StaticThreadPool(const StaticThreadPool&) = delete;
+  StaticThreadPool(StaticThreadPool&&) noexcept = delete;
+
+  StaticThreadPool& operator=(const StaticThreadPool&) = delete;
+  StaticThreadPool& operator=(StaticThreadPool&&) noexcept = delete;
+
+  ~StaticThreadPool() override;
+
   // Is thread a member of the static pool?
   static inline thread_local bool member = false;
 
@@ -103,10 +127,6 @@ class StaticThreadPool final : public Scheduler {
   static inline thread_local unsigned int cpu = 0;
 
   const unsigned int concurrency;
-
-  StaticThreadPool();
-
-  ~StaticThreadPool() override;
 
   bool Continuable(const Context& context) override;
 

@@ -84,7 +84,10 @@ struct _Loop final {
         stop_(std::move(stop)),
         k_(std::move(k)) {}
 
+    Continuation(const Continuation&) = delete;
     Continuation(Continuation&& that) noexcept = default;
+
+    Continuation& operator=(const Continuation&) = delete;
 
     Continuation& operator=(Continuation&& that) noexcept {
       if (this == &that) {
@@ -100,6 +103,8 @@ struct _Loop final {
 
       return *this;
     }
+
+    ~Continuation() = default;
 
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;

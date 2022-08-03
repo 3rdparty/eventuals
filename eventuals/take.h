@@ -21,7 +21,11 @@ struct _TakeLast final {
       : n_(n),
         k_(std::move(k)) {}
 
-    Continuation(Continuation&& that) noexcept = default;
+    Continuation(const Continuation&) = delete;
+    Continuation(Continuation&&) noexcept = default;
+
+    Continuation& operator=(const Continuation&) = delete;
+    Continuation& operator=(Continuation&&) noexcept = delete;
 
     ~Continuation() override = default;
 
@@ -148,7 +152,11 @@ struct _TakeRange final {
         amount_(amount),
         k_(std::move(k)) {}
 
-    Continuation(Continuation&& that) noexcept = default;
+    Continuation(const Continuation&) = delete;
+    Continuation(Continuation&&) noexcept = default;
+
+    Continuation& operator=(const Continuation&) = delete;
+    Continuation& operator=(Continuation&&) noexcept = delete;
 
     ~Continuation() override = default;
 
