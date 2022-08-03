@@ -35,7 +35,7 @@ TEST(EventualTest, Succeed) {
     return Eventual<int>()
                .context(5)
                .start([](auto& context, auto& k) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&context, &k]() mutable {
                        k.Start(context);
                      });
@@ -45,7 +45,7 @@ TEST(EventualTest, Succeed) {
         >> Eventual<int>()
                .context(9)
                .start([](auto& context, auto& k, auto&& value) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [value, &context, &k]() mutable {
                        k.Start(context - value);
                      });
@@ -78,7 +78,7 @@ TEST(EventualTest, Fail) {
                .raises()
                .context("error")
                .start([](auto& error, auto& k) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&error, &k]() mutable {
                        k.Fail(std::runtime_error(error));
                      });
@@ -154,7 +154,7 @@ TEST(EventualTest, Reuse) {
     return (Eventual<int>()
                 .context(i)
                 .start([](auto& context, auto& k) {
-                  auto thread = std::thread(
+                  std::thread thread(
                       [&context, &k]() mutable {
                         k.Start(context);
                       });
@@ -164,7 +164,7 @@ TEST(EventualTest, Reuse) {
         >> Eventual<int>()
                .context(9)
                .start([](auto& context, auto& k, auto&& value) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [value, &context, &k]() mutable {
                        k.Start(context - value);
                      });

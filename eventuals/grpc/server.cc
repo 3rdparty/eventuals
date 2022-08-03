@@ -85,7 +85,7 @@ auto Server::Unimplemented(ServerContext* context) {
         << "Dropping call for host " << context->host()
         << " and path = " << context->method();
 
-    auto status = ::grpc::Status(
+    ::grpc::Status status(
         ::grpc::UNIMPLEMENTED,
         context->method() + " for host " + context->host());
 

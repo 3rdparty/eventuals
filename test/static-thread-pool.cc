@@ -59,7 +59,7 @@ TEST(StaticThreadPoolTest, Reschedulable) {
           return Eventual<void>()
                      .start([&id](auto& k) {
                        EXPECT_EQ(id, std::this_thread::get_id());
-                       auto thread = std::thread(
+                       std::thread thread(
                            [&id, &k]() {
                              EXPECT_NE(id, std::this_thread::get_id());
                              k.Start();
@@ -133,7 +133,7 @@ TEST(StaticThreadPoolTest, Spawn) {
           return Eventual<void>()
                      .start([&id](auto& k) {
                        EXPECT_EQ(id, std::this_thread::get_id());
-                       auto thread = std::thread(
+                       std::thread thread(
                            [&id, &k]() {
                              EXPECT_NE(id, std::this_thread::get_id());
                              k.Start();
@@ -167,7 +167,7 @@ TEST(StaticThreadPoolTest, SpawnFail) {
                      .raises<std::runtime_error>()
                      .start([&id](auto& k) {
                        EXPECT_EQ(id, std::this_thread::get_id());
-                       auto thread = std::thread(
+                       std::thread thread(
                            [&id, &k]() {
                              EXPECT_NE(id, std::this_thread::get_id());
                              k.Fail(std::runtime_error("error"));

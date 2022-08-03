@@ -107,7 +107,7 @@ TEST_F(EventLoopTest, InterruptTimer) {
 
   k.Start();
 
-  auto thread = std::thread([&]() {
+  std::thread thread([&]() {
     interrupt.Trigger();
   });
 

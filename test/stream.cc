@@ -205,7 +205,7 @@ TEST(StreamTest, InterruptStream) {
                })
         >> Loop<int>()
                .body([&](auto& k, auto&&) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&]() mutable {
                        while (!triggered.load()) {
                          std::this_thread::yield();
@@ -275,7 +275,7 @@ TEST(StreamTest, InterruptLoop) {
                  k.Next();
                })
                .body([&](auto&, auto& k, auto&, auto&&) {
-                 auto thread = std::thread(
+                 std::thread thread(
                      [&]() mutable {
                        while (!triggered.load()) {
                          std::this_thread::yield();
