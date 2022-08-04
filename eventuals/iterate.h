@@ -45,18 +45,18 @@ template <typename Container>
 
   return Stream<T>()
       .context(Data{container, std::nullopt})
-      .begin([](auto& data, auto& k) {
+      .begin([](Data& data, auto& k) {
         data.begin = data.container.cbegin();
         k.Begin();
       })
-      .next([](auto& data, auto& k) {
+      .next([](Data& data, auto& k) {
         if (data.begin.value() != data.container.cend()) {
           k.Emit(*(data.begin.value()++));
         } else {
           k.Ended();
         }
       })
-      .done([](auto&, auto& k) {
+      .done([](Data&, auto& k) {
         k.Ended();
       });
 }
@@ -76,18 +76,18 @@ template <typename Container>
 
   return Stream<T>()
       .context(Data{container, std::nullopt})
-      .begin([](auto& data, auto& k) {
+      .begin([](Data& data, auto& k) {
         data.begin = data.container.begin();
         k.Begin();
       })
-      .next([](auto& data, auto& k) {
+      .next([](Data& data, auto& k) {
         if (data.begin.value() != data.container.end()) {
           k.Emit(*(data.begin.value()++));
         } else {
           k.Ended();
         }
       })
-      .done([](auto&, auto& k) {
+      .done([](Data&, auto& k) {
         k.Ended();
       });
 }
@@ -109,18 +109,18 @@ template <typename Container>
 
   return Stream<T>()
       .context(Data{std::move(container), std::nullopt})
-      .begin([](auto& data, auto& k) {
+      .begin([](Data& data, auto& k) {
         data.begin = data.container.begin();
         k.Begin();
       })
-      .next([](auto& data, auto& k) {
+      .next([](Data& data, auto& k) {
         if (data.begin.value() != data.container.end()) {
           k.Emit(std::move(*(data.begin.value()++)));
         } else {
           k.Ended();
         }
       })
-      .done([](auto&, auto& k) {
+      .done([](Data&, auto& k) {
         k.Ended();
       });
 }

@@ -23,13 +23,13 @@ TEST(CatchTest, RaisedRuntimeError) {
     return Just(1)
         >> Raise(std::runtime_error("message"))
         >> Catch()
-               .raised<std::overflow_error>([](auto&& error) {
+               .raised<std::overflow_error>([](std::overflow_error&& error) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return Then([]() {
                    return 100;
                  });
                })
-               .raised<std::runtime_error>([](auto&& error) {
+               .raised<std::runtime_error>([](std::runtime_error&& error) {
                  EXPECT_STREQ(error.what(), "message");
                  return Just(100);
                });
@@ -54,12 +54,12 @@ TEST(CatchTest, ChildException) {
     return Just(1)
         >> Raise(Error{})
         >> Catch()
-               .raised<std::overflow_error>([](auto&& error) {
+               .raised<std::overflow_error>([](std::overflow_error&& error) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return Just(10);
                })
                .raised<std::exception>(
-                   [](auto&& error) {
+                   [](std::exception&& error) {
                      EXPECT_STREQ("child exception", error.what());
                      return Just(100);
                    });
@@ -78,11 +78,11 @@ TEST(CatchTest, All) {
     return Just(500)
         >> Raise(std::runtime_error("10"))
         >> Catch()
-               .raised<std::overflow_error>([](auto&& error) {
+               .raised<std::overflow_error>([](std::overflow_error&& error) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return 10;
                })
-               .raised<std::underflow_error>([](auto&& error) {
+               .raised<std::underflow_error>([](std::underflow_error&& error) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return 10;
                })
@@ -121,13 +121,13 @@ TEST(CatchTest, UnexpectedRaise) {
   auto e = [&]() {
     return f() // Throwing 'std::exception_ptr' there.
         >> Catch()
-               .raised<std::overflow_error>([](auto&& error) {
+               .raised<std::overflow_error>([](std::overflow_error&& error) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return 1;
                })
                // Receive 'Error' type there, that had been rethrowed from
                // 'std::exception_ptr'.
-               .raised<Error>([](auto&& error) {
+               .raised<Error>([](Error&& error) {
                  EXPECT_STREQ("child exception", error.what());
                  return 100;
                });
@@ -155,11 +155,11 @@ TEST(CatchTest, UnexpectedAll) {
   auto e = [&]() {
     return f() // Throwing 'std::exception_ptr' there.
         >> Catch()
-               .raised<std::overflow_error>([](auto&& error) {
+               .raised<std::overflow_error>([](std::overflow_error&& error) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return 1;
                })
-               .raised<std::underflow_error>([](auto&& error) {
+               .raised<std::underflow_error>([](std::underflow_error&& error) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return 1;
                })
@@ -189,11 +189,11 @@ TEST(CatchTest, NoExactHandler) {
     return Just(1)
         >> Raise(std::string("error"))
         >> Catch()
-               .raised<std::overflow_error>([](auto&& error) {
+               .raised<std::overflow_error>([](std::overflow_error&& error) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return 1;
                })
-               .raised<std::underflow_error>([](auto&& error) {
+               .raised<std::underflow_error>([](std::underflow_error&& error) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return 1;
                });
@@ -212,7 +212,7 @@ TEST(CatchTest, ReRaise) {
     return Just(1)
         >> Raise("10")
         >> Catch()
-               .raised<std::runtime_error>([](auto&& error) {
+               .raised<std::runtime_error>([](std::runtime_error&& error) {
                  EXPECT_STREQ(error.what(), "10");
                  return Raise("1");
                })
@@ -220,15 +220,15 @@ TEST(CatchTest, ReRaise) {
                  ADD_FAILURE() << "Encountered an unexpected all";
                  return Just(100);
                })
-        >> Then([](auto&&) {
+        >> Then([](int&&) {
              return 200;
            })
         >> Catch()
-               .raised<std::runtime_error>([](auto&& error) {
+               .raised<std::runtime_error>([](std::runtime_error&& error) {
                  EXPECT_STREQ(error.what(), "1");
                  return Just(10);
                })
-        >> Then([](auto value) {
+        >> Then([](int value) {
              return value;
            });
   };
@@ -248,7 +248,7 @@ TEST(CatchTest, VoidPropagate) {
              return;
            })
         >> Catch()
-               .raised<std::exception>([](auto&& error) {
+               .raised<std::exception>([](std::exception&& error) {
                  EXPECT_STREQ(error.what(), "error");
                  // MUST RETURN VOID HERE!
                })
@@ -270,13 +270,13 @@ TEST(CatchTest, Interrupt) {
     return Just(1)
         >> Raise(std::runtime_error("message"))
         >> Catch()
-               .raised<std::overflow_error>([](auto&& error) {
+               .raised<std::overflow_error>([](std::overflow_error&& error) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return Then([]() {
                    return 100;
                  });
                })
-               .raised<std::runtime_error>([](auto&& error) {
+               .raised<std::runtime_error>([](std::runtime_error&& error) {
                  EXPECT_STREQ(error.what(), "message");
                  return Just(100);
                })

@@ -383,8 +383,8 @@ TEST(Task, FromTo) {
   auto task = []() {
     return Task::From<int>::To<std::string>::With<int>(
         10,
-        [](auto x) {
-          return Then([x](auto&& value) {
+        [](int x) {
+          return Then([x](int&& value) {
             value += x;
             return std::to_string(value);
           });
@@ -620,7 +620,7 @@ TEST(Task, RefFunction) {
 
   auto e1 = [&]() {
     return e()
-        >> Then([](auto& v) {
+        >> Then([](int& v) {
              v += 100;
            });
   };
@@ -638,7 +638,7 @@ TEST(Task, RefSuccess) {
 
   auto e1 = [&]() {
     return e()
-        >> Then([](auto& v) {
+        >> Then([](int& v) {
              v += 100;
            });
   };

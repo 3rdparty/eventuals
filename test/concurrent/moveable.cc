@@ -22,7 +22,7 @@ TYPED_TEST(ConcurrentTypedTest, Moveable) {
   auto e = [&]() {
     return Iterate({Moveable()})
         >> this->ConcurrentOrConcurrentOrdered([]() {
-            return Map(Let([](auto& moveable) {
+            return Map(Let([](Moveable& moveable) {
               return 42;
             }));
           })

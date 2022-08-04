@@ -39,7 +39,7 @@ TEST(DeadlineTest, DeadlineExceeded) {
   auto serve = [&]() {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
         >> Head()
-        >> Then(Let([](auto& call) {
+        >> Then(Let([](ServerCall<HelloRequest, HelloReply>& call) {
              return call.WaitForDone();
            }));
   };
@@ -64,7 +64,7 @@ TEST(DeadlineTest, DeadlineExceeded) {
              return client.Call<Greeter, HelloRequest, HelloReply>(
                         "SayHello",
                         context)
-                 >> Then(Let([](auto& call) {
+                 >> Then(Let([](ClientCall<HelloRequest, HelloReply>& call) {
                       HelloRequest request;
                       request.set_name("emily");
                       return call.Writer().WriteLast(request)

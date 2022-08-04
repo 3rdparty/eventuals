@@ -37,9 +37,9 @@ TEST(ConditionalTest, Then) {
     return Just(1)
         >> Then([](int i) { return i + 1; })
         >> Conditional(
-               [](auto&& i) { return i > 1; },
-               [&](auto&&) { return then(); },
-               [&](auto&&) { return els3(); });
+               [](int&& i) { return i > 1; },
+               [&](int&&) { return then(); },
+               [&](int&&) { return els3(); });
   };
 
   EXPECT_EQ("then", *c());
@@ -65,9 +65,9 @@ TEST(ConditionalTest, Else) {
     return Just(0)
         >> Then([](int i) { return i + 1; })
         >> Conditional(
-               [](auto&& i) { return i > 1; },
-               [&](auto&&) { return then(); },
-               [&](auto&&) { return els3(); });
+               [](int&& i) { return i > 1; },
+               [&](int&&) { return then(); },
+               [&](int&&) { return els3(); });
   };
 
   EXPECT_EQ("else", *c());
@@ -101,9 +101,9 @@ TEST(ConditionalTest, Fail) {
                })
         >> Then([](int i) { return i + 1; })
         >> Conditional(
-               [](auto&& i) { return i > 1; },
-               [&](auto&&) { return then(); },
-               [&](auto&&) { return els3(); });
+               [](int&& i) { return i > 1; },
+               [&](int&&) { return then(); },
+               [&](int&&) { return els3(); });
   };
 
   static_assert(
@@ -144,9 +144,9 @@ TEST(ConditionalTest, Interrupt) {
     return Just(1)
         >> Then([](int i) { return i + 1; })
         >> Conditional(
-               [](auto&& i) { return i > 1; },
-               [&](auto&&) { return then(); },
-               [&](auto&&) { return els3(); });
+               [](int&& i) { return i > 1; },
+               [&](int&&) { return then(); },
+               [&](int&&) { return els3(); });
   };
 
   auto [future, k] = PromisifyForTest(c());
@@ -171,9 +171,9 @@ TEST(ConditionalTest, Raise) {
     return Just(1)
         >> Then([](int i) { return i + 1; })
         >> Conditional(
-               [](auto&& i) { return i > 1; },
-               [](auto&& i) { return Just(i); },
-               [](auto&& i) { return Raise("raise"); });
+               [](int&& i) { return i > 1; },
+               [](int&& i) { return Just(i); },
+               [](int&& i) { return Raise("raise"); });
   };
 
   static_assert(

@@ -67,11 +67,11 @@ TEST(Filter, OddMapLoopFlow) {
         >> Map([](int x) { return x + 1; })
         >> Loop<int>()
                .context(0)
-               .body([](auto& sum, auto& stream, auto&& value) {
+               .body([](int& sum, auto& stream, int&& value) {
                  sum += value;
                  stream.Next();
                })
-               .ended([](auto& sum, auto& k) {
+               .ended([](int& sum, auto& k) {
                  k.Start(sum);
                });
   };

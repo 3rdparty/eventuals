@@ -33,7 +33,7 @@ TEST(LockTest, Succeed) {
                  thread.detach();
                })
         >> Acquire(&lock)
-        >> Then([](auto&& value) { return std::move(value); });
+        >> Then([](std::string&& value) { return std::move(value); });
   };
 
   auto e2 = [&]() {
@@ -46,7 +46,7 @@ TEST(LockTest, Succeed) {
                  thread.detach();
                })
         >> Acquire(&lock)
-        >> Then([](auto&& value) { return std::move(value); });
+        >> Then([](std::string&& value) { return std::move(value); });
   };
 
   auto e3 = [&]() {
@@ -87,7 +87,7 @@ TEST(LockTest, Fail) {
                  thread.detach();
                })
         >> Release(&lock)
-        >> Then([](auto&& value) { return std::move(value); });
+        >> Then([](std::string&& value) { return std::move(value); });
   };
 
   auto e2 = [&]() {
@@ -160,7 +160,7 @@ TEST(LockTest, Wait) {
         >> Acquire(&lock)
         >> Wait(&lock, [&](auto notify) {
              callback = std::move(notify);
-             return [waited = false](auto&& value) mutable {
+             return [waited = false](std::string&& value) mutable {
                if (!waited) {
                  waited = true;
                  return true;
@@ -274,7 +274,7 @@ TEST(LockTest, SynchronizedMap) {
              }))
           >> Reduce(
                  /* sum = */ 0,
-                 [](auto& sum) {
+                 [](int& sum) {
                    return Then([&](auto i) {
                      sum += i;
                      return true;
@@ -294,7 +294,7 @@ TEST(LockTest, ConditionVariable) {
     auto WaitFor(int id) {
       return Synchronized(Then([this, id]() {
         auto [iterator, inserted] = condition_variables_.emplace(id, &lock());
-        auto& condition_variable = iterator->second;
+        ConditionVariable& condition_variable = iterator->second;
         return condition_variable.Wait();
       }));
     }
@@ -307,7 +307,7 @@ TEST(LockTest, ConditionVariable) {
               return false;
             })
             .no([iterator]() {
-              auto& condition_variable = iterator->second;
+              ConditionVariable& condition_variable = iterator->second;
               condition_variable.Notify();
               return true;
             });
@@ -322,7 +322,7 @@ TEST(LockTest, ConditionVariable) {
               return false;
             })
             .no([iterator]() {
-              auto& condition_variable = iterator->second;
+              ConditionVariable& condition_variable = iterator->second;
               condition_variable.NotifyAll();
               return true;
             });

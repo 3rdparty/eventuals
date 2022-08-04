@@ -46,7 +46,7 @@ TEST_F(PollTest, Succeed) {
                Poll(server, PollEvents::Readable)
                    >> Reduce(
                        /* data = */ std::string(),
-                       [&](auto& data) {
+                       [&](std::string& data) {
                          return Then([&](PollEvents events) {
                            EXPECT_EQ(
                                events & PollEvents::Readable,

@@ -200,15 +200,15 @@ class ClientCall {
       reader_(path_, host_, context_, stream_.get()),
       writer_(path_, host_, context_, stream_.get()) {}
 
-  auto* context() {
+  ::grpc::ClientContext* context() {
     return context_;
   }
 
-  auto& Reader() {
+  ClientReader<ResponseType_>& Reader() {
     return reader_;
   }
 
-  auto& Writer() {
+  ClientWriter<RequestType_>& Writer() {
     return writer_;
   }
 

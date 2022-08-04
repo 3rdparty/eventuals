@@ -177,7 +177,7 @@ struct _StaticThreadPoolSchedule final {
 
       EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
-      auto& pinned = requirements()->pinned;
+      Pinned& pinned = requirements()->pinned;
 
       if (!pinned.cpu()) {
         // TODO(benh): pick the least loaded cpu. This will require
@@ -225,7 +225,7 @@ struct _StaticThreadPoolSchedule final {
 
       EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
-      auto& pinned = requirements()->pinned;
+      Pinned& pinned = requirements()->pinned;
 
       if (!pinned.cpu()) {
         // TODO(benh): pick the least loaded cpu. This will require
@@ -276,7 +276,7 @@ struct _StaticThreadPoolSchedule final {
 
       EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
-      auto& pinned = requirements()->pinned;
+      Pinned& pinned = requirements()->pinned;
 
       if (!pinned.cpu()) {
         // TODO(benh): pick the least loaded cpu. This will require
@@ -313,7 +313,7 @@ struct _StaticThreadPoolSchedule final {
 
       EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
-      auto& pinned = requirements()->pinned;
+      Pinned& pinned = requirements()->pinned;
 
       if (!pinned.cpu()) {
         // TODO(benh): pick the least loaded cpu. This will require
@@ -352,7 +352,7 @@ struct _StaticThreadPoolSchedule final {
 
       EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
-      auto& pinned = requirements()->pinned;
+      Pinned& pinned = requirements()->pinned;
 
       if (!pinned.cpu()) {
         // TODO(benh): pick the least loaded cpu. This will require
@@ -399,7 +399,7 @@ struct _StaticThreadPoolSchedule final {
 
       EVENTUALS_LOG(1) << "Scheduling '" << context_->name() << "'";
 
-      auto& pinned = requirements()->pinned;
+      Pinned& pinned = requirements()->pinned;
 
       if (!pinned.cpu()) {
         // TODO(benh): pick the least loaded cpu. This will require

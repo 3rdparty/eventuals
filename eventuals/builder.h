@@ -35,27 +35,27 @@ class Field<Value_, true> {
 
   virtual ~Field() = default;
 
-  auto& value() & {
+  Value_& value() & {
     return value_;
   }
 
-  const auto& value() const& {
+  const Value_& value() const& {
     return value_;
   }
 
-  auto&& value() && {
+  Value_&& value() && {
     return std::move(value_);
   }
 
-  const auto&& value() const&& {
+  const Value_&& value() const&& {
     return std::move(value_);
   }
 
-  const auto* operator->() const {
+  const Value_* operator->() const {
     return &value_;
   }
 
-  auto* operator->() {
+  Value_* operator->() {
     return &value_;
   }
 
@@ -87,27 +87,27 @@ class FieldWithDefault<Value_, false> final : public Field<Value_, false> {
     return FieldWithDefault<Value_, true>{Value_{std::forward<Args>(args)...}};
   }
 
-  auto& value() & {
+  Value_& value() & {
     return default_;
   }
 
-  const auto& value() const& {
+  const Value_& value() const& {
     return default_;
   }
 
-  auto&& value() && {
+  Value_&& value() && {
     return std::move(default_);
   }
 
-  const auto&& value() const&& {
+  const Value_&& value() const&& {
     return std::move(default_);
   }
 
-  const auto* operator->() const {
+  const Value_* operator->() const {
     return &default_;
   }
 
-  auto* operator->() {
+  Value_* operator->() {
     return &default_;
   }
 
@@ -153,27 +153,27 @@ class RepeatedField<Value_, false> final : public Field<Value_, false> {
     return RepeatedField<Value_, true>{Value_{std::forward<Args>(args)...}};
   }
 
-  auto& value() & {
+  Value_& value() & {
     return default_;
   }
 
-  const auto& value() const& {
+  const Value_& value() const& {
     return default_;
   }
 
-  auto&& value() && {
+  Value_&& value() && {
     return std::move(default_);
   }
 
-  const auto&& value() const&& {
+  const Value_&& value() const&& {
     return std::move(default_);
   }
 
-  const auto* operator->() const {
+  const Value_* operator->() const {
     return &default_;
   }
 
-  auto* operator->() {
+  Value_* operator->() {
     return &default_;
   }
 

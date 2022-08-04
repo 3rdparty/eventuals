@@ -94,7 +94,7 @@ TEST(Generator, GeneratorWithNonCopyable) {
   auto generator = []() {
     return Generator::Of<int>::With<NonCopyable>(
         NonCopyable{100},
-        [](auto& non_copyable) {
+        [](NonCopyable& non_copyable) {
           return Iterate({non_copyable.x});
         });
   };

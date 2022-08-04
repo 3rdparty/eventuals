@@ -27,7 +27,7 @@ auto Server::RequestCall(
       .context(Callback<void(bool)>())
       // NOTE: 'context' and 'cq' are stored in a 'Closure()' so safe
       // to capture them as references here.
-      .start([this, context, cq](auto& callback, auto& k) {
+      .start([this, context, cq](Callback<void(bool)>& callback, auto& k) {
         if (!callback) {
           callback = [&k](bool ok) {
             if (ok) {
@@ -107,7 +107,7 @@ Server::Server(
     server_(std::move(server)),
     cqs_(std::move(cqs)),
     threads_(std::move(threads)) {
-  for (auto* service : services) {
+  for (Service* service : services) {
     auto& serve = serves_.emplace_back(std::make_unique<Serve>());
 
     serve->service = service;
@@ -147,7 +147,7 @@ Server::Server(
 
   workers_.reserve(cqs_.size());
 
-  for (auto&& cq : cqs_) {
+  for (std::unique_ptr<::grpc::ServerCompletionQueue>& cq : cqs_) {
     auto& worker = workers_.emplace_back(std::make_unique<Worker>());
 
     worker->task.emplace(
@@ -238,7 +238,7 @@ void Server::Wait() {
     server_->Wait();
 
     // Now wait for the workers to complete.
-    for (auto& worker : workers_) {
+    for (std::unique_ptr<Worker>& worker : workers_) {
       while (!worker->done.load()) {
         // TODO(benh): cpu relax or some other spin loop strategy.
       }
@@ -246,7 +246,7 @@ void Server::Wait() {
 
     // Now wait for the serve tasks to be done (note that like workers
     // ordering is not important since these are each independent).
-    for (auto& serve : serves_) {
+    for (std::unique_ptr<Serve>& serve : serves_) {
       while (!serve->done.load()) {
         // TODO(benh): cpu relax or some other spin loop strategy.
       }
@@ -261,15 +261,15 @@ void Server::Wait() {
     // NOTE: it's unclear if we need to shutdown the completion queues
     // before we wait on the server but at least emperically it
     // appears that it doesn't matter.
-    for (auto& cq : cqs_) {
+    for (std::unique_ptr<::grpc::ServerCompletionQueue>& cq : cqs_) {
       cq->Shutdown();
     }
 
-    for (auto& thread : threads_) {
+    for (std::thread& thread : threads_) {
       thread.join();
     }
 
-    for (auto& cq : cqs_) {
+    for (std::unique_ptr<::grpc::ServerCompletionQueue>& cq : cqs_) {
       void* tag = nullptr;
       bool ok = false;
       while (cq->Next(&tag, &ok)) {}
@@ -404,7 +404,7 @@ ServerStatusOrServer ServerBuilder::BuildAndStart() {
     // 'BuildAndStart()' so that we don't have to bother with
     // stopping/joining.
     std::vector<std::thread> threads;
-    for (auto& cq : cqs) {
+    for (std::unique_ptr<::grpc::ServerCompletionQueue>& cq : cqs) {
       for (size_t j = 0; j < minimumThreadsPerCompletionQueue_.value(); ++j) {
         threads.push_back(
             std::thread(

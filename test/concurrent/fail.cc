@@ -65,7 +65,7 @@ TYPED_TEST(ConcurrentTypedTest, Fail) {
       std::future_status::timeout,
       future.wait_for(std::chrono::seconds(0)));
 
-  for (auto& callback : callbacks) {
+  for (Callback<void()>& callback : callbacks) {
     callback();
   }
 

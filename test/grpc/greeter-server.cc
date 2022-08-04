@@ -60,12 +60,12 @@ TEST(GreeterServerTest, SayHello) {
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-        >> Then(Let([](auto& call) {
+        >> Then(Let([](ClientCall<HelloRequest, HelloReply>& call) {
              HelloRequest request;
              request.set_name("emily");
              return call.Writer().WriteLast(request)
                  >> call.Reader().Read()
-                 >> Map([](auto&& response) {
+                 >> Map([](HelloReply&& response) {
                       EXPECT_EQ("Hello emily", response.message());
                     })
                  >> Loop()

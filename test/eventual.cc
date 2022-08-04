@@ -34,7 +34,7 @@ TEST(EventualTest, Succeed) {
   auto e = [&]() {
     return Eventual<int>()
                .context(5)
-               .start([](auto& context, auto& k) {
+               .start([](int& context, auto& k) {
                  std::thread thread(
                      [&context, &k]() mutable {
                        k.Start(context);
@@ -44,7 +44,7 @@ TEST(EventualTest, Succeed) {
         >> Then([](int i) { return i + 2; })
         >> Eventual<int>()
                .context(9)
-               .start([](auto& context, auto& k, auto&& value) {
+               .start([](int& context, auto& k, int&& value) {
                  std::thread thread(
                      [value, &context, &k]() mutable {
                        k.Start(context - value);
@@ -77,7 +77,7 @@ TEST(EventualTest, Fail) {
     return Eventual<int>()
                .raises()
                .context("error")
-               .start([](auto& error, auto& k) {
+               .start([](const char*& error, auto& k) {
                  std::thread thread(
                      [&error, &k]() mutable {
                        k.Fail(std::runtime_error(error));
@@ -86,7 +86,7 @@ TEST(EventualTest, Fail) {
                })
         >> Then([](int i) { return i + 2; })
         >> Eventual<int>()
-               .start([&](auto& k, auto&& value) {
+               .start([&](auto& k, int&& value) {
                  start.Call();
                })
                .stop([&](auto&) {
@@ -112,7 +112,7 @@ TEST(EventualTest, Interrupt) {
     return Eventual<int>()
                .context(5)
                .interruptible()
-               .start([&](auto&, auto& k, auto& handler) {
+               .start([&](int&, auto& k, auto& handler) {
                  CHECK(handler) << "Test expects interrupt to be registered";
                  handler->Install([&k]() {
                    k.Stop();
@@ -121,7 +121,7 @@ TEST(EventualTest, Interrupt) {
                })
         >> Then([](int i) { return i + 2; })
         >> Eventual<int>()
-               .start([&](auto&, auto&&) {
+               .start([&](auto&, int&&) {
                  start.Call();
                })
                .fail([&](auto&, auto&&) {
@@ -150,10 +150,10 @@ TEST(EventualTest, Interrupt) {
 
 
 TEST(EventualTest, Reuse) {
-  auto operation = [](int i, auto&& promise) {
+  auto operation = [](int i, std::promise<int>&& promise) {
     return (Eventual<int>()
                 .context(i)
-                .start([](auto& context, auto& k) {
+                .start([](int& context, auto& k) {
                   std::thread thread(
                       [&context, &k]() mutable {
                         k.Start(context);
@@ -163,7 +163,7 @@ TEST(EventualTest, Reuse) {
         >> Then([](int i) { return i + 2; })
         >> Eventual<int>()
                .context(9)
-               .start([](auto& context, auto& k, auto&& value) {
+               .start([](int& context, auto& k, int&& value) {
                  std::thread thread(
                      [value, &context, &k]() mutable {
                        k.Start(context - value);
@@ -172,15 +172,15 @@ TEST(EventualTest, Reuse) {
                })
         >> Terminal()
                .context(std::move(promise))
-               .start([](auto& promise, auto&& value) {
+               .start([](std::promise<int>& promise, int&& value) {
                  promise.set_value(std::forward<decltype(value)>(value));
                })
-               .fail([](auto& promise, auto&& error) {
+               .fail([](std::promise<int>& promise, auto&& error) {
                  promise.set_exception(
                      make_exception_ptr_or_forward(
                          std::forward<decltype(error)>(error)));
                })
-               .stop([](auto& promise) {
+               .stop([](std::promise<int>& promise) {
                  promise.set_exception(
                      std::make_exception_ptr(
                          eventuals::StoppedException()));
@@ -235,7 +235,7 @@ TEST(EventualTest, Catch) {
   auto e = []() {
     return Just(41)
         >> Raise("error")
-        >> Catch([](auto&&... error) { // The same as 'std::exception_ptr&&'.
+        >> Catch([](std::exception_ptr&& error) {
              return 42;
            })
         >> Then([](int&& value) {

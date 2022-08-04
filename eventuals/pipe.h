@@ -43,7 +43,7 @@ class Pipe final : public Synchronizable {
                })
                >> Map([this]() {
                    if (!values_.empty()) {
-                     auto value = std::move(values_.front());
+                     T value = std::move(values_.front());
                      values_.pop_front();
                      return std::make_optional(std::move(value));
                    } else {
@@ -51,10 +51,10 @@ class Pipe final : public Synchronizable {
                      return std::optional<T>();
                    }
                  }))
-        >> Until([](auto& value) {
+        >> Until([](std::optional<T>& value) {
              return !value.has_value();
            })
-        >> Map([](auto&& value) {
+        >> Map([](std::optional<T>&& value) {
              CHECK(value);
              // NOTE: need to use 'Just' here in case 'T' is an
              // eventual otherwise we'll try and compose with it here!

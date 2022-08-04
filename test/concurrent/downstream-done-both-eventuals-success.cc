@@ -40,8 +40,8 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneBothEventualsSuccess) {
           })
         >> Reduce(
                std::string(),
-               [](auto& result) {
-                 return Then([&](auto&& value) {
+               [](std::string& result) {
+                 return Then([&](std::string&& value) {
                    result = value;
                    return false; // Only take the first element!
                  });
@@ -63,7 +63,7 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneBothEventualsSuccess) {
       std::future_status::timeout,
       future.wait_for(std::chrono::seconds(0)));
 
-  for (auto& callback : callbacks) {
+  for (Callback<void()>& callback : callbacks) {
     callback();
   }
 

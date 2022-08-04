@@ -27,19 +27,19 @@ namespace eventuals {
       Eventual<std::string>()
           .raises<std::runtime_error>()
           .context(Data{loop, address, port})
-          .start([](auto& data, auto& k) {
+          .start([](Data& data, auto& k) {
             using K = std::decay_t<decltype(k)>;
 
             data.k = static_cast<void*>(&k);
             data.resolver.data = &data;
 
-            auto error = uv_getaddrinfo(
+            int error = uv_getaddrinfo(
                 data.loop,
                 &(data.resolver),
                 [](uv_getaddrinfo_t* request,
                    int status,
                    struct addrinfo* result) {
-                  auto& data = *static_cast<Data*>(request->data);
+                  Data& data = *static_cast<Data*>(request->data);
                   if (status < 0) {
                     static_cast<K*>(data.k)->Fail(
                         std::runtime_error(uv_err_name(status)));
@@ -47,7 +47,7 @@ namespace eventuals {
                     // Array "ip" is resulting IPv4 for the specified address.
                     char ip[17] = {'\0'};
 
-                    auto error = uv_ip4_name(
+                    int error = uv_ip4_name(
                         (struct sockaddr_in*) result->ai_addr,
                         ip,
                         16);

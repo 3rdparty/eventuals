@@ -56,7 +56,7 @@ TEST_F(DomainNameResolveTest, Stop) {
   std::string address = "localhost", port = "6667";
   auto e = DomainNameResolve(address, port)
       >> Eventual<int>()
-             .start([](auto& k, auto&& ip) {
+             .start([](auto& k, std::string&& ip) {
                // Imagine that we got ip, and we try to connect
                // in order to get some data (int) from db for example,
                // but there was an error and we stop our continuation.
@@ -78,7 +78,7 @@ TEST_F(DomainNameResolveTest, Raises) {
   auto e = DomainNameResolve(address, port)
       >> Eventual<int>()
              .raises<std::overflow_error>()
-             .start([](auto& k, auto&& ip) {
+             .start([](auto& k, std::string&& ip) {
                // Imagine that we got ip, and we try to connect
                // in order to get some data (int) from db for example,
                // but there was an error and we stop our continuation.

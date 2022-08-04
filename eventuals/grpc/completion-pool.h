@@ -40,7 +40,8 @@ class CompletionPool {
 
   void Shutdown() {
     if (!shutdown_) {
-      for (auto& cq : cqs_) {
+      for (std::unique_ptr<stout::Borrowable<::grpc::CompletionQueue>>&
+               cq : cqs_) {
         cq->get()->Shutdown();
       }
       shutdown_ = true;
@@ -49,13 +50,14 @@ class CompletionPool {
 
   void Wait() {
     while (!threads_.empty()) {
-      auto& thread = threads_.back();
+      std::thread& thread = threads_.back();
 
       thread.join();
 
       threads_.pop_back();
 
-      auto& cq = cqs_.back();
+      std::unique_ptr<stout::Borrowable<::grpc::CompletionQueue>>& cq =
+          cqs_.back();
 
       void* tag = nullptr;
       bool ok = false;
@@ -70,8 +72,9 @@ class CompletionPool {
     // addition to "least loaded", e.g., round-robin, random.
     stout::Borrowable<::grpc::CompletionQueue>* selected = nullptr;
     size_t load = SIZE_MAX;
-    for (auto& cq : cqs_) {
-      auto borrows = cq->borrows();
+    for (std::unique_ptr<stout::Borrowable<::grpc::CompletionQueue>>&
+             cq : cqs_) {
+      size_t borrows = cq->borrows();
       if (borrows < load) {
         selected = cq.get();
         load = borrows;

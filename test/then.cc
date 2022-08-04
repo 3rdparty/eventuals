@@ -15,10 +15,10 @@ using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(ThenTest, Succeed) {
-  auto e = [](auto s) {
+  auto e = [](std::string s) {
     return Eventual<std::string>()
         .context(std::move(s))
-        .start([](auto& s, auto& k) {
+        .start([](std::string& s, auto& k) {
           k.Start(std::move(s));
         });
   };
@@ -26,7 +26,7 @@ TEST(ThenTest, Succeed) {
   auto c = [&]() {
     return Eventual<int>()
                .context(1)
-               .start([](auto& value, auto& k) {
+               .start([](int& value, auto& k) {
                  std::thread thread(
                      [&value, &k]() mutable {
                        k.Start(value);
@@ -34,7 +34,7 @@ TEST(ThenTest, Succeed) {
                  thread.detach();
                })
         >> Then([](int i) { return i + 1; })
-        >> Then([&](auto&& i) {
+        >> Then([&](int&& i) {
              return e("then");
            });
   };
@@ -59,10 +59,10 @@ TEST(ThenTest, SucceedVoid) {
 }
 
 TEST(ThenTest, Fail) {
-  auto e = [](auto s) {
+  auto e = [](std::string s) {
     return Eventual<std::string>()
         .context(s)
-        .start([](auto& s, auto& k) {
+        .start([](std::string& s, auto& k) {
           k.Start(std::move(s));
         });
   };
@@ -78,7 +78,7 @@ TEST(ThenTest, Fail) {
                  thread.detach();
                })
         >> Then([](int i) { return i + 1; })
-        >> Then([&](auto&& i) {
+        >> Then([&](int&& i) {
              return e("then");
            });
   };
@@ -111,7 +111,7 @@ TEST(ThenTest, Interrupt) {
                  k.Start(0);
                })
         >> Then([](int i) { return i + 1; })
-        >> Then([&](auto&& i) {
+        >> Then([&](int&& i) {
              return e("then");
            });
   };

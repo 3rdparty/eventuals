@@ -40,35 +40,35 @@ class Request final {
   // undefined values.
   static auto Builder();
 
-  const auto& uri() {
+  const std::string& uri() {
     return uri_;
   }
 
-  const auto& method() {
+  const Method& method() {
     return method_;
   }
 
-  const auto& headers() {
+  const Headers& headers() {
     return headers_;
   }
 
-  const auto& body() {
+  const std::string& body() {
     return body_;
   }
 
-  const auto& timeout() {
+  const std::chrono::nanoseconds& timeout() {
     return timeout_;
   }
 
-  const auto& fields() {
+  const PostFields& fields() {
     return fields_;
   }
 
-  const auto& verify_peer() {
+  const std::optional<bool>& verify_peer() {
     return verify_peer_;
   }
 
-  const auto& certificate() {
+  const std::optional<x509::Certificate>& certificate() {
     return certificate_;
   }
 
@@ -289,15 +289,15 @@ struct Response final {
   Response& operator=(const Response&) = default;
   Response& operator=(Response&&) = default;
 
-  const auto& code() const {
+  const long& code() const {
     return code_;
   }
 
-  const auto& headers() const {
+  const Headers& headers() const {
     return headers_;
   }
 
-  const auto& body() const {
+  const std::string& body() const {
     return body_;
   }
 
@@ -547,7 +547,7 @@ struct _HTTP final {
                     CURLM_OK);
 
                 // Memory cleanup.
-                for (auto& poll : continuation.polls_) {
+                for (uv_poll_t* poll : continuation.polls_) {
                   if (uv_is_active((uv_handle_t*) poll)) {
                     uv_poll_stop(poll);
                   }
@@ -1069,7 +1069,7 @@ struct _HTTP final {
       loop_.Submit(
           [tuple = std::move(tuple)]() {
             std::apply(
-                [](auto* continuation, auto&&... args) {
+                [](Continuation* continuation, auto&&... args) {
                   auto& k_ = continuation->k_;
                   k_.Fail(std::forward<decltype(args)>(args)...);
                 },
@@ -1101,7 +1101,7 @@ struct _HTTP final {
                 CHECK(started_ && !error_);
                 completed_ = true;
 
-                for (auto& poll : polls_) {
+                for (uv_poll_t* poll : polls_) {
                   if (uv_is_active((uv_handle_t*) poll)) {
                     uv_poll_stop(poll);
                   }
@@ -1204,7 +1204,7 @@ struct _HTTP final {
 
 [[nodiscard]] inline auto Client::Do(Request&& request) {
   // TODO(benh): need 'Client::Default()'.
-  auto& loop = EventLoop::Default();
+  EventLoop& loop = EventLoop::Default();
 
   if (verify_peer_.has_value() && !request.verify_peer().has_value()) {
     request.verify_peer_ = verify_peer_;

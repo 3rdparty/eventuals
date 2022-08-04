@@ -107,10 +107,10 @@ StaticThreadPool::StaticThreadPool()
 StaticThreadPool::~StaticThreadPool() {
   shutdown_.store(true);
   while (!threads_.empty()) {
-    auto* semaphore = semaphores_.back();
+    Semaphore* semaphore = semaphores_.back();
     semaphore->Signal();
     semaphores_.pop_back();
-    auto& thread = threads_.back();
+    std::thread& thread = threads_.back();
     thread.join();
     threads_.pop_back();
   }
@@ -128,7 +128,7 @@ void StaticThreadPool::Submit(Callback<void()> callback, Context& context) {
   auto* requirements =
       static_cast<StaticThreadPool::Requirements*>(context.data);
 
-  auto& pinned = requirements->pinned;
+  Pinned& pinned = requirements->pinned;
 
   CHECK(pinned.cpu()) << context.name();
 
@@ -173,7 +173,7 @@ bool StaticThreadPool::Continuable(const Context& context) {
   auto* requirements =
       static_cast<StaticThreadPool::Requirements*>(context.data);
 
-  auto& pinned = requirements->pinned;
+  Pinned& pinned = requirements->pinned;
 
   CHECK(pinned.cpu()) << context.name();
 

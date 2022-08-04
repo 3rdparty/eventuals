@@ -36,9 +36,12 @@ Task::Of<void> Greeter::TypeErasedService::Serve() {
                        helloworld::HelloRequest,
                        helloworld::HelloReply>("SayHello")
                >> Concurrent([this]() {
-                   return Map(Let([this](auto& call) {
+                   return Map(Let([this](
+                                      ::eventuals::grpc::ServerCall<
+                                          HelloRequest,
+                                          HelloReply>& call) {
                      return UnaryPrologue(call)
-                         >> Then(Let([&](auto& request) {
+                         >> Then(Let([&](HelloRequest& request) {
                               return Then(
                                   [&,
                                    // NOTE: using a tuple because need
