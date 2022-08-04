@@ -34,7 +34,7 @@ TEST(Collect, MoveValueIntoRepeatedPtrField) {
   auto s = [&]() {
     return Stream<std::string>()
                .context(false)
-               .next([&](auto& was_completed, auto& k) {
+               .next([&](bool& was_completed, auto& k) {
                  if (!was_completed) {
                    was_completed = true;
                    k.Emit(std::move(initial_str));

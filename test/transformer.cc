@@ -182,7 +182,7 @@ TEST(Transformer, PropagateStop) {
 
   auto transformer = []() {
     return Transformer::From<int>::To<std::string>([]() {
-      return Map(Let([](auto& i) {
+      return Map(Let([](int& i) {
         return Eventual<std::string>([](auto& k) {
           k.Stop();
         });
@@ -212,7 +212,7 @@ TEST(Transformer, PropagateFail) {
   auto transformer = []() {
     return Transformer::From<int>::To<std::string>::Raises<std::runtime_error>(
         []() {
-          return Map(Let([](auto& i) {
+          return Map(Let([](int& i) {
             return Eventual<std::string>()
                 .raises<std::runtime_error>()
                 .start([](auto& k) {

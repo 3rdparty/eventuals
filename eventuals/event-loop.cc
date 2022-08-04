@@ -46,7 +46,7 @@ void EventLoop::Clock::Resume() {
 
   std::scoped_lock lock(mutex_);
 
-  for (auto& pending : pending_) {
+  for (Pending& pending : pending_) {
     pending.callback(pending.nanoseconds - advanced_);
   }
 

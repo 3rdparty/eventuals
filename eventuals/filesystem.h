@@ -169,7 +169,7 @@ class File final {
       Eventual<File>()
           .raises<std::runtime_error>()
           .context(Data{loop, flags, mode, path})
-          .start([](auto& data, auto& k) mutable {
+          .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
@@ -216,7 +216,7 @@ class File final {
       Eventual<void>()
           .raises<std::runtime_error>()
           .context(Data{loop, std::move(file)})
-          .start([](auto& data, auto& k) mutable {
+          .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
@@ -267,7 +267,7 @@ class File final {
       Eventual<std::string>()
           .raises<std::runtime_error>()
           .context(Data{loop, file, bytes_to_read, offset, bytes_to_read})
-          .start([](auto& data, auto& k) mutable {
+          .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
@@ -319,7 +319,7 @@ class File final {
       Eventual<void>()
           .raises<std::runtime_error>()
           .context(Data{loop, file, data, offset})
-          .start([](auto& data, auto& k) mutable {
+          .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
@@ -367,7 +367,7 @@ class File final {
       Eventual<void>()
           .raises<std::runtime_error>()
           .context(Data{loop, path})
-          .start([](auto& data, auto& k) mutable {
+          .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
@@ -414,7 +414,7 @@ class File final {
       Eventual<void>()
           .raises<std::runtime_error>()
           .context(Data{loop, path, mode})
-          .start([](auto& data, auto& k) mutable {
+          .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
@@ -460,7 +460,7 @@ class File final {
       Eventual<void>()
           .raises<std::runtime_error>()
           .context(Data{loop, path})
-          .start([](auto& data, auto& k) mutable {
+          .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
@@ -509,7 +509,7 @@ class File final {
       Eventual<void>()
           .raises<std::runtime_error>()
           .context(Data{loop, src, dst, flags})
-          .start([](auto& data, auto& k) mutable {
+          .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;
@@ -558,7 +558,7 @@ class File final {
       Eventual<void>()
           .raises<std::runtime_error>()
           .context(Data{loop, src, dst})
-          .start([](auto& data, auto& k) mutable {
+          .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
 
             data.k = &k;

@@ -38,7 +38,7 @@ TEST(CancelledByServerTest, Cancelled) {
   auto serve = [&]() {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
         >> Head()
-        >> Then(Let([](auto& call) {
+        >> Then(Let([](ServerCall<HelloRequest, HelloReply>& call) {
              call.context()->TryCancel();
              return call.WaitForDone();
            }));
@@ -59,7 +59,7 @@ TEST(CancelledByServerTest, Cancelled) {
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", &context)
-        >> Then(Let([](auto& call) {
+        >> Then(Let([](ClientCall<HelloRequest, HelloReply>& call) {
              return call.WritesDone()
                  >> call.Finish();
            }));

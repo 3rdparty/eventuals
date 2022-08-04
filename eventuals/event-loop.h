@@ -225,7 +225,7 @@ class EventLoop final : public Scheduler {
           // some later timer after a paused clock has been advanced
           // or unpaused.
           clock_->Submit(
-              this->Borrow([this](const auto& nanoseconds) {
+              this->Borrow([this](const std::chrono::nanoseconds& nanoseconds) {
                 // NOTE: need to update nanoseconds in the event the clock
                 // was paused/advanced and the nanosecond count differs.
                 nanoseconds_ = nanoseconds;
@@ -306,7 +306,7 @@ class EventLoop final : public Scheduler {
           loop().Submit(
               this->Borrow([tuple = std::move(tuple)]() mutable {
                 std::apply(
-                    [](auto* continuation, auto&&... args) {
+                    [](Continuation* continuation, auto&&... args) {
                       if (!continuation->completed_) {
                         CHECK(!continuation->started_);
                         continuation->completed_ = true;
@@ -1264,7 +1264,7 @@ template <typename E>
 ////////////////////////////////////////////////////////////////////////
 
 // Returns the default event loop's clock.
-[[nodiscard]] inline auto& Clock() {
+[[nodiscard]] inline EventLoop::Clock& Clock() {
   return EventLoop::Default().clock();
 }
 

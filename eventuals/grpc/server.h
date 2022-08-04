@@ -382,11 +382,11 @@ class ServerCall {
     return context_->context();
   }
 
-  auto& Reader() {
+  ServerReader<RequestType_>& Reader() {
     return reader_;
   }
 
-  auto& Writer() {
+  ServerWriter<ResponseType_>& Writer() {
     return writer_;
   }
 

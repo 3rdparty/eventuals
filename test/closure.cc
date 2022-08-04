@@ -30,7 +30,7 @@ TEST(ClosureTest, Then) {
   auto e = []() {
     return Just(1)
         >> Closure([i = 41]() {
-             return Then([&](auto&& value) { return i + value; });
+             return Then([&](int&& value) { return i + value; });
            });
   };
 
@@ -41,7 +41,7 @@ TEST(ClosureTest, Then) {
 TEST(ClosureTest, Functor) {
   struct Functor {
     auto operator()() {
-      return Then([this](auto&& value) { return i + value; });
+      return Then([this](int&& value) { return i + value; });
     }
 
     int i;
@@ -62,8 +62,8 @@ TEST(ClosureTest, OuterRepeat) {
         >> Closure([i = 41]() {
              return Reduce(
                  i,
-                 [](auto& i) {
-                   return Then([&](auto&& value) {
+                 [](int& i) {
+                   return Then([&](int&& value) {
                      i += value;
                      return false;
                    });
@@ -83,14 +83,14 @@ TEST(ClosureTest, InnerRepeat) {
                return strings.empty();
              })
           >> Map([&]() mutable {
-               auto s = std::move(strings.front());
+               string s = std::move(strings.front());
                strings.pop_front();
                return s;
              })
           >> Reduce(
                  deque<string>(),
-                 [](auto& results) {
-                   return Then([&](auto&& result) mutable {
+                 [](deque<string>& results) {
+                   return Then([&](string&& result) mutable {
                      results.push_back(result);
                      return true;
                    });
@@ -98,7 +98,7 @@ TEST(ClosureTest, InnerRepeat) {
     });
   };
 
-  auto results = *e();
+  deque<string> results = *e();
 
   EXPECT_THAT(results, ElementsAre("hello", "world"));
 }

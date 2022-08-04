@@ -45,7 +45,7 @@ void TestUnaryWithClient(
         >> Then(Let([](auto& call) {
              return call.Reader().Read()
                  >> Head() // Only get the first element.
-                 >> Then([](auto&& request) {
+                 >> Then([](HelloRequest&& request) {
                       HelloReply reply;
                       std::string prefix("Hello ");
                       reply.set_message(prefix + request.name());
@@ -69,7 +69,7 @@ void TestUnaryWithClient(
              request.set_name("emily");
              return call.Writer().WriteLast(request)
                  >> call.Reader().Read()
-                 >> Map([](auto&& response) {
+                 >> Map([](HelloReply&& response) {
                       EXPECT_EQ("Hello emily", response.message());
                     })
                  >> Loop()

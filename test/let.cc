@@ -20,7 +20,7 @@ TEST_F(LetTest, Let) {
 
   auto e = []() {
     return Just(Foo{41})
-        >> Then(Let([](auto& foo) {
+        >> Then(Let([](Foo& foo) {
              return Then([&]() {
                       foo.i += 1;
                     })

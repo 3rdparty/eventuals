@@ -53,7 +53,7 @@ Task::Of<void> {{ service.name }}::TypeErasedService::Serve{{ method.name }}() {
 {%- if not method.server_streaming and not method.client_streaming %}
 {#- No streaming #}
                 return UnaryPrologue(call)
-                    >> Then(Let([&](auto& request) {
+                    >> Then(Let([&]({{ input_type }}& request) {
                         return Then(
                             [&,
                               // NOTE: using a tuple because need
@@ -88,7 +88,7 @@ Task::Of<void> {{ service.name }}::TypeErasedService::Serve{{ method.name }}() {
 {%- elif method.server_streaming and not method.client_streaming %}
 {#- Server streaming #}
                 return UnaryPrologue(call)
-                    >> Then(Let([&](auto& request) {
+                    >> Then(Let([&]({{ input_type }}& request) {
                         return Then(
                             [&,
                               // NOTE: using a tuple because need

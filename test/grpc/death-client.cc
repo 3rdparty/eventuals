@@ -23,7 +23,7 @@ void RunClient(const int port) {
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-        >> Then([](auto&& call) {
+        >> Then([](ClientCall<HelloRequest, HelloReply>&& call) {
              // NOTE: need to use 'std::_Exit()' to avoid deadlock
              // waiting for borrowed contexts to get relinquished.
              std::_Exit(kProcessIntentionalExitCode);

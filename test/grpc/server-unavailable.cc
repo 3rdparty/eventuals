@@ -30,7 +30,7 @@ TEST(ServerUnavailableTest, NonexistantServer) {
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
-        >> Then(Let([](auto& call) {
+        >> Then(Let([](ClientCall<HelloRequest, HelloReply>& call) {
              return call.Finish();
            }));
   };

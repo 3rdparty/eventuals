@@ -21,23 +21,23 @@ TEST(RepeatTest, Succeed) {
   auto e = [](auto i) {
     return Eventual<int>()
         .context(i)
-        .start([](auto& i, auto& k) {
+        .start([](int& i, auto& k) {
           k.Start(std::move(i));
         });
   };
 
   auto r = [&]() {
     return Repeat([i = 0]() mutable { return i++; })
-        >> Until([](auto& i) {
+        >> Until([](int& i) {
              return i == 5;
            })
-        >> Map([&](auto&& i) {
+        >> Map([&](int&& i) {
              return e(i);
            })
         >> Reduce(
                /* sum = */ 0,
-               [](auto& sum) {
-                 return Then([&](auto&& i) {
+               [](int& sum) {
+                 return Then([&](int&& i) {
                    sum += i;
                    return true;
                  });
@@ -59,16 +59,16 @@ TEST(RepeatTest, Fail) {
 
   auto r = [&]() {
     return Repeat([i = 0]() mutable { return i++; })
-        >> Until([](auto& i) {
+        >> Until([](int& i) {
              return i == 5;
            })
-        >> Map([&](auto&& i) {
+        >> Map([&](int&& i) {
              return e(i);
            })
         >> Reduce(
                /* sum = */ 0,
-               [](auto& sum) {
-                 return Then([&](auto&& i) {
+               [](int& sum) {
+                 return Then([&](int&& i) {
                    sum += i;
                    return true;
                  });
@@ -99,16 +99,16 @@ TEST(RepeatTest, Interrupt) {
 
   auto r = [&]() {
     return Repeat([i = 0]() mutable { return i++; })
-        >> Until([](auto& i) {
+        >> Until([](int& i) {
              return i == 5;
            })
-        >> Map([&](auto&& i) {
+        >> Map([&](int&& i) {
              return e(i);
            })
         >> Reduce(
                /* sum = */ 0,
-               [](auto& sum) {
-                 return Then([&](auto&& i) {
+               [](int& sum) {
+                 return Then([&](int&& i) {
                    sum += i;
                    return true;
                  });
@@ -171,7 +171,7 @@ TEST(RepeatTest, MapAcquire) {
                  });
            })
         >> Acquire(&lock)
-        >> Map([](auto&& i) {
+        >> Map([](int&& i) {
              return i;
            })
         >> Release(&lock)

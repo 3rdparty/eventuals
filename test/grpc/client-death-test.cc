@@ -43,7 +43,7 @@ TEST(ClientDeathTest, ServerHandlesClientDisconnect) {
   auto serve = [&]() {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello")
         >> Head()
-        >> Then(Let([](auto& call) {
+        >> Then(Let([](ServerCall<HelloRequest, HelloReply>& call) {
              return call.WaitForDone();
            }));
   };

@@ -15,6 +15,8 @@
 namespace eventuals::grpc::test {
 namespace {
 
+using keyvaluestore::Request;
+using keyvaluestore::Response;
 using stout::Borrowable;
 
 // We can vary the usage of the streaming API on three dimensions, each of which
@@ -58,22 +60,22 @@ void test_client_behavior(Handler handler) {
 
   auto serve = [&]() {
     return server->Accept<
-               Stream<keyvaluestore::Request>,
-               Stream<keyvaluestore::Response>>(
+               Stream<Request>,
+               Stream<Response>>(
                "keyvaluestore.KeyValueStore.GetValues")
         >> Head()
         >> Then(Let([](auto& call) {
              return call.Reader().Read()
-                 >> Map([&](auto&& request) {
-                      keyvaluestore::Response response;
+                 >> Map([&](Request&& request) {
+                      Response response;
                       response.set_value(request.key());
                       return call.Writer().Write(response);
                     })
                  >> Loop()
                  >> Closure([]() {
-                      std::vector<keyvaluestore::Response> responses;
+                      std::vector<Response> responses;
                       for (size_t i = 0; i < 3; i++) {
-                        keyvaluestore::Response response;
+                        Response response;
                         response.set_value(std::to_string(i + 10));
                         responses.push_back(response);
                       }
@@ -96,8 +98,8 @@ void test_client_behavior(Handler handler) {
 
   auto call = [&]() {
     return client.Call<
-               Stream<keyvaluestore::Request>,
-               Stream<keyvaluestore::Response>>(
+               Stream<Request>,
+               Stream<Response>>(
                "keyvaluestore.KeyValueStore.GetValues")
         >> std::move(handler);
   };
@@ -113,35 +115,35 @@ void test_client_behavior(Handler handler) {
 TEST(StreamingTest, WriteLast_AfterReply_TwoRequests) {
   test_client_behavior(
       Then(Let([](auto& call) {
-        keyvaluestore::Request request;
+        Request request;
         request.set_key("1");
         return call.Writer().Write(request)
             >> call.Reader().Read()
             >> Head()
-            >> Then([&](auto&& response) {
+            >> Then([&](Response&& response) {
                  EXPECT_EQ("1", response.value());
-                 keyvaluestore::Request request;
+                 Request request;
                  request.set_key("2");
                  return call.Writer().WriteLast(request);
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("2", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("10", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("11", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("12", response.value());
                })
             >> call.Finish();
@@ -151,27 +153,27 @@ TEST(StreamingTest, WriteLast_AfterReply_TwoRequests) {
 TEST(StreamingTest, WriteLast_BeforeReply_OneRequest) {
   test_client_behavior(
       Then(Let([](auto& call) {
-        keyvaluestore::Request request;
+        Request request;
         request.set_key("1");
         return call.Writer().WriteLast(request)
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("1", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("10", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("11", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("12", response.value());
                })
             >> call.Finish();
@@ -181,37 +183,37 @@ TEST(StreamingTest, WriteLast_BeforeReply_OneRequest) {
 TEST(StreamingTest, WriteLast_BeforeReply_TwoRequests) {
   test_client_behavior(
       Then(Let([](auto& call) {
-        keyvaluestore::Request request1;
+        Request request1;
         request1.set_key("1");
         return call.Writer().Write(request1)
             >> Then([&]() {
-                 keyvaluestore::Request request2;
+                 Request request2;
                  request2.set_key("2");
                  return call.Writer().WriteLast(request2);
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("1", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("2", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("10", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("11", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("12", response.value());
                })
             >> call.Finish();
@@ -221,28 +223,28 @@ TEST(StreamingTest, WriteLast_BeforeReply_TwoRequests) {
 TEST(StreamingTest, WritesDone_AfterReply_OneRequest) {
   test_client_behavior(
       Then(Let([](auto& call) {
-        keyvaluestore::Request request;
+        Request request;
         request.set_key("1");
         return call.Writer().Write(request)
             >> call.Reader().Read()
             >> Head()
-            >> Then([&](auto&& response) {
+            >> Then([&](Response&& response) {
                  EXPECT_EQ("1", response.value());
                  return call.WritesDone();
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("10", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("11", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("12", response.value());
                })
             >> call.Finish();
@@ -252,36 +254,36 @@ TEST(StreamingTest, WritesDone_AfterReply_OneRequest) {
 TEST(StreamingTest, WritesDone_AfterReply_TwoRequests) {
   test_client_behavior(
       Then(Let([](auto& call) {
-        keyvaluestore::Request request;
+        Request request;
         request.set_key("1");
         return call.Writer().Write(request)
             >> call.Reader().Read()
             >> Head()
-            >> Then([&](auto&& response) {
+            >> Then([&](Response&& response) {
                  EXPECT_EQ("1", response.value());
-                 keyvaluestore::Request request;
+                 Request request;
                  request.set_key("2");
                  return call.Writer().Write(request);
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([&](auto&& response) {
+            >> Then([&](Response&& response) {
                  EXPECT_EQ("2", response.value());
                  return call.WritesDone();
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("10", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("11", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("12", response.value());
                })
             >> call.Finish();
@@ -291,28 +293,28 @@ TEST(StreamingTest, WritesDone_AfterReply_TwoRequests) {
 TEST(StreamingTest, WritesDone_BeforeReply_OneRequest) {
   test_client_behavior(
       Then(Let([](auto& call) {
-        keyvaluestore::Request request1;
+        Request request1;
         request1.set_key("1");
         return call.Writer().Write(request1)
             >> call.WritesDone()
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("1", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("10", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("11", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("12", response.value());
                })
             >> call.Finish();
@@ -322,38 +324,38 @@ TEST(StreamingTest, WritesDone_BeforeReply_OneRequest) {
 TEST(StreamingTest, WritesDone_BeforeReply_TwoRequests) {
   test_client_behavior(
       Then(Let([](auto& call) {
-        keyvaluestore::Request request1;
+        Request request1;
         request1.set_key("1");
         return call.Writer().Write(request1)
             >> Then([&]() {
-                 keyvaluestore::Request request2;
+                 Request request2;
                  request2.set_key("2");
                  return call.Writer().Write(request2)
                      >> call.WritesDone();
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("1", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("2", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("10", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("11", response.value());
                })
             >> call.Reader().Read()
             >> Head()
-            >> Then([](auto&& response) {
+            >> Then([](Response&& response) {
                  EXPECT_EQ("12", response.value());
                })
             >> call.Finish();

@@ -29,7 +29,7 @@ TEST_F(FilesystemTest, OpenAndCloseFileSucceed) {
 
   auto e = [&path]() {
     return OpenFile(path, UV_FS_O_RDONLY, 0)
-        >> Then([&path](auto&& file) {
+        >> Then([&path](File&& file) {
              return Closure([&path, file = std::move(file)]() mutable {
                EXPECT_TRUE(file.IsOpen());
                EXPECT_TRUE(std::filesystem::exists(path));
@@ -81,7 +81,7 @@ TEST_F(FilesystemTest, ReadFileSucceed) {
         >> Then([&](File&& file) {
              return Closure([&, file = std::move(file)]() mutable {
                return ReadFile(file, test_string.size(), 0)
-                   >> Then([&](auto&& data) {
+                   >> Then([&](std::string&& data) {
                         EXPECT_EQ(test_string, data);
                         return CloseFile(std::move(file));
                       })
@@ -114,7 +114,7 @@ TEST_F(FilesystemTest, ReadFileFail) {
         >> Then([&](File&& file) {
              return Closure([&, file = std::move(file)]() mutable {
                return ReadFile(file, test_string.size(), 0)
-                   >> Then([&](auto&& data) {
+                   >> Then([&](std::string&& data) {
                         EXPECT_EQ(test_string, data);
                         return CloseFile(std::move(file));
                       });

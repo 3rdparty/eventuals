@@ -38,10 +38,10 @@ TEST(MultipleHostsTest, Success) {
   auto serve = [&](auto&& host) {
     return server->Accept<Greeter, HelloRequest, HelloReply>("SayHello", host)
         >> Head()
-        >> Then(Let([](auto& call) {
+        >> Then(Let([](ServerCall<HelloRequest, HelloReply>& call) {
              return call.Reader().Read()
                  >> Head() // Only get the first element.
-                 >> Then([](auto&& request) {
+                 >> Then([](HelloRequest&& request) {
                       HelloReply reply;
                       std::string prefix("Hello ");
                       reply.set_message(prefix + request.name());
@@ -68,7 +68,7 @@ TEST(MultipleHostsTest, Success) {
 
   auto call = [&](auto&& host) {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello", host)
-        >> Then(Let([](auto& call) {
+        >> Then(Let([](ClientCall<HelloRequest, HelloReply>& call) {
              HelloRequest request;
              request.set_name("Emily");
              return call.Writer().WriteLast(request)
