@@ -26,7 +26,6 @@ class Interrupt final {
     Handler(Handler&& that) noexcept
       : interrupt_(CHECK_NOTNULL(that.interrupt_)),
         callback_(std::move(that.callback_)) {
-      CHECK(that.next_ == nullptr);
     }
 
     Interrupt& interrupt() {
@@ -35,12 +34,12 @@ class Interrupt final {
 
     bool Install(Callback<void()>&& callback) {
       callback_ = std::move(callback);
-      return CHECK_NOTNULL(interrupt_)->Install(this);
+      return interrupt().Install(this);
     }
 
     bool Install() {
       CHECK(callback_);
-      return CHECK_NOTNULL(interrupt_)->Install(this);
+      return interrupt().Install(this);
     }
 
     void Invoke() {
@@ -50,56 +49,47 @@ class Interrupt final {
 
     Interrupt* interrupt_ = nullptr;
     Callback<void()> callback_;
-    Handler* next_ = nullptr;
   };
 
   Interrupt()
-    : handler_(this, []() {}) {}
+    : placeholder_handler_(this, []() {}) {}
 
-  bool Install(Handler* handler) {
-    CHECK(handler->next_ == nullptr) << "handler is already installed";
+  [[nodiscard]] bool Install(Handler* handler) {
+    Handler* stored = handler_.load();
+    // NOTE: we should be the *only* ones trying to install an interrupt
+    // at a time, so the only way we fail to install ourselves is if the
+    // interrupt got triggered.
+    if (!stored) {
+      return false;
+    }
 
-    handler->next_ = head_.load(std::memory_order_relaxed);
-
-    do {
-      // Check if the interrupt has already been triggered.
-      if (handler->next_ == nullptr) {
-        return false;
-      }
-    } while (!head_.compare_exchange_weak(
-        handler->next_,
+    bool installed = handler_.compare_exchange_weak(
+        stored,
         handler,
         std::memory_order_release,
-        std::memory_order_relaxed));
+        std::memory_order_relaxed);
 
-    return true;
+    // 'stored' might be a 'nullptr' only in case of race betweer
+    // 'load' and 'compare_exchange_weak'.
+    CHECK(installed || stored == nullptr);
+    return installed;
   }
 
   void Trigger() {
     // NOTE: nullptr signifies that the interrupt has been triggered.
-    auto* handler = head_.exchange(nullptr);
+    Handler* handler = handler_.exchange(nullptr);
     if (handler != nullptr) {
-      while (handler != &handler_) {
-        handler->Invoke();
-        auto* next = handler->next_;
-        handler->next_ = nullptr;
-        handler = next;
-      }
+      handler->Invoke();
     }
   }
 
   bool Triggered() {
     // NOTE: nullptr signifies that the interrupt has been triggered.
-    return head_.load() == nullptr;
+    return handler_.load() == nullptr;
   }
 
-  // To simplify the implementation we signify a triggered interrupt
-  // by storing nullptr in head_. Thus, when an interrupt is first
-  // constructed we store a "placeholder" handler that we ignore when
-  // executing the rest of the handlers.
-  Handler handler_;
-
-  std::atomic<Handler*> head_ = &handler_;
+  Handler placeholder_handler_;
+  std::atomic<Handler*> handler_ = &placeholder_handler_;
 };
 
 ////////////////////////////////////////////////////////////////////////
