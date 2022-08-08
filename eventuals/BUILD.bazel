@@ -37,6 +37,8 @@ cc_library(
         "lock.h",
         "loop.h",
         "map.h",
+        "on-begin.h",
+        "on-ended.h",
         "os.h",
         "pipe.h",
         "poll.h",
