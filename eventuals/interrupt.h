@@ -154,6 +154,10 @@ class Interrupt final {
     return handler_.load() == nullptr;
   }
 
+  bool Installed() {
+    return handler_.load() != &placeholder_handler_;
+  }
+
   Handler placeholder_handler_;
   std::atomic<Handler*> handler_ = &placeholder_handler_;
 };

@@ -593,6 +593,9 @@ struct _Concurrent final {
     ~Continuation() override = default;
 
     void Begin(TypeErasedStream& stream) {
+      if (handler_.has_value() && !handler_->interrupt().Installed()) {
+        handler_->Install();
+      }
       stream_ = &stream;
 
       ingress_.emplace(Build<Arg_>(adaptor_.Ingress()));
@@ -685,8 +688,6 @@ struct _Concurrent final {
 
         interrupt_->Start();
       });
-
-      handler_->Install();
     }
 
     Adaptor<F_, Arg_> adaptor_;
