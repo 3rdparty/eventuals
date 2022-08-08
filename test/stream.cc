@@ -492,7 +492,7 @@ TEST(StreamTest, ThrowGeneralError) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::bad_alloc, std::exception>>);
+          std::tuple<std::runtime_error, std::bad_alloc, std::exception>>);
 
   EXPECT_THAT(
       [&]() { *e(); },
