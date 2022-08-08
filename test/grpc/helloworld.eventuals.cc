@@ -2,6 +2,7 @@
 
 #include "eventuals/concurrent.h"
 #include "eventuals/do-all.h"
+#include "eventuals/finally.h"
 #include "eventuals/grpc/server.h"
 #include "eventuals/just.h"
 #include "eventuals/let.h"
@@ -12,6 +13,7 @@
 
 using eventuals::Concurrent;
 using eventuals::DoAll;
+using eventuals::Finally;
 using eventuals::Just;
 using eventuals::Let;
 using eventuals::Loop;
@@ -60,7 +62,19 @@ Task::Of<void> Greeter::TypeErasedService::Serve() {
                    }));
                  })
                >> Loop())
-        >> Just(); // Return 'void'.
+        >> Finally([&](auto&& expected) {
+             if (!expected.has_value()) {
+               try {
+                 std::rethrow_exception(expected.error());
+               } catch (std::exception& e) {
+                 LOG(WARNING) << "Failed to serve: " << e.what();
+               } catch (...) {
+                 LOG(WARNING)
+                     << "Failed to serve (unexpected error that "
+                     << "does not extend from 'std::exception')";
+               }
+             }
+           });
   };
 }
 

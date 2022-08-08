@@ -83,8 +83,21 @@ struct _Until final {
     template <typename Arg>
     using ValueFrom = Arg;
 
+    template <typename Arg>
+    using InvokeResult = typename std::conditional_t<
+        std::is_void_v<Arg>,
+        std::invoke_result<F_>,
+        std::invoke_result<
+            F_,
+            std::add_lvalue_reference_t<Arg>>>::type;
+
     template <typename Arg, typename Errors>
-    using ErrorsFrom = Errors;
+    using ErrorsFrom = tuple_types_union_t<
+        Errors,
+        typename std::conditional_t<
+            HasValueFrom<InvokeResult<Arg>>::value,
+            InvokeResult<Arg>,
+            decltype(Just())>::template ErrorsFrom<void, std::tuple<>>>;
 
     template <typename Arg, typename K>
     auto k(K k) && {
@@ -213,7 +226,14 @@ struct _Until::Continuation<K_, F_, Arg_, true> final {
   Interrupt* interrupt_ = nullptr;
 
   std::optional<
-      std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
+      std::conditional_t<
+          std::is_void_v<Arg_>,
+          Undefined,
+          std::conditional_t<
+              !std::is_reference_v<Arg_>,
+              Arg_,
+              std::reference_wrapper<
+                  std::remove_reference_t<Arg_>>>>>
       arg_;
 
   using E_ = typename std::conditional_t<
