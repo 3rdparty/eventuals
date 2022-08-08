@@ -188,9 +188,9 @@ TEST(StreamTest, InterruptStream) {
                          auto& k,
                          auto& handler) {
                  CHECK(handler) << "Test expects interrupt to be registered";
-                 handler->Install([&interrupted]() {
+                 EXPECT_TRUE(handler->Install([&interrupted]() {
                    interrupted->store(true);
-                 });
+                 }));
                  k.Begin();
                })
                .next([](auto& interrupted, auto& k, auto&) {
@@ -269,9 +269,9 @@ TEST(StreamTest, InterruptLoop) {
                          auto& k,
                          auto& handler) {
                  CHECK(handler) << "Test expects interrupt to be registered";
-                 handler->Install([&interrupted]() {
+                 EXPECT_TRUE(handler->Install([&interrupted]() {
                    interrupted->store(true);
-                 });
+                 }));
                  k.Next();
                })
                .body([&](auto&, auto& k, auto&, auto&&) {

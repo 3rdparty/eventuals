@@ -23,15 +23,19 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
                .raises<std::runtime_error>()
                .interruptible()
                .begin([](auto& k, auto& handler) {
-                 handler->Install([&k]() {
-                   k.Fail(std::runtime_error("error"));
-                 });
+                 CHECK(handler) << "Test expects interrupt to be registered";
                  k.Begin();
                })
-               .next([i = 0](auto& k, auto&) mutable {
+               .next([i = 0](auto& k, auto& handler) mutable {
+                 CHECK(handler) << "Test expects interrupt to be registered";
+
                  i++;
                  if (i == 1) {
                    k.Emit(i);
+                 } else {
+                   EXPECT_TRUE(handler->Install([&k]() {
+                     k.Fail(std::runtime_error("error"));
+                   }));
                  }
                })
         >> this->ConcurrentOrConcurrentOrdered([]() {

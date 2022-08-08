@@ -466,594 +466,608 @@ struct _HTTP final {
     void Start() {
       CHECK(!started_ && !completed_);
 
-      loop_.Submit(
-          [this]() {
-            if (!completed_) {
-              started_ = true;
-
-              CHECK(!error_);
-
-              CHECK_NOTNULL(easy_);
-              CHECK_NOTNULL(multi_);
-
-              // If applicable, PEM encode any certificate now before we start
-              // anything and can easily propagate an error.
-              auto certificate = request_.certificate();
-              if (certificate) {
-                auto pem_certificate = pem::Encode(
-                    x509::Certificate(*certificate));
-
-                if (!pem_certificate) {
-                  completed_ = true;
-
-                  k_.Fail(std::runtime_error(
-                      "Failed to PEM encode certificate"));
-
-                  curl_easy_cleanup(easy_.get());
-                  curl_multi_cleanup(multi_.get());
-
-                  return; // Don't do anything else!
-                } else {
-                  curl_blob blob = {};
-                  blob.data = pem_certificate->data();
-                  blob.len = pem_certificate->size();
-                  blob.flags = CURL_BLOB_COPY;
-                  CHECK_EQ(
-                      curl_easy_setopt(
-                          easy_.get(),
-                          CURLOPT_CAINFO_BLOB,
-                          &blob),
-                      CURLE_OK);
-                }
+      if (handler_.has_value() && !handler_->Install()) {
+        // Interrupt has already been triggered.
+        loop_.Submit(
+            [this]() {
+              if (!completed_) {
+                completed_ = true;
+                k_.Stop();
               }
+            },
+            context_);
+      } else {
+        loop_.Submit(
+            [this]() {
+              if (!completed_) {
+                started_ = true;
 
-              CHECK_EQ(0, uv_timer_init(loop_, &timer_));
-              uv_handle_set_data((uv_handle_t*) &timer_, this);
+                CHECK(!error_);
 
-              // Called only one time to finish the transfer
-              // and clean everything up.
-              static auto check_multi_info = [](Continuation& continuation) {
-                continuation.completed_ = true;
+                CHECK_NOTNULL(easy_);
+                CHECK_NOTNULL(multi_);
 
-                // Stores the amount of remaining messages in multi handle.
-                // Unused.
-                int msgq = 0;
-                CURLMsg* message = curl_multi_info_read(
-                    continuation.multi_.get(),
-                    &msgq);
+                // If applicable, PEM encode any certificate now before we start
+                // anything and can easily propagate an error.
+                auto certificate = request_.certificate();
+                if (certificate) {
+                  auto pem_certificate = pem::Encode(
+                      x509::Certificate(*certificate));
 
-                // Getting the response code and body.
-                switch (message->msg) {
-                  case CURLMSG_DONE:
-                    if (message->data.result == CURLE_OK) {
-                      curl_easy_getinfo(
-                          continuation.easy_.get(),
-                          CURLINFO_RESPONSE_CODE,
-                          &continuation.code_);
-                    } else {
-                      continuation.error_ = message->data.result;
-                    }
-                    break;
-                  default:
-                    continuation.error_ = CURLE_ABORTED_BY_CALLBACK;
-                    break;
-                }
+                  if (!pem_certificate) {
+                    completed_ = true;
 
-                // Stop transfer completely.
-                CHECK_EQ(
-                    curl_multi_remove_handle(
-                        continuation.multi_.get(),
-                        message->easy_handle),
-                    CURLM_OK);
+                    k_.Fail(std::runtime_error(
+                        "Failed to PEM encode certificate"));
 
-                // Memory cleanup.
-                for (uv_poll_t* poll : continuation.polls_) {
-                  if (uv_is_active((uv_handle_t*) poll)) {
-                    uv_poll_stop(poll);
+                    curl_easy_cleanup(easy_.get());
+                    curl_multi_cleanup(multi_.get());
+
+                    return; // Don't do anything else!
+                  } else {
+                    curl_blob blob = {};
+                    blob.data = pem_certificate->data();
+                    blob.len = pem_certificate->size();
+                    blob.flags = CURL_BLOB_COPY;
+                    CHECK_EQ(
+                        curl_easy_setopt(
+                            easy_.get(),
+                            CURLOPT_CAINFO_BLOB,
+                            &blob),
+                        CURLE_OK);
                   }
-                  uv_close(
-                      (uv_handle_t*) poll,
-                      [](uv_handle_t* handle) {
-                        delete handle;
-                      });
                 }
 
-                continuation.polls_.clear();
+                CHECK_EQ(0, uv_timer_init(loop_, &timer_));
+                uv_handle_set_data((uv_handle_t*) &timer_, this);
 
-                // We don't have to check uv_is_active for timer since
-                // libuv checks it by itself.
-                // Return value is always 0.
-                uv_timer_stop(&continuation.timer_);
-                uv_close(
-                    (uv_handle_t*) &continuation.timer_,
-                    [](uv_handle_t* handle) {
-                      auto& continuation = *(Continuation*) handle->data;
-                      continuation.closed_ = true;
+                // Called only one time to finish the transfer
+                // and clean everything up.
+                static auto check_multi_info = [](Continuation& continuation) {
+                  continuation.completed_ = true;
 
-                      if (!continuation.error_) {
-                        // Build headers map.
-                        std::stringstream headers_buffer_stringstream(
-                            continuation.headers_buffer_.Extract());
-                        std::map<std::string, std::string> headers;
+                  // Stores the amount of remaining messages in multi handle.
+                  // Unused.
+                  int msgq = 0;
+                  CURLMsg* message = curl_multi_info_read(
+                      continuation.multi_.get(),
+                      &msgq);
 
-                        // Typical 'headers_buffer_stringstream'
-                        // looks like this:
-                        // --------------------------------
-                        // HTTP/1.1 200
-                        // SomeHeaderKey1: SomeHeaderValue1
-                        // SomeHeaderKey2: SomeHeaderValue2
-                        // --------------------------------
-                        while (!headers_buffer_stringstream.eof()) {
-                          std::string line;
-                          std::getline(headers_buffer_stringstream, line);
-
-                          // Find where ':' is.
-                          auto column_iterator = std::find(
-                              line.cbegin(),
-                              line.cend(),
-                              ':');
-
-                          // Skip lines like 'HTTP/1.1 200' that aren't headers.
-                          if (column_iterator == line.cend()) {
-                            continue;
-                          }
-
-                          // Assign key and value.
-                          std::string key(line.cbegin(), column_iterator);
-                          std::string value(column_iterator + 1, line.cend());
-
-                          // Remove leading and trailing spaces.
-                          key = absl::StripAsciiWhitespace(key);
-                          value = absl::StripAsciiWhitespace(value);
-
-                          // Add key and value to the map.
-                          // RFC 7230, section 3.2.2:
-                          // A recipient MAY combine multiple header fields
-                          // with the same field name into one
-                          // "field-name: field-value" pair, without changing
-                          // the semantics of the message, by appending each
-                          // subsequent field value to the combined field
-                          // value in order, separated by a comma. The order
-                          // in which header fields with the same field name
-                          // are received is therefore significant to the
-                          // interpretation of the combined field value;
-                          // a proxy MUST NOT change the order of these field
-                          // values when forwarding a message.
-                          //
-                          // NOTE: If user tries to add an already
-                          // existing header, append the new one
-                          // to the old one using comma.
-                          // Example:
-                          // Cookie: cookie1=value1, cookie2=value2
-                          auto iterator = headers.find(key);
-                          if (iterator == headers.end()) {
-                            // Header doesn't exist yet.
-                            headers.emplace(std::move(key), std::move(value));
-                          } else {
-                            // Header already exists.
-                            headers[key] += ", ";
-                            headers[key] += value;
-                          }
-                        }
-
-                        continuation.k_.Start(Response{
-                            continuation.code_,
-                            std::move(headers),
-                            continuation.body_buffer_.Extract()});
+                  // Getting the response code and body.
+                  switch (message->msg) {
+                    case CURLMSG_DONE:
+                      if (message->data.result == CURLE_OK) {
+                        curl_easy_getinfo(
+                            continuation.easy_.get(),
+                            CURLINFO_RESPONSE_CODE,
+                            &continuation.code_);
                       } else {
-                        continuation.k_.Fail(
-                            std::runtime_error(
-                                curl_easy_strerror(
-                                    (CURLcode) continuation.error_)));
+                        continuation.error_ = message->data.result;
                       }
-                    });
-              };
+                      break;
+                    default:
+                      continuation.error_ = CURLE_ABORTED_BY_CALLBACK;
+                      break;
+                  }
 
-              static auto poll_callback = [](uv_poll_t* handle,
-                                             int status,
-                                             int events) {
-                auto& continuation = *(Continuation*) handle->data;
+                  // Stop transfer completely.
+                  CHECK_EQ(
+                      curl_multi_remove_handle(
+                          continuation.multi_.get(),
+                          message->easy_handle),
+                      CURLM_OK);
 
-                int flags = 0;
-                if (status < 0) {
-                  flags = CURL_CSELECT_ERR;
-                }
-                if (status == 0 && (events & UV_READABLE)) {
-                  flags |= CURL_CSELECT_IN;
-                }
-                if (status == 0 && (events & UV_WRITABLE)) {
-                  flags |= CURL_CSELECT_OUT;
-                }
-
-                // Getting underlying socket desriptor from poll handle.
-                uv_os_fd_t socket_descriptor;
-                uv_fileno(
-                    (uv_handle_t*) handle,
-                    &socket_descriptor);
-
-                // Stores the amount of running easy handles.
-                // Set by curl_multi_socket_action.
-                int running_handles = 0;
-
-                // Perform an action for the particular socket
-                // which is the one we are currently working with.
-                // We don't want to perform an action on every socket inside
-                // libcurl - only that one.
-                curl_multi_socket_action(
-                    continuation.multi_.get(),
-                    (curl_socket_t) socket_descriptor,
-                    flags,
-                    &running_handles);
-
-                // If 0 - finalize the transfer.
-                if (running_handles == 0) {
-                  check_multi_info(continuation);
-                }
-              };
-
-              static auto timer_callback = [](uv_timer_t* handle) {
-                auto& continuation = *(Continuation*) handle->data;
-
-                // Stores the amount of running easy handles.
-                // Set by curl_multi_socket_action.
-                int running_handles = 0;
-
-                // Called with CURL_SOCKET_TIMEOUT to
-                // perform an action with each and every socket
-                // currently in use by libcurl.
-                curl_multi_socket_action(
-                    continuation.multi_.get(),
-                    CURL_SOCKET_TIMEOUT,
-                    0,
-                    &running_handles);
-
-                // If 0 - finalize the transfer.
-                if (running_handles == 0) {
-                  check_multi_info(continuation);
-                }
-              };
-
-              static auto socket_function = +[](CURL* easy,
-                                                curl_socket_t sockfd,
-                                                int what,
-                                                Continuation* continuation,
-                                                void* socket_poller) {
-                int events = 0;
-
-                switch (what) {
-                  case CURL_POLL_IN:
-                  case CURL_POLL_OUT:
-                  case CURL_POLL_INOUT:
-                    // Add poll handle for this particular socket.
-                    if (what & CURL_POLL_IN) {
-                      events |= UV_READABLE;
+                  // Memory cleanup.
+                  for (uv_poll_t* poll : continuation.polls_) {
+                    if (uv_is_active((uv_handle_t*) poll)) {
+                      uv_poll_stop(poll);
                     }
-                    if (what & CURL_POLL_OUT) {
-                      events |= UV_WRITABLE;
-                    }
+                    uv_close(
+                        (uv_handle_t*) poll,
+                        [](uv_handle_t* handle) {
+                          delete handle;
+                        });
+                  }
 
-                    // If no poll handle is assigned to this socket.
-                    if (socket_poller == nullptr) {
-                      socket_poller = new uv_poll_t();
-                      continuation->polls_.push_back(
-                          (uv_poll_t*) socket_poller);
+                  continuation.polls_.clear();
+
+                  // We don't have to check uv_is_active for timer since
+                  // libuv checks it by itself.
+                  // Return value is always 0.
+                  uv_timer_stop(&continuation.timer_);
+                  uv_close(
+                      (uv_handle_t*) &continuation.timer_,
+                      [](uv_handle_t* handle) {
+                        auto& continuation = *(Continuation*) handle->data;
+                        continuation.closed_ = true;
+
+                        if (!continuation.error_) {
+                          // Build headers map.
+                          std::stringstream headers_buffer_stringstream(
+                              continuation.headers_buffer_.Extract());
+                          std::map<std::string, std::string> headers;
+
+                          // Typical 'headers_buffer_stringstream'
+                          // looks like this:
+                          // --------------------------------
+                          // HTTP/1.1 200
+                          // SomeHeaderKey1: SomeHeaderValue1
+                          // SomeHeaderKey2: SomeHeaderValue2
+                          // --------------------------------
+                          while (!headers_buffer_stringstream.eof()) {
+                            std::string line;
+                            std::getline(headers_buffer_stringstream, line);
+
+                            // Find where ':' is.
+                            auto column_iterator = std::find(
+                                line.cbegin(),
+                                line.cend(),
+                                ':');
+
+                            // Skip lines like 'HTTP/1.1 200' that aren't
+                            // headers.
+                            if (column_iterator == line.cend()) {
+                              continue;
+                            }
+
+                            // Assign key and value.
+                            std::string key(line.cbegin(), column_iterator);
+                            std::string value(column_iterator + 1, line.cend());
+
+                            // Remove leading and trailing spaces.
+                            key = absl::StripAsciiWhitespace(key);
+                            value = absl::StripAsciiWhitespace(value);
+
+                            // Add key and value to the map.
+                            // RFC 7230, section 3.2.2:
+                            // A recipient MAY combine multiple header fields
+                            // with the same field name into one
+                            // "field-name: field-value" pair, without changing
+                            // the semantics of the message, by appending each
+                            // subsequent field value to the combined field
+                            // value in order, separated by a comma. The order
+                            // in which header fields with the same field name
+                            // are received is therefore significant to the
+                            // interpretation of the combined field value;
+                            // a proxy MUST NOT change the order of these field
+                            // values when forwarding a message.
+                            //
+                            // NOTE: If user tries to add an already
+                            // existing header, append the new one
+                            // to the old one using comma.
+                            // Example:
+                            // Cookie: cookie1=value1, cookie2=value2
+                            auto iterator = headers.find(key);
+                            if (iterator == headers.end()) {
+                              // Header doesn't exist yet.
+                              headers.emplace(std::move(key), std::move(value));
+                            } else {
+                              // Header already exists.
+                              headers[key] += ", ";
+                              headers[key] += value;
+                            }
+                          }
+
+                          continuation.k_.Start(Response{
+                              continuation.code_,
+                              std::move(headers),
+                              continuation.body_buffer_.Extract()});
+                        } else {
+                          continuation.k_.Fail(
+                              std::runtime_error(
+                                  curl_easy_strerror(
+                                      (CURLcode) continuation.error_)));
+                        }
+                      });
+                };
+
+                static auto poll_callback = [](uv_poll_t* handle,
+                                               int status,
+                                               int events) {
+                  auto& continuation = *(Continuation*) handle->data;
+
+                  int flags = 0;
+                  if (status < 0) {
+                    flags = CURL_CSELECT_ERR;
+                  }
+                  if (status == 0 && (events & UV_READABLE)) {
+                    flags |= CURL_CSELECT_IN;
+                  }
+                  if (status == 0 && (events & UV_WRITABLE)) {
+                    flags |= CURL_CSELECT_OUT;
+                  }
+
+                  // Getting underlying socket desriptor from poll handle.
+                  uv_os_fd_t socket_descriptor;
+                  uv_fileno(
+                      (uv_handle_t*) handle,
+                      &socket_descriptor);
+
+                  // Stores the amount of running easy handles.
+                  // Set by curl_multi_socket_action.
+                  int running_handles = 0;
+
+                  // Perform an action for the particular socket
+                  // which is the one we are currently working with.
+                  // We don't want to perform an action on every socket inside
+                  // libcurl - only that one.
+                  curl_multi_socket_action(
+                      continuation.multi_.get(),
+                      (curl_socket_t) socket_descriptor,
+                      flags,
+                      &running_handles);
+
+                  // If 0 - finalize the transfer.
+                  if (running_handles == 0) {
+                    check_multi_info(continuation);
+                  }
+                };
+
+                static auto timer_callback = [](uv_timer_t* handle) {
+                  auto& continuation = *(Continuation*) handle->data;
+
+                  // Stores the amount of running easy handles.
+                  // Set by curl_multi_socket_action.
+                  int running_handles = 0;
+
+                  // Called with CURL_SOCKET_TIMEOUT to
+                  // perform an action with each and every socket
+                  // currently in use by libcurl.
+                  curl_multi_socket_action(
+                      continuation.multi_.get(),
+                      CURL_SOCKET_TIMEOUT,
+                      0,
+                      &running_handles);
+
+                  // If 0 - finalize the transfer.
+                  if (running_handles == 0) {
+                    check_multi_info(continuation);
+                  }
+                };
+
+                static auto socket_function = +[](CURL* easy,
+                                                  curl_socket_t sockfd,
+                                                  int what,
+                                                  Continuation* continuation,
+                                                  void* socket_poller) {
+                  int events = 0;
+
+                  switch (what) {
+                    case CURL_POLL_IN:
+                    case CURL_POLL_OUT:
+                    case CURL_POLL_INOUT:
+                      // Add poll handle for this particular socket.
+                      if (what & CURL_POLL_IN) {
+                        events |= UV_READABLE;
+                      }
+                      if (what & CURL_POLL_OUT) {
+                        events |= UV_WRITABLE;
+                      }
+
+                      // If no poll handle is assigned to this socket.
+                      if (socket_poller == nullptr) {
+                        socket_poller = new uv_poll_t();
+                        continuation->polls_.push_back(
+                            (uv_poll_t*) socket_poller);
+
+                        CHECK_EQ(
+                            uv_poll_init_socket(
+                                continuation->loop_,
+                                (uv_poll_t*) socket_poller,
+                                sockfd),
+                            0);
+
+                        uv_handle_set_data(
+                            (uv_handle_t*) socket_poller,
+                            continuation);
+
+                        // Assign created poll handle so that in the future
+                        // we can get it through socket_poller argument.
+                        // Useful to check if we already have a poll handle
+                        // for the socket currently in use.
+                        CHECK_EQ(
+                            curl_multi_assign(
+                                continuation->multi_.get(),
+                                sockfd,
+                                socket_poller),
+                            CURLM_OK);
+                      }
+
+                      // Stops poll handle if it was started.
+                      if (uv_is_active((uv_handle_t*) socket_poller)) {
+                        CHECK_EQ(
+                            uv_poll_stop(
+                                (uv_poll_t*) socket_poller),
+                            0);
+                      }
 
                       CHECK_EQ(
-                          uv_poll_init_socket(
-                              continuation->loop_,
+                          uv_poll_start(
                               (uv_poll_t*) socket_poller,
-                              sockfd),
+                              events,
+                              poll_callback),
                           0);
 
-                      uv_handle_set_data(
+                      break;
+                    case CURL_POLL_REMOVE:
+                      // Remove poll handle for this particular socket.
+                      uv_poll_stop((uv_poll_t*) socket_poller);
+                      uv_close(
                           (uv_handle_t*) socket_poller,
-                          continuation);
+                          [](uv_handle_t* handle) {
+                            delete (uv_poll_t*) handle;
+                          });
 
-                      // Assign created poll handle so that in the future
-                      // we can get it through socket_poller argument.
-                      // Useful to check if we already have a poll handle
-                      // for the socket currently in use.
+                      // Remove this poll handle from vector.
+                      for (auto it = continuation->polls_.begin();
+                           it != continuation->polls_.end();
+                           it++) {
+                        if (*it == (uv_poll_t*) socket_poller) {
+                          continuation->polls_.erase(it);
+                          break;
+                        }
+                      }
+
+                      // Remove assignment of poll handle to this socket.
                       CHECK_EQ(
                           curl_multi_assign(
                               continuation->multi_.get(),
                               sockfd,
-                              socket_poller),
+                              nullptr),
                           CURLM_OK);
-                    }
+                      break;
+                  }
+                };
 
-                    // Stops poll handle if it was started.
-                    if (uv_is_active((uv_handle_t*) socket_poller)) {
-                      CHECK_EQ(
-                          uv_poll_stop(
-                              (uv_poll_t*) socket_poller),
-                          0);
-                    }
+                // Used by libcurl to set a timer after
+                // which we should start checking handles inside libcurl.
+                static auto timer_function = +[](CURLM* multi,
+                                                 long timeout_ms,
+                                                 Continuation* continuation) {
+                  if (timeout_ms < 0) {
+                    timeout_ms = 0;
+                  }
 
-                    CHECK_EQ(
-                        uv_poll_start(
-                            (uv_poll_t*) socket_poller,
-                            events,
-                            poll_callback),
-                        0);
+                  uv_timer_start(
+                      &continuation->timer_,
+                      timer_callback,
+                      timeout_ms,
+                      0);
+                };
 
-                    break;
-                  case CURL_POLL_REMOVE:
-                    // Remove poll handle for this particular socket.
-                    uv_poll_stop((uv_poll_t*) socket_poller);
-                    uv_close(
-                        (uv_handle_t*) socket_poller,
-                        [](uv_handle_t* handle) {
-                          delete (uv_poll_t*) handle;
-                        });
+                // https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
+                static auto write_function = +[](char* data,
+                                                 size_t size,
+                                                 size_t nmemb,
+                                                 Continuation* continuation) {
+                  continuation->body_buffer_ += std::string(data, size * nmemb);
 
-                    // Remove this poll handle from vector.
-                    for (auto it = continuation->polls_.begin();
-                         it != continuation->polls_.end();
-                         it++) {
-                      if (*it == (uv_poll_t*) socket_poller) {
-                        continuation->polls_.erase(it);
-                        break;
-                      }
-                    }
+                  return nmemb * size;
+                };
 
-                    // Remove assignment of poll handle to this socket.
-                    CHECK_EQ(
-                        curl_multi_assign(
-                            continuation->multi_.get(),
-                            sockfd,
-                            nullptr),
-                        CURLM_OK);
-                    break;
-                }
-              };
+                // https://curl.se/libcurl/c/CURLOPT_HEADERFUNCTION.html
+                static auto header_function = +[](char* data,
+                                                  size_t size,
+                                                  size_t nmemb,
+                                                  Continuation* continuation) {
+                  continuation->headers_buffer_ += std::string(
+                      data,
+                      size * nmemb);
 
-              // Used by libcurl to set a timer after
-              // which we should start checking handles inside libcurl.
-              static auto timer_function = +[](CURLM* multi,
-                                               long timeout_ms,
-                                               Continuation* continuation) {
-                if (timeout_ms < 0) {
-                  timeout_ms = 0;
-                }
+                  return nmemb * size;
+                };
 
-                uv_timer_start(
-                    &continuation->timer_,
-                    timer_callback,
-                    timeout_ms,
-                    0);
-              };
+                using std::chrono::duration_cast;
+                using std::chrono::milliseconds;
 
-              // https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
-              static auto write_function = +[](char* data,
-                                               size_t size,
-                                               size_t nmemb,
-                                               Continuation* continuation) {
-                continuation->body_buffer_ += std::string(data, size * nmemb);
-
-                return nmemb * size;
-              };
-
-              // https://curl.se/libcurl/c/CURLOPT_HEADERFUNCTION.html
-              static auto header_function = +[](char* data,
-                                                size_t size,
-                                                size_t nmemb,
-                                                Continuation* continuation) {
-                continuation->headers_buffer_ += std::string(
-                    data,
-                    size * nmemb);
-
-                return nmemb * size;
-              };
-
-              using std::chrono::duration_cast;
-              using std::chrono::milliseconds;
-
-              // CURL multi options.
-              CHECK_EQ(
-                  curl_multi_setopt(
-                      multi_.get(),
-                      CURLMOPT_SOCKETDATA,
-                      this),
-                  CURLM_OK);
-              CHECK_EQ(
-                  curl_multi_setopt(
-                      multi_.get(),
-                      CURLMOPT_SOCKETFUNCTION,
-                      socket_function),
-                  CURLM_OK);
-              CHECK_EQ(
-                  curl_multi_setopt(
-                      multi_.get(),
-                      CURLMOPT_TIMERDATA,
-                      this),
-                  CURLM_OK);
-              CHECK_EQ(
-                  curl_multi_setopt(
-                      multi_.get(),
-                      CURLMOPT_TIMERFUNCTION,
-                      timer_function),
-                  CURLM_OK);
-
-              // CURL easy options.
-              if (request_.verify_peer()) {
+                // CURL multi options.
                 CHECK_EQ(
-                    curl_easy_setopt(
-                        easy_.get(),
-                        CURLOPT_SSL_VERIFYPEER,
-                        request_.verify_peer().value()),
-                    CURLE_OK);
-              }
+                    curl_multi_setopt(
+                        multi_.get(),
+                        CURLMOPT_SOCKETDATA,
+                        this),
+                    CURLM_OK);
+                CHECK_EQ(
+                    curl_multi_setopt(
+                        multi_.get(),
+                        CURLMOPT_SOCKETFUNCTION,
+                        socket_function),
+                    CURLM_OK);
+                CHECK_EQ(
+                    curl_multi_setopt(
+                        multi_.get(),
+                        CURLMOPT_TIMERDATA,
+                        this),
+                    CURLM_OK);
+                CHECK_EQ(
+                    curl_multi_setopt(
+                        multi_.get(),
+                        CURLMOPT_TIMERFUNCTION,
+                        timer_function),
+                    CURLM_OK);
 
-              switch (request_.method()) {
-                case Method::GET:
+                // CURL easy options.
+                if (request_.verify_peer()) {
                   CHECK_EQ(
                       curl_easy_setopt(
                           easy_.get(),
-                          CURLOPT_HTTPGET,
-                          1),
+                          CURLOPT_SSL_VERIFYPEER,
+                          request_.verify_peer().value()),
                       CURLE_OK);
-                  break;
-                case Method::POST:
-                  // Converting PostFields.
-                  std::unique_ptr<
-                      CURLU,
-                      decltype(&curl_url_cleanup)>
-                      curl_url_handle(
-                          curl_url(),
-                          &curl_url_cleanup);
-                  CHECK_EQ(
-                      curl_url_set(
-                          curl_url_handle.get(),
-                          CURLUPART_URL,
-                          request_.uri().c_str(),
-                          0),
-                      CURLUE_OK);
-                  for (const auto& field : request_.fields()) {
-                    std::string combined =
-                        field.first
-                        + '='
-                        + field.second;
+                }
+
+                switch (request_.method()) {
+                  case Method::GET:
+                    CHECK_EQ(
+                        curl_easy_setopt(
+                            easy_.get(),
+                            CURLOPT_HTTPGET,
+                            1),
+                        CURLE_OK);
+                    break;
+                  case Method::POST:
+                    // Converting PostFields.
+                    std::unique_ptr<
+                        CURLU,
+                        decltype(&curl_url_cleanup)>
+                        curl_url_handle(
+                            curl_url(),
+                            &curl_url_cleanup);
                     CHECK_EQ(
                         curl_url_set(
                             curl_url_handle.get(),
-                            CURLUPART_QUERY,
-                            combined.c_str(),
-                            CURLU_APPENDQUERY | CURLU_URLENCODE),
+                            CURLUPART_URL,
+                            request_.uri().c_str(),
+                            0),
                         CURLUE_OK);
-                  }
-                  char* url_string = nullptr;
-                  CHECK_EQ(
-                      curl_url_get(
-                          curl_url_handle.get(),
-                          CURLUPART_QUERY,
-                          &url_string,
-                          0),
-                      CURLUE_OK);
-                  fields_string_ = std::unique_ptr<
-                      char,
-                      decltype(&curl_free)>(
-                      url_string,
-                      &curl_free);
-                  // End of conversion.
+                    for (const auto& field : request_.fields()) {
+                      std::string combined =
+                          field.first
+                          + '='
+                          + field.second;
+                      CHECK_EQ(
+                          curl_url_set(
+                              curl_url_handle.get(),
+                              CURLUPART_QUERY,
+                              combined.c_str(),
+                              CURLU_APPENDQUERY | CURLU_URLENCODE),
+                          CURLUE_OK);
+                    }
+                    char* url_string = nullptr;
+                    CHECK_EQ(
+                        curl_url_get(
+                            curl_url_handle.get(),
+                            CURLUPART_QUERY,
+                            &url_string,
+                            0),
+                        CURLUE_OK);
+                    fields_string_ = std::unique_ptr<
+                        char,
+                        decltype(&curl_free)>(
+                        url_string,
+                        &curl_free);
+                    // End of conversion.
 
-                  CHECK_EQ(
-                      curl_easy_setopt(
-                          easy_.get(),
-                          CURLOPT_HTTPPOST,
-                          1),
-                      CURLE_OK);
-                  CHECK_EQ(
-                      curl_easy_setopt(
-                          easy_.get(),
-                          CURLOPT_POSTFIELDS,
-                          fields_string_.get()),
-                      CURLE_OK);
+                    CHECK_EQ(
+                        curl_easy_setopt(
+                            easy_.get(),
+                            CURLOPT_HTTPPOST,
+                            1),
+                        CURLE_OK);
+                    CHECK_EQ(
+                        curl_easy_setopt(
+                            easy_.get(),
+                            CURLOPT_POSTFIELDS,
+                            fields_string_.get()),
+                        CURLE_OK);
 
-                  break;
+                    break;
+                }
+
+                // Transform 'Request' headers to curl's linked list.
+                for (const auto& [key, value] : request_.headers()) {
+                  // TODO(folming): use fmt library to append strings.
+                  // https://github.com/fmtlib/fmt
+                  std::string header = key;
+                  header.append(": ");
+                  header.append(value);
+
+                  // We should only be adding the headers once, so they
+                  // shouldn't yet exist!
+                  CHECK(!curl_headers_)
+                      << "not expecting to have already allocated headers";
+
+                  curl_slist* list = nullptr;
+
+                  // 'curl_slist_append()' copies 'header' so we don't
+                  //  have to worry about its lifetime.
+                  list = curl_slist_append(list, header.c_str());
+
+                  curl_headers_ = std::unique_ptr<
+                      curl_slist,
+                      decltype(&curl_slist_free_all)>(
+                      CHECK_NOTNULL(list),
+                      &curl_slist_free_all);
+                }
+
+                CHECK_EQ(
+                    curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_HTTPHEADER,
+                        curl_headers_.get()),
+                    CURLE_OK);
+                CHECK_EQ(
+                    curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_URL,
+                        request_.uri().c_str()),
+                    CURLE_OK);
+                CHECK_EQ(
+                    curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_WRITEDATA,
+                        this),
+                    CURLE_OK);
+                CHECK_EQ(
+                    curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_WRITEFUNCTION,
+                        write_function),
+                    CURLE_OK);
+                CHECK_EQ(
+                    curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_HEADERDATA,
+                        this),
+                    CURLE_OK);
+                CHECK_EQ(
+                    curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_HEADERFUNCTION,
+                        header_function),
+                    CURLE_OK);
+                // Option to follow redirects.
+                CHECK_EQ(
+                    curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_FOLLOWLOCATION,
+                        1),
+                    CURLE_OK);
+                // The internal mechanism of libcurl to provide timeout
+                // support.
+                // Not accurate at very low values.
+                // 0 means that transfer can run indefinitely.
+                CHECK_EQ(
+                    curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_TIMEOUT_MS,
+                        static_cast<long>(duration_cast<milliseconds>(
+                                              request_.timeout())
+                                              .count())),
+                    CURLE_OK);
+                // If onoff is 1, libcurl will not use any functions that
+                // install signal handlers or any functions that cause signals
+                // to be sent to the process. This option is here to allow
+                // multi-threaded unix applications to still set/use all
+                // timeout options etc, without risking getting signals.
+                // More here: https://curl.se/libcurl/c/CURLOPT_NOSIGNAL.html
+                CHECK_EQ(
+                    curl_easy_setopt(
+                        easy_.get(),
+                        CURLOPT_NOSIGNAL,
+                        1),
+                    CURLE_OK);
+
+                // Start handling connection.
+                CHECK_EQ(
+                    curl_multi_add_handle(
+                        multi_.get(),
+                        easy_.get()),
+                    CURLM_OK);
               }
-
-              // Transform 'Request' headers to curl's linked list.
-              for (const auto& [key, value] : request_.headers()) {
-                // TODO(folming): use fmt library to append strings.
-                // https://github.com/fmtlib/fmt
-                std::string header = key;
-                header.append(": ");
-                header.append(value);
-
-                // We should only be adding the headers once, so they
-                // shouldn't yet exist!
-                CHECK(!curl_headers_)
-                    << "not expecting to have already allocated headers";
-
-                curl_slist* list = nullptr;
-
-                // 'curl_slist_append()' copies 'header' so we don't
-                //  have to worry about its lifetime.
-                list = curl_slist_append(list, header.c_str());
-
-                curl_headers_ = std::unique_ptr<
-                    curl_slist,
-                    decltype(&curl_slist_free_all)>(
-                    CHECK_NOTNULL(list),
-                    &curl_slist_free_all);
-              }
-
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_.get(),
-                      CURLOPT_HTTPHEADER,
-                      curl_headers_.get()),
-                  CURLE_OK);
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_.get(),
-                      CURLOPT_URL,
-                      request_.uri().c_str()),
-                  CURLE_OK);
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_.get(),
-                      CURLOPT_WRITEDATA,
-                      this),
-                  CURLE_OK);
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_.get(),
-                      CURLOPT_WRITEFUNCTION,
-                      write_function),
-                  CURLE_OK);
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_.get(),
-                      CURLOPT_HEADERDATA,
-                      this),
-                  CURLE_OK);
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_.get(),
-                      CURLOPT_HEADERFUNCTION,
-                      header_function),
-                  CURLE_OK);
-              // Option to follow redirects.
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_.get(),
-                      CURLOPT_FOLLOWLOCATION,
-                      1),
-                  CURLE_OK);
-              // The internal mechanism of libcurl to provide timeout support.
-              // Not accurate at very low values.
-              // 0 means that transfer can run indefinitely.
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_.get(),
-                      CURLOPT_TIMEOUT_MS,
-                      static_cast<long>(duration_cast<milliseconds>(
-                                            request_.timeout())
-                                            .count())),
-                  CURLE_OK);
-              // If onoff is 1, libcurl will not use any functions that install
-              // signal handlers or any functions that cause signals to be sent
-              // to the process. This option is here to allow multi-threaded
-              // unix applications to still set/use all timeout options etc,
-              // without risking getting signals.
-              // More here: https://curl.se/libcurl/c/CURLOPT_NOSIGNAL.html
-              CHECK_EQ(
-                  curl_easy_setopt(
-                      easy_.get(),
-                      CURLOPT_NOSIGNAL,
-                      1),
-                  CURLE_OK);
-
-              // Start handling connection.
-              CHECK_EQ(
-                  curl_multi_add_handle(
-                      multi_.get(),
-                      easy_.get()),
-                  CURLM_OK);
-            }
-          },
-          context_);
+            },
+            context_);
+      }
     }
 
     template <typename Error>
@@ -1135,10 +1149,6 @@ struct _HTTP final {
             },
             interrupt_context_);
       });
-
-      // NOTE: we always install the handler in case 'Start()'
-      // never gets called.
-      handler_->Install();
     }
 
    private:

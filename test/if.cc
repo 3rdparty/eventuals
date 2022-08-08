@@ -85,9 +85,9 @@ TEST(IfTest, Interrupt) {
                        .start([&](auto& k, auto& handler) {
                          CHECK(handler)
                              << "Test expects interrupt to be registered";
-                         handler->Install([&k]() {
+                         EXPECT_TRUE(handler->Install([&k]() {
                            k.Stop();
-                         });
+                         }));
                          start.Call();
                        });
                  })

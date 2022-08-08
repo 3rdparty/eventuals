@@ -142,9 +142,9 @@ TEST(Transformer, Interrupt) {
                .interruptible()
                .begin([](auto& k, auto& handler) {
                  CHECK(handler) << "Test expects interrupt to be registered";
-                 handler->Install([&]() {
+                 EXPECT_TRUE(handler->Install([&]() {
                    k.Stop();
-                 });
+                 }));
                  k.Begin();
                })
                .next([&](auto&, auto&) {

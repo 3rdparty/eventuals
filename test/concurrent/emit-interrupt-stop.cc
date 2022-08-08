@@ -19,15 +19,18 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptStop) {
                .interruptible()
                .begin([](auto& k, auto& handler) {
                  CHECK(handler) << "Test expects interrupt to be registered";
-                 handler->Install([&k]() {
-                   k.Stop();
-                 });
                  k.Begin();
                })
-               .next([i = 0](auto& k, auto&) mutable {
+               .next([i = 0](auto& k, auto& handler) mutable {
+                 CHECK(handler) << "Test expects interrupt to be registered";
+
                  i++;
                  if (i == 1) {
                    k.Emit(i);
+                 } else {
+                   EXPECT_TRUE(handler->Install([&k]() {
+                     k.Stop();
+                   }));
                  }
                })
         >> this->ConcurrentOrConcurrentOrdered([]() {

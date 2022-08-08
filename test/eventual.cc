@@ -118,9 +118,9 @@ TEST(EventualTest, Interrupt) {
                           auto& k,
                           std::optional<Interrupt::Handler>& handler) {
                  CHECK(handler) << "Test expects interrupt to be registered";
-                 handler->Install([&k]() {
+                 EXPECT_TRUE(handler->Install([&k]() {
                    k.Stop();
-                 });
+                 }));
                  start.Call();
                })
         >> Then([](int i) { return i + 2; })

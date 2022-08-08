@@ -33,9 +33,9 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualStop) {
                         k.Start("1");
                       });
                     } else {
-                      handler->Install([&k]() {
+                      EXPECT_TRUE(handler->Install([&k]() {
                         k.Stop();
-                      });
+                      }));
                       callbacks.emplace_back([]() {});
                     }
                   });

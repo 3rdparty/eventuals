@@ -240,9 +240,9 @@ TEST(FlatMap, InterruptReturn) {
                  .interruptible()
                  .begin([&](auto& k, auto& handler) {
                    CHECK(handler) << "Test expects interrupt to be registered";
-                   handler->Install([&k]() {
+                   EXPECT_TRUE(handler->Install([&k]() {
                      k.Stop();
-                   });
+                   }));
                    waiting.store(true);
                  })
                  .next([](auto& k, auto&) {
