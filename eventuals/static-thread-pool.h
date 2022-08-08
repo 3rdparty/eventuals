@@ -3,6 +3,7 @@
 #include <atomic>
 #include <deque>
 #include <memory>
+#include <random>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -40,7 +41,8 @@ struct Pinned {
     return cpu_;
   }
 
-  Pinned(const Pinned& that) = default;
+  Pinned(const Pinned& that)
+    : cpu_(that.cpu_) {}
 
  private:
   Pinned() = default;
@@ -154,7 +156,14 @@ struct _StaticThreadPoolSchedule final {
             CHECK_NOTNULL(pool),
             std::move(name),
             CHECK_NOTNULL(requirements)),
+        engine_(device_()),
         k_(std::move(k)) {}
+
+    Continuation(Continuation&& that)
+      : e_(std::move(that.e_)),
+        context_(std::move(that.context_)),
+        engine_(device_()),
+        k_(std::move(that.k_)) {}
 
     // Helper to avoid casting default 'Scheduler*' to 'StaticThreadPool*'
     // each time.
@@ -184,7 +193,7 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(0);
+        pinned = Pinned::ExactCPU(GetRandomCPU());
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
@@ -232,7 +241,7 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(0);
+        pinned = Pinned::ExactCPU(GetRandomCPU());
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
@@ -283,7 +292,7 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(0);
+        pinned = Pinned::ExactCPU(GetRandomCPU());
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
@@ -320,7 +329,7 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(0);
+        pinned = Pinned::ExactCPU(GetRandomCPU());
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
@@ -359,7 +368,7 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(0);
+        pinned = Pinned::ExactCPU(GetRandomCPU());
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
@@ -406,7 +415,7 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(0);
+        pinned = Pinned::ExactCPU(GetRandomCPU());
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
@@ -463,6 +472,14 @@ struct _StaticThreadPoolSchedule final {
       }
     }
 
+    // Helper for getting a random CPU.
+    unsigned int GetRandomCPU() {
+      std::uniform_int_distribution<> distribution(0, pool()->concurrency - 1);
+      unsigned int cpu = distribution(engine_);
+      CHECK_LT(cpu, pool()->concurrency);
+      return cpu;
+    }
+
     E_ e_;
 
     std::optional<
@@ -480,6 +497,9 @@ struct _StaticThreadPoolSchedule final {
         std::string,
         StaticThreadPool::Requirements*>
         context_;
+
+    std::random_device device_;
+    std::mt19937 engine_;
 
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
