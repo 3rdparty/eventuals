@@ -235,34 +235,42 @@ struct _DoAll final {
 
     template <typename... Args>
     void Start(Args&&...) {
-      adaptor_.emplace(k_, Scheduler::Context::Get().reborrow(), interrupter_);
+      if (handler_.has_value() && !handler_->Install()) {
+        // TODO: consider propagating through each eventual?
+        k_.Stop();
+      } else {
+        adaptor_.emplace(
+            k_,
+            Scheduler::Context::Get().reborrow(),
+            interrupter_);
 
-      fibers_.emplace(adaptor_->BuildFibers(
-          std::move(eventuals_),
-          std::make_index_sequence<sizeof...(Eventuals_)>{}));
+        fibers_.emplace(adaptor_->BuildFibers(
+            std::move(eventuals_),
+            std::make_index_sequence<sizeof...(Eventuals_)>{}));
 
-      std::apply(
-          [](auto&... fiber) {
-            static std::atomic<int> i = 0;
+        std::apply(
+            [](auto&... fiber) {
+              static std::atomic<int> i = 0;
 
-            // Clone the current scheduler context for running the eventual.
-            (fiber.context.emplace(
-                 Scheduler::Context::Get()->name()
-                 + " [DoAll - " + std::to_string(i++) + "]"),
-             ...);
+              // Clone the current scheduler context for running the eventual.
+              (fiber.context.emplace(
+                   Scheduler::Context::Get()->name()
+                   + " [DoAll - " + std::to_string(i++) + "]"),
+               ...);
 
-            (fiber.context->scheduler()->Submit(
-                 [&]() {
-                   CHECK_EQ(
-                       &fiber.context.value(),
-                       Scheduler::Context::Get().get());
-                   fiber.k.Register(fiber.interrupt);
-                   fiber.k.Start();
-                 },
-                 fiber.context.value()),
-             ...);
-          },
-          fibers_.value());
+              (fiber.context->scheduler()->Submit(
+                   [&]() {
+                     CHECK_EQ(
+                         &fiber.context.value(),
+                         Scheduler::Context::Get().get());
+                     fiber.k.Register(fiber.interrupt);
+                     fiber.k.Start();
+                   },
+                   fiber.context.value()),
+               ...);
+            },
+            fibers_.value());
+      }
     }
 
     template <typename Error>
@@ -281,8 +289,6 @@ struct _DoAll final {
       handler_.emplace(&interrupt, [this]() {
         interrupter_();
       });
-
-      handler_->Install();
     }
 
     // NOTE: need to destruct the fibers LAST since they have a

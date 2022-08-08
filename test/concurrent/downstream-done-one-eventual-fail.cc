@@ -34,9 +34,9 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualFail) {
                         k.Start("1");
                       });
                     } else {
-                      handler->Install([&k]() {
+                      EXPECT_TRUE(handler->Install([&k]() {
                         k.Fail(std::runtime_error("error"));
-                      });
+                      }));
                       callbacks.emplace_back([]() {});
                     }
                   });

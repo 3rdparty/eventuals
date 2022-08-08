@@ -604,6 +604,8 @@ struct _Concurrent final {
     // NOTE: explicit move-constructor because of 'std::atomic_flag'.
     Continuation(Continuation&& that) noexcept
       : adaptor_(std::move(that.adaptor_.f_)),
+        interrupt_(std::move(that.interrupt_)),
+        handler_(std::move(that.handler_)),
         k_(std::move(that.k_)) {}
 
     ~Continuation() override = default;
@@ -659,8 +661,13 @@ struct _Concurrent final {
 
     template <typename... Args>
     void Body(Args&&... args) {
-      CHECK(ingress_);
-      ingress_->Body(std::forward<Args>(args)...);
+      if (!handler_.has_value()
+          || (handler_.has_value()
+              && handler_->InstallOrExecuteIfTriggered())
+              != Interrupt::Handler::State::EXECUTED) {
+        CHECK(ingress_);
+        ingress_->Body(std::forward<Args>(args)...);
+      }
     }
 
     void Ended() {
@@ -701,8 +708,6 @@ struct _Concurrent final {
 
         interrupt_->Start();
       });
-
-      handler_->Install();
     }
 
     Adaptor<F_, Arg_> adaptor_;

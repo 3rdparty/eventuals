@@ -229,92 +229,144 @@ class EventLoop final : public Scheduler {
         }
 
         void Start() {
-          // Clock is basically a "scheduler" for timers so we need to
-          // "submit" a callback to be executed when the clock is not
-          // paused which might be right away but might also be at
-          // some later timer after a paused clock has been advanced
-          // or unpaused.
-          clock_->Submit(
-              this->Borrow([this](const std::chrono::nanoseconds& nanoseconds) {
-                // NOTE: need to update nanoseconds in the event the clock
-                // was paused/advanced and the nanosecond count differs.
-                nanoseconds_ = nanoseconds;
+          if (handler_.has_value() && !handler_->Install()) {
+            // Interrupt has already been triggered.
+            loop().Submit(
+                this->Borrow([this]() {
+                  if (!completed_) {
+                    completed_ = true;
+                    k_.Stop();
+                  }
+                }),
+                context_);
+          } else {
+            // Clock is basically a "scheduler" for timers so we need to
+            // "submit" a callback to be executed when the clock is not
+            // paused which might be right away but might also be at
+            // some later timer after a paused clock has been advanced
+            // or unpaused.
+            clock_->Submit(
+                this->Borrow(
+                    [this](const std::chrono::nanoseconds& nanoseconds) {
+                      // NOTE: need to update nanoseconds in the event the clock
+                      // was paused/advanced and the nanosecond count differs.
+                      nanoseconds_ = nanoseconds;
 
-                loop().Submit(
-                    this->Borrow([this]() {
-                      if (!completed_) {
-                        CHECK(!started_);
-                        started_ = true;
+                      loop().Submit(
+                          this->Borrow([this]() {
+                            if (!completed_) {
+                              CHECK(!started_);
+                              started_ = true;
+                              CHECK_EQ(0, uv_timer_init(loop(), timer()));
 
-                        CHECK_EQ(0, uv_timer_init(loop(), timer()));
+                              uv_handle_set_data(handle(), this);
 
-                        uv_handle_set_data(handle(), this);
+                              auto timeout = std::chrono::duration_cast<
+                                  std::chrono::milliseconds>(nanoseconds_);
 
-                        auto timeout = std::chrono::duration_cast<
-                            std::chrono::milliseconds>(nanoseconds_);
+                              CHECK(!error_);
+                              error_ = uv_timer_start(
+                                  timer(),
+                                  [](uv_timer_t* timer) {
+                                    auto& continuation =
+                                        *(Continuation*) timer->data;
+                                    CHECK_EQ(timer, continuation.timer());
+                                    CHECK_EQ(
+                                        &continuation,
+                                        continuation.handle()->data);
+                                    if (!continuation.completed_) {
+                                      continuation.completed_ = true;
+                                      CHECK(!continuation.error_);
+                                      continuation.error_ =
+                                          uv_timer_stop(continuation.timer());
+                                      uv_close(
+                                          continuation.handle(),
+                                          [](uv_handle_t* handle) {
+                                            auto& continuation =
+                                                *(Continuation*) handle->data;
+                                            continuation.closed_ = true;
+                                            if (!continuation.error_) {
+                                              continuation.k_.Start();
+                                            } else {
+                                              continuation.k_.Fail(
+                                                  std::runtime_error(
+                                                      uv_strerror(
+                                                          continuation
+                                                              .error_)));
+                                            }
+                                          });
+                                    }
+                                  },
+                                  timeout.count(),
+                                  /* repeat = */ 0);
 
-                        // NOTE: even if the timeout is 0 we still
-                        // call into libuv so that we can unwind this
-                        // stack because otherwise we can get into
-                        // situations where we might deadlock on a
-                        // destructing a 'Scheduler::Context' that was
-                        // borrowed.
-                        //
-                        // TODO(benh): this might get fixed once we
-                        // stop using a 'Scheduler::Context' after
-                        // it's blocked, but we also might want to
-                        // consider an alternative where we don't call
-                        // into libuv but instead (re)submit a
-                        // callback so that we do some unwinding.
+                              // NOTE: even if the timeout is 0 we still
+                              // call into libuv so that we can unwind this
+                              // stack because otherwise we can get into
+                              // situations where we might deadlock on a
+                              // destructing a 'Scheduler::Context' that was
+                              // borrowed.
+                              //
+                              // TODO(benh): this might get fixed once we
+                              // stop using a 'Scheduler::Context' after
+                              // it's blocked, but we also might want to
+                              // consider an alternative where we don't call
+                              // into libuv but instead (re)submit a
+                              // callback so that we do some unwinding.
 
-                        CHECK(!error_);
-                        error_ = uv_timer_start(
-                            timer(),
-                            [](uv_timer_t* timer) {
-                              auto& continuation = *(Continuation*) timer->data;
-                              CHECK_EQ(timer, continuation.timer());
-                              CHECK_EQ(
-                                  &continuation,
-                                  continuation.handle()->data);
-                              if (!continuation.completed_) {
-                                continuation.completed_ = true;
-                                CHECK(!continuation.error_);
-                                continuation.error_ =
-                                    uv_timer_stop(continuation.timer());
-                                uv_close(
-                                    continuation.handle(),
-                                    [](uv_handle_t* handle) {
-                                      auto& continuation =
-                                          *(Continuation*) handle->data;
-                                      continuation.closed_ = true;
-                                      if (!continuation.error_) {
-                                        continuation.k_.Start();
-                                      } else {
-                                        continuation.k_.Fail(std::runtime_error(
-                                            uv_strerror(continuation.error_)));
-                                      }
-                                    });
+                              CHECK(!error_);
+                              error_ = uv_timer_start(
+                                  timer(),
+                                  [](uv_timer_t* timer) {
+                                    auto& continuation =
+                                        *(Continuation*) timer->data;
+                                    CHECK_EQ(timer, continuation.timer());
+                                    CHECK_EQ(
+                                        &continuation,
+                                        continuation.handle()->data);
+                                    if (!continuation.completed_) {
+                                      continuation.completed_ = true;
+                                      CHECK(!continuation.error_);
+                                      continuation.error_ =
+                                          uv_timer_stop(continuation.timer());
+                                      uv_close(
+                                          continuation.handle(),
+                                          [](uv_handle_t* handle) {
+                                            auto& continuation =
+                                                *(Continuation*) handle->data;
+                                            continuation.closed_ = true;
+                                            if (!continuation.error_) {
+                                              continuation.k_.Start();
+                                            } else {
+                                              continuation.k_.Fail(
+                                                  std::runtime_error(
+                                                      uv_strerror(
+                                                          continuation
+                                                              .error_)));
+                                            }
+                                          });
+                                    }
+                                  },
+                                  timeout.count(),
+                                  /* repeat = */ 0);
+                              if (error_) {
+                                completed_ = true;
+                                CHECK_EQ(this, handle()->data);
+                                uv_close(handle(), [](uv_handle_t* handle) {
+                                  auto& continuation =
+                                      *(Continuation*) handle->data;
+                                  continuation.closed_ = true;
+                                  CHECK(continuation.error_);
+                                  continuation.k_.Fail(std::runtime_error(
+                                      uv_strerror(continuation.error_)));
+                                });
                               }
-                            },
-                            timeout.count(),
-                            /* repeat = */ 0);
-
-                        if (error_) {
-                          completed_ = true;
-                          CHECK_EQ(this, handle()->data);
-                          uv_close(handle(), [](uv_handle_t* handle) {
-                            auto& continuation = *(Continuation*) handle->data;
-                            continuation.closed_ = true;
-                            CHECK(continuation.error_);
-                            continuation.k_.Fail(std::runtime_error(
-                                uv_strerror(continuation.error_)));
-                          });
-                        }
-                      }
+                            }
+                          }),
+                          context_);
                     }),
-                    context_);
-              }),
-              nanoseconds_);
+                nanoseconds_);
+          }
         }
 
         template <typename Error>
@@ -392,10 +444,6 @@ class EventLoop final : public Scheduler {
                 }),
                 interrupt_context_);
           }));
-
-          // NOTE: we always install the handler in case 'Start()'
-          // never gets called i.e., due to a paused clock.
-          handler_->Install();
         }
 
        private:
@@ -611,54 +659,66 @@ class EventLoop final : public Scheduler {
       }
 
       void Start() {
-        loop_.Submit(
-            this->Borrow([this]() {
-              if (!completed_) {
-                CHECK(!started_);
-                started_ = true;
-
-                CHECK_EQ(0, uv_signal_init(loop_, signal()));
-
-                uv_handle_set_data(handle(), this);
-
-                CHECK(!error_);
-                error_ = uv_signal_start_oneshot(
-                    signal(),
-                    [](uv_signal_t* signal, int signum) {
-                      auto& continuation = *(Continuation*) signal->data;
-                      CHECK_EQ(signal, continuation.signal());
-                      CHECK_EQ(
-                          &continuation,
-                          continuation.handle()->data);
-                      CHECK_EQ(signum, continuation.signum_);
-                      if (!continuation.completed_) {
-                        continuation.completed_ = true;
-                        uv_close(
-                            continuation.handle(),
-                            [](uv_handle_t* handle) {
-                              auto& continuation =
-                                  *(Continuation*) handle->data;
-                              continuation.closed_ = true;
-                              continuation.k_.Start();
-                            });
-                      }
-                    },
-                    signum_);
-
-                if (error_) {
+        if (handler_.has_value() && !handler_->Install()) {
+          // Interrupt has already been triggered.
+          loop_.Submit(
+              this->Borrow([this]() {
+                if (!completed_) {
                   completed_ = true;
-                  CHECK_EQ(this, handle()->data);
-                  uv_close(handle(), [](uv_handle_t* handle) {
-                    auto& continuation = *(Continuation*) handle->data;
-                    continuation.closed_ = true;
-                    CHECK(continuation.error_);
-                    continuation.k_.Fail(std::runtime_error(
-                        uv_strerror(continuation.error_)));
-                  });
+                  k_.Stop();
                 }
-              }
-            }),
-            context_);
+              }),
+              context_);
+        } else {
+          loop_.Submit(
+              this->Borrow([this]() {
+                if (!completed_) {
+                  CHECK(!started_);
+                  started_ = true;
+
+                  CHECK_EQ(0, uv_signal_init(loop_, signal()));
+
+                  uv_handle_set_data(handle(), this);
+
+                  CHECK(!error_);
+                  error_ = uv_signal_start_oneshot(
+                      signal(),
+                      [](uv_signal_t* signal, int signum) {
+                        auto& continuation = *(Continuation*) signal->data;
+                        CHECK_EQ(signal, continuation.signal());
+                        CHECK_EQ(
+                            &continuation,
+                            continuation.handle()->data);
+                        CHECK_EQ(signum, continuation.signum_);
+                        if (!continuation.completed_) {
+                          continuation.completed_ = true;
+                          uv_close(
+                              continuation.handle(),
+                              [](uv_handle_t* handle) {
+                                auto& continuation =
+                                    *(Continuation*) handle->data;
+                                continuation.closed_ = true;
+                                continuation.k_.Start();
+                              });
+                        }
+                      },
+                      signum_);
+
+                  if (error_) {
+                    completed_ = true;
+                    CHECK_EQ(this, handle()->data);
+                    uv_close(handle(), [](uv_handle_t* handle) {
+                      auto& continuation = *(Continuation*) handle->data;
+                      continuation.closed_ = true;
+                      CHECK(continuation.error_);
+                      continuation.k_.Fail(std::runtime_error(
+                          uv_strerror(continuation.error_)));
+                    });
+                  }
+                }
+              }),
+              context_);
+        }
       }
 
       template <typename Error>
@@ -732,10 +792,6 @@ class EventLoop final : public Scheduler {
               }),
               interrupt_context_);
         });
-
-        // NOTE: we always install the handler in case 'Start()'
-        // never gets called.
-        handler_->Install();
       }
 
      private:
@@ -843,37 +899,49 @@ class EventLoop final : public Scheduler {
       }
 
       void Start() {
-        loop_.Submit(
-            this->Borrow([this]() {
-              if (!completed_) {
-                CHECK(!started_);
-                started_ = true;
-#ifdef _WIN32
-                // NOTE: FILE_TYPE_PIPE means that a handle is
-                // a socket, a named pipe, or an anonymous pipe.
-                // We need this piece of a code because libuv
-                // on Windows requires use of a separate function
-                // if the handle is of a socket type.
-                if (GetFileType(reinterpret_cast<HANDLE>(fd_))
-                    == FILE_TYPE_PIPE) {
-                  error_ = uv_poll_init_socket(loop_, poll(), fd_);
-                } else {
-                  error_ = uv_poll_init(loop_, poll(), fd_);
-                }
-#else
-                error_ = uv_poll_init(loop_, poll(), fd_);
-#endif
-                if (!error_) {
-                  uv_handle_set_data(handle(), this);
-                  k_.Begin(*this);
-                } else {
+        if (handler_.has_value() && !handler_->Install()) {
+          // Interrupt has already been triggered.
+          loop_.Submit(
+              this->Borrow([this]() {
+                if (!completed_) {
                   completed_ = true;
-                  closed_ = true;
-                  k_.Fail(std::runtime_error(uv_strerror(error_)));
+                  k_.Stop();
                 }
-              }
-            }),
-            context_);
+              }),
+              context_);
+        } else {
+          loop_.Submit(
+              this->Borrow([this]() {
+                if (!completed_) {
+                  CHECK(!started_);
+                  started_ = true;
+#ifdef _WIN32
+                  // NOTE: FILE_TYPE_PIPE means that a handle is
+                  // a socket, a named pipe, or an anonymous pipe.
+                  // We need this piece of a code because libuv
+                  // on Windows requires use of a separate function
+                  // if the handle is of a socket type.
+                  if (GetFileType(reinterpret_cast<HANDLE>(fd_))
+                      == FILE_TYPE_PIPE) {
+                    error_ = uv_poll_init_socket(loop_, poll(), fd_);
+                  } else {
+                    error_ = uv_poll_init(loop_, poll(), fd_);
+                  }
+#else
+                  error_ = uv_poll_init(loop_, poll(), fd_);
+#endif
+                  if (!error_) {
+                    uv_handle_set_data(handle(), this);
+                    k_.Begin(*this);
+                  } else {
+                    completed_ = true;
+                    closed_ = true;
+                    k_.Fail(std::runtime_error(uv_strerror(error_)));
+                  }
+                }
+              }),
+              context_);
+        }
       }
 
       void Next() override {
@@ -1033,10 +1101,6 @@ class EventLoop final : public Scheduler {
               }),
               interrupt_context_);
         });
-
-        // NOTE: we always install the handler in case 'Start()'
-        // never gets called.
-        handler_->Install();
       }
 
      private:

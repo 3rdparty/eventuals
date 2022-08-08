@@ -62,9 +62,9 @@ TEST(ControlLoop, Interrupt) {
                    auto& k,
                    std::optional<Interrupt::Handler>& handler) {
           start.Call();
-          handler->Install([&k]() {
+          EXPECT_TRUE(handler->Install([&k]() {
             k.Stop();
-          });
+          }));
         });
   });
 

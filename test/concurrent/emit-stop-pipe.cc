@@ -6,6 +6,7 @@
 #include "eventuals/interrupt.h"
 #include "eventuals/let.h"
 #include "eventuals/map.h"
+#include "eventuals/pipe.h"
 #include "eventuals/stream.h"
 #include "test/concurrent/concurrent.h"
 #include "test/promisify-for-test.h"
@@ -15,29 +16,15 @@ namespace {
 
 // Same as 'EmitFailInterrupt' except each eventual stops not fails.
 TYPED_TEST(ConcurrentTypedTest, EmitStopInterrupt) {
-  Interrupt interrupt;
+  Pipe<int> pipe;
+  *pipe.Write(1);
 
   auto e = [&]() {
-    return Stream<int>()
-               .interruptible()
-               .begin([](auto& k, auto& handler) {
-                 CHECK(handler) << "Test expects interrupt to be registered";
-                 handler->Install([&k]() {
-                   k.Stop();
-                 });
-                 k.Begin();
-               })
-               .next([i = 0](auto& k, auto&) mutable {
-                 i++;
-                 if (i == 1) {
-                   k.Emit(i);
-                 }
-               })
+    return pipe.Read()
         >> this->ConcurrentOrConcurrentOrdered([&]() {
             return Map(Let([&](int& i) {
               return Eventual<std::string>([&](auto& k) {
                 k.Stop();
-                interrupt.Trigger();
               });
             }));
           })
@@ -51,9 +38,13 @@ TYPED_TEST(ConcurrentTypedTest, EmitStopInterrupt) {
 
   auto [future, k] = PromisifyForTest(e());
 
-  k.Register(interrupt);
-
   k.Start();
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future.wait_for(std::chrono::seconds(0)));
+
+  *pipe.Close();
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }

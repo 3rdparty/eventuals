@@ -29,9 +29,9 @@ TYPED_TEST(ConcurrentTypedTest, InterruptStop) {
                   .interruptible()
                   .start([&](auto& k, auto& handler) mutable {
                     CHECK(handler) << "Test expects interrupt to be registered";
-                    handler->Install([&k]() {
+                    EXPECT_TRUE(handler->Install([&k]() {
                       k.Stop();
-                    });
+                    }));
                     callbacks.emplace_back([]() {});
                   });
             }));
