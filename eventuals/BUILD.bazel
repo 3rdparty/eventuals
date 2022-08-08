@@ -17,6 +17,7 @@ cc_library(
         "concurrent.h",
         "concurrent-ordered.h",
         "conditional.h",
+        "control-loop.h",
         "do-all.h",
         "eventual.h",
         "executor.h",
