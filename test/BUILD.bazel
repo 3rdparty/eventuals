@@ -71,6 +71,7 @@ cc_test(
         "poll.cc",
         "range.cc",
         "repeat.cc",
+        "request-response-channel.cc",
         "signal.cc",
         "static-thread-pool.cc",
         "stream.cc",
