@@ -34,7 +34,7 @@ TEST(ThenTest, Succeed) {
                  thread.detach();
                })
         >> Then([](int i) { return i + 1; })
-        >> Then([&](int&& i) {
+        >> Then([&](int i) {
              return e("then");
            });
   };
@@ -78,7 +78,7 @@ TEST(ThenTest, Fail) {
                  thread.detach();
                })
         >> Then([](int i) { return i + 1; })
-        >> Then([&](int&& i) {
+        >> Then([&](int i) {
              return e("then");
            });
   };
@@ -111,7 +111,7 @@ TEST(ThenTest, Interrupt) {
                  k.Start(0);
                })
         >> Then([](int i) { return i + 1; })
-        >> Then([&](int&& i) {
+        >> Then([&](int i) {
              return e("then");
            });
   };

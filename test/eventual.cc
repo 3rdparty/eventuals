@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <thread>
 
 #include "eventuals/catch.h"
@@ -44,7 +45,7 @@ TEST(EventualTest, Succeed) {
         >> Then([](int i) { return i + 2; })
         >> Eventual<int>()
                .context(9)
-               .start([](int& context, auto& k, int&& value) {
+               .start([](int& context, auto& k, int value) {
                  std::thread thread(
                      [value, &context, &k]() mutable {
                        k.Start(context - value);
@@ -86,7 +87,7 @@ TEST(EventualTest, Fail) {
                })
         >> Then([](int i) { return i + 2; })
         >> Eventual<int>()
-               .start([&](auto& k, int&& value) {
+               .start([&](auto& k, int value) {
                  start.Call();
                })
                .stop([&](auto&) {
@@ -112,7 +113,10 @@ TEST(EventualTest, Interrupt) {
     return Eventual<int>()
                .context(5)
                .interruptible()
-               .start([&](int&, auto& k, auto& handler) {
+               .start([&](
+                          int&,
+                          auto& k,
+                          std::optional<Interrupt::Handler>& handler) {
                  CHECK(handler) << "Test expects interrupt to be registered";
                  handler->Install([&k]() {
                    k.Stop();
@@ -121,7 +125,7 @@ TEST(EventualTest, Interrupt) {
                })
         >> Then([](int i) { return i + 2; })
         >> Eventual<int>()
-               .start([&](auto&, int&&) {
+               .start([&](auto&, int) {
                  start.Call();
                })
                .fail([&](auto&, auto&&) {
@@ -163,7 +167,7 @@ TEST(EventualTest, Reuse) {
         >> Then([](int i) { return i + 2; })
         >> Eventual<int>()
                .context(9)
-               .start([](int& context, auto& k, int&& value) {
+               .start([](int& context, auto& k, int value) {
                  std::thread thread(
                      [value, &context, &k]() mutable {
                        k.Start(context - value);
@@ -172,7 +176,7 @@ TEST(EventualTest, Reuse) {
                })
         >> Terminal()
                .context(std::move(promise))
-               .start([](std::promise<int>& promise, int&& value) {
+               .start([](std::promise<int>& promise, int value) {
                  promise.set_value(std::forward<decltype(value)>(value));
                })
                .fail([](std::promise<int>& promise, auto&& error) {
@@ -238,7 +242,7 @@ TEST(EventualTest, Catch) {
         >> Catch([](std::exception_ptr&& error) {
              return 42;
            })
-        >> Then([](int&& value) {
+        >> Then([](int value) {
              return value;
            });
   };
@@ -277,10 +281,10 @@ TEST(EventualTest, CatchVoid) {
 TEST(EventualTest, Then) {
   auto e = []() {
     return Just(20)
-        >> Then([](auto i) {
+        >> Then([](int i) {
              return i + 1;
            })
-        >> Then([](auto j) {
+        >> Then([](int j) {
              return j * 2;
            });
   };

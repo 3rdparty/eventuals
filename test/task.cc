@@ -384,7 +384,7 @@ TEST(Task, FromTo) {
     return Task::From<int>::To<std::string>::With<int>(
         10,
         [](int x) {
-          return Then([x](int&& value) {
+          return Then([x](int value) {
             value += x;
             return std::to_string(value);
           });
@@ -406,7 +406,7 @@ TEST(Task, FromTo) {
 TEST(Task, FromToFail) {
   auto task = []() -> Task::From<int>::To<std::string> {
     return []() {
-      return Then([](int&& x) {
+      return Then([](int x) {
         return std::to_string(x);
       });
     };
@@ -439,7 +439,7 @@ TEST(Task, FromToFail) {
 TEST(Task, FromToStop) {
   auto task = []() -> Task::From<int>::To<std::string> {
     return []() {
-      return Then([](int&& x) {
+      return Then([](int x) {
         return std::to_string(x);
       });
     };

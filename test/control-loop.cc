@@ -29,7 +29,7 @@ TEST(ControlLoop, SimplePipeHandling) {
 
   ControlLoop control_loop("Simple pipe writing", [&]() {
     return Iterate({0, 1, 2, 3, 4})
-        >> Map([&](int&& i) {
+        >> Map([&](int i) {
              return pipe.Write(std::to_string(i));
            })
         >> Loop();

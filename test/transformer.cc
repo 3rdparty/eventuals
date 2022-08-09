@@ -25,7 +25,7 @@ TEST(Transformer, Succeed) {
   auto transformer = []() {
     return Transformer::From<int>::To<std::string>(
         []() {
-          return Map([](int&& x) {
+          return Map([](int x) {
             return std::to_string(x);
           });
         });
@@ -52,7 +52,7 @@ TEST(Transformer, Stop) {
   auto transformer = [&]() {
     return Transformer::From<int>::To<std::string>(
         [&]() {
-          return Map([&](int&& x) {
+          return Map([&](int x) {
             map_start.Call();
             return std::to_string(x);
           });
@@ -84,7 +84,7 @@ TEST(Transformer, Fail) {
   auto transformer = [&]() {
     return Transformer::From<int>::To<std::string>(
         [&]() {
-          return Map([&](int&& x) {
+          return Map([&](int x) {
             map_start.Call();
             return std::to_string(x);
           });
@@ -130,7 +130,7 @@ TEST(Transformer, Interrupt) {
   auto transformer = [&]() {
     return Transformer::From<int>::To<std::string>(
         [&]() {
-          return Map([&](int&& x) {
+          return Map([&](int x) {
             map_start.Call();
             return std::to_string(x);
           });

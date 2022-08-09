@@ -94,7 +94,7 @@ TEST(CatchTest, All) {
                  }
                  return 100;
                })
-        >> Then([](int&& value) {
+        >> Then([](int value) {
              return value;
            });
   };
@@ -220,7 +220,7 @@ TEST(CatchTest, ReRaise) {
                  ADD_FAILURE() << "Encountered an unexpected all";
                  return Just(100);
                })
-        >> Then([](int&&) {
+        >> Then([](int) {
              return 200;
            })
         >> Catch()

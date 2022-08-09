@@ -30,7 +30,7 @@ TEST(ClosureTest, Then) {
   auto e = []() {
     return Just(1)
         >> Closure([i = 41]() {
-             return Then([&](int&& value) { return i + value; });
+             return Then([&](int value) { return i + value; });
            });
   };
 
@@ -41,7 +41,7 @@ TEST(ClosureTest, Then) {
 TEST(ClosureTest, Functor) {
   struct Functor {
     auto operator()() {
-      return Then([this](int&& value) { return i + value; });
+      return Then([this](int value) { return i + value; });
     }
 
     int i;
@@ -63,7 +63,7 @@ TEST(ClosureTest, OuterRepeat) {
              return Reduce(
                  i,
                  [](int& i) {
-                   return Then([&](int&& value) {
+                   return Then([&](int value) {
                      i += value;
                      return false;
                    });
