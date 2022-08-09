@@ -7,53 +7,11 @@ py_binary(
     srcs = ["protoc-gen-eventuals.py"],
     srcs_version = "PY3",
     visibility = ["//visibility:public"],
-    deps = [
-        "@com_github_reboot_dev_pyprotoc_plugin//pyprotoc_plugin",
-    ],
-)
-
-py_binary(
-    name = "protoc-gen-eventuals-client",
-    main = "//protoc-gen-eventuals:protoc-gen-eventuals.py",
-    srcs = ["//protoc-gen-eventuals:protoc-gen-eventuals"],
-    data = [
-        "//protoc-gen-eventuals/templates:eventuals-client.h.j2",
-    ],
-    srcs_version = "PY3",
-    visibility = ["//visibility:public"],
-    deps = [
-        "@com_github_reboot_dev_pyprotoc_plugin//pyprotoc_plugin",
-    ],
-)
-
-py_binary(
-    name = "protoc-gen-eventuals-server",
-    main = "//protoc-gen-eventuals:protoc-gen-eventuals.py",
-    srcs = ["//protoc-gen-eventuals:protoc-gen-eventuals"],
     data = [
         "//protoc-gen-eventuals/templates:eventuals.cc.j2",
         "//protoc-gen-eventuals/templates:eventuals.h.j2",
         "//protoc-gen-eventuals/templates:grpc-method-eventuals.cc.j2",
     ],
-    srcs_version = "PY3",
-    visibility = ["//visibility:public"],
-    deps = [
-        "@com_github_reboot_dev_pyprotoc_plugin//pyprotoc_plugin",
-    ],
-)
-
-py_binary(
-    name = "protoc-gen-eventuals-client-and-server",
-    main = "//protoc-gen-eventuals:protoc-gen-eventuals.py",
-    srcs = ["//protoc-gen-eventuals:protoc-gen-eventuals"],
-    data = [
-        "//protoc-gen-eventuals/templates:eventuals.cc.j2",
-        "//protoc-gen-eventuals/templates:eventuals.h.j2",
-        "//protoc-gen-eventuals/templates:grpc-method-eventuals.cc.j2",
-        "//protoc-gen-eventuals/templates:eventuals-client.h.j2",
-    ],
-    srcs_version = "PY3",
-    visibility = ["//visibility:public"],
     deps = [
         "@com_github_reboot_dev_pyprotoc_plugin//pyprotoc_plugin",
     ],

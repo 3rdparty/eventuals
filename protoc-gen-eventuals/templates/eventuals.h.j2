@@ -4,10 +4,37 @@ set namespaces = package_name.split('.')
 #pragma once
 #include <tuple>
  
+#include "eventuals/grpc/client.h" 
 #include "eventuals/generator.h"
 #include "eventuals/grpc/server.h"
 #include "eventuals/task.h"
+#include "eventuals/finally.h"
+#include "eventuals/head.h"
+#include "eventuals/let.h"
+#include "eventuals/then.h"
+#include "eventuals/do-all.h"
+#include "eventuals/raise.h"
+#include "gtest/gtest.h"
+#include "eventuals/expected.h"
+#include <grpcpp/channel.h>
+#include <string>
 #include "{{ grpc_pb_header }}"
+
+using eventuals::expected;
+using eventuals::DoAll;
+using eventuals::Raise;
+using eventuals::Finally;
+using eventuals::Head;
+using eventuals::Let;
+using eventuals::Then;
+using eventuals::make_unexpected;
+
+using grpc::Status;
+
+using eventuals::grpc::Stream;
+using eventuals::grpc::Client;
+using eventuals::grpc::ClientCompletionThreadPool;
+using stout::Borrowable;
 
 namespace {{ namespaces | join('::') }}::eventuals {
 
@@ -130,6 +157,70 @@ struct {{ service.name }} {
     }
 {%- endfor %}
   };
+
+  class Client {
+    public:
+    Client(
+      const std::string& target,
+      const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
+      stout::borrowed_ref<ClientCompletionThreadPool> pool)
+        : client_(target, credentials, std::move(pool)) {}
+
+{%- for method in service.methods +%}
+{%- set input_type -%}
+    {%- if method.client_streaming -%}
+        Stream<{{ method.input_type.split('.') | join('::') }}>
+    {%- else -%}
+        {{ method.input_type.split('.') | join('::') }}
+    {%- endif -%}
+{%- endset %}
+{%- set output_type -%}
+    {%- if method.server_streaming -%}
+        Stream<{{ method.output_type.split('.') | join('::') }}>
+    {%- else -%}
+        {{ method.output_type.split('.') | join('::') }}
+    {%- endif -%}
+{%- endset %}
+{%- if not method.server_streaming and not method.client_streaming %}
+    auto {{ method.name }}({{ method.input_type.split('.') | join('::') }}&& input) {
+        return client_.Call<
+        {{ namespaces | join('::') }}::{{ service.name }},
+        {{ input_type }},
+        {{ output_type }}>("{{ method.name }}")
+        >> Then(Let([input = std::move(input)](auto& call) {
+            return call.Writer().WriteLast(input)
+                >> call.Reader().Read()
+                >> Head()
+                >> Finally(Let([&](auto& output) {
+                        return call.Finish()
+                            // TODO: Update the error in `expected` to be std::runtime_error.
+                            >> Then([&](Status&& status) -> expected<{{ output_type }}, std::exception_ptr>{
+                                if (status.ok()) {
+                                    return std::move(output);
+                                } else {
+                                    return make_unexpected(
+                                        std::make_exception_ptr(
+                                            "Failed to '{{ service.name }}.{{ method.name}}', "
+                                            "received gRPC status " + std::to_string(status.error_code()) +
+                                            " and error message " + std::string(status.error_message())));
+                                }
+                            });
+                    }));
+            }));
+    }
+{%- else %}
+    auto {{ method.name }}() {
+        return client_.Call<
+        {{ namespaces | join('::') }}::{{ service.name }},
+        {{ input_type }},
+        {{ output_type }}>("{{ method.name }}");
+    }
+{% endif %}
+{% endfor %}
+
+    protected:
+      ::eventuals::grpc::Client client_;
+    };
 };
 {%- endfor %}
 

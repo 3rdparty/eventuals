@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import sys
 
 from google.protobuf.descriptor_pb2 import FileDescriptorProto
 
@@ -53,7 +52,7 @@ class EventualsProtocPlugin(ProtocPlugin):
                         content=content_server)
 
 
-    def process_client_server_base(self, general_outputs, template_data):
+    def process_server_base(self, general_outputs, template_data):
         for file_name, template_name in general_outputs:
             template = load_template(template_name)
             content = template.render(**template_data)
@@ -67,45 +66,28 @@ class EventualsProtocPlugin(ProtocPlugin):
         file_digest = self.analyze_file(proto_file)
 
         proto_file_path = file_digest.pop('proto_file_name')
-
         proto_file_name = proto_file_path.split('/')[-1]
-
-        folder_for_generated_files = proto_file_name.replace(
-            '.proto', '_generated')
-
-        header_file_name = folder_for_generated_files + '/' + proto_file_name.replace(
+        header_file_name = proto_file_name.replace(
             '.proto', '.eventuals.h')
-        source_file_name = folder_for_generated_files + '/' + proto_file_name.replace(
+        source_file_name = proto_file_name.replace(
             '.proto', '.eventuals.cc')
-        header_client_name = folder_for_generated_files + '/' + proto_file_name.replace(
-            '.proto', '.client.eventuals.h')
 
         eventuals_data = {
-            'eventuals_header': header_file_name.split('/')[-1],
+            'eventuals_header': proto_file_path.replace('.proto', '.eventuals.h'),
             'grpc_pb_header': proto_file_path.replace('.proto', '.grpc.pb.h'),
             'pb_header': proto_file_path.replace('.proto', '.pb.h'),
-            'client_header': header_client_name.split('/')[-1],
         }
-
-        template_directory = os.listdir(os.environ.get('TEMPLATE_PATH', ''))
-
-        generate_methods_template_name = 'grpc-method-eventuals.cc.j2'
-        generate_client_template_name = 'eventuals-client.h.j2'
 
         template_data = dict(**eventuals_data, **file_digest)
 
-        if generate_methods_template_name in template_directory:
-            general_outputs = [
-                (header_file_name, 'eventuals.h.j2'),
-                (source_file_name, 'eventuals.cc.j2'),
-            ]
+        general_outputs = [
+            (header_file_name, 'eventuals.h.j2'),
+            (source_file_name, 'eventuals.cc.j2'),
+        ]
 
-            self.process_client_server_base(general_outputs, template_data)
-            self.process_server_methods(generate_methods_template_name, template_data, folder_for_generated_files)
-
-        if generate_client_template_name in template_directory:
-            general_outputs = [(header_client_name, generate_client_template_name)]
-            self.process_client_server_base(general_outputs, template_data)
+        self.process_server_base(general_outputs, template_data)
+        generate_methods_template_name = 'grpc-method-eventuals.cc.j2'
+        self.process_server_methods(generate_methods_template_name, template_data, proto_file_name.replace('.proto', '_generated'))
 
 
 if __name__ == '__main__':

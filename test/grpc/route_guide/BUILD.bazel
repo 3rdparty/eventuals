@@ -4,7 +4,7 @@
 load("@com_github_grpc_grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_proto_library", "cc_test")
 load("@rules_proto//proto:defs.bzl", "proto_library")
-load("//bazel:cc_eventuals_library.bzl", "cc_eventuals_library_server_and_client")
+load("//bazel:cc_eventuals_library.bzl", "cc_eventuals_library")
 load("//bazel:copts.bzl", "copts")
 
 proto_library(
@@ -24,7 +24,7 @@ cc_grpc_library(
     deps = [":route-guide-proto"],
 )
 
-cc_eventuals_library_server_and_client(
+cc_eventuals_library(
     name = "route-guide-eventuals-generated",
     srcs = ["route_guide.proto"],
     deps = [":route-guide"],
@@ -36,20 +36,20 @@ cc_eventuals_library_server_and_client(
 cc_library(
     name = "route-guide-eventuals-app",
     srcs = [
+        "helper.cc",
         "server-client-implementation.cc",
         ":route-guide-eventuals-generated",
-        "helper.cc",
     ],
     hdrs = [
         "helper.h",
         "route-guide-eventuals-client.h",
         "route-guide-eventuals-server.h",
-        ":route-guide-eventuals-generated",
     ],
-    # TODO: escape of using it for generated files 
-    # (since `route-guide-eventuals-generated` is a declare_folder for c++ builds
-    # it compiles in different environment, either we can specify BAZEL_CXXOPTS).
-    copts = copts(),
+    # TODO: escape of using it for generated files
+    # (since `route-guide-eventuals-generated` is using `declare_folder`
+    # for c++ builds it compiles in different environment and can't take
+    # `build --cxxopt` parameter, either we can specify BAZEL_CXXOPTS).
+    copts = ["-std=c++17"],
     deps = [
         ":route-guide-grpc",
         "//eventuals/grpc",

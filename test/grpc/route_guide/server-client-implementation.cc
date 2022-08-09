@@ -3,8 +3,8 @@
 #include "route-guide-eventuals-client.h"
 #include "route-guide-eventuals-server.h"
 #include "test/grpc/route_guide/helper.h"
+#include "test/grpc/route_guide/route_guide.eventuals.h"
 #include "test/grpc/route_guide/route_guide.grpc.pb.h"
-#include "test/grpc/route_guide/route_guide_generated/route_guide.eventuals.h"
 
 using eventuals::grpc::ServerBuilder;
 
@@ -25,26 +25,13 @@ Feature RouteGuideImpl::GetFeature(
 
 ////////////////////////////////////////////////////////////////////////
 
-// RouteGuideClientImpl::RouteGuideClientImpl(
-//     const std::string& target,
-//     const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
-//     stout::borrowed_ptr<CompletionPool> pool,
-//     const std::string& db)
-//   : RouteGuideClient(target, credentials, std::move(pool)) {
-// }
-
-void RouteGuideClientImpl::SetDb(const std::string& db) {
-  routeguide::ParseDb(db, &feature_list_);
+int RouteGuideTest::GetPointsCount() {
+  return kPoints_;
 }
 
-////////////////////////////////////////////////////////////////////////
-
-RouteGuideTest::RouteGuideTest()
-  : guide(
-      server_address_,
-      ::grpc::InsecureChannelCredentials(),
-      pool_.Borrow(),
-      "") {}
+void RouteGuideTest::SetDb(const std::string& db) {
+  routeguide::ParseDb(db, &feature_list_);
+}
 
 void RouteGuideTest::SetUp() {
   std::string db;
@@ -54,8 +41,9 @@ void RouteGuideTest::SetUp() {
 
   ServerBuilder builder;
   builder.AddListeningPort(
-      server_address_,
-      ::grpc::InsecureServerCredentials());
+      server_address_ + ":0",
+      ::grpc::InsecureServerCredentials(),
+      &port_);
   builder.RegisterService(&service_);
 
   auto build = builder.BuildAndStart();
@@ -64,7 +52,12 @@ void RouteGuideTest::SetUp() {
   server_.swap(build.server);
   ASSERT_TRUE(server_);
 
-  guide.SetDb(db);
+  client.emplace(
+      server_address_ + ":" + std::to_string(port_),
+      ::grpc::InsecureChannelCredentials(),
+      pool_.Borrow());
+
+  SetDb(db);
 }
 
 ////////////////////////////////////////////////////////////////////////

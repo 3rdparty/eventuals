@@ -10,10 +10,10 @@
 #include "eventuals/grpc/client.h"
 #include "eventuals/range.h"
 #include "test/grpc/route_guide/route-guide-eventuals-server.h"
-#include "test/grpc/route_guide/route_guide_generated/route_guide.client.eventuals.h"
+#include "test/grpc/route_guide/route_guide.eventuals.h"
 
 using eventuals::grpc::Client;
-using eventuals::grpc::CompletionPool;
+using eventuals::grpc::ClientCompletionThreadPool;
 using routeguide::Feature;
 using routeguide::Point;
 using routeguide::Rectangle;
@@ -31,22 +31,12 @@ using eventuals::Range;
 
 ////////////////////////////////////////////////////////////////////////
 
-class RouteGuideClientImpl : public RouteGuideClient {
+class RouteGuideTest : public ::testing::Test {
  public:
-  RouteGuideClientImpl(
-      const std::string& target,
-      const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
-      stout::borrowed_ptr<CompletionPool> pool,
-      const std::string& db)
-    : RouteGuideClient(target, credentials, std::move(pool)) {}
-
-  void SetDb(const std::string& db);
+  RouteGuideTest() = default;
 
   auto GetFeatureTest();
-
-  int GetPointsCount() {
-    return kPoints_;
-  }
+  int GetPointsCount();
 
   std::vector<Feature> feature_list_;
 
@@ -64,28 +54,23 @@ class RouteGuideClientImpl : public RouteGuideClient {
       {"Second message", 0, 1},
       {"Third message", 1, 0},
       {"Fourth message", 0, 0}};
-};
-
-////////////////////////////////////////////////////////////////////////
-
-class RouteGuideTest : public ::testing::Test {
- public:
-  RouteGuideTest();
 
  protected:
   void SetUp() override;
+  void SetDb(const std::string& db);
 
  private:
   const std::string db_path_ = "test/grpc/route_guide/route_guide_db.json";
-  const std::string server_address_ = "localhost:8888";
+  const std::string server_address_ = "0.0.0.0";
+  int port_ = 0;
 
   RouteGuideImpl service_;
   std::unique_ptr<eventuals::grpc::Server> server_;
-  Borrowable<CompletionPool> pool_;
+  Borrowable<ClientCompletionThreadPool> pool_;
 
  public:
   //  Need to be declared after 'pool_'.
-  RouteGuideClientImpl guide;
+  std::optional<RouteGuide::Client> client;
 };
 
 ////////////////////////////////////////////////////////////////////////
