@@ -36,7 +36,7 @@ class RouteGuideClientImpl : public RouteGuideClient {
   RouteGuideClientImpl(
       const std::string& target,
       const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
-      stout::borrowed_ptr<CompletionPool> pool,
+      stout::borrowed_ref<CompletionPool> pool,
       const std::string& db)
     : RouteGuideClient(target, credentials, std::move(pool)) {}
 

@@ -140,7 +140,7 @@ class RouteGuideImpl final
     long bottom = std::min(lo.latitude(), hi.latitude());
 
     return Iterate(feature_list_)
-        | Filter([left, right, top, bottom](const Feature& f) {
+        >> Filter([left, right, top, bottom](const Feature& f) {
              return f.location().longitude() >= left
                  && f.location().longitude() <= right
                  && f.location().latitude() >= bottom
@@ -158,7 +158,7 @@ class RouteGuideImpl final
                     distance = 0.0,
                     previous = Point()]() mutable {
       return reader.Read()
-          | Map([&](Point&& point) {
+          >> Map([&](Point&& point) {
                point_count++;
                if (!GetFeatureName(point, feature_list_).empty()) {
                  feature_count++;
@@ -168,8 +168,8 @@ class RouteGuideImpl final
                }
                previous = point;
              })
-          | Loop()
-          | Then([&]() {
+          >> Loop()
+          >> Then([&]() {
                RouteSummary summary;
                summary.set_point_count(point_count);
                summary.set_feature_count(feature_count);
@@ -183,7 +183,7 @@ class RouteGuideImpl final
       grpc::ServerContext* context,
       ServerReader<RouteNote>& reader) {
     return reader.Read()
-        | FlatMap(Let(
+        >> FlatMap(Let(
             [this, notes = std::vector<RouteNote>()](RouteNote& note) mutable {
               return Synchronized(
                          Then([&]() {
@@ -194,7 +194,7 @@ class RouteGuideImpl final
 
                            notes.push_back(response);
                          }))
-                  | Closure([&]() {
+                  >> Closure([&]() {
                        return Iterate(std::move(notes));
                      });
             }));

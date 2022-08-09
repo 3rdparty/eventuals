@@ -4,6 +4,7 @@
 #include "eventuals/finally.h"
 #include "eventuals/head.h"
 #include "eventuals/let.h"
+#include "eventuals/promisify.h"
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
 #include "test/grpc/route_guide/route-guide-eventuals-client.h"
@@ -14,10 +15,11 @@ using eventuals::Finally;
 using eventuals::Head;
 using eventuals::Let;
 using eventuals::Then;
+using eventuals::operator*;
 
 auto RouteGuideClientImpl::GetFeatureTest() {
   return GetFeature(MakePoint(409146138, -746188906))
-      | Then([this](auto&&) {
+      >> Then([this](auto&&) {
            return GetFeature(MakePoint(0, 0));
          });
 }
@@ -25,7 +27,7 @@ auto RouteGuideClientImpl::GetFeatureTest() {
 TEST_F(RouteGuideTest, GetFeatureTest) {
   auto e = [&]() {
     return guide.GetFeatureTest()
-        | Then([&](auto&& feature) {
+        >> Then([&](auto&& feature) {
              CHECK(feature.has_location())
                  << "Server returns incomplete feature";
 
@@ -58,7 +60,5 @@ TEST_F(RouteGuideTest, GetFeatureTest) {
            });
   };
 
-  auto r = *e();
-  EXPECT_TRUE(r);
-  // EXPECT_TRUE(*guide.GetFeature());
+  EXPECT_TRUE(*e());
 }
