@@ -134,9 +134,11 @@ TEST(ClosureTest, Interrupt) {
                  .interruptible()
                  .start([&](auto& k, auto& handler, auto&&) {
                    CHECK(handler) << "Test expects interrupt to be registered";
-                   handler->Install([&k]() {
-                     k.Stop();
-                   });
+                   if (!handler->Install([&k]() {
+                         k.Stop();
+                       })) {
+                     LOG(FATAL) << "Shouldn't be reached";
+                   };
                    start.Call();
                  });
            });

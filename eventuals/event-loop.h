@@ -219,6 +219,17 @@ class EventLoop final : public Scheduler {
         }
 
         void Start() {
+          if (handler_.has_value() && !handler_->interrupt().Installed()) {
+            if (!handler_->Install()) {
+              // Interrupt has already been triggered.
+              loop().Submit(
+                  this->Borrow([this]() {
+                    k_.Stop();
+                  }),
+                  context_);
+              return;
+            }
+          }
           // Clock is basically a "scheduler" for timers so we need to
           // "submit" a callback to be executed when the clock is not
           // paused which might be right away but might also be at
@@ -368,10 +379,6 @@ class EventLoop final : public Scheduler {
                 }),
                 interrupt_context_);
           }));
-
-          // NOTE: we always install the handler in case 'Start()'
-          // never gets called i.e., due to a paused clock.
-          handler_->Install();
         }
 
        private:
@@ -570,6 +577,17 @@ class EventLoop final : public Scheduler {
       }
 
       void Start() {
+        if (handler_.has_value() && !handler_->interrupt().Installed()) {
+          if (!handler_->Install()) {
+            // Interrupt has already been triggered.
+            loop_.Submit(
+                this->Borrow([this]() {
+                  k_.Stop();
+                }),
+                context_);
+            return;
+          }
+        }
         loop_.Submit(
             this->Borrow([this]() {
               if (!completed_) {
@@ -691,10 +709,6 @@ class EventLoop final : public Scheduler {
               }),
               interrupt_context_);
         });
-
-        // NOTE: we always install the handler in case 'Start()'
-        // never gets called.
-        handler_->Install();
       }
 
      private:
@@ -825,6 +839,17 @@ class EventLoop final : public Scheduler {
       }
 
       void Next() override {
+        if (handler_.has_value() && !handler_->interrupt().Installed()) {
+          if (!handler_->Install()) {
+            // Interrupt has already been triggered.
+            loop_.Submit(
+                this->Borrow([this]() {
+                  k_.Stop();
+                }),
+                context_);
+            return;
+          }
+        }
         loop_.Submit(
             this->Borrow([this]() {
               if (!completed_) {
@@ -981,10 +1006,6 @@ class EventLoop final : public Scheduler {
               }),
               interrupt_context_);
         });
-
-        // NOTE: we always install the handler in case 'Start()'
-        // never gets called.
-        handler_->Install();
       }
 
      private:

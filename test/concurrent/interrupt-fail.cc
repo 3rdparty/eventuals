@@ -33,10 +33,13 @@ TYPED_TEST(ConcurrentTypedTest, InterruptFail) {
                   .raises<std::runtime_error>()
                   .interruptible()
                   .start([&](auto& k, auto& handler) mutable {
-                    CHECK(handler) << "Test expects interrupt to be registered";
-                    handler->Install([&k]() {
-                      k.Fail(std::runtime_error("error"));
-                    });
+                    CHECK(handler)
+                        << "Test expects interrupt to be registered";
+                    if (!handler->Install([&k]() {
+                          k.Fail(std::runtime_error("error"));
+                        })) {
+                      LOG(FATAL) << "Shouldn't be reached";
+                    }
                     callbacks.emplace_back([]() {});
                   });
             }));

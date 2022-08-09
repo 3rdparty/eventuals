@@ -282,7 +282,9 @@ struct _DoAll final {
         interrupter_();
       });
 
-      handler_->Install();
+      if (!handler_->Install()) {
+        k_.Stop();
+      }
     }
 
     // NOTE: need to destruct the fibers LAST since they have a

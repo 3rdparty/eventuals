@@ -593,9 +593,6 @@ struct _Concurrent final {
     ~Continuation() override = default;
 
     void Begin(TypeErasedStream& stream) {
-      if (handler_.has_value() && !handler_->interrupt().Installed()) {
-        handler_->Install();
-      }
       stream_ = &stream;
 
       ingress_.emplace(Build<Arg_>(adaptor_.Ingress()));
@@ -611,6 +608,14 @@ struct _Concurrent final {
       // NOTE: we don't register an interrupt for 'wait_for_done_'
       // since we explicitly handle interrupts with
       // 'Adaptor::Interrupt()'.
+
+      if (handler_.has_value() && !handler_->interrupt().Installed()) {
+        if (!handler_->Install()) {
+          wait_for_done_->Start();
+          k_.Stop();
+          return;
+        }
+      }
 
       wait_for_done_->Start();
 

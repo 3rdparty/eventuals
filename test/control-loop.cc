@@ -62,9 +62,11 @@ TEST(ControlLoop, Interrupt) {
                    auto& k,
                    std::optional<Interrupt::Handler>& handler) {
           start.Call();
-          handler->Install([&k]() {
-            k.Stop();
-          });
+          if (!handler->Install([&k]() {
+                k.Stop();
+              })) {
+            LOG(FATAL) << "Shouldn't be reached";
+          }
         });
   });
 

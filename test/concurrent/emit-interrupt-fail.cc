@@ -23,9 +23,11 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
                .raises<std::runtime_error>()
                .interruptible()
                .begin([](auto& k, auto& handler) {
-                 handler->Install([&k]() {
-                   k.Fail(std::runtime_error("error"));
-                 });
+                 if (!handler->Install([&k]() {
+                       k.Fail(std::runtime_error("error"));
+                     })) {
+                   LOG(FATAL) << "Shouldn't be reached";
+                 };
                  k.Begin();
                })
                .next([i = 0](auto& k, auto&) mutable {

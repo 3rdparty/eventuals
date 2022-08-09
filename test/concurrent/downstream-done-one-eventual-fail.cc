@@ -34,9 +34,11 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualFail) {
                         k.Start("1");
                       });
                     } else {
-                      handler->Install([&k]() {
-                        k.Fail(std::runtime_error("error"));
-                      });
+                      if (!handler->Install([&k]() {
+                            k.Fail(std::runtime_error("error"));
+                          })) {
+                        LOG(FATAL) << "Shouldn't be reached";
+                      }
                       callbacks.emplace_back([]() {});
                     }
                   });

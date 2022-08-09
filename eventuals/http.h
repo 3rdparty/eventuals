@@ -466,6 +466,18 @@ struct _HTTP final {
     void Start() {
       CHECK(!started_ && !completed_);
 
+      if (handler_.has_value() && !handler_->interrupt().Installed()) {
+        if (!handler_->Install()) {
+          // Interrupt has already been triggered.
+          loop_.Submit(
+              [this]() {
+                k_.Stop();
+              },
+              context_);
+          return;
+        }
+      }
+
       loop_.Submit(
           [this]() {
             if (!completed_) {
@@ -1135,10 +1147,6 @@ struct _HTTP final {
             },
             interrupt_context_);
       });
-
-      // NOTE: we always install the handler in case 'Start()'
-      // never gets called.
-      handler_->Install();
     }
 
    private:

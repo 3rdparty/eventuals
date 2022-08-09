@@ -67,12 +67,12 @@ class Interrupt final {
       return *CHECK_NOTNULL(interrupt_);
     }
 
-    bool Install(Callback<void()>&& callback) {
+    [[nodiscard]] bool Install(Callback<void()>&& callback) {
       callback_ = std::move(callback);
       return interrupt().Install(this);
     }
 
-    bool Install() {
+    [[nodiscard]] bool Install() {
       CHECK(callback_);
       return interrupt().Install(this);
     }

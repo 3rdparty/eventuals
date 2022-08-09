@@ -22,9 +22,11 @@ TYPED_TEST(ConcurrentTypedTest, EmitStopInterrupt) {
                .interruptible()
                .begin([](auto& k, auto& handler) {
                  CHECK(handler) << "Test expects interrupt to be registered";
-                 handler->Install([&k]() {
-                   k.Stop();
-                 });
+                 if (!handler->Install([&k]() {
+                       k.Stop();
+                     })) {
+                   LOG(FATAL) << "Shouldn't be reached";
+                 }
                  k.Begin();
                })
                .next([i = 0](auto& k, auto&) mutable {

@@ -51,10 +51,12 @@ TEST(ExecutorTest, Interrupt) {
                          .start([&](auto& k, auto& handler) {
                            CHECK(handler)
                                << "Test expects interrupt to be registered";
-                           handler->Install([&]() {
-                             interrupted = true;
-                             k.Stop();
-                           });
+                           if (!handler->Install([&]() {
+                                 interrupted = true;
+                                 k.Stop();
+                               })) {
+                             LOG(FATAL) << "Shouldn't be reached";
+                           }
                          });
                    }))
         >> Then([&]() {
