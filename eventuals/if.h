@@ -130,6 +130,12 @@ struct _If final {
             decltype(Eventual<void>()),
             NoE_>::template ErrorsFrom<Arg, Errors>>;
 
+    // Aliases that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Value;
+    using Produces = Value;
+
     template <typename YesE, typename NoE>
     static auto create(bool condition, YesE yes, NoE no) {
       return Builder<YesE, NoE>{

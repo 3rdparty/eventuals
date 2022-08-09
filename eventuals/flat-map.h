@@ -4,6 +4,7 @@
 
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
+#include "eventuals/type-traits.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -167,6 +168,12 @@ struct _FlatMap final {
         std::is_void_v<Arg>,
         std::invoke_result<F_>,
         std::invoke_result<F_, Arg>>::type::template ErrorsFrom<void, Errors>;
+
+    // Aliases that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Streaming;
+    using Produces = Streaming;
 
     template <typename Arg, typename K>
     auto k(K k) && {

@@ -2,6 +2,7 @@
 
 #include "eventuals/compose.h"
 #include "eventuals/eventual.h"
+#include "eventuals/type-traits.h"
 #include "tl/expected.hpp"
 
 ////////////////////////////////////////////////////////////////////////
@@ -95,6 +96,12 @@ class expected : public tl::expected<Value_, Error_> {
               Error_,
               std::runtime_error>>,
       Errors>;
+
+  // Aliases that forbid non-composable things, i.e., a "stream"
+  // with an eventual that can not stream or a "loop" with
+  // something that is not streaming.
+  using Expects = Value;
+  using Produces = Value;
 
   template <typename Arg, typename K>
   auto k(K k) && {

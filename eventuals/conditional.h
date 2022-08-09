@@ -155,6 +155,12 @@ struct _Conditional {
                 Else_,
                 Arg>::template ErrorsFrom<void, std::tuple<>>>>;
 
+    // Aliases that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Value;
+    using Produces = Value;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, Condition_, Then_, Else_, Arg>(

@@ -298,6 +298,46 @@ using apply_tuple_types_t = typename apply_tuple_types<T, Tuple>::type;
 
 ////////////////////////////////////////////////////////////////////////
 
+struct Streaming final {};
+struct Value final {};
+struct TimerStruct final {};
+struct Nothing final {};
+struct Anything final {};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename>
+struct IsStream : std::false_type {};
+
+template <>
+struct IsStream<Streaming> : std::true_type {};
+
+template <typename>
+struct IsValue : std::false_type {};
+
+template <>
+struct IsValue<Value> : std::true_type {};
+
+template <typename>
+struct IsTimer : std::false_type {};
+
+template <>
+struct IsTimer<TimerStruct> : std::true_type {};
+
+template <typename>
+struct IsNothing : std::false_type {};
+
+template <>
+struct IsNothing<Nothing> : std::true_type {};
+
+template <typename>
+struct IsAnything : std::false_type {};
+
+template <>
+struct IsAnything<Anything> : std::true_type {};
+
+////////////////////////////////////////////////////////////////////////
+
 } // namespace eventuals
 
 ////////////////////////////////////////////////////////////////////////

@@ -209,6 +209,12 @@ struct _Catch final {
             type_identity<Right>,
             std::enable_if<std::is_void_v<Right>, Left>>>::type;
 
+    // Aliases that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Value;
+    using Produces = Value;
+
     template <typename Value, bool has_all, typename... CatchHandlers>
     static auto create(std::tuple<CatchHandlers...>&& catch_handlers) {
       return Builder<Value, has_all, CatchHandlers...>{

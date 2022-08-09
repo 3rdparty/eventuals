@@ -82,6 +82,12 @@ struct _Collect final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
+    // Aliases that forbid non - composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Streaming;
+    using Produces = Value;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Build(Collect<Collection_<std::decay_t<Arg>>>(), std::move(k));

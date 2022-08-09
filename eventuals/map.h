@@ -112,6 +112,12 @@ struct _Map final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
+    // Aliases that forbid non - composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Streaming;
+    using Produces = Streaming;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       // Optimize the case where we compose map on map to lessen the
@@ -131,6 +137,12 @@ struct _Map final {
         return Continuation<K, E_, Arg>(std::move(k), std::move(e_));
       }
     }
+
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = true;
+    static constexpr bool Looping = false;
 
     E_ e_;
   };

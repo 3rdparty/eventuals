@@ -340,6 +340,12 @@ struct _Stream final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
 
+    // Aliases that forbid non - composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Streaming;
+    using Produces = Streaming;
+
     template <
         bool Interruptible,
         typename Value,

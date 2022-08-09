@@ -75,6 +75,12 @@ struct _Terminal final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
+    // Aliases that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Value;
+    using Produces = Nothing;
+
     template <
         typename Context,
         typename Start,
@@ -152,7 +158,6 @@ struct _Terminal final {
           std::move(fail_),
           std::move(stop));
     }
-
 
     Context_ context_;
     Start_ start_;

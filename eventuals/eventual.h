@@ -5,6 +5,7 @@
 #include "eventuals/compose.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/scheduler.h"
+#include "eventuals/type-traits.h"
 #include "eventuals/undefined.h"
 
 // TODO(benh): catch exceptions from 'start', 'fail', 'stop', etc.
@@ -200,6 +201,12 @@ struct _Eventual {
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<Errors_, Errors>;
+
+    // Aliases that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Value;
+    using Produces = Value;
 
     template <
         bool Interruptible,

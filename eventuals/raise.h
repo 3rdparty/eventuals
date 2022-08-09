@@ -59,10 +59,22 @@ struct _Raise final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<std::tuple<T_>, Errors>;
 
+    // Aliases that forbid non - composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Anything;
+    using Produces = Anything;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, T_>{std::move(k), std::move(t_)};
     }
+
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = false;
+    static constexpr bool Looping = false;
 
     T_ t_;
   };

@@ -69,6 +69,12 @@ struct _Repeat final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
+    // Aliases that forbid non - composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Streaming;
+    using Produces = Streaming;
+
     template <typename Arg, typename K>
     auto k(K k) {
       return Continuation<K>(std::move(k));

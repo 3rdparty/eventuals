@@ -730,6 +730,12 @@ struct _Concurrent final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
+    // Aliases that forbid non - composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Anything;
+    using Produces = Anything;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       static_assert(

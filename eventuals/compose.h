@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <type_traits>
 
 #include "eventuals/type-traits.h"
@@ -85,6 +86,18 @@ struct Composed final {
       typename Left_::template ValueFrom<Arg>,
       typename Left_::template ErrorsFrom<Arg, Errors>>;
 
+  // Flags that forbid non-composable things, i.e., a "stream"
+  // with an eventual that can not stream or a "loop" with
+  // something that is not streaming.
+  // static constexpr bool Streaming = Right_::Streaming;
+  // static constexpr bool Looping = Right_::Looping;
+
+  // Aliases that forbid non-composable things, i.e., a "stream"
+  // with an eventual that can not stream or a "loop" with
+  // something that is not streaming.
+  using Expects = typename Left_::Expects;
+  using Produces = typename Right_::Produces;
+
   template <typename Arg>
   auto k() && {
     using Value = typename Left_::template ValueFrom<Arg>;
@@ -111,6 +124,32 @@ template <
             HasValueFrom<Right>>,
         int> = 0>
 [[nodiscard]] auto operator>>(Left left, Right right) {
+  //((Left::Looping || !Left::Streaming) && !Right::Streaming) ||
+  //(Left::Streaming && (Right::Streaming || Right::Looping)) ||
+  //(!Left::Streaming && !Right::Streaming)
+
+  static_assert(
+      (IsStream<typename Left::Produces>::value
+       && IsStream<typename Right::Expects>::value)
+          || (IsValue<typename Left::Produces>::value
+              && IsValue<typename Right::Expects>::value)
+          || (IsValue<typename Left::Produces>::value
+              && IsStream<typename Right::Expects>::value)
+          // The following chain is legal:
+          // eventuals::EventLoop::Timer::Composable >> Reschedule()
+          || (IsAnything<typename Left::Produces>::value
+              && IsValue<typename Right::Expects>::value)
+          || (IsValue<typename Left::Produces>::value
+              && IsAnything<typename Right::Expects>::value)
+          // Closure() >> Reduce()
+          || (IsAnything<typename Left::Produces>::value
+              && IsStream<typename Right::Expects>::value)
+          || (IsStream<typename Left::Produces>::value
+              && IsAnything<typename Right::Expects>::value)
+          || (IsAnything<typename Left::Produces>::value
+              && IsAnything<typename Right::Expects>::value),
+      "Illegal composition");
+
   return Composed<Left, Right>{std::move(left), std::move(right)};
 }
 

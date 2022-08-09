@@ -422,6 +422,12 @@ class EventLoop final : public Scheduler {
             Errors,
             std::tuple<std::runtime_error>>;
 
+        // Aliases that forbid non-composable things, i.e., a "stream"
+        // with an eventual that can not stream or a "loop" with
+        // something that is not streaming.
+        using Expects = Nothing;
+        using Produces = Anything;
+
         template <typename Arg, typename K>
         auto k(K k) && {
           return Continuation<K>(
@@ -741,6 +747,12 @@ class EventLoop final : public Scheduler {
           Errors,
           std::tuple<std::runtime_error>>;
 
+      // Aliases that forbid non-composable things, i.e., a "stream"
+      // with an eventual that can not stream or a "loop" with
+      // something that is not streaming.
+      using Expects = Nothing;
+      using Produces = Anything;
+
       template <typename Arg, typename K>
       auto k(K k) && {
         return Continuation<K>(std::move(k), loop_, signum_);
@@ -1032,6 +1044,12 @@ class EventLoop final : public Scheduler {
           Errors,
           std::tuple<std::runtime_error>>;
 
+      // Aliases that forbid non-composable things, i.e., a "stream"
+      // with an eventual that can not stream or a "loop" with
+      // something that is not streaming.
+      using Expects = Nothing;
+      using Produces = Streaming;
+
       template <typename Arg, typename K>
       auto k(K k) && {
         return Continuation<K>(std::move(k), loop_, fd_, events_);
@@ -1232,6 +1250,12 @@ struct _EventLoopSchedule final {
     using ErrorsFrom = tuple_types_union_t<
         Errors,
         typename E_::template ErrorsFrom<Arg, Errors>>;
+
+    // Aliases that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Value;
+    using Produces = Value;
 
     template <typename Arg, typename K>
     auto k(K k) && {

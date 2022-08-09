@@ -3,6 +3,7 @@
 #include <thread>
 
 #include "eventuals/just.h"
+#include "eventuals/loop.h"
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
 #include "test/promisify-for-test.h"
@@ -64,6 +65,11 @@ TEST(JustTest, ConstRef) {
   x = 42;
 
   EXPECT_EQ(42, future.get());
+}
+
+TEST(JustTest, Dummy) {
+  // auto e = Just(1) >> eventuals::Loop();
+  // *e;
 }
 
 } // namespace

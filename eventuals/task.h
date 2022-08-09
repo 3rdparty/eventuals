@@ -318,6 +318,12 @@ struct _TaskFromToWith final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
 
+    // Aliases that forbid non - composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    using Expects = Value;
+    using Produces = Value;
+
     Composable(MonostateIfVoidOrReferenceWrapperOr<To_> value)
       : value_or_dispatch_(std::move(value)) {}
 
@@ -480,6 +486,12 @@ class _Task final {
 
   template <typename Arg, typename Errors>
   using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
+
+  // Aliases that forbid non - composable things, i.e., a "stream"
+  // with an eventual that can not stream or a "loop" with
+  // something that is not streaming.
+  using Expects = Value;
+  using Produces = Value;
 
   template <typename T>
   using From = std::enable_if_t<
