@@ -67,7 +67,7 @@ TEST(Filter, OddMapLoopFlow) {
         >> Map([](int x) { return x + 1; })
         >> Loop<int>()
                .context(0)
-               .body([](int& sum, auto& stream, int&& value) {
+               .body([](int& sum, auto& stream, int value) {
                  sum += value;
                  stream.Next();
                })

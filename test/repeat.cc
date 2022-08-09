@@ -31,13 +31,13 @@ TEST(RepeatTest, Succeed) {
         >> Until([](int& i) {
              return i == 5;
            })
-        >> Map([&](int&& i) {
+        >> Map([&](int i) {
              return e(i);
            })
         >> Reduce(
                /* sum = */ 0,
                [](int& sum) {
-                 return Then([&](int&& i) {
+                 return Then([&](int i) {
                    sum += i;
                    return true;
                  });
@@ -62,13 +62,13 @@ TEST(RepeatTest, Fail) {
         >> Until([](int& i) {
              return i == 5;
            })
-        >> Map([&](int&& i) {
+        >> Map([&](int i) {
              return e(i);
            })
         >> Reduce(
                /* sum = */ 0,
                [](int& sum) {
-                 return Then([&](int&& i) {
+                 return Then([&](int i) {
                    sum += i;
                    return true;
                  });
@@ -102,13 +102,13 @@ TEST(RepeatTest, Interrupt) {
         >> Until([](int& i) {
              return i == 5;
            })
-        >> Map([&](int&& i) {
+        >> Map([&](int i) {
              return e(i);
            })
         >> Reduce(
                /* sum = */ 0,
                [](int& sum) {
-                 return Then([&](int&& i) {
+                 return Then([&](int i) {
                    sum += i;
                    return true;
                  });
@@ -171,7 +171,7 @@ TEST(RepeatTest, MapAcquire) {
                  });
            })
         >> Acquire(&lock)
-        >> Map([](int&& i) {
+        >> Map([](int i) {
              return i;
            })
         >> Release(&lock)
