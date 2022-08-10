@@ -295,6 +295,13 @@ struct _Catch final {
     }
 
     std::tuple<CatchHandlers_...> catch_handlers_;
+
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = false;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = true;
   };
 };
 

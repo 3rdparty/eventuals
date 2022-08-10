@@ -72,6 +72,13 @@ struct _Filter final {
       return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
     }
 
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = true;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = false;
+
     F_ f_;
   };
 };

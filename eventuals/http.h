@@ -1195,6 +1195,13 @@ struct _HTTP final {
       return Continuation<K>(std::move(k), loop_, std::move(request_));
     }
 
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = false;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = true;
+
     EventLoop& loop_;
     Request request_;
   };

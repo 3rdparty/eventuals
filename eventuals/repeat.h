@@ -73,6 +73,13 @@ struct _Repeat final {
     auto k(K k) {
       return Continuation<K>(std::move(k));
     }
+
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = true;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = false;
   };
 };
 

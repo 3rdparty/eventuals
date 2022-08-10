@@ -69,6 +69,13 @@ struct _Head final {
     auto k(K k) && {
       return Continuation<K, Arg>(std::move(k));
     }
+
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = false;
+    static constexpr bool Looping = true;
+    static constexpr bool IsEventual = false;
   };
 };
 

@@ -321,6 +321,13 @@ struct _Reschedule final {
       return Continuation<K, Arg>(std::move(k), std::move(context_));
     }
 
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = true;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = true;
+
     stout::borrowed_ref<Scheduler::Context> context_;
   };
 };
@@ -499,6 +506,13 @@ struct _Preempt final {
           std::move(e_),
           std::move(name_));
     }
+
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = false;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = true;
 
     E_ e_;
     std::string name_;

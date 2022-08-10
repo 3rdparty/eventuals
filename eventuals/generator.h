@@ -472,6 +472,13 @@ struct _Generator final {
           std::move(dispatch_));
     }
 
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = true;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = false;
+
     std::conditional_t<
         std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
         Undefined,

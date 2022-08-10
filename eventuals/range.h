@@ -91,6 +91,13 @@ struct _Range final {
       return Continuation<K, Arg>(std::move(k), from_, to_, step_);
     }
 
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = true;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = false;
+
     const int from_;
     const int to_;
     const int step_;

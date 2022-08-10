@@ -111,6 +111,13 @@ class expected : public tl::expected<Value_, Error_> {
 
   expected(tl::expected<Value_, Error_>&& that)
     : tl::expected<Value_, Error_>::expected(std::move(that)) {}
+
+  // Flags that forbid non-composable things, i.e., a "stream"
+  // with an eventual that can not stream or a "loop" with
+  // something that is not streaming.
+  static constexpr bool Streaming = false;
+  static constexpr bool Looping = false;
+  static constexpr bool IsEventual = true;
 };
 
 template <typename E>

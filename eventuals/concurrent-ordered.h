@@ -127,6 +127,13 @@ struct _ReorderAdaptor final {
           K,
           typename std::tuple_element<1, Arg>::type::value_type>(std::move(k));
     }
+
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = true;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = false;
   };
 };
 
@@ -229,6 +236,13 @@ struct _ConcurrentOrderedAdaptor final {
     auto k(K k) && {
       return Continuation<K>(std::move(k));
     }
+
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = true;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = false;
   };
 };
 

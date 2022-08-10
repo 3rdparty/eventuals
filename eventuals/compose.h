@@ -76,6 +76,13 @@ struct Composed final {
   Left_ left_;
   Right_ right_;
 
+  // Flags that forbid non-composable things, i.e., a "stream"
+  // with an eventual that can not stream or a "loop" with
+  // something that is not streaming.
+  static constexpr bool Streaming = Right_::Streaming;
+  static constexpr bool Looping = Right_::Looping;
+  static constexpr bool IsEventual = Right_::IsEventual;
+
   template <typename Arg>
   using ValueFrom = typename Right_::template ValueFrom<
       typename Left_::template ValueFrom<Arg>>;
@@ -111,6 +118,37 @@ template <
             HasValueFrom<Right>>,
         int> = 0>
 [[nodiscard]] auto operator>>(Left left, Right right) {
+  //((Left::Looping || !Left::Streaming) && !Right::Streaming) ||
+  //(Left::Streaming && (Right::Streaming || Right::Looping)) ||
+  //(!Left::Streaming && !Right::Streaming)
+  // static_assert(
+  //     ((Left::Looping || !Left::Streaming) && (!Right::Streaming && Right::IsEventual))
+  //         || ((Left::Streaming || Left::IsEventual) && (Right::Streaming || (Right::Looping && Left::Streaming) || (!Right::Streaming && Left::Streaming)))
+  //         || (!Left::Streaming && !Right::Streaming && Right::IsEventual && !Right::Looping),
+  //     "Illegal composition");
+
+  // Loop = Eventual
+
+  static_assert(
+      // (Eventual() | Looping) >> Eventual()
+      ((Left::Looping || Left::IsEventual) && !Right::Streaming && !Right::Looping && Right::IsEventual)
+          // (Stream() >> Stream() | Looping())
+          || (Left::Streaming && !Left::IsEventual && (Right::Streaming || Right::Looping) && !Right::IsEventual)
+          // only Eventual() >> only Eventual()
+          || (!Left::Streaming && Left::IsEventual && !Right::Streaming && Right::IsEventual)
+          // Timer() >> Reschedule()
+          || (Left::IsEventual && !Left::Streaming && Right::Streaming && Right::IsEventual)
+          // Eventual() >> Release()
+          || (Left::IsEventual && !Left::Streaming && Right::Streaming && Right::IsEventual)
+          // Acquire() >> Stream()
+          || (Left::IsEventual && Left::Streaming && Right::Streaming && !Right::IsEventual)
+          // Stream() >> Reschedule()
+          || (!Left::IsEventual && Left::Streaming && Right::Streaming && Right::IsEventual)
+          // Closure() >> Loop()
+          || (Left::IsEventual && Left::Streaming && !Right::Streaming && !Right::IsEventual && Right::Looping)
+          // Closure() >> Closure()
+          || (Left::IsEventual && Left::Streaming && Right::Streaming && Right::IsEventual),
+      "Illegal compisition");
   return Composed<Left, Right>{std::move(left), std::move(right)};
 }
 

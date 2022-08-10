@@ -430,6 +430,13 @@ class EventLoop final : public Scheduler {
               nanoseconds_);
         }
 
+        // Flags that forbid non-composable things, i.e., a "stream"
+        // with an eventual that can not stream or a "loop" with
+        // something that is not streaming.
+        static constexpr bool Streaming = false;
+        static constexpr bool Looping = false;
+        static constexpr bool IsEventual = true;
+
         stout::borrowed_ref<Clock> clock_;
         std::chrono::nanoseconds nanoseconds_ = std::chrono::nanoseconds(0);
       };
@@ -746,6 +753,13 @@ class EventLoop final : public Scheduler {
         return Continuation<K>(std::move(k), loop_, signum_);
       }
 
+      // Flags that forbid non-composable things, i.e., a "stream"
+      // with an eventual that can not stream or a "loop" with
+      // something that is not streaming.
+      static constexpr bool Streaming = false;
+      static constexpr bool Looping = false;
+      static constexpr bool IsEventual = true;
+
       EventLoop& loop_;
       const int signum_;
     };
@@ -1037,6 +1051,13 @@ class EventLoop final : public Scheduler {
         return Continuation<K>(std::move(k), loop_, fd_, events_);
       }
 
+      // Flags that forbid non-composable things, i.e., a "stream"
+      // with an eventual that can not stream or a "loop" with
+      // something that is not streaming.
+      static constexpr bool Streaming = true;
+      static constexpr bool Looping = false;
+      static constexpr bool IsEventual = false;
+
       EventLoop& loop_;
       int fd_;
       PollEvents events_;
@@ -1241,6 +1262,13 @@ struct _EventLoopSchedule final {
           loop_,
           std::move(name_));
     }
+
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = false;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = true;
 
     E_ e_;
     EventLoop* loop_ = nullptr;

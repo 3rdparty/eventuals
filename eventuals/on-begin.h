@@ -120,6 +120,13 @@ struct _OnBegin final {
       return Continuation<K, E_>(std::move(k), std::move(e_));
     }
 
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = true;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = false;
+
     E_ e_;
   };
 };

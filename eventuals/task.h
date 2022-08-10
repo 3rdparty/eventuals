@@ -449,6 +449,13 @@ struct _TaskFromToWith final {
           std::move(value_or_dispatch_.value()));
     }
 
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = false;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = true;
+
     // See comment in `Continuation` for explanation of `dispatch_` member.
     // Using 'std::optional' because of implicitly deleted 'std::variant'
     // constructor.
@@ -769,6 +776,13 @@ class _Task final {
   [[nodiscard]] static auto Failure(const char* s) {
     return Failure(std::runtime_error(s));
   }
+
+  // Flags that forbid non-composable things, i.e., a "stream"
+  // with an eventual that can not stream or a "loop" with
+  // something that is not streaming.
+  static constexpr bool Streaming = false;
+  static constexpr bool Looping = false;
+  static constexpr bool IsEventual = true;
 
  private:
   // To make possible constructing from another '_Task' with

@@ -338,6 +338,13 @@ struct _DoAll final {
           std::move(eventuals_));
     }
 
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = false;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = true;
+
     std::tuple<Eventuals_...> eventuals_;
   };
 };

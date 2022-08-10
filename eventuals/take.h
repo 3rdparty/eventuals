@@ -126,6 +126,13 @@ struct _TakeLast final {
       return Continuation<K, Arg>(std::move(k), n_);
     }
 
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = true;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = false;
+
     size_t n_;
   };
 };
@@ -232,6 +239,13 @@ struct _TakeRange final {
     auto k(K k) && {
       return Continuation<K, Arg>{std::move(k), begin_, amount_};
     }
+
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = true;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = false;
 
     size_t begin_;
     size_t amount_;

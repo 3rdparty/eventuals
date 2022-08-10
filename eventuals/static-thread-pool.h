@@ -534,6 +534,13 @@ struct _StaticThreadPoolSchedule final {
           std::move(e_));
     }
 
+    // Flags that forbid non-composable things, i.e., a "stream"
+    // with an eventual that can not stream or a "loop" with
+    // something that is not streaming.
+    static constexpr bool Streaming = true;
+    static constexpr bool Looping = false;
+    static constexpr bool IsEventual = true;
+
     StaticThreadPool* pool_ = nullptr;
     StaticThreadPool::Requirements* requirements_ = nullptr;
     E_ e_;
