@@ -164,6 +164,11 @@ struct _Conditional {
           std::move(else_));
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = SingleValue;
+
     Condition_ condition_;
     Then_ then_;
     Else_ else_;

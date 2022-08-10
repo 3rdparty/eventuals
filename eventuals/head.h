@@ -69,6 +69,11 @@ struct _Head final {
     auto k(K k) && {
       return Continuation<K, Arg>(std::move(k));
     }
+
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = StreamOfValues;
   };
 };
 

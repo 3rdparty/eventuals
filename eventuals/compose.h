@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <type_traits>
 
 #include "eventuals/type-traits.h"
@@ -39,6 +40,23 @@ struct HasErrorsFrom<T, std::void_t<void_template<T::template ErrorsFrom>>>
 
 ////////////////////////////////////////////////////////////////////////
 
+struct SingleValue {
+  static constexpr bool ExpectsValue = true;
+  static constexpr bool ExpectsStream = false;
+};
+
+struct StreamOfValues {
+  static constexpr bool ExpectsValue = false;
+  static constexpr bool ExpectsStream = true;
+};
+
+struct StreamOrValue {
+  static constexpr bool ExpectsValue = true;
+  static constexpr bool ExpectsStream = true;
+};
+
+////////////////////////////////////////////////////////////////////////
+
 // Helper to avoid creating nested 'std::exception_ptr'.
 template <typename Error>
 auto make_exception_ptr_or_forward(Error&& error) {
@@ -71,6 +89,27 @@ struct ReferenceWrapperTypeExtractor<std::reference_wrapper<T>> {
 
 ////////////////////////////////////////////////////////////////////////
 
+struct ComposesWithEverything {
+  template <typename Downstream>
+  static constexpr bool CanCompose = true;
+  using Expects = StreamOrValue;
+};
+
+template <typename, typename = void>
+struct HasCanCompose : std::false_type {};
+
+template <typename T>
+struct HasCanCompose<T, std::void_t<void_template<T::template CanCompose>>>
+  : std::true_type {};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Left, typename Right>
+inline constexpr bool CanCompose =
+    Left::template CanCompose<typename Right::Expects>;
+
+////////////////////////////////////////////////////////////////////////
+
 template <typename Left_, typename Right_>
 struct Composed final {
   Left_ left_;
@@ -84,6 +123,17 @@ struct Composed final {
   using ErrorsFrom = typename Right_::template ErrorsFrom<
       typename Left_::template ValueFrom<Arg>,
       typename Left_::template ErrorsFrom<Arg, Errors>>;
+
+  template <typename Downstream>
+  static constexpr bool CanCompose = std::conditional_t<
+      HasCanCompose<Right_>::value,
+      Right_,
+      ComposesWithEverything>::template CanCompose<Downstream>;
+
+  using Expects = typename std::conditional_t<
+      HasCanCompose<Left_>::value,
+      Left_,
+      ComposesWithEverything>::Expects;
 
   template <typename Arg>
   auto k() && {
@@ -111,6 +161,23 @@ template <
             HasValueFrom<Right>>,
         int> = 0>
 [[nodiscard]] auto operator>>(Left left, Right right) {
+  return Composed<Left, Right>{std::move(left), std::move(right)};
+}
+
+template <
+    typename Left,
+    typename Right,
+    std::enable_if_t<
+        std::conjunction_v<
+            HasValueFrom<Left>,
+            HasValueFrom<Right>,
+            HasCanCompose<Left>,
+            HasCanCompose<Right>>,
+        int> = 0>
+[[nodiscard]] auto operator>>(Left left, Right right) {
+  static_assert(
+      Left::template CanCompose<typename Right::Expects>,
+      "You can't compose the \"left\" eventual with the \"right\"");
   return Composed<Left, Right>{std::move(left), std::move(right)};
 }
 

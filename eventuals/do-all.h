@@ -338,6 +338,11 @@ struct _DoAll final {
           std::move(eventuals_));
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = SingleValue;
+
     std::tuple<Eventuals_...> eventuals_;
   };
 };

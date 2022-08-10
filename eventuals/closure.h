@@ -88,6 +88,11 @@ struct _Closure final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = true;
+
+    using Expects = StreamOrValue;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, F_, Arg>(std::move(k), std::move(f_));

@@ -1195,6 +1195,11 @@ struct _HTTP final {
       return Continuation<K>(std::move(k), loop_, std::move(request_));
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = SingleValue;
+
     EventLoop& loop_;
     Request request_;
   };

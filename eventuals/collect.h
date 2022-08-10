@@ -82,6 +82,11 @@ struct _Collect final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = StreamOfValues;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Build(Collect<Collection_<std::decay_t<Arg>>>(), std::move(k));

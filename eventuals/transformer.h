@@ -240,6 +240,11 @@ struct _Transformer final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = true;
+
+    using Expects = StreamOrValue;
+
     template <typename T>
     using From = std::enable_if_t<
         IsUndefined<From_>::value,

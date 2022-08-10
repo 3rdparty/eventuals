@@ -422,6 +422,11 @@ class EventLoop final : public Scheduler {
             Errors,
             std::tuple<std::runtime_error>>;
 
+        template <typename Downstream>
+        static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+        using Expects = SingleValue;
+
         template <typename Arg, typename K>
         auto k(K k) && {
           return Continuation<K>(
@@ -741,6 +746,11 @@ class EventLoop final : public Scheduler {
           Errors,
           std::tuple<std::runtime_error>>;
 
+      template <typename Downstream>
+      static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+      using Expects = SingleValue;
+
       template <typename Arg, typename K>
       auto k(K k) && {
         return Continuation<K>(std::move(k), loop_, signum_);
@@ -1032,6 +1042,11 @@ class EventLoop final : public Scheduler {
           Errors,
           std::tuple<std::runtime_error>>;
 
+      template <typename Downstream>
+      static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+      using Expects = StreamOfValues;
+
       template <typename Arg, typename K>
       auto k(K k) && {
         return Continuation<K>(std::move(k), loop_, fd_, events_);
@@ -1232,6 +1247,11 @@ struct _EventLoopSchedule final {
     using ErrorsFrom = tuple_types_union_t<
         Errors,
         typename E_::template ErrorsFrom<Arg, Errors>>;
+
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = SingleValue;
 
     template <typename Arg, typename K>
     auto k(K k) && {

@@ -127,6 +127,11 @@ struct _ReorderAdaptor final {
           K,
           typename std::tuple_element<1, Arg>::type::value_type>(std::move(k));
     }
+
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+    using Expects = StreamOfValues;
   };
 };
 
@@ -229,6 +234,11 @@ struct _ConcurrentOrderedAdaptor final {
     auto k(K k) && {
       return Continuation<K>(std::move(k));
     }
+
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+    using Expects = StreamOfValues;
   };
 };
 

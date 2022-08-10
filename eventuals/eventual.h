@@ -201,6 +201,11 @@ struct _Eventual {
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<Errors_, Errors>;
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = SingleValue;
+
     template <
         bool Interruptible,
         typename Value,

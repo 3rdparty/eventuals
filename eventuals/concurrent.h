@@ -739,6 +739,11 @@ struct _Concurrent final {
       return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+    using Expects = StreamOfValues;
+
     F_ f_;
   };
 };

@@ -126,6 +126,11 @@ struct _TakeLast final {
       return Continuation<K, Arg>(std::move(k), n_);
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+    using Expects = StreamOfValues;
+
     size_t n_;
   };
 };
@@ -232,6 +237,11 @@ struct _TakeRange final {
     auto k(K k) && {
       return Continuation<K, Arg>{std::move(k), begin_, amount_};
     }
+
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+    using Expects = StreamOfValues;
 
     size_t begin_;
     size_t amount_;

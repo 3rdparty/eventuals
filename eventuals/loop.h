@@ -253,6 +253,11 @@ struct _Loop final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = StreamOfValues;
+
     template <
         bool Interruptible,
         typename Value,

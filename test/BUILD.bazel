@@ -47,6 +47,7 @@ cc_test(
         "catch.cc",
         "closure.cc",
         "collect.cc",
+        "compose.cc",
         "conditional.cc",
         "control-loop.cc",
         "dns-resolver.cc",
@@ -95,7 +96,7 @@ cc_test(
         ":http-mock-server",
         ":promisify-for-test",
         "//eventuals",
-        "//test/concurrent",
+         "//test/concurrent",
         "@com_github_google_googletest//:gtest_main",
     ] + select({
         # We support backward lib only for macOS and Linux.

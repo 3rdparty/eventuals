@@ -534,6 +534,11 @@ struct _StaticThreadPoolSchedule final {
           std::move(e_));
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = true;
+
+    using Expects = StreamOrValue;
+
     StaticThreadPool* pool_ = nullptr;
     StaticThreadPool::Requirements* requirements_ = nullptr;
     E_ e_;

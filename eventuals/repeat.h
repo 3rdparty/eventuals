@@ -73,6 +73,11 @@ struct _Repeat final {
     auto k(K k) {
       return Continuation<K>(std::move(k));
     }
+
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+    using Expects = StreamOfValues;
   };
 };
 

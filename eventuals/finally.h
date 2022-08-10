@@ -55,6 +55,11 @@ struct _Finally final {
     auto k(K k) && {
       return Continuation<K, Arg>{std::move(k)};
     }
+
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = SingleValue;
   };
 };
 

@@ -95,6 +95,12 @@ struct _Then final {
         void,
         Errors>;
 
+
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = SingleValue;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       static_assert(
