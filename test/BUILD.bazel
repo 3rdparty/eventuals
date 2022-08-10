@@ -67,6 +67,7 @@ cc_test(
         "just.cc",
         "let.cc",
         "lock.cc",
+        "notification.cc",
         "on-begin.cc",
         "on-ended.cc",
         "pipe.cc",
