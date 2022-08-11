@@ -241,7 +241,7 @@ struct _Transformer final {
     using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
 
     template <typename Downstream>
-    static constexpr bool CanCompose = true;
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
 
     using Expects = StreamOrValue;
 

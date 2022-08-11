@@ -1045,7 +1045,7 @@ class EventLoop final : public Scheduler {
       template <typename Downstream>
       static constexpr bool CanCompose = Downstream::ExpectsStream;
 
-      using Expects = StreamOfValues;
+      using Expects = SingleValue;
 
       template <typename Arg, typename K>
       auto k(K k) && {

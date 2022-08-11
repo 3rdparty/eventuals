@@ -475,7 +475,7 @@ struct _Generator final {
     template <typename Downstream>
     static constexpr bool CanCompose = true;
 
-    using Expects = StreamOrValue;
+    using Expects = SingleValue;
 
     std::conditional_t<
         std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,

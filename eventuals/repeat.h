@@ -77,7 +77,7 @@ struct _Repeat final {
     template <typename Downstream>
     static constexpr bool CanCompose = Downstream::ExpectsStream;
 
-    using Expects = StreamOfValues;
+    using Expects = SingleValue;
   };
 };
 

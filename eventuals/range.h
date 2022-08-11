@@ -94,7 +94,7 @@ struct _Range final {
     template <typename Downstream>
     static constexpr bool CanCompose = Downstream::ExpectsStream;
 
-    using Expects = StreamOfValues;
+    using Expects = SingleValue;
 
     const int from_;
     const int to_;

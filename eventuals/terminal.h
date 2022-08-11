@@ -154,7 +154,7 @@ struct _Terminal final {
     }
 
     template <typename Downstream>
-    static constexpr bool CanCompose = Downstream::ExpectsValue;
+    static constexpr bool CanCompose = false;
 
     using Expects = SingleValue;
 
