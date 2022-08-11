@@ -117,7 +117,7 @@ class Scheduler {
         f();
         Switch(std::move(previous));
       } else {
-        scheduler()->Submit(std::move(f), *this);
+        scheduler()->Submit(std::forward<F>(f), *this);
       }
     }
 
