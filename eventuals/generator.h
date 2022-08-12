@@ -313,6 +313,11 @@ struct _Generator final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+    using Expects = SingleValue;
+
     template <typename T>
     using From = std::enable_if_t<
         IsUndefined<From_>::value,
@@ -471,11 +476,6 @@ struct _Generator final {
           std::move(args_),
           std::move(dispatch_));
     }
-
-    template <typename Downstream>
-    static constexpr bool CanCompose = true;
-
-    using Expects = SingleValue;
 
     std::conditional_t<
         std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,

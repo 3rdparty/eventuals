@@ -243,7 +243,7 @@ struct _Transformer final {
     template <typename Downstream>
     static constexpr bool CanCompose = Downstream::ExpectsStream;
 
-    using Expects = StreamOrValue;
+    using Expects = StreamOfValues;
 
     template <typename T>
     using From = std::enable_if_t<

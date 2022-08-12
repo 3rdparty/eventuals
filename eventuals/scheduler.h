@@ -316,6 +316,11 @@ struct _Reschedule final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
+    // TODO(benh): nothing can actually compose with anything else
+    // because it depends one what gets composed with this. Alas, we
+    // need to change the way 'Reschedule()' works here to take the
+    // eventual that it wants to run so that we can properly check
+    // that things compose correctly.
     template <typename Downstream>
     static constexpr bool CanCompose = true;
 
