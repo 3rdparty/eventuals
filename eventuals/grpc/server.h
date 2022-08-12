@@ -9,6 +9,7 @@
 #include "eventuals/catch.h"
 #include "eventuals/eventual.h"
 #include "eventuals/finally.h"
+#include "eventuals/grpc/completion-thread-pool.h"
 #include "eventuals/grpc/logging.h"
 #include "eventuals/grpc/server.h"
 #include "eventuals/grpc/traits.h"
@@ -537,8 +538,7 @@ class Server : public Synchronizable {
       std::vector<Service*>&& services,
       std::unique_ptr<::grpc::AsyncGenericService>&& service,
       std::unique_ptr<::grpc::Server>&& server,
-      std::vector<std::unique_ptr<::grpc::ServerCompletionQueue>>&& cqs,
-      std::vector<std::thread>&& threads);
+      ServerCompletionThreadPool&& pool);
 
   template <typename Request, typename Response>
   [[nodiscard]] auto Validate(const std::string& name);
@@ -555,10 +555,10 @@ class Server : public Synchronizable {
 
   [[nodiscard]] auto Unimplemented(ServerContext* context);
 
+  ServerCompletionThreadPool pool_;
+
   std::unique_ptr<::grpc::AsyncGenericService> service_;
   std::unique_ptr<::grpc::Server> server_;
-  std::vector<std::unique_ptr<::grpc::ServerCompletionQueue>> cqs_;
-  std::vector<std::thread> threads_;
 
   struct Serve {
     Service* service;
@@ -569,7 +569,10 @@ class Server : public Synchronizable {
   std::vector<std::unique_ptr<Serve>> serves_;
 
   struct Worker {
-    std::optional<Task::Of<void>::With<::grpc::ServerCompletionQueue*>> task;
+    std::optional<
+        Task::Of<void>::With<
+            stout::borrowed_ref<::grpc::ServerCompletionQueue>>>
+        task;
     std::atomic<bool> done = false;
   };
 

@@ -101,12 +101,10 @@ Server::Server(
     std::vector<Service*>&& services,
     std::unique_ptr<::grpc::AsyncGenericService>&& service,
     std::unique_ptr<::grpc::Server>&& server,
-    std::vector<std::unique_ptr<::grpc::ServerCompletionQueue>>&& cqs,
-    std::vector<std::thread>&& threads)
-  : service_(std::move(service)),
-    server_(std::move(server)),
-    cqs_(std::move(cqs)),
-    threads_(std::move(threads)) {
+    ServerCompletionThreadPool&& pool)
+  : pool_(std::move(pool)),
+    service_(std::move(service)),
+    server_(std::move(server)) {
   for (Service* service : services) {
     auto& serve = serves_.emplace_back(std::make_unique<Serve>());
 
@@ -145,19 +143,28 @@ Server::Server(
         });
   }
 
-  workers_.reserve(cqs_.size());
+  workers_.reserve(pool_.NumberOfCompletionQueues());
 
-  for (std::unique_ptr<::grpc::ServerCompletionQueue>& cq : cqs_) {
+  for (size_t i = 0; i < pool_.NumberOfCompletionQueues(); ++i) {
     auto& worker = workers_.emplace_back(std::make_unique<Worker>());
 
+    // NOTE: we're currently relying on the fact that a
+    // 'StaticCompletionThreadPool' will "schedule" completion queues
+    // in a "least loaded" way which will ensure that we have at least
+    // one worker per completion queue below which is imperative
+    // otherwise we may fail to accept RPCs!
+    stout::borrowed_ref<::grpc::ServerCompletionQueue> cq = pool_.Schedule();
+
     worker->task.emplace(
-        cq.get(),
-        [this](auto* cq) {
+        cq.reborrow(),
+        [this](stout::borrowed_ref<::grpc::ServerCompletionQueue>& cq) {
           return Closure(
-              [this, cq, context = std::unique_ptr<ServerContext>()]() mutable {
+              [this,
+               &cq,
+               context = std::unique_ptr<ServerContext>()]() mutable {
                 return Repeat([&]() mutable {
                          context = std::make_unique<ServerContext>();
-                         return RequestCall(context.get(), cq)
+                         return RequestCall(context.get(), cq.get())
                              >> Lookup(context.get())
                              >> Conditional(
                                     [](auto* endpoint) {
@@ -244,6 +251,8 @@ void Server::Wait() {
       }
     }
 
+    workers_.clear();
+
     // Now wait for the serve tasks to be done (note that like workers
     // ordering is not important since these are each independent).
     for (std::unique_ptr<Serve>& serve : serves_) {
@@ -251,6 +260,8 @@ void Server::Wait() {
         // TODO(benh): cpu relax or some other spin loop strategy.
       }
     }
+
+    serves_.clear();
 
     // We shutdown the completion queues _after_ all 'workers_' and
     // 'serves_' have completed because if they try to use the
@@ -261,19 +272,8 @@ void Server::Wait() {
     // NOTE: it's unclear if we need to shutdown the completion queues
     // before we wait on the server but at least emperically it
     // appears that it doesn't matter.
-    for (std::unique_ptr<::grpc::ServerCompletionQueue>& cq : cqs_) {
-      cq->Shutdown();
-    }
-
-    for (std::thread& thread : threads_) {
-      thread.join();
-    }
-
-    for (std::unique_ptr<::grpc::ServerCompletionQueue>& cq : cqs_) {
-      void* tag = nullptr;
-      bool ok = false;
-      while (cq->Next(&tag, &ok)) {}
-    }
+    pool_.Shutdown();
+    pool_.Wait();
 
     // NOTE: gRPC doesn't want us calling 'Wait()' more than once (as
     // in, it causes an abort) presumably because it has already
@@ -400,23 +400,12 @@ ServerStatusOrServer ServerBuilder::BuildAndStart() {
         ServerStatus::Error("Error building server: invalid address(es)"),
         nullptr};
   } else {
-    // NOTE: we wait to start the threads until after a succesful
-    // 'BuildAndStart()' so that we don't have to bother with
-    // stopping/joining.
-    std::vector<std::thread> threads;
-    for (std::unique_ptr<::grpc::ServerCompletionQueue>& cq : cqs) {
-      for (size_t j = 0; j < minimumThreadsPerCompletionQueue_.value(); ++j) {
-        threads.push_back(
-            std::thread(
-                [cq = cq.get()]() {
-                  void* tag = nullptr;
-                  bool ok = false;
-                  while (cq->Next(&tag, &ok)) {
-                    (*static_cast<Callback<void(bool)>*>(tag))(ok);
-                  }
-                }));
-      }
-    }
+    // NOTE: we wait to create the completion thread pool until after
+    // a successful 'BuildAndStart()' so that we don't have to bother
+    // with starting and the possibley stopping/joining threads.
+    ServerCompletionThreadPool pool(
+        std::move(cqs),
+        minimumThreadsPerCompletionQueue_.value());
 
     return ServerStatusOrServer{
         ServerStatus::Ok(),
@@ -426,8 +415,7 @@ ServerStatusOrServer ServerBuilder::BuildAndStart() {
             std::move(services_),
             std::move(service),
             std::move(server),
-            std::move(cqs),
-            std::move(threads)))};
+            std::move(pool)))};
   }
 }
 
