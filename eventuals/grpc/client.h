@@ -185,7 +185,7 @@ class ClientCall {
       const std::string& path,
       const std::optional<std::string>& host,
       ::grpc::ClientContext* context,
-      stout::borrowed_ptr<::grpc::CompletionQueue>&& cq,
+      stout::borrowed_ref<::grpc::CompletionQueue>&& cq,
       ::grpc::TemplatedGenericStub<RequestType_, ResponseType_>&& stub,
       std::unique_ptr<
           ::grpc::ClientAsyncReaderWriter<
@@ -280,7 +280,7 @@ class ClientCall {
   // NOTE: we need to keep this around until after the call terminates
   // as it represents a "lease" on this completion queue that once
   // relinquished will allow another call to use this queue.
-  stout::borrowed_ptr<::grpc::CompletionQueue> cq_;
+  stout::borrowed_ref<::grpc::CompletionQueue> cq_;
 
   ::grpc::TemplatedGenericStub<RequestType_, ResponseType_> stub_;
 
@@ -301,13 +301,13 @@ class Client {
   explicit Client(
       const std::string& target,
       const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
-      stout::borrowed_ref<CompletionThreadPool> pool)
+      stout::borrowed_ref<ClientCompletionThreadPool> pool)
     : channel_(::grpc::CreateChannel(target, credentials)),
       pool_(std::move(pool)) {}
 
   explicit Client(
       std::shared_ptr<::grpc::Channel> channel,
-      stout::borrowed_ref<CompletionThreadPool> pool)
+      stout::borrowed_ref<ClientCompletionThreadPool> pool)
     : channel_(std::move(channel)),
       pool_(std::move(pool)) {}
 
@@ -356,7 +356,7 @@ class Client {
       std::string name;
       std::string path;
       std::optional<std::string> host;
-      stout::borrowed_ptr<::grpc::CompletionQueue> cq;
+      stout::borrowed_ref<::grpc::CompletionQueue> cq;
       ::grpc::TemplatedGenericStub<RequestType, ResponseType> stub;
       std::unique_ptr<
           ::grpc::ClientAsyncReaderWriter<
@@ -492,7 +492,7 @@ class Client {
 
  private:
   std::shared_ptr<::grpc::Channel> channel_;
-  stout::borrowed_ref<CompletionThreadPool> pool_;
+  stout::borrowed_ref<ClientCompletionThreadPool> pool_;
 };
 
 ////////////////////////////////////////////////////////////////////////
