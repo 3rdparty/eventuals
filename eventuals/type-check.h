@@ -3,6 +3,8 @@
 #include <type_traits>
 #include <utility>
 
+#include "eventuals/compose.h"
+
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
@@ -25,6 +27,11 @@ struct _TypeCheck {
 
     return std::move(e_).template k<Arg>(std::move(k));
   }
+
+  template <typename Downstream>
+  static constexpr bool CanCompose = true;
+
+  using Expects = StreamOrValue;
 
   E_ e_;
 };

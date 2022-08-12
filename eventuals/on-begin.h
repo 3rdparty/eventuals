@@ -120,6 +120,11 @@ struct _OnBegin final {
       return Continuation<K, E_>(std::move(k), std::move(e_));
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+    using Expects = StreamOfValues;
+
     E_ e_;
   };
 };

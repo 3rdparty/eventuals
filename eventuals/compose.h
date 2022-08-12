@@ -39,6 +39,23 @@ struct HasErrorsFrom<T, std::void_t<void_template<T::template ErrorsFrom>>>
 
 ////////////////////////////////////////////////////////////////////////
 
+struct SingleValue {
+  static constexpr bool ExpectsValue = true;
+  static constexpr bool ExpectsStream = false;
+};
+
+struct StreamOfValues {
+  static constexpr bool ExpectsValue = false;
+  static constexpr bool ExpectsStream = true;
+};
+
+struct StreamOrValue {
+  static constexpr bool ExpectsValue = true;
+  static constexpr bool ExpectsStream = true;
+};
+
+////////////////////////////////////////////////////////////////////////
+
 // Helper to avoid creating nested 'std::exception_ptr'.
 template <typename Error>
 auto make_exception_ptr_or_forward(Error&& error) {
@@ -71,6 +88,12 @@ struct ReferenceWrapperTypeExtractor<std::reference_wrapper<T>> {
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename Left, typename Right>
+inline constexpr bool CanCompose =
+    Left::template CanCompose<typename Right::Expects>;
+
+////////////////////////////////////////////////////////////////////////
+
 template <typename Left_, typename Right_>
 struct Composed final {
   Left_ left_;
@@ -84,6 +107,12 @@ struct Composed final {
   using ErrorsFrom = typename Right_::template ErrorsFrom<
       typename Left_::template ValueFrom<Arg>,
       typename Left_::template ErrorsFrom<Arg, Errors>>;
+
+  template <typename Downstream>
+  static constexpr bool CanCompose =
+      Right_::template CanCompose<Downstream>;
+
+  using Expects = typename Left_::Expects;
 
   template <typename Arg>
   auto k() && {
@@ -111,6 +140,9 @@ template <
             HasValueFrom<Right>>,
         int> = 0>
 [[nodiscard]] auto operator>>(Left left, Right right) {
+  static_assert(
+      CanCompose<Left, Right>,
+      "You can't compose the \"left\" eventual with the \"right\"");
   return Composed<Left, Right>{std::move(left), std::move(right)};
 }
 

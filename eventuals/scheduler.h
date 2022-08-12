@@ -316,6 +316,11 @@ struct _Reschedule final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = true;
+
+    using Expects = StreamOrValue;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, Arg>(std::move(k), std::move(context_));
@@ -491,6 +496,11 @@ struct _Preempt final {
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
+
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = SingleValue;
 
     template <typename Arg, typename K>
     auto k(K k) && {

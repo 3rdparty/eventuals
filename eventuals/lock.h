@@ -477,6 +477,11 @@ struct _Acquire final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = true;
+
+    using Expects = StreamOrValue;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, Arg>(std::move(k), lock_);
@@ -553,6 +558,11 @@ struct _Release final {
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
+
+    template <typename Downstream>
+    static constexpr bool CanCompose = true;
+
+    using Expects = StreamOrValue;
 
     template <typename Arg, typename K>
     auto k(K k) && {
@@ -786,6 +796,11 @@ struct _Wait final {
     auto k(K k) && {
       return Continuation<K, F_, Arg>(std::move(k), lock_, std::move(f_));
     }
+
+    template <typename Downstream>
+    static constexpr bool CanCompose = true;
+
+    using Expects = StreamOrValue;
 
     Lock* lock_;
     F_ f_;

@@ -132,6 +132,11 @@ struct _Reduce final {
           std::move(f_));
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = StreamOfValues;
+
     T_ t_;
     F_ f_;
   };

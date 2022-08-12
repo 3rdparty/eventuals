@@ -64,6 +64,11 @@ struct _Raise final {
       return Continuation<K, T_>{std::move(k), std::move(t_)};
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = SingleValue;
+
     T_ t_;
   };
 };

@@ -209,6 +209,11 @@ struct _Catch final {
             type_identity<Right>,
             std::enable_if<std::is_void_v<Right>, Left>>>::type;
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = SingleValue;
+
     template <typename Value, bool has_all, typename... CatchHandlers>
     static auto create(std::tuple<CatchHandlers...>&& catch_handlers) {
       return Builder<Value, has_all, CatchHandlers...>{

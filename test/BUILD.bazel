@@ -47,6 +47,7 @@ cc_test(
         "catch.cc",
         "closure.cc",
         "collect.cc",
+        "compose.cc",
         "conditional.cc",
         "control-loop.cc",
         "dns-resolver.cc",

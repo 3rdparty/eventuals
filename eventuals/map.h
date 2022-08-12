@@ -134,6 +134,11 @@ struct _Map final {
       }
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+    using Expects = StreamOfValues;
+
     E_ e_;
   };
 };

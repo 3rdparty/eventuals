@@ -340,6 +340,11 @@ struct _Stream final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+    using Expects = SingleValue;
+
     template <
         bool Interruptible,
         typename Value,

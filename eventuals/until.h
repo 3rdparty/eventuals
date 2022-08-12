@@ -99,6 +99,11 @@ struct _Until final {
             InvokeResult<Arg>,
             decltype(Just())>::template ErrorsFrom<void, std::tuple<>>>;
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+    using Expects = StreamOfValues;
+
     template <typename Arg, typename K>
     auto k(K k) && {
       return Continuation<K, F_, Arg>(std::move(k), std::move(f_));

@@ -173,6 +173,11 @@ struct _If final {
       return create(condition_, std::move(yes_), Then(std::move(no)));
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = SingleValue;
+
     bool condition_;
     YesE_ yes_;
     NoE_ no_;

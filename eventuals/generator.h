@@ -472,6 +472,11 @@ struct _Generator final {
           std::move(dispatch_));
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = true;
+
+    using Expects = SingleValue;
+
     std::conditional_t<
         std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
         Undefined,

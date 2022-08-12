@@ -449,6 +449,11 @@ struct _TaskFromToWith final {
           std::move(value_or_dispatch_.value()));
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+    using Expects = SingleValue;
+
     // See comment in `Continuation` for explanation of `dispatch_` member.
     // Using 'std::optional' because of implicitly deleted 'std::variant'
     // constructor.
@@ -520,6 +525,11 @@ class _Task final {
     : e_(std::move(that.e_.value_or_dispatch_), std::move(that.e_.args_)) {
     CHECK(!that.k_.has_value()) << "moving after starting";
   }
+
+  template <typename Downstream>
+  static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+  using Expects = SingleValue;
 
   _Task(_Task&& that) noexcept
     : e_(std::move(that.e_)) {

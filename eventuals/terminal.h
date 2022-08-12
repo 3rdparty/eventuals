@@ -153,6 +153,10 @@ struct _Terminal final {
           std::move(stop));
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = false;
+
+    using Expects = SingleValue;
 
     Context_ context_;
     Start_ start_;

@@ -91,6 +91,11 @@ struct _Range final {
       return Continuation<K, Arg>(std::move(k), from_, to_, step_);
     }
 
+    template <typename Downstream>
+    static constexpr bool CanCompose = Downstream::ExpectsStream;
+
+    using Expects = SingleValue;
+
     const int from_;
     const int to_;
     const int step_;

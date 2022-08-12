@@ -104,6 +104,11 @@ class expected : public tl::expected<Value_, Error_> {
 
   using tl::expected<Value_, Error_>::expected;
 
+  template <typename Downstream>
+  static constexpr bool CanCompose = Downstream::ExpectsValue;
+
+  using Expects = SingleValue;
+
   // Need explicit constructors for 'tl::expected', inherited
   // constructors are not sufficient.
   expected(const tl::expected<Value_, Error_>& that)
