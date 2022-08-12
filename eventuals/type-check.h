@@ -19,6 +19,11 @@ struct _TypeCheck {
   template <typename Arg, typename Errors>
   using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
+  template <typename Downstream>
+  static constexpr bool CanCompose = E_::template CanCompose<Downstream>;
+
+  using Expects = typename E_::Expects;
+
   template <typename Arg, typename K>
   auto k(K k) && {
     static_assert(
@@ -27,11 +32,6 @@ struct _TypeCheck {
 
     return std::move(e_).template k<Arg>(std::move(k));
   }
-
-  template <typename Downstream>
-  static constexpr bool CanCompose = true;
-
-  using Expects = StreamOrValue;
 
   E_ e_;
 };

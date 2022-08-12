@@ -477,6 +477,11 @@ struct _Acquire final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
+    // TODO(benh): nothing can actually compose with anything else
+    // because it depends one what gets composed with this. Alas, we
+    // need to change the way 'Reschedule()' works here to take the
+    // eventual that it wants to run so that we can properly check
+    // that things compose correctly.
     template <typename Downstream>
     static constexpr bool CanCompose = true;
 
@@ -559,6 +564,11 @@ struct _Release final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
+    // TODO(benh): nothing can actually compose with anything else
+    // because it depends one what gets composed with this. Alas, we
+    // need to change the way 'Reschedule()' works here to take the
+    // eventual that it wants to run so that we can properly check
+    // that things compose correctly.
     template <typename Downstream>
     static constexpr bool CanCompose = true;
 
@@ -792,15 +802,20 @@ struct _Wait final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
-    template <typename Arg, typename K>
-    auto k(K k) && {
-      return Continuation<K, F_, Arg>(std::move(k), lock_, std::move(f_));
-    }
-
+    // TODO(benh): nothing can actually compose with anything else
+    // because it depends one what gets composed with this. Alas, we
+    // need to change the way 'Reschedule()' works here to take the
+    // eventual that it wants to run so that we can properly check
+    // that things compose correctly.
     template <typename Downstream>
     static constexpr bool CanCompose = true;
 
     using Expects = StreamOrValue;
+
+    template <typename Arg, typename K>
+    auto k(K k) && {
+      return Continuation<K, F_, Arg>(std::move(k), lock_, std::move(f_));
+    }
 
     Lock* lock_;
     F_ f_;
@@ -828,15 +843,45 @@ template <typename F>
 
 ////////////////////////////////////////////////////////////////////////
 
+struct _Synchronized final {
+  template <typename E_>
+  struct Composable final {
+    // NOTE: declaring these here to use them to make type aliases.
+    Lock* lock_;
+    E_ e_;
+
+    using Composed_ =
+        decltype(Acquire(lock_) >> std::move(e_) >> Release(lock_));
+
+    template <typename Arg>
+    using ValueFrom = typename Composed_::template ValueFrom<Arg>;
+
+    template <typename Arg, typename Errors>
+    using ErrorsFrom = typename Composed_::template ErrorsFrom<Arg, Errors>;
+
+    template <typename Downstream>
+    static constexpr bool CanCompose = E_::template CanCompose<Downstream>;
+
+    using Expects = typename E_::Expects;
+
+    template <typename Arg, typename K>
+    auto k(K k) && {
+      return Build<Arg>(
+          Acquire(lock_) >> std::move(e_) >> Release(lock_),
+          std::move(k));
+    }
+  };
+};
+
+////////////////////////////////////////////////////////////////////////
+
 class Synchronizable {
  public:
   virtual ~Synchronizable() = default;
 
   template <typename E>
   [[nodiscard]] auto Synchronized(E e) {
-    return Acquire(&lock_)
-        >> std::move(e)
-        >> Release(&lock_);
+    return _Synchronized::Composable<E>{&lock_, std::move(e)};
   }
 
   template <typename F>

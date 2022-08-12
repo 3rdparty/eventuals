@@ -535,7 +535,7 @@ struct _StaticThreadPoolSchedule final {
     }
 
     template <typename Downstream>
-    static constexpr bool CanCompose = true;
+    static constexpr bool CanCompose = E_::template CanCompose<Downstream>;
 
     using Expects = StreamOrValue;
 

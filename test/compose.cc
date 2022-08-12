@@ -24,6 +24,7 @@
 #include "eventuals/raise.h"
 #include "eventuals/range.h"
 #include "eventuals/reduce.h"
+#include "eventuals/static-thread-pool.h"
 #include "eventuals/stream.h"
 #include "eventuals/take.h"
 #include "eventuals/until.h"
@@ -271,7 +272,10 @@ TEST(CanCompose, Generator) {
       CanCompose<decltype(gen()), decltype(collect)>);
 
   static_assert(
-      CanCompose<decltype(gen()), decltype(then)>);
+      !CanCompose<decltype(gen()), decltype(then)>);
+
+  static_assert(
+      CanCompose<decltype(collect), decltype(then)>);
 }
 
 TEST(CanCompose, Head) {
@@ -396,6 +400,43 @@ TEST(CanCompose, Take) {
 
   static_assert(
       !CanCompose<decltype(take2), decltype(then)>);
+}
+
+TEST(CanCompose, Schedule) {
+  class Actor : public StaticThreadPool::Schedulable {
+   public:
+    Actor()
+      : StaticThreadPool::Schedulable(Pinned::Any()) {}
+
+    auto Function() {
+      return Repeat()
+          >> Schedule(Map([]() {}));
+    }
+  };
+
+  Actor actor;
+
+  auto then = Then([]() {});
+
+  static_assert(
+      !CanCompose<decltype(actor.Function()), decltype(then)>);
+}
+
+TEST(CanCompose, Synchronized) {
+  class Object : public Synchronizable {
+   public:
+    auto Function() {
+      return Repeat()
+          >> Synchronized(Map([]() {}));
+    }
+  };
+
+  Object object;
+
+  auto then = Then([]() {});
+
+  static_assert(
+      !CanCompose<decltype(object.Function()), decltype(then)>);
 }
 
 ////////////////////////////////////////////////////////////////////////

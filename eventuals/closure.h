@@ -89,9 +89,9 @@ struct _Closure final {
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
 
     template <typename Downstream>
-    static constexpr bool CanCompose = true;
+    static constexpr bool CanCompose = E_::template CanCompose<Downstream>;
 
-    using Expects = StreamOrValue;
+    using Expects = typename E_::Expects;
 
     template <typename Arg, typename K>
     auto k(K k) && {
