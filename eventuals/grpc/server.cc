@@ -42,9 +42,9 @@ auto Server::RequestCall(
             context->context(),
             context->stream(),
             // TODO(benh): use completion queue from
-            // CompletionPool for each call rather than the
-            // notification completion queue that we are using
-            // for server notifications?
+            // CompletionThreadPool for each call rather than the
+            // notification completion queue that we are using for
+            // server notifications?
             cq,
             cq,
             &callback);

@@ -48,7 +48,7 @@ TEST(DeadlineTest, DeadlineExceeded) {
 
   k.Start();
 
-  Borrowable<CompletionPool> pool;
+  Borrowable<CompletionThreadPool> pool;
 
   Client client(
       "0.0.0.0:" + std::to_string(port),

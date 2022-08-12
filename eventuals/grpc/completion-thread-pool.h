@@ -14,9 +14,9 @@ namespace grpc {
 
 ////////////////////////////////////////////////////////////////////////
 
-class CompletionPool {
+class CompletionThreadPool {
  public:
-  CompletionPool() {
+  CompletionThreadPool() {
     unsigned int threads = std::thread::hardware_concurrency();
     threads_.reserve(threads);
     cqs_.reserve(threads);
@@ -33,7 +33,7 @@ class CompletionPool {
     }
   }
 
-  ~CompletionPool() {
+  ~CompletionThreadPool() {
     Shutdown();
     Wait();
   }

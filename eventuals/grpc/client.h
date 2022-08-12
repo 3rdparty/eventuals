@@ -2,7 +2,7 @@
 
 #include "eventuals/callback.h"
 #include "eventuals/eventual.h"
-#include "eventuals/grpc/completion-pool.h"
+#include "eventuals/grpc/completion-thread-pool.h"
 #include "eventuals/grpc/logging.h"
 #include "eventuals/grpc/traits.h"
 #include "eventuals/lazy.h"
@@ -301,13 +301,13 @@ class Client {
   explicit Client(
       const std::string& target,
       const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
-      stout::borrowed_ref<CompletionPool> pool)
+      stout::borrowed_ref<CompletionThreadPool> pool)
     : channel_(::grpc::CreateChannel(target, credentials)),
       pool_(std::move(pool)) {}
 
   explicit Client(
       std::shared_ptr<::grpc::Channel> channel,
-      stout::borrowed_ref<CompletionPool> pool)
+      stout::borrowed_ref<CompletionThreadPool> pool)
     : channel_(std::move(channel)),
       pool_(std::move(pool)) {}
 
@@ -492,7 +492,7 @@ class Client {
 
  private:
   std::shared_ptr<::grpc::Channel> channel_;
-  stout::borrowed_ref<CompletionPool> pool_;
+  stout::borrowed_ref<CompletionThreadPool> pool_;
 };
 
 ////////////////////////////////////////////////////////////////////////
