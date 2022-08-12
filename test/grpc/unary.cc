@@ -20,8 +20,9 @@ using helloworld::HelloRequest;
 using stout::Borrowable;
 
 void TestUnaryWithClient(
-    const std::function<Client(Borrowable<CompletionPool>&&, int)>&
-        client_factory) {
+    const std::function<Client(
+        stout::borrowed_ref<CompletionThreadPool>&&,
+        int)>& client_factory) {
   ServerBuilder builder;
 
   int port = 0;
@@ -59,8 +60,9 @@ void TestUnaryWithClient(
 
   k.Start();
 
-  Borrowable<CompletionPool> pool;
-  Client client = client_factory(std::move(pool), port);
+  Borrowable<CompletionThreadPool> pool;
+
+  Client client = client_factory(pool.Borrow(), port);
 
   auto call = [&]() {
     return client.Call<Greeter, HelloRequest, HelloReply>("SayHello")
@@ -92,24 +94,26 @@ void TestUnaryWithClient(
 }
 
 TEST(UnaryTest, SuccessWithDefaultChannel) {
-  TestUnaryWithClient([](Borrowable<CompletionPool>&& pool, const int port) {
-    // Have the client construct its own channel.
-    return Client(
-        "0.0.0.0:" + std::to_string(port),
-        ::grpc::InsecureChannelCredentials(),
-        pool.Borrow());
-  });
+  TestUnaryWithClient(
+      [](stout::borrowed_ref<CompletionThreadPool>&& pool, const int port) {
+        // Have the client construct its own channel.
+        return Client(
+            "0.0.0.0:" + std::to_string(port),
+            ::grpc::InsecureChannelCredentials(),
+            std::move(pool));
+      });
 }
 
 TEST(UnaryTest, SuccessWithCustomChannel) {
-  TestUnaryWithClient([](Borrowable<CompletionPool>&& pool, const int port) {
-    // Have the client use a channel that we've constructed ourselves.
-    std::shared_ptr<::grpc::Channel> channel =
-        ::grpc::CreateChannel(
-            "0.0.0.0:" + std::to_string(port),
-            ::grpc::InsecureChannelCredentials());
-    return Client(channel, pool.Borrow());
-  });
+  TestUnaryWithClient(
+      [](stout::borrowed_ref<CompletionThreadPool>&& pool, const int port) {
+        // Have the client use a channel that we've constructed ourselves.
+        std::shared_ptr<::grpc::Channel> channel =
+            ::grpc::CreateChannel(
+                "0.0.0.0:" + std::to_string(port),
+                ::grpc::InsecureChannelCredentials());
+        return Client(channel, std::move(pool));
+      });
 }
 
 } // namespace

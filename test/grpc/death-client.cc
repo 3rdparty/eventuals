@@ -14,7 +14,7 @@ using helloworld::HelloRequest;
 using stout::Borrowable;
 
 void RunClient(const int port) {
-  Borrowable<CompletionPool> pool;
+  Borrowable<CompletionThreadPool> pool;
 
   Client client(
       "0.0.0.0:" + std::to_string(port),

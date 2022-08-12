@@ -89,7 +89,7 @@ void test_client_behavior(Handler handler) {
 
   k.Start();
 
-  Borrowable<CompletionPool> pool;
+  Borrowable<CompletionThreadPool> pool;
 
   Client client(
       "0.0.0.0:" + std::to_string(port),
