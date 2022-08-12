@@ -21,7 +21,7 @@ using stout::Borrowable;
 
 void TestUnaryWithClient(
     const std::function<Client(
-        stout::borrowed_ref<CompletionThreadPool>&&,
+        stout::borrowed_ref<ClientCompletionThreadPool>&&,
         int)>& client_factory) {
   ServerBuilder builder;
 
@@ -60,7 +60,7 @@ void TestUnaryWithClient(
 
   k.Start();
 
-  Borrowable<CompletionThreadPool> pool;
+  Borrowable<ClientCompletionThreadPool> pool;
 
   Client client = client_factory(pool.Borrow(), port);
 
@@ -95,7 +95,7 @@ void TestUnaryWithClient(
 
 TEST(UnaryTest, SuccessWithDefaultChannel) {
   TestUnaryWithClient(
-      [](stout::borrowed_ref<CompletionThreadPool>&& pool, const int port) {
+      [](stout::borrowed_ref<ClientCompletionThreadPool>&& pool, int port) {
         // Have the client construct its own channel.
         return Client(
             "0.0.0.0:" + std::to_string(port),
@@ -106,7 +106,7 @@ TEST(UnaryTest, SuccessWithDefaultChannel) {
 
 TEST(UnaryTest, SuccessWithCustomChannel) {
   TestUnaryWithClient(
-      [](stout::borrowed_ref<CompletionThreadPool>&& pool, const int port) {
+      [](stout::borrowed_ref<ClientCompletionThreadPool>&& pool, int port) {
         // Have the client use a channel that we've constructed ourselves.
         std::shared_ptr<::grpc::Channel> channel =
             ::grpc::CreateChannel(

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cassert>
+#include <deque>
 #include <thread>
 
 #include "eventuals/callback.h"
@@ -14,35 +14,66 @@ namespace grpc {
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename CompletionQueue>
 class CompletionThreadPool {
  public:
-  CompletionThreadPool() {
-    unsigned int threads = std::thread::hardware_concurrency();
-    threads_.reserve(threads);
-    cqs_.reserve(threads);
-    for (size_t i = 0; i < threads; i++) {
-      cqs_.emplace_back(new stout::Borrowable<::grpc::CompletionQueue>());
-      threads_.emplace_back(
-          [cq = cqs_.back()->get()]() {
-            void* tag = nullptr;
-            bool ok = false;
-            while (cq->Next(&tag, &ok)) {
-              (*static_cast<Callback<void(bool)>*>(tag))(ok);
-            }
-          });
+  virtual ~CompletionThreadPool() = default;
+
+  virtual size_t NumberOfCompletionQueues() = 0;
+
+  virtual stout::borrowed_ref<CompletionQueue> Schedule() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+// TODO(benh): 'DynamicCompletionThreadPool' which takes both a
+// minimum and a maximum number of polling threads per completion
+// queue.
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename CompletionQueue>
+class StaticCompletionThreadPool
+  : public CompletionThreadPool<CompletionQueue> {
+ public:
+  StaticCompletionThreadPool(
+      std::vector<std::unique_ptr<CompletionQueue>>&& cqs,
+      unsigned int number_of_polling_threads_per_completion_queue = 1) {
+    threads_.reserve(
+        cqs.size() * number_of_polling_threads_per_completion_queue);
+    for (std::unique_ptr<CompletionQueue>& cq : cqs) {
+      cqs_.emplace_back(std::move(cq));
+      for (size_t i = 0;
+           i < number_of_polling_threads_per_completion_queue;
+           ++i) {
+        threads_.emplace_back(
+            [cq = cqs_.back().get()]() {
+              void* tag = nullptr;
+              bool ok = false;
+              while (cq->Next(&tag, &ok)) {
+                (*static_cast<Callback<void(bool)>*>(tag))(ok);
+              }
+            });
+      }
     }
   }
 
-  ~CompletionThreadPool() {
+  StaticCompletionThreadPool(
+      unsigned int number_of_completion_queues =
+          std::thread::hardware_concurrency(),
+      unsigned int number_of_polling_threads_per_completion_queue = 1);
+
+  StaticCompletionThreadPool(StaticCompletionThreadPool&& that) = default;
+
+  ~StaticCompletionThreadPool() override {
     Shutdown();
     Wait();
   }
 
   void Shutdown() {
     if (!shutdown_) {
-      for (std::unique_ptr<stout::Borrowable<::grpc::CompletionQueue>>&
-               cq : cqs_) {
-        cq->get()->Shutdown();
+      for (stout::Borrowable<std::unique_ptr<CompletionQueue>>& cq : cqs_) {
+        cq->Shutdown();
       }
       shutdown_ = true;
     }
@@ -56,27 +87,31 @@ class CompletionThreadPool {
 
       threads_.pop_back();
 
-      std::unique_ptr<stout::Borrowable<::grpc::CompletionQueue>>& cq =
-          cqs_.back();
+      stout::Borrowable<std::unique_ptr<CompletionQueue>>& cq = cqs_.back();
 
       void* tag = nullptr;
       bool ok = false;
-      while (cq->get()->Next(&tag, &ok)) {}
+      while (cq->Next(&tag, &ok)) {}
 
       cqs_.pop_back();
     }
   }
 
-  stout::borrowed_ptr<::grpc::CompletionQueue> Schedule() {
+  size_t NumberOfCompletionQueues() override {
+    return cqs_.size();
+  }
+
+  stout::borrowed_ref<CompletionQueue> Schedule() override {
     // TODO(benh): provide alternative "scheduling" algorithms in
-    // addition to "least loaded", e.g., round-robin, random.
-    stout::Borrowable<::grpc::CompletionQueue>* selected = nullptr;
+    // addition to "least loaded", e.g., round-robin, random, but
+    // careful not to break anyone that currently assumes the "least
+    // laoded" semantics!
+    stout::Borrowable<std::unique_ptr<CompletionQueue>>* selected = nullptr;
     size_t load = SIZE_MAX;
-    for (std::unique_ptr<stout::Borrowable<::grpc::CompletionQueue>>&
-             cq : cqs_) {
-      size_t borrows = cq->borrows();
+    for (stout::Borrowable<std::unique_ptr<CompletionQueue>>& cq : cqs_) {
+      size_t borrows = cq.borrows();
       if (borrows < load) {
-        selected = cq.get();
+        selected = &cq;
         load = borrows;
       }
     }
@@ -85,12 +120,48 @@ class CompletionThreadPool {
   }
 
  private:
-  std::vector<std::unique_ptr<stout::Borrowable<::grpc::CompletionQueue>>> cqs_;
+  std::deque<stout::Borrowable<std::unique_ptr<CompletionQueue>>> cqs_;
 
   std::vector<std::thread> threads_;
 
   bool shutdown_ = false;
 };
+
+////////////////////////////////////////////////////////////////////////
+
+template <>
+inline StaticCompletionThreadPool<::grpc::CompletionQueue>::
+    StaticCompletionThreadPool(
+        unsigned int number_of_completion_queues,
+        unsigned int number_of_polling_threads_per_completion_queue)
+  : StaticCompletionThreadPool(
+      [&number_of_completion_queues]() {
+        std::vector<std::unique_ptr<::grpc::CompletionQueue>> cqs;
+        for (size_t i = 0; i < number_of_completion_queues; i++) {
+          cqs.emplace_back(std::make_unique<::grpc::CompletionQueue>());
+        }
+        return cqs;
+      }(),
+      number_of_polling_threads_per_completion_queue) {}
+
+////////////////////////////////////////////////////////////////////////
+
+// '::grpc::ServerCompletionQueue' is not public!
+template <>
+StaticCompletionThreadPool<::grpc::ServerCompletionQueue>::
+    StaticCompletionThreadPool(
+        unsigned int number_of_completion_queues,
+        unsigned int number_of_polling_threads_per_completion_queue) = delete;
+
+////////////////////////////////////////////////////////////////////////
+
+using ClientCompletionThreadPool =
+    StaticCompletionThreadPool<::grpc::CompletionQueue>;
+
+////////////////////////////////////////////////////////////////////////
+
+using ServerCompletionThreadPool =
+    StaticCompletionThreadPool<::grpc::ServerCompletionQueue>;
 
 ////////////////////////////////////////////////////////////////////////
 

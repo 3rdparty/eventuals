@@ -19,7 +19,7 @@ using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(ServerUnavailableTest, NonexistantServer) {
-  Borrowable<CompletionThreadPool> pool;
+  Borrowable<ClientCompletionThreadPool> pool;
 
   // NOTE: we use 'getpid()' to create a _unique_ UNIX domain socket
   // path that should never have a server listening on for this test.

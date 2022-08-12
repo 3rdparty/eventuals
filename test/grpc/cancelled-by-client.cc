@@ -47,7 +47,7 @@ TEST(CancelledByClientTest, Cancelled) {
 
   k.Start();
 
-  Borrowable<CompletionThreadPool> pool;
+  Borrowable<ClientCompletionThreadPool> pool;
 
   Client client(
       "0.0.0.0:" + std::to_string(port),

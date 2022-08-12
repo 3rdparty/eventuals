@@ -33,7 +33,7 @@ TEST(UnimplementedTest, ClientCallsUnimplementedServerMethod) {
 
   ASSERT_TRUE(server);
 
-  Borrowable<CompletionThreadPool> pool;
+  Borrowable<ClientCompletionThreadPool> pool;
 
   Client client(
       "0.0.0.0:" + std::to_string(port),
