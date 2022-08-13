@@ -101,7 +101,13 @@ Server::Server(
     std::vector<Service*>&& services,
     std::unique_ptr<::grpc::AsyncGenericService>&& service,
     std::unique_ptr<::grpc::Server>&& server,
-    ServerCompletionThreadPool&& pool)
+    std::variant<
+        stout::borrowed_ref<
+            CompletionThreadPool<
+                ::grpc::ServerCompletionQueue>>,
+        std::unique_ptr<
+            CompletionThreadPool<
+                ::grpc::ServerCompletionQueue>>>&& pool)
   : pool_(std::move(pool)),
     service_(std::move(service)),
     server_(std::move(server)) {
@@ -143,9 +149,9 @@ Server::Server(
         });
   }
 
-  workers_.reserve(pool_.NumberOfCompletionQueues());
+  workers_.reserve(this->pool().NumberOfCompletionQueues());
 
-  for (size_t i = 0; i < pool_.NumberOfCompletionQueues(); ++i) {
+  for (size_t i = 0; i < this->pool().NumberOfCompletionQueues(); ++i) {
     auto& worker = workers_.emplace_back(std::make_unique<Worker>());
 
     // NOTE: we're currently relying on the fact that a
@@ -153,7 +159,8 @@ Server::Server(
     // in a "least loaded" way which will ensure that we have at least
     // one worker per completion queue below which is imperative
     // otherwise we may fail to accept RPCs!
-    stout::borrowed_ref<::grpc::ServerCompletionQueue> cq = pool_.Schedule();
+    stout::borrowed_ref<::grpc::ServerCompletionQueue> cq =
+        this->pool().Schedule();
 
     worker->task.emplace(
         cq.reborrow(),
@@ -251,8 +258,6 @@ void Server::Wait() {
       }
     }
 
-    workers_.clear();
-
     // Now wait for the serve tasks to be done (note that like workers
     // ordering is not important since these are each independent).
     for (std::unique_ptr<Serve>& serve : serves_) {
@@ -261,19 +266,17 @@ void Server::Wait() {
       }
     }
 
-    serves_.clear();
-
-    // We shutdown the completion queues _after_ all 'workers_' and
-    // 'serves_' have completed because if they try to use the
-    // completion queues after they're shutdown that may cause
+    // We can't shutdown the completion thread pool until _after_ all
+    // 'workers_' and 'serves_' have completed because if they try to
+    // use the completion queues after they're shutdown that may cause
     // internal grpc assertions to fire (which makes sense, we called
-    // shutdown on them and then tried to use them).
+    // shutdown on them and then tried to use them). This is currently
+    // accomplished when 'pool_' gets destructed, or at some later
+    // point in time if 'pool_' was borrowed.
     //
     // NOTE: it's unclear if we need to shutdown the completion queues
-    // before we wait on the server but at least emperically it
+    // _before_ we destruct the server but at least emperically it
     // appears that it doesn't matter.
-    pool_.Shutdown();
-    pool_.Wait();
 
     // NOTE: gRPC doesn't want us calling 'Wait()' more than once (as
     // in, it causes an abort) presumably because it has already
@@ -290,8 +293,36 @@ void Server::Wait() {
 
 ////////////////////////////////////////////////////////////////////////
 
+CompletionThreadPool<::grpc::ServerCompletionQueue>& Server::pool() {
+  return std::visit(
+      [](auto& pool) -> CompletionThreadPool<::grpc::ServerCompletionQueue>& {
+        return *pool;
+      },
+      pool_);
+}
+
+////////////////////////////////////////////////////////////////////////
+
+ServerBuilder& ServerBuilder::SetCompletionThreadPool(
+    stout::borrowed_ref<
+        CompletionThreadPool<::grpc::ServerCompletionQueue>>&& pool) {
+  if (completion_thread_pool_) {
+    std::string error = "already set completion thread pool";
+    if (!status_.ok()) {
+      status_ = ServerStatus::Error(status_.error() + "; " + error);
+    } else {
+      status_ = ServerStatus::Error(error);
+    }
+  } else {
+    completion_thread_pool_.emplace(std::move(pool));
+  }
+  return *this;
+}
+
+////////////////////////////////////////////////////////////////////////
+
 ServerBuilder& ServerBuilder::SetNumberOfCompletionQueues(size_t n) {
-  if (numberOfCompletionQueues_) {
+  if (number_of_completion_queues_) {
     std::string error = "already set number of completion queues";
     if (!status_.ok()) {
       status_ = ServerStatus::Error(status_.error() + "; " + error);
@@ -299,7 +330,7 @@ ServerBuilder& ServerBuilder::SetNumberOfCompletionQueues(size_t n) {
       status_ = ServerStatus::Error(error);
     }
   } else {
-    numberOfCompletionQueues_ = n;
+    number_of_completion_queues_ = n;
   }
   return *this;
 }
@@ -308,7 +339,7 @@ ServerBuilder& ServerBuilder::SetNumberOfCompletionQueues(size_t n) {
 
 // TODO(benh): Provide a 'setMaximumThreadsPerCompletionQueue' as well.
 ServerBuilder& ServerBuilder::SetMinimumThreadsPerCompletionQueue(size_t n) {
-  if (minimumThreadsPerCompletionQueue_) {
+  if (minimum_threads_per_completion_queue_) {
     std::string error = "already set minimum threads per completion queue";
     if (!status_.ok()) {
       status_ = ServerStatus::Error(status_.error() + "; " + error);
@@ -316,7 +347,7 @@ ServerBuilder& ServerBuilder::SetMinimumThreadsPerCompletionQueue(size_t n) {
       status_ = ServerStatus::Error(error);
     }
   } else {
-    minimumThreadsPerCompletionQueue_ = n;
+    minimum_threads_per_completion_queue_ = n;
   }
   return *this;
 }
@@ -377,18 +408,32 @@ ServerStatusOrServer ServerBuilder::BuildAndStart() {
 
   builder_.RegisterAsyncGenericService(service.get());
 
-  if (!numberOfCompletionQueues_) {
-    numberOfCompletionQueues_ = 1;
+  if (!number_of_completion_queues_) {
+    if (!completion_thread_pool_) {
+      number_of_completion_queues_ = std::thread::hardware_concurrency();
+    } else {
+      return ServerStatusOrServer{
+          ServerStatus::Error(
+              "if you 'SetCompletionThreadPool()' you must also "
+              "'SetNumberOfCompletionQueues()'"),
+          nullptr};
+    }
   }
 
-  if (!minimumThreadsPerCompletionQueue_) {
-    minimumThreadsPerCompletionQueue_ = 1;
+  if (completion_thread_pool_ && minimum_threads_per_completion_queue_) {
+    return ServerStatusOrServer{
+        ServerStatus::Error(
+            "you can't 'SetCompletionThreadPool()' and "
+            "'SetMinimumThreadsPerCompletionQueue()'"),
+        nullptr};
   }
 
   std::vector<std::unique_ptr<::grpc::ServerCompletionQueue>> cqs;
 
-  for (size_t i = 0; i < numberOfCompletionQueues_.value(); ++i) {
-    cqs.push_back(builder_.AddCompletionQueue());
+  cqs.reserve(number_of_completion_queues_.value());
+
+  for (size_t i = 0; i < number_of_completion_queues_.value(); ++i) {
+    cqs.emplace_back(builder_.AddCompletionQueue());
   }
 
   std::unique_ptr<::grpc::Server> server = builder_.BuildAndStart();
@@ -403,9 +448,18 @@ ServerStatusOrServer ServerBuilder::BuildAndStart() {
     // NOTE: we wait to create the completion thread pool until after
     // a successful 'BuildAndStart()' so that we don't have to bother
     // with starting and the possibley stopping/joining threads.
-    ServerCompletionThreadPool pool(
-        std::move(cqs),
-        minimumThreadsPerCompletionQueue_.value());
+    auto pool = [&]() -> BorrowedOrOwnedCompletionThreadPool {
+      if (completion_thread_pool_) {
+        for (std::unique_ptr<::grpc::ServerCompletionQueue>& cq : cqs) {
+          completion_thread_pool_.value()->AddCompletionQueue(std::move(cq));
+        }
+        return std::move(completion_thread_pool_.value());
+      } else {
+        return std::make_unique<ServerCompletionThreadPool>(
+            std::move(cqs),
+            minimum_threads_per_completion_queue_.value_or(1));
+      }
+    }();
 
     return ServerStatusOrServer{
         ServerStatus::Ok(),

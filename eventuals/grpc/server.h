@@ -4,6 +4,7 @@
 #include <deque>
 #include <string_view>
 #include <thread>
+#include <variant>
 
 #include "absl/container/flat_hash_map.h"
 #include "eventuals/catch.h"
@@ -517,6 +518,25 @@ inline std::ostream& operator<<(std::ostream& os, const ServerStatus& s) {
 
 ////////////////////////////////////////////////////////////////////////
 
+// Type alias for the variant of completion thread pool that a
+// 'Server' holds.
+//
+// 'Server' will either hold a borrowed reference to a completion
+// thread pool that was set via
+// 'ServerBuilder::SetCompletionThreadPool()' or 'ServerBuilder' will
+// create a completion thread pool to make life easy for users and
+// 'Server' will own it.
+using BorrowedOrOwnedCompletionThreadPool =
+    std::variant<
+        stout::borrowed_ref<
+            CompletionThreadPool<
+                ::grpc::ServerCompletionQueue>>,
+        std::unique_ptr<
+            CompletionThreadPool<
+                ::grpc::ServerCompletionQueue>>>;
+
+////////////////////////////////////////////////////////////////////////
+
 class Server : public Synchronizable {
  public:
   ~Server();
@@ -538,7 +558,7 @@ class Server : public Synchronizable {
       std::vector<Service*>&& services,
       std::unique_ptr<::grpc::AsyncGenericService>&& service,
       std::unique_ptr<::grpc::Server>&& server,
-      ServerCompletionThreadPool&& pool);
+      BorrowedOrOwnedCompletionThreadPool&& pool);
 
   template <typename Request, typename Response>
   [[nodiscard]] auto Validate(const std::string& name);
@@ -555,7 +575,9 @@ class Server : public Synchronizable {
 
   [[nodiscard]] auto Unimplemented(ServerContext* context);
 
-  ServerCompletionThreadPool pool_;
+  CompletionThreadPool<::grpc::ServerCompletionQueue>& pool();
+
+  BorrowedOrOwnedCompletionThreadPool pool_;
 
   std::unique_ptr<::grpc::AsyncGenericService> service_;
   std::unique_ptr<::grpc::Server> server_;
@@ -595,6 +617,10 @@ struct ServerStatusOrServer {
 
 class ServerBuilder {
  public:
+  ServerBuilder& SetCompletionThreadPool(
+      stout::borrowed_ref<
+          CompletionThreadPool<::grpc::ServerCompletionQueue>>&& pool);
+
   ServerBuilder& SetNumberOfCompletionQueues(size_t n);
 
   // TODO(benh): Provide a 'setMaximumThreadsPerCompletionQueue' as well.
@@ -618,8 +644,12 @@ class ServerBuilder {
   // https://grpc.github.io/grpc/cpp/classgrpc_1_1_server_builder.html
  private:
   ServerStatus status_ = ServerStatus::Ok();
-  std::optional<size_t> numberOfCompletionQueues_;
-  std::optional<size_t> minimumThreadsPerCompletionQueue_;
+  std::optional<
+      stout::borrowed_ref<
+          CompletionThreadPool<::grpc::ServerCompletionQueue>>>
+      completion_thread_pool_;
+  std::optional<size_t> number_of_completion_queues_;
+  std::optional<size_t> minimum_threads_per_completion_queue_;
   std::vector<std::string> addresses_;
   std::vector<Service*> services_;
 
