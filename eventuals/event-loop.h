@@ -11,6 +11,7 @@
 #include <string>
 #include <tuple>
 
+#include "asio.hpp"
 #include "eventuals/callback.h"
 #include "eventuals/closure.h"
 #include "eventuals/lazy.h"
@@ -247,7 +248,8 @@ class EventLoop final : public Scheduler {
                         error_ = uv_timer_start(
                             timer(),
                             [](uv_timer_t* timer) {
-                              auto& continuation = *(Continuation*) timer->data;
+                              auto& continuation =
+                                  *(Continuation*) timer->data;
                               CHECK_EQ(timer, continuation.timer());
                               CHECK_EQ(
                                   &continuation,
@@ -266,8 +268,10 @@ class EventLoop final : public Scheduler {
                                       if (!continuation.error_) {
                                         continuation.k_.Start();
                                       } else {
-                                        continuation.k_.Fail(std::runtime_error(
-                                            uv_strerror(continuation.error_)));
+                                        continuation.k_.Fail(
+                                            std::runtime_error(
+                                                uv_strerror(
+                                                    continuation.error_)));
                                       }
                                     });
                               }
@@ -487,7 +491,15 @@ class EventLoop final : public Scheduler {
       in_event_loop_ = false;
 
       status = future.wait_for(std::chrono::nanoseconds::zero());
-    } while (status != std::future_status::ready || waiters_.load() != nullptr);
+    } while (
+        status != std::future_status::ready
+        || waiters_.load() != nullptr);
+  }
+
+  template <typename T, typename... Ts>
+  void RunUntil(std::future<T>& future, std::future<Ts...>& futures) {
+    RunUntil(future);
+    RunUntil(futures);
   }
 
   void RunWhileWaiters() {
@@ -522,10 +534,6 @@ class EventLoop final : public Scheduler {
   template <typename E>
   [[nodiscard]] auto Schedule(std::string&& name, E e);
 
-  bool Alive() {
-    return uv_loop_alive(&loop_);
-  }
-
   bool Running() {
     return running_.load();
   }
@@ -536,6 +544,10 @@ class EventLoop final : public Scheduler {
 
   operator uv_loop_t*() {
     return &loop_;
+  }
+
+  asio::io_context& io_context() {
+    return io_context_;
   }
 
   Clock& clock() {
@@ -859,7 +871,8 @@ class EventLoop final : public Scheduler {
                         CHECK(!continuation.error_);
                         continuation.error_ = uv_poll_stop(poll);
                         if (status == 0 && !continuation.error_) {
-                          continuation.k_.Body(static_cast<PollEvents>(events));
+                          continuation.k_.Body(
+                              static_cast<PollEvents>(events));
                         } else {
                           continuation.completed_ = true;
                           if (!continuation.error_) {
@@ -1060,9 +1073,13 @@ class EventLoop final : public Scheduler {
 
   void Check();
 
+  void AsioPoll();
+
   uv_loop_t loop_ = {};
   uv_check_t check_ = {};
   uv_async_t async_ = {};
+
+  asio::io_context io_context_;
 
   std::atomic<bool> running_ = false;
 
@@ -1278,7 +1295,10 @@ template <typename E>
 ////////////////////////////////////////////////////////////////////////
 template <typename E>
 [[nodiscard]] auto EventLoop::Schedule(std::string&& name, E e) {
-  return _EventLoopSchedule::Composable<E>{std::move(e), this, std::move(name)};
+  return _EventLoopSchedule::Composable<E>{
+      std::move(e),
+      this,
+      std::move(name)};
 }
 
 ////////////////////////////////////////////////////////////////////////
