@@ -301,13 +301,13 @@ class Client {
   explicit Client(
       const std::string& target,
       const std::shared_ptr<::grpc::ChannelCredentials>& credentials,
-      stout::borrowed_ref<ClientCompletionThreadPool> pool)
+      stout::borrowed_ref<CompletionThreadPool<::grpc::CompletionQueue>>&& pool)
     : channel_(::grpc::CreateChannel(target, credentials)),
       pool_(std::move(pool)) {}
 
   explicit Client(
       std::shared_ptr<::grpc::Channel> channel,
-      stout::borrowed_ref<ClientCompletionThreadPool> pool)
+      stout::borrowed_ref<CompletionThreadPool<::grpc::CompletionQueue>>&& pool)
     : channel_(std::move(channel)),
       pool_(std::move(pool)) {}
 
@@ -492,7 +492,7 @@ class Client {
 
  private:
   std::shared_ptr<::grpc::Channel> channel_;
-  stout::borrowed_ref<ClientCompletionThreadPool> pool_;
+  stout::borrowed_ref<CompletionThreadPool<::grpc::CompletionQueue>> pool_;
 };
 
 ////////////////////////////////////////////////////////////////////////
