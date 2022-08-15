@@ -55,7 +55,7 @@ TEST_F(SignalTest, SignalComposition) {
       },
       context);
 
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
 
   EXPECT_EQ(future.get(), "quit");
 }
@@ -80,7 +80,7 @@ TEST_F(SignalTest, WaitForSignal) {
       },
       context);
 
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
 
   EXPECT_EQ(future.get(), SIGQUIT);
 }
@@ -99,7 +99,7 @@ TEST_F(SignalTest, SignalInterrupt) {
 
   interrupt.Trigger();
 
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }

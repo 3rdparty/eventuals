@@ -54,9 +54,10 @@ void EventLoop::Clock::Resume() {
 
   paused_.reset();
 
-  // Now run the event loop in the event any waiters were enqueued and
-  // should be invoked due to the clock having been resumed.
-  loop_.RunWhileWaiters();
+  // Now interrupt the event loop in the event any waiters were
+  // enqueued and should be invoked due to the clock having been
+  // resumed.
+  loop_.Interrupt();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -82,9 +83,10 @@ void EventLoop::Clock::Advance(const std::chrono::nanoseconds& nanoseconds) {
           }),
       pending_.end());
 
-  // Now run the event loop in the event any waiters were enqueued and
-  // should be invoked due to the clock having been advanced.
-  loop_.RunWhileWaiters();
+  // Now interrupt the event loop in the event any waiters were
+  // enqueued and should be invoked due to the clock having been
+  // advanced.
+  loop_.Interrupt();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -104,8 +106,7 @@ EventLoop& EventLoop::Default() {
         << "*  A default event loop has not yet been constructed!          *\n"
         << "*                                                              *\n"
         << "*  If you're seeing this message it probably means you forgot  *\n"
-        << "*  to do 'EventLoop::ConstructDefault()' or possibly           *\n"
-        << "*  'EventLoop::ConstructDefaultAndRunForeverDetached()'.       *\n"
+        << "*  to do 'EventLoop::ConstructDefault()'.                      *\n"
         << "*                                                              *\n"
         << "*  If you're seeing this message coming from a test it means   *\n"
         << "*  you forgot to inherit from 'EventLoopTest'.                 *\n"
@@ -144,18 +145,6 @@ bool EventLoop::HasDefault() {
 
 ////////////////////////////////////////////////////////////////////////
 
-void EventLoop::ConstructDefaultAndRunForeverDetached() {
-  ConstructDefault();
-
-  std::thread thread([]() {
-    EventLoop::Default().RunForever();
-  });
-
-  thread.detach();
-}
-
-////////////////////////////////////////////////////////////////////////
-
 EventLoop::EventLoop()
   : clock_(*this) {
   uv_loop_init(&loop_);
@@ -163,11 +152,7 @@ EventLoop::EventLoop()
   // NOTE: we use 'uv_check_t' instead of 'uv_prepare_t' because it
   // runs after the event loop has performed all of it's functionality
   // so we know that once 'Check()' has completed _and_ the loop is no
-  // longer alive there shouldn't be any more work to do (with the
-  // caveat that another thread can still 'Submit()' a callback at any
-  // point in time that we may "miss" but there isn't anything we can
-  // do about that except 'RunForever()' or application-level
-  // synchronization).
+  // longer alive there shouldn't be any more work to do.
   uv_check_init(&loop_, &check_);
 
   check_.data = this;
@@ -176,21 +161,19 @@ EventLoop::EventLoop()
     ((EventLoop*) check->data)->Check();
   });
 
-  // NOTE: we unreference 'check_' so that when we run the event
-  // loop it's presence doesn't factor into whether or not the loop is
-  // considered alive.
-  uv_unref((uv_handle_t*) &check_);
-
   uv_async_init(&loop_, &async_, nullptr);
-
-  // NOTE: see comments in 'RunUntil()' as to why we don't unreference
-  // 'async_' like we do with 'check_'.
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 EventLoop::~EventLoop() {
-  CHECK(!Running());
+  bool running = false;
+  CHECK(running_.compare_exchange_weak(
+      running,
+      true,
+      std::memory_order_release,
+      std::memory_order_relaxed))
+      << "Another thread is already running the event loop!";
 
   uv_check_stop(&check_);
   uv_close((uv_handle_t*) &check_, nullptr);
@@ -269,20 +252,6 @@ EventLoop::~EventLoop() {
   } while (alive);
 
   CHECK_EQ(uv_loop_close(&loop_), 0);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-void EventLoop::RunForever() {
-  in_event_loop_ = true;
-  running_ = true;
-
-  // NOTE: we'll truly run forever because handles like 'async_' will
-  // keep the loop alive forever.
-  uv_run(&loop_, UV_RUN_DEFAULT);
-
-  running_ = false;
-  in_event_loop_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////

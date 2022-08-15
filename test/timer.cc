@@ -22,7 +22,7 @@ TEST_F(EventLoopTest, Timer) {
   k.Start();
 
   auto start = Clock().Now();
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
   auto end = Clock().Now();
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);
@@ -45,7 +45,7 @@ TEST_F(EventLoopTest, PauseAndAdvanceClock) {
 
   Clock().Advance(std::chrono::seconds(5));
 
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
 
   EXPECT_EQ(42, future.get());
 
@@ -76,7 +76,7 @@ TEST_F(EventLoopTest, AddTimerAfterAdvancingClock) {
 
   Clock().Advance(std::chrono::seconds(4)); // Timer 1 fired, timer 2 in 1000ms.
 
-  EventLoop::Default().RunUntil(future1); // Fire timer 1.
+  RunUntil(future1); // Fire timer 1.
 
   future1.get();
 
@@ -85,7 +85,7 @@ TEST_F(EventLoopTest, AddTimerAfterAdvancingClock) {
   Clock().Resume();
 
   auto start = Clock().Now();
-  EventLoop::Default().RunUntil(future2);
+  RunUntil(future2);
   auto end = Clock().Now();
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);
@@ -111,7 +111,7 @@ TEST_F(EventLoopTest, InterruptTimer) {
     interrupt.Trigger();
   });
 
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 
@@ -136,13 +136,15 @@ TEST_F(EventLoopTest, PauseClockInterruptTimer) {
 
   interrupt.Trigger();
 
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 
   // Advance the clock so that we relinquish the borrow on the timer
   // and it can be destructed.
   Clock().Advance(std::chrono::seconds(100));
+
+  RunUntilIdle();
 
   Clock().Resume();
 }
@@ -159,7 +161,7 @@ TEST_F(EventLoopTest, TimerAfterTimer) {
   k.Start();
 
   auto start = Clock().Now();
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
   auto end = Clock().Now();
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);
@@ -180,7 +182,7 @@ TEST_F(EventLoopTest, MapTimer) {
   k.Start();
 
   auto start = Clock().Now();
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
   auto end = Clock().Now();
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);

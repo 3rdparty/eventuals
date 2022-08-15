@@ -213,7 +213,7 @@ TEST_F(FlatMapTest, Interrupt) {
 
   interrupt.Trigger();
 
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
 
   auto result = future.get();
 

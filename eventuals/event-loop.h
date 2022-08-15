@@ -243,6 +243,20 @@ class EventLoop final : public Scheduler {
                         auto timeout = std::chrono::duration_cast<
                             std::chrono::milliseconds>(nanoseconds_);
 
+                        // NOTE: even if the timeout is 0 we still
+                        // call into libuv so that we can unwind this
+                        // stack because otherwise we can get into
+                        // situations where we might deadlock on a
+                        // destructing a 'Scheduler::Context' that was
+                        // borrowed.
+                        //
+                        // TODO(benh): this might get fixed once we
+                        // stop using a 'Scheduler::Context' after
+                        // it's blocked, but we also might want to
+                        // consider an alternative where we don't call
+                        // into libuv but instead (re)submit a
+                        // callback so that we do some unwinding.
+
                         CHECK(!error_);
                         error_ = uv_timer_start(
                             timer(),
@@ -464,44 +478,30 @@ class EventLoop final : public Scheduler {
 
   static bool HasDefault();
 
-  static void ConstructDefaultAndRunForeverDetached();
-
   EventLoop();
   EventLoop(const EventLoop&) = delete;
   ~EventLoop() override;
 
-  void RunForever();
+  void RunUntilIdle() {
+    bool running = false;
+    CHECK(running_.compare_exchange_weak(
+        running,
+        true,
+        std::memory_order_release,
+        std::memory_order_relaxed))
+        << "Another thread is already running the event loop!";
 
-  template <typename T>
-  void RunUntil(std::future<T>& future) {
-    auto status = std::future_status::ready;
+    in_event_loop_ = true;
+
     do {
-      in_event_loop_ = true;
-      running_ = true;
-
-      // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
-      // I/O.
+      // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block
+      // on I/O.
       uv_run(&loop_, UV_RUN_NOWAIT);
-
-      running_ = false;
-      in_event_loop_ = false;
-
-      status = future.wait_for(std::chrono::nanoseconds::zero());
-    } while (status != std::future_status::ready || waiters_.load() != nullptr);
-  }
-
-  void RunWhileWaiters() {
-    do {
-      in_event_loop_ = true;
-      running_ = true;
-
-      // NOTE: We use 'UV_RUN_NOWAIT' because we don't want to block on
-      // I/O.
-      uv_run(&loop_, UV_RUN_NOWAIT);
-
-      running_ = false;
-      in_event_loop_ = false;
     } while (waiters_.load() != nullptr);
+
+    in_event_loop_ = false;
+
+    CHECK(running_.exchange(false));
   }
 
   // Interrupts the event loop; necessary to have the loop redetermine

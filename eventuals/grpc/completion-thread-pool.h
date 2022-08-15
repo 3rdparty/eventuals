@@ -233,20 +233,7 @@ class TestingCompletionThreadPool {
   stout::borrowed_ref<CompletionThreadPool<::grpc::CompletionQueue>>
   ClientCompletionThreadPool();
 
-  // NOTE: taking a 'std::function' here instead of a 'Callback'
-  // because this is for testing where we don't care about dynamic
-  // memory allocation and it simplifies the tests.
-  void RunUntilCondition(const std::function<bool()>& condition);
-
-  template <typename T>
-  void RunUntil(const std::future<T>& future) {
-    return RunUntilCondition([&future]() {
-      auto status = future.wait_for(std::chrono::nanoseconds::zero());
-      return status == std::future_status::ready;
-    });
-  }
-
-  void RunUntilIdle();
+  bool RunUntilIdle();
 
  private:
   class ClientCompletionThreadPoolProxy
