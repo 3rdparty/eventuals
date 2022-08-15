@@ -172,7 +172,7 @@ TEST_P(HttpTest, GetInterrupt) {
 
   interrupt.Trigger();
 
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
@@ -195,7 +195,7 @@ TEST_P(HttpTest, PostInterrupt) {
 
   interrupt.Trigger();
 
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
@@ -226,7 +226,7 @@ TEST_P(HttpTest, GetInterruptAfterStart) {
       },
       context);
 
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
@@ -260,7 +260,7 @@ TEST_P(HttpTest, PostInterruptAfterStart) {
       },
       context);
 
-  EventLoop::Default().RunUntil(future);
+  RunUntil(future);
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }

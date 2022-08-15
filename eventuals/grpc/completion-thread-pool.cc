@@ -71,22 +71,15 @@ TestingCompletionThreadPool::ServerCompletionThreadPool() {
 
 ////////////////////////////////////////////////////////////////////////
 
-void TestingCompletionThreadPool::RunUntilCondition(
-    const std::function<bool()>& condition) {
-  CHECK(paused_) << "need to 'Pause()' the thread pool first!";
-  while (!condition()) {
-    RunUntilIdle();
-  }
-}
-
-////////////////////////////////////////////////////////////////////////
-
-void TestingCompletionThreadPool::RunUntilIdle() {
+bool TestingCompletionThreadPool::RunUntilIdle() {
   if (std::this_thread::get_id() != thread_.get_id()) {
     CHECK(paused_) << "need to 'Pause()' the thread pool first!";
   }
+
+  bool events = false;
   bool server_got_events = true;
   bool client_got_events = true;
+
   do {
     if (server_cq_) {
       server_got_events = RunUntilIdle(*(server_cq_->get()));
@@ -95,7 +88,13 @@ void TestingCompletionThreadPool::RunUntilIdle() {
     }
 
     client_got_events = RunUntilIdle(*client_cq_);
+
+    if (client_got_events || server_got_events) {
+      events = true;
+    }
   } while (client_got_events || server_got_events);
+
+  return events;
 }
 
 ////////////////////////////////////////////////////////////////////////

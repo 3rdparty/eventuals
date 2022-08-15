@@ -106,3 +106,16 @@ cc_test(
         "@com_github_grpc_grpc//examples/protos:keyvaluestore",
     ],
 )
+
+cc_library(
+    name = "ordering-dependent-test",
+    hdrs = [
+        "ordering-dependent-test.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//eventuals",
+        "//eventuals/grpc",
+        "@com_github_google_googletest//:gtest",
+    ],
+)

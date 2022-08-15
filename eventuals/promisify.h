@@ -81,7 +81,11 @@ auto operator*(E e) {
     k.Start();
 
     if (EventLoop::HasDefault()) {
-      EventLoop::Default().RunUntil(future);
+      // TODO(benh): return EventLoop::Default().Run(std::move(e));
+      while (future.wait_for(std::chrono::seconds::zero())
+             != std::future_status::ready) {
+        EventLoop::Default().RunUntilIdle();
+      }
     }
 
     return future.get();
