@@ -64,6 +64,7 @@ cc_test(
         "cancelled-by-client.cc",
         "cancelled-by-server.cc",
         "client-death-test.cc",
+        "client-interruptible.cc",
         "deadline.cc",
         "greeter-server.cc",
         "helloworld.eventuals.cc",
