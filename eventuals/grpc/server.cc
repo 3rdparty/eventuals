@@ -229,10 +229,17 @@ Server::~Server() {
 
 ////////////////////////////////////////////////////////////////////////
 
-void Server::Shutdown() {
+void Server::Shutdown(
+    const std::optional<
+        std::chrono::time_point<
+            std::chrono::system_clock>>& deadline) {
   // Server might have already been shutdown.
   if (server_) {
-    server_->Shutdown();
+    if (deadline.has_value()) {
+      server_->Shutdown(deadline.value());
+    } else {
+      server_->Shutdown();
+    }
   }
 
   // NOTE: we don't interrupt 'workers_' or 'serves_' as shutting down

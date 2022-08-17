@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cassert>
+#include <chrono>
 #include <deque>
+#include <optional>
 #include <string_view>
 #include <thread>
 #include <variant>
@@ -541,7 +543,10 @@ class Server : public Synchronizable {
  public:
   ~Server();
 
-  void Shutdown();
+  void Shutdown(
+      const std::optional<
+          std::chrono::time_point<
+              std::chrono::system_clock>>& deadline = std::nullopt);
 
   void Wait();
 
