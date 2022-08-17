@@ -367,6 +367,7 @@ class Client {
     };
 
     return Eventual<ClientCall<Request, Response>>()
+        .interruptible()
         .template raises<std::runtime_error>()
         .start(
             [data = Data{
@@ -378,7 +379,24 @@ class Client {
                  ::grpc::TemplatedGenericStub<
                      RequestType,
                      ResponseType>(channel_)},
-             callback = Callback<void(bool)>()](auto& k) mutable {
+             callback = Callback<void(bool)>()]( //
+                auto& k,
+                std::optional<Interrupt::Handler>& handler) mutable {
+              // Install an interrupt handler that will cancel and close the
+              // connection context if/when the client is interrupted.
+              // If we can not install the handler then the interrupt has
+              // already been triggered so we try to cancel.
+              if (handler) {
+                bool installed = handler->Install([&data]() {
+                  data.context->TryCancel();
+                });
+
+                if (!installed) {
+                  // TODO: Should we just k.Stop() here?
+                  data.context->TryCancel();
+                }
+              }
+
               const auto* method =
                   google::protobuf::DescriptorPool::generated_pool()
                       ->FindMethodByName(data.name);
