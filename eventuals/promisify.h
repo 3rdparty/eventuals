@@ -22,7 +22,10 @@ namespace eventuals {
 // NOTE: uses the default, i.e., preemptive, scheduler so that the
 // eventual has it's own 'Scheduler::Context'.
 template <typename E>
-[[nodiscard]] auto Promisify(std::string&& name, E e) {
+[[nodiscard]] auto Promisify(
+    std::string&& name,
+    E e,
+    EventLoop* loop = nullptr) {
   using Value = typename E::template ValueFrom<void>;
 
   std::promise<
@@ -42,21 +45,39 @@ template <typename E>
       >> std::move(e)
       >> Terminal()
              .context(std::move(promise))
-             .start([](auto& promise, auto&&... values) {
+             .start([loop](auto& promise, auto&&... values) {
                static_assert(
                    sizeof...(values) == 0 || sizeof...(values) == 1,
                    "'Promisify()' only supports 0 or 1 value, but found > 1");
                promise.set_value(std::forward<decltype(values)>(values)...);
+
+               // Interrupt the event loop if provided in case it is
+               // blocked on 'RunOnce()' in 'operator()*'.
+               if (loop != nullptr) {
+                 loop->Interrupt();
+               }
              })
-             .fail([](auto& promise, auto&& error) {
+             .fail([loop](auto& promise, auto&& error) {
                promise.set_exception(
                    make_exception_ptr_or_forward(
                        std::forward<decltype(error)>(error)));
+
+               // Interrupt the event loop if provided in case it is
+               // blocked on 'RunOnce()' in 'operator()*'.
+               if (loop != nullptr) {
+                 loop->Interrupt();
+               }
              })
-             .stop([](auto& promise) {
+             .stop([loop](auto& promise) {
                promise.set_exception(
                    std::make_exception_ptr(
                        StoppedException()));
+
+               // Interrupt the event loop if provided in case it is
+               // blocked on 'RunOnce()' in 'operator()*'.
+               if (loop != nullptr) {
+                 loop->Interrupt();
+               }
              }));
 
   return std::make_tuple(std::move(future), std::move(k));
@@ -64,11 +85,11 @@ template <typename E>
 
 ////////////////////////////////////////////////////////////////////////
 
-// Overload of the dereference operator for eventuals.
+// Runs an eventual using the current thread.
 //
 // NOTE: THIS IS BLOCKING! CONSIDER YOURSELF WARNED!
 template <typename E, std::enable_if_t<HasValueFrom<E>::value, int> = 0>
-auto operator*(E e) {
+auto Run(E e) {
   try {
     auto [future, k] = Promisify(
         // NOTE: using the current thread id in order to constuct a task
@@ -76,15 +97,15 @@ auto operator*(E e) {
         "[thread "
             + stringify(std::this_thread::get_id())
             + " blocking on dereference]",
-        std::move(e));
+        std::move(e),
+        EventLoop::HasDefault() ? &EventLoop::Default() : nullptr);
 
     k.Start();
 
     if (EventLoop::HasDefault()) {
-      // TODO(benh): return EventLoop::Default().Run(std::move(e));
       while (future.wait_for(std::chrono::seconds::zero())
              != std::future_status::ready) {
-        EventLoop::Default().RunUntilIdle();
+        EventLoop::Default().RunOnce();
       }
     }
 
@@ -99,6 +120,17 @@ auto operator*(E e) {
         << "WARNING: exception thrown while dereferencing eventual";
     throw;
   }
+}
+
+////////////////////////////////////////////////////////////////////////
+
+// Overload of the dereference operator for eventuals which is
+// "syntactic sugar" for calling 'Run()'.
+//
+// NOTE: THIS IS BLOCKING! CONSIDER YOURSELF WARNED!
+template <typename E, std::enable_if_t<HasValueFrom<E>::value, int> = 0>
+auto operator*(E e) {
+  return Run(std::move(e));
 }
 
 ////////////////////////////////////////////////////////////////////////

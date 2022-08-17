@@ -482,6 +482,26 @@ class EventLoop final : public Scheduler {
   EventLoop(const EventLoop&) = delete;
   ~EventLoop() override;
 
+  void RunOnce() {
+    bool running = false;
+    CHECK(running_.compare_exchange_weak(
+        running,
+        true,
+        std::memory_order_release,
+        std::memory_order_relaxed))
+        << "Another thread is already running the event loop!";
+
+    in_event_loop_ = true;
+
+    do {
+      uv_run(&loop_, UV_RUN_ONCE);
+    } while (waiters_.load() != nullptr);
+
+    in_event_loop_ = false;
+
+    CHECK(running_.exchange(false));
+  }
+
   void RunUntilIdle() {
     bool running = false;
     CHECK(running_.compare_exchange_weak(
