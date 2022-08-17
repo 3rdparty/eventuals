@@ -192,6 +192,152 @@ inline void CheckSufficientStackSpace(const size_t size) {
       << "doesn't get allocated on the stack!\n"
       << "\n";
 }
+
+////////////////////////////////////////////////////////////////////////
+
+class Thread {
+ public:
+  Thread() = default;
+
+  ~Thread() noexcept {
+    CHECK(!joinable_) << "A thread was left not joined/not detached";
+  }
+
+  Thread(const Thread& other) = delete;
+
+  // IMPORTANT NOTE: on macos stacksize should be a multiple of the system
+  // page size!!!
+  // (check_line_length skip)
+  // https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/pthread_attr_setstacksize.3.html
+  template <typename Callable>
+  Thread(
+      Callable&& callable,
+      const std::string& name,
+      const Bytes& stack_size = Megabytes(8))
+    : joinable_{true} {
+    CHECK_GE(stack_size.bytes(), PTHREAD_STACK_MIN)
+        << "Stack size should not be less than"
+           " the system-defined minimum size";
+
+    pthread_attr_t attr;
+
+    PCHECK(pthread_attr_init(&attr) == 0)
+        << "Failed to initialize thread attributes via "
+           "'pthread_attr_init(...)'";
+
+    // IMPORTANT NOTE: on macos stacksize should be a multiple of the system
+    // page size, otherwise `pthread_attr_setstacksize` will fail.
+    // (check_line_length skip)
+    // https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/pthread_attr_setstacksize.3.html
+    PCHECK(pthread_attr_setstacksize(&attr, stack_size.bytes()) == 0)
+        << "Failed to set the stack size via 'pthread_attr_setstacksize'"
+           " (if you are on macOS - probably you are trying"
+           " to set the stack size which is not a multiple"
+           " of the system page size)";
+
+    struct Data {
+      std::string thread_name{};
+      Callable callable;
+      Data(const std::string& name, Callable&& f)
+        : thread_name{name},
+          callable{std::forward<Callable>(f)} {}
+    };
+
+    PCHECK(pthread_create(
+               &thread_handle_,
+               &attr,
+               +[](void* arg) -> void* {
+                 Data* data = reinterpret_cast<Data*>(arg);
+
+                 PCHECK(
+                     pthread_setname_np(
+#ifdef __linux__
+                         pthread_self(),
+#endif
+                         data->thread_name.c_str())
+                     == 0)
+                     << "Failed to set thread name via "
+                        "'pthread_setname_np(...)'";
+
+                 try {
+                   data->callable();
+                 } catch (const std::exception& e) {
+                   LOG(WARNING) << "Caught exception while running thread '"
+                                << data->thread_name
+                                << "': " << e.what();
+                 } catch (...) {
+                   LOG(WARNING) << "Caught unknown exception while "
+                                   "running thread '"
+                                << data->thread_name
+                                << "'";
+                 }
+                 delete data;
+                 return nullptr;
+               },
+               new Data(name, std::forward<Callable>(callable)))
+           == 0)
+        << "Failed to create a new thread via 'pthread_create'";
+
+    PCHECK(pthread_attr_destroy(&attr) == 0)
+        << "Failed to destroy thread attributes via "
+           "'pthread_attr_destroy(...)'";
+  }
+
+  Thread(Thread&& that) noexcept {
+    *this = std::move(that);
+  }
+
+  Thread& operator=(const Thread& other) = delete;
+
+  Thread& operator=(Thread&& that) noexcept {
+    if (this == &that) {
+      return *this;
+    }
+
+    CHECK(!joinable_) << "Thread not joined nor detached";
+
+    thread_handle_ = std::exchange(that.thread_handle_, pthread_t{});
+    joinable_ = std::exchange(that.joinable_, false);
+
+    return *this;
+  }
+
+  pthread_t native_handle() const {
+    return thread_handle_;
+  }
+
+  bool is_joinable() const {
+    return joinable_;
+  }
+
+  void join() {
+    if (joinable_) {
+      PCHECK(pthread_join(thread_handle_, nullptr) == 0)
+          << "Failed to join thread via 'pthread_join(...)'";
+    }
+    joinable_ = false;
+  }
+
+  void detach() {
+    CHECK(joinable_)
+        << "Trying to detach already joined/detached thread";
+
+    joinable_ = false;
+
+    PCHECK(pthread_detach(thread_handle_) == 0)
+        << "Failed to detach thread via 'pthread_detach(...)'";
+  }
+
+ private:
+  // For Linux `pthread_t` is unsigned long, for
+  // macOS this is an `_opaque_pthread_t` struct.
+  // https://opensource.apple.com/source/xnu/xnu-517.7.7/bsd/sys/types.h
+  pthread_t thread_handle_{};
+  bool joinable_ = false;
+};
+
+////////////////////////////////////////////////////////////////////////
+
 #else // If Windows.
 inline void CheckSufficientStackSpace(const size_t size) {}
 #endif
