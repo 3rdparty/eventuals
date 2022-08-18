@@ -44,7 +44,12 @@ class Interrupt final {
 
     void Invoke() {
       CHECK(callback_);
-      callback_();
+      // Need to move 'callback_' so that it will be destructed from
+      // the stack after we've invoked it in case invoking it causes
+      // some destructors to run and the callback has any borrows that
+      // need to get relinquished.
+      Callback<void()> callback = std::move(callback_);
+      callback();
     }
 
     Interrupt* interrupt_ = nullptr;
