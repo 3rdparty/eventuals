@@ -165,6 +165,10 @@ struct _StaticThreadPoolSchedule final {
         engine_(device_()),
         k_(std::move(that.k_)) {}
 
+    ~Continuation() override {
+      this->WaitUntilBorrowsEquals(0);
+    }
+
     // Helper to avoid casting default 'Scheduler*' to 'StaticThreadPool*'
     // each time.
     auto* pool() {
