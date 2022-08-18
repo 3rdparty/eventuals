@@ -190,10 +190,12 @@ TEST(FlatMap, VectorVector) {
 class FlatMapTest : public EventLoopTest {};
 
 TEST_F(FlatMapTest, Interrupt) {
+  Clock().Pause();
+
   auto e = []() {
     return Iterate(std::vector<int>(1000))
         >> Map([](int x) {
-             return Timer(std::chrono::milliseconds(100))
+             return Timer(std::chrono::seconds(100))
                  >> Just(x);
            })
         >> FlatMap([](int x) { return Iterate({1, 2}); })
@@ -218,6 +220,14 @@ TEST_F(FlatMapTest, Interrupt) {
   auto result = future.get();
 
   CHECK_EQ(result.size(), 0u);
+
+  // Advance the clock so that we relinquish the borrow on the timer
+  // and it can be destructed.
+  Clock().Advance(std::chrono::seconds(100));
+
+  RunUntilIdle();
+
+  Clock().Resume();
 }
 
 TEST(FlatMap, InterruptReturn) {
