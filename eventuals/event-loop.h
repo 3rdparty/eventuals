@@ -220,6 +220,11 @@ class EventLoop final : public Scheduler {
 
         ~Continuation() {
           CHECK(!started_ || closed_);
+
+          // NOTE: we need to destruct any possible handler because it
+          // has a borrow that needs to be relinquished.
+          handler_.reset();
+
           this->WaitUntilBorrowsEquals(0);
         }
 
@@ -597,6 +602,11 @@ class EventLoop final : public Scheduler {
 
       ~Continuation() {
         CHECK(!started_ || closed_);
+
+        // NOTE: we need to destruct any possible handler because it
+        // has a borrow that needs to be relinquished.
+        handler_.reset();
+
         this->WaitUntilBorrowsEquals(0);
       }
 
@@ -824,6 +834,11 @@ class EventLoop final : public Scheduler {
 
       ~Continuation() {
         CHECK(!started_ || closed_);
+
+        // NOTE: we need to destruct any possible handler because it
+        // has a borrow that needs to be relinquished.
+        handler_.reset();
+
         this->WaitUntilBorrowsEquals(0);
       }
 

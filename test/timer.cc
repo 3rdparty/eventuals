@@ -4,7 +4,10 @@
 #include "eventuals/event-loop.h"
 #include "eventuals/foreach.h"
 #include "eventuals/just.h"
+#include "eventuals/loop.h"
 #include "eventuals/range.h"
+#include "eventuals/repeat.h"
+#include "eventuals/take.h"
 #include "eventuals/terminal.h"
 #include "gtest/gtest.h"
 #include "test/promisify-for-test.h"
@@ -186,6 +189,35 @@ TEST_F(EventLoopTest, MapTimer) {
   auto end = Clock().Now();
 
   EXPECT_LE(std::chrono::milliseconds(10), end - start);
+}
+
+
+TEST_F(EventLoopTest, TimerInLoopWithRegisteredInterrupt) {
+  auto e = []() {
+    return Repeat()
+        >> Map([]() {
+             return Timer(std::chrono::milliseconds(1));
+           })
+        >> TakeFirst(2)
+        >> Loop();
+  };
+
+  auto [future, k] = PromisifyForTest(e());
+
+  // NOTE: this test is registering an interrupt but NOT triggering it
+  // to test that timers in loops with interrupts registered can
+  // safely be destructed.
+  Interrupt interrupt;
+
+  k.Register(interrupt);
+
+  k.Start();
+
+  auto start = Clock().Now();
+  RunUntil(future);
+  auto end = Clock().Now();
+
+  EXPECT_LE(std::chrono::milliseconds(2), end - start);
 }
 
 } // namespace
