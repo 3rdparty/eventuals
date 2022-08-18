@@ -32,8 +32,8 @@ cc_eventuals_library(
 cc_library(
     name = "route_guide_helper",
     srcs = [
+        "helper.cc",
         "helper.h",
-        "helper.cc"
     ],
     deps = [
         ":route-guide-grpc",
@@ -47,8 +47,8 @@ cc_library(
         "route-guide-eventuals-generated",
     ],
     deps = [
-        "//eventuals/grpc",
         ":route-guide-grpc",
+        "//eventuals/grpc",
     ],
 )
 
@@ -56,12 +56,12 @@ cc_test(
     name = "route-guide-test",
     srcs = [
         "get-feature.cc",
-        "route-guide-eventuals-test.cc",
-        "route-guide-eventuals-test.h",
-        "route-guide-eventuals-server.h",
         "list-features.cc",
         "record-route.cc",
         "route-chat.cc",
+        "route-guide-eventuals-server.h",
+        "route-guide-eventuals-test.cc",
+        "route-guide-eventuals-test.h",
     ],
     data = ["route_guide_db.json"],
     deps = [
