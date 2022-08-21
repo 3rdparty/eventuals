@@ -277,23 +277,32 @@ void Server::Wait() {
     // 'workers_' and 'serves_' have completed because if they try to
     // use the completion queues after they're shutdown that may cause
     // internal grpc assertions to fire (which makes sense, we called
-    // shutdown on them and then tried to use them). This is currently
-    // accomplished when 'pool_' gets destructed, or at some later
-    // point in time if 'pool_' was borrowed.
+    // shutdown on them and then tried to use them).
     //
-    // NOTE: it's unclear if we need to shutdown the completion queues
-    // _before_ we destruct the server but at least emperically it
-    // appears that it doesn't matter.
+    // TODO(benh): technically some of the threads in the completion
+    // thread pool might still be executing _eventuals_ returned from
+    // calling 'Server' functions (e.g., 'Server::Lookup()') but since
+    // all of those eventuals have completed (since we waited for
+    // 'workers_' and 'serves_' above) they should just be unwinding
+    // their stack and not read or write any memory associated with
+    // 'this'. For better safety we might instead want to revisit the
+    // 'CompletionThreadPool' interface to allow us to 'Shutdown()'
+    // and 'Wait()' for it. This is a little tricky because a thread
+    // pool might be used for (multiple) servers and (multiple)
+    // clients so really we just want to shutdown the threads that are
+    // currently executing from completion queues associated with this
+    // server.
 
     // NOTE: gRPC doesn't want us calling 'Wait()' more than once (as
     // in, it causes an abort) presumably because it has already
     // released resources. This is possible at the very least if one
     // manually calls this function and then this function gets called
     // again from the destructor. Thus, we reset 'server_' here (BUT
-    // AFTER WE HAVE WAITED FOR ALL THREADS ABOVE TO HAVE JOINED) so
-    // that we won't try and call 'Wait()' more than once because
-    // 'server_' will be valueless (or call 'Shutdown()' more than
-    // once since we also check for 'server_' there).
+    // AFTER WE HAVE WAITED FOR ANYTHING THAT WOULD HAVE USED
+    // 'server_' ABOVE) so that we won't try and call 'Wait()' more
+    // than once because 'server_' will be valueless (or call
+    // 'Shutdown()' more than once since we also check for 'server_'
+    // there).
     server_.reset();
   }
 }

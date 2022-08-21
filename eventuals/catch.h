@@ -126,12 +126,19 @@ struct _Catch final {
           "'Catch' expects a type derived from "
           "std::exception or a std::exception_ptr");
 
+      // NOTE: we need to put 'handled' on the stack because if 'this'
+      // was constructed on the heap it's possible that 'TryHandle()'
+      // below will end up causing 'this' to get destructed in which
+      // case we wouldn't be able to write to 'handled' if it was part
+      // of the heap allocation.
+      bool handled = false;
+
       std::apply(
           [&](auto&... catch_handler) {
             // Using a fold expression to simplify the iteration.
             ([&](auto& catch_handler) {
-              if (!handled_) {
-                handled_ = catch_handler.TryHandle(
+              if (!handled) {
+                handled = catch_handler.TryHandle(
                     std::move(k_),
                     interrupt_,
                     std::forward<Error>(error));
@@ -141,7 +148,7 @@ struct _Catch final {
           },
           catch_handlers_);
 
-      if (!handled_) {
+      if (!handled) {
         if (interrupt_ != nullptr) {
           k_.Register(*interrupt_);
         }
@@ -168,8 +175,6 @@ struct _Catch final {
     }
 
     std::tuple<CatchHandlers_...> catch_handlers_;
-
-    bool handled_ = false;
 
     Interrupt* interrupt_ = nullptr;
 
