@@ -2,6 +2,7 @@
 
 #include <type_traits>
 
+#include "eventuals/os.h"
 #include "eventuals/type-traits.h"
 #include "glog/logging.h"
 
@@ -124,8 +125,15 @@ struct Composed final {
   template <typename Arg, typename K>
   auto k(K k) && {
     using Value = typename Left_::template ValueFrom<Arg>;
-    return std::move(left_)
-        .template k<Arg>(std::move(right_).template k<Value>(std::move(k)));
+
+    auto composed = [&]() {
+      return std::move(left_).template k<Arg>(
+          std::move(right_).template k<Value>(std::move(k)));
+    };
+
+    os::CheckSufficientStackSpace(sizeof(decltype(composed())));
+
+    return composed();
   }
 };
 
