@@ -62,6 +62,7 @@ cc_test(
         "accept.cc",
         "build-and-start.cc",
         "cancelled-by-client.cc",
+        "cancelled-by-client-no-finish.cc",
         "cancelled-by-server.cc",
         "client-death-test.cc",
         "client-interruptible.cc",
