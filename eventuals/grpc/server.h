@@ -556,6 +556,17 @@ class Server : public Synchronizable {
   template <typename Request, typename Response>
   [[nodiscard]] auto Accept(std::string name, std::string host = "*");
 
+  // Returns a client that uses an *in-process* channel to this server rather
+  // than having to get the servers address and create a server yourself.
+  template <typename Client>
+  Client client(
+      stout::borrowed_ref<
+          CompletionThreadPool<::grpc::CompletionQueue>>&& pool) {
+    return Client(
+        server_->InProcessChannel(::grpc::ChannelArguments()),
+        std::move(pool));
+  }
+
  private:
   friend class ServerBuilder;
 

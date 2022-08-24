@@ -12,68 +12,9 @@
 #include "eventuals/map.h"
 #include "eventuals/then.h"
 #include "test/grpc/route_guide/helper.h"
+#include "test/grpc/route_guide/make.h"
 #include "test/grpc/route_guide/route_guide.eventuals.h"
 #include "test/grpc/route_guide/route_guide.grpc.pb.h"
-
-using eventuals::Closure;
-using eventuals::Filter;
-using eventuals::FlatMap;
-using eventuals::Iterate;
-using eventuals::Let;
-using eventuals::Loop;
-using eventuals::Map;
-using eventuals::Synchronizable;
-using eventuals::Then;
-using eventuals::grpc::ServerReader;
-using routeguide::Feature;
-using routeguide::Point;
-using routeguide::Rectangle;
-using routeguide::RouteNote;
-using routeguide::RouteSummary;
-using routeguide::eventuals::RouteGuide;
-using std::chrono::system_clock;
-
-////////////////////////////////////////////////////////////////////////
-
-inline Point MakePoint(long latitude, long longitude) {
-  Point p;
-  p.set_latitude(latitude);
-  p.set_longitude(longitude);
-  return p;
-}
-
-////////////////////////////////////////////////////////////////////////
-
-inline Feature MakeFeature(
-    const std::string& name,
-    long latitude,
-    long longitude) {
-  Feature f;
-  f.set_name(name);
-  f.mutable_location()->CopyFrom(MakePoint(latitude, longitude));
-  return f;
-}
-
-////////////////////////////////////////////////////////////////////////
-
-inline RouteNote MakeRouteNote(
-    const std::string& message,
-    long latitude,
-    long longitude) {
-  RouteNote n;
-  n.set_message(message);
-  n.mutable_location()->CopyFrom(MakePoint(latitude, longitude));
-  return n;
-}
-
-inline RouteNote MakeRouteNote(
-    const std::tuple<std::string, long, long>& note) {
-  RouteNote n;
-  n.set_message(std::get<0>(note));
-  n.mutable_location()->CopyFrom(
-      MakePoint(std::get<1>(note), std::get<2>(note)));
-  return n;
-}
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +25,9 @@ inline float ConvertToRadians(float num) {
 ////////////////////////////////////////////////////////////////////////
 
 // The formula is based on http://mathforum.org/library/drmath/view/51879.html
-inline float GetDistance(const Point& start, const Point& end) {
+inline float GetDistance(
+    const routeguide::Point& start,
+    const routeguide::Point& end) {
   const float kCoordFactor = 10000000.0;
   float lat_1 = start.latitude() / kCoordFactor;
   float lat_2 = end.latitude() / kCoordFactor;
@@ -95,9 +38,7 @@ inline float GetDistance(const Point& start, const Point& end) {
   float delta_lat_rad = ConvertToRadians(lat_2 - lat_1);
   float delta_lon_rad = ConvertToRadians(lon_2 - lon_1);
 
-  float a = pow(
-                sin(delta_lat_rad / 2),
-                2)
+  float a = pow(sin(delta_lat_rad / 2), 2)
       + cos(lat_rad_1) * cos(lat_rad_2) * pow(sin(delta_lon_rad / 2), 2);
   float c = 2 * atan2(sqrt(a), sqrt(1 - a));
   int R = 6371000; // metres
@@ -108,9 +49,9 @@ inline float GetDistance(const Point& start, const Point& end) {
 ////////////////////////////////////////////////////////////////////////
 
 inline std::string GetFeatureName(
-    const Point& point,
-    const std::vector<Feature>& feature_list) {
-  for (const Feature& f : feature_list) {
+    const routeguide::Point& point,
+    const std::vector<routeguide::Feature>& feature_list) {
+  for (const routeguide::Feature& f : feature_list) {
     if (f.location().latitude() == point.latitude()
         && f.location().longitude() == point.longitude()) {
       return f.name();
@@ -122,12 +63,20 @@ inline std::string GetFeatureName(
 ////////////////////////////////////////////////////////////////////////
 
 class RouteGuideImpl final
-  : public RouteGuide::Service<RouteGuideImpl>,
-    public Synchronizable {
+  : public routeguide::eventuals::RouteGuide::Service<RouteGuideImpl>,
+    public eventuals::Synchronizable {
  public:
-  void ParseDb(const std::string& db);
+  RouteGuideImpl(const std::vector<routeguide::Feature>& feature_list)
+    : feature_list_(feature_list) {}
 
-  Feature GetFeature(grpc::ServerContext* context, Point&& point);
+  routeguide::Feature GetFeature(
+      grpc::ServerContext* context,
+      routeguide::Point&& point) {
+    routeguide::Feature feature;
+    feature.set_name(GetFeatureName(point, feature_list_));
+    feature.mutable_location()->CopyFrom(point);
+    return feature;
+  }
 
   auto ListFeatures(
       grpc::ServerContext* context,
@@ -139,26 +88,27 @@ class RouteGuideImpl final
     long top = std::max(lo.latitude(), hi.latitude());
     long bottom = std::min(lo.latitude(), hi.latitude());
 
-    return Iterate(feature_list_)
-        >> Filter([left, right, top, bottom](const Feature& f) {
-             return f.location().longitude() >= left
-                 && f.location().longitude() <= right
-                 && f.location().latitude() >= bottom
-                 && f.location().latitude() <= top;
-           });
+    return eventuals::Iterate(feature_list_)
+        >> eventuals::Filter(
+               [left, right, top, bottom](const routeguide::Feature& f) {
+                 return f.location().longitude() >= left
+                     && f.location().longitude() <= right
+                     && f.location().latitude() >= bottom
+                     && f.location().latitude() <= top;
+               });
   }
 
   auto RecordRoute(
       grpc::ServerContext* context,
-      ServerReader<Point>& reader) {
-    return Closure([this,
-                    &reader,
-                    point_count = 0,
-                    feature_count = 0,
-                    distance = 0.0,
-                    previous = Point()]() mutable {
+      eventuals::grpc::ServerReader<routeguide::Point>& reader) {
+    return eventuals::Closure([this,
+                               &reader,
+                               point_count = 0,
+                               feature_count = 0,
+                               distance = 0.0,
+                               previous = routeguide::Point()]() mutable {
       return reader.Read()
-          >> Map([&](Point&& point) {
+          >> eventuals::Map([&](routeguide::Point&& point) {
                point_count++;
                if (!GetFeatureName(point, feature_list_).empty()) {
                  feature_count++;
@@ -168,9 +118,9 @@ class RouteGuideImpl final
                }
                previous = point;
              })
-          >> Loop()
-          >> Then([&]() {
-               RouteSummary summary;
+          >> eventuals::Loop()
+          >> eventuals::Then([&]() {
+               routeguide::RouteSummary summary;
                summary.set_point_count(point_count);
                summary.set_feature_count(feature_count);
                summary.set_distance(static_cast<long>(distance));
@@ -181,27 +131,28 @@ class RouteGuideImpl final
 
   auto RouteChat(
       grpc::ServerContext* context,
-      ServerReader<RouteNote>& reader) {
+      eventuals::grpc::ServerReader<routeguide::RouteNote>& reader) {
     return reader.Read()
-        >> FlatMap(Let(
-            [this, notes = std::vector<RouteNote>()](RouteNote& note) mutable {
+        >> eventuals::FlatMap(eventuals::Let(
+            [this, notes = std::vector<routeguide::RouteNote>()](
+                routeguide::RouteNote& note) mutable {
               return Synchronized(
-                         Then([&]() {
-                           RouteNote response = MakeRouteNote(
-                               note.message() + " bounced",
+                         eventuals::Then([&]() {
+                           routeguide::RouteNote response = MakeRouteNote(
+                               note.message() + " received",
                                note.location().latitude(),
                                note.location().longitude());
 
                            notes.push_back(response);
                          }))
-                  >> Closure([&]() {
-                       return Iterate(std::move(notes));
+                  >> eventuals::Closure([&]() {
+                       return eventuals::Iterate(std::move(notes));
                      });
             }));
   }
 
  private:
-  std::vector<Feature> feature_list_;
+  const std::vector<routeguide::Feature> feature_list_;
 };
 
 ////////////////////////////////////////////////////////////////////////
