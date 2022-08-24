@@ -3,62 +3,64 @@
 
 #include "eventuals/finally.h"
 #include "eventuals/foreach.h"
-#include "eventuals/head.h"
 #include "eventuals/let.h"
 #include "eventuals/promisify.h"
 #include "eventuals/then.h"
 #include "gtest/gtest.h"
-#include "test/grpc/route_guide/route-guide-eventuals-test.h"
-
-using grpc::Status;
+#include "test/grpc/route_guide/route-guide-test.h"
 
 using eventuals::Finally;
 using eventuals::operator*;
 using eventuals::Foreach;
-using eventuals::Head;
 using eventuals::Let;
 using eventuals::Then;
-
-using eventuals::grpc::Stream;
+using routeguide::Feature;
 
 TEST_F(RouteGuideTest, ListFeaturesTest) {
+  const int32_t left = -750000000;
+  const int32_t right = -730000000;
+  const int32_t top = 420000000;
+  const int32_t bottom = 400000000;
+
+  std::vector<Feature> expected_features;
+  size_t current = 0;
+
   std::copy_if(
-      feature_list_.begin(),
-      feature_list_.end(),
-      std::back_inserter(filtered_),
-      [this](const auto& feature) {
-        return feature.location().longitude() >= left_
-            && feature.location().longitude() <= right_
-            && feature.location().latitude() >= bottom_
-            && feature.location().latitude() <= top_;
+      feature_list.begin(),
+      feature_list.end(),
+      std::back_inserter(expected_features),
+      [&](const auto& feature) {
+        return feature.location().longitude() >= left
+            && feature.location().longitude() <= right
+            && feature.location().latitude() >= bottom
+            && feature.location().latitude() <= top;
       });
 
   routeguide::Rectangle rect;
-  rect.mutable_lo()->set_latitude(bottom_);
-  rect.mutable_lo()->set_longitude(left_);
-  rect.mutable_hi()->set_latitude(top_);
-  rect.mutable_hi()->set_longitude(right_);
+  rect.mutable_lo()->set_latitude(bottom);
+  rect.mutable_lo()->set_longitude(left);
+  rect.mutable_hi()->set_latitude(top);
+  rect.mutable_hi()->set_longitude(right);
+
+  auto client = CreateClient();
 
   auto e = [&]() {
-    return client->ListFeatures()
+    return client.ListFeatures()
         >> Then(Let([&](auto& call) {
              return call.Writer().WriteLast(std::move(rect))
                  >> Foreach(
                         call.Reader().Read(),
-                        [this](Feature&& feature) {
-                          auto latitude = feature.location().latitude();
-                          auto longitude = feature.location().longitude();
-
+                        [&](Feature&& feature) {
                           auto& expected_feature =
-                              filtered_[current_++];
+                              expected_features[current++];
 
                           EXPECT_EQ(
                               expected_feature.location().latitude(),
-                              latitude);
+                              feature.location().latitude());
 
                           EXPECT_EQ(
                               expected_feature.location().longitude(),
-                              longitude);
+                              feature.location().longitude());
 
                           EXPECT_EQ(
                               expected_feature.name(),
@@ -67,13 +69,14 @@ TEST_F(RouteGuideTest, ListFeaturesTest) {
                  >> Finally([&call](auto) {
                       return call.Finish();
                     })
-                 >> Then([](Status&& status) {
-                      CHECK(status.ok()) << status.error_code()
-                                         << ": " << status.error_message();
+                 >> Then([](::grpc::Status&& status) {
+                      EXPECT_TRUE(status.ok())
+                          << status.error_code() << ": "
+                          << status.error_message();
                     });
            }))
-        >> Then([this]() {
-             CHECK_EQ(current_, filtered_.size());
+        >> Then([&]() {
+             EXPECT_EQ(current, expected_features.size());
            });
   };
 

@@ -29,6 +29,9 @@ cc_eventuals_library(
     deps = [":route-guide"],
 )
 
+# NOTE: this is meant to be exactly the same as helper library from grpc examples.
+#
+# In the future we hope to be able to just depend on the helper library directly.
 cc_library(
     name = "route_guide_helper",
     srcs = [
@@ -37,12 +40,11 @@ cc_library(
     ],
     deps = [
         ":route-guide-grpc",
-        "@com_github_google_glog//:glog",
     ],
 )
 
 cc_library(
-    name = "route-guide-eventuals-library",
+    name = "route-guide-eventuals",
     srcs = [
         "route-guide-eventuals-generated",
     ],
@@ -57,15 +59,16 @@ cc_test(
     srcs = [
         "get-feature.cc",
         "list-features.cc",
+        "make.h",
         "record-route.cc",
         "route-chat.cc",
         "route-guide-eventuals-server.h",
-        "route-guide-eventuals-test.cc",
-        "route-guide-eventuals-test.h",
+        "route-guide-test.cc",
+        "route-guide-test.h",
     ],
     data = ["route_guide_db.json"],
     deps = [
-        "route-guide-eventuals-library",
+        "route-guide-eventuals",
         ":route_guide_helper",
         "@com_github_google_googletest//:gtest_main",
     ],
