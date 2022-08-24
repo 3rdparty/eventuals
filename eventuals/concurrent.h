@@ -358,10 +358,26 @@ struct _Concurrent final {
                          || !fibers_done_;
                    };
                  }))
-          >> Then([callback = std::move(callback)]() mutable {
-               callback();
-             })
-          >> Terminal();
+          >> Terminal()
+                 .start([callback = std::move(callback)]() mutable {
+                   // NOTE: we need to move 'callback' on the stack
+                   // and invoke it in a 'Terminal' so that in the
+                   // event invoking it will cause this eventual that
+                   // we're currently executing to get cleaned up we
+                   // won't have a possible heap-after-use issue.
+                   Callback<void()> callback_on_stack = std::move(callback);
+                   callback_on_stack();
+                 })
+                 .fail([](auto&& unreachable) {
+                   static_assert(
+                       always_false_v<decltype(unreachable)>,
+                       "Unreachable");
+                 })
+                 .stop([](auto&& unreachable) {
+                   static_assert(
+                       always_false_v<decltype(unreachable)>,
+                       "Unreachable");
+                 });
     }
 
     // Returns an eventual which handles when "downstream" requests
