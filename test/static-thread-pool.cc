@@ -44,7 +44,13 @@ TEST(StaticThreadPoolTest, Schedulable) {
 
   Foo foo;
 
-  EXPECT_EQ(42, *foo.Operation());
+  auto [future, k] = PromisifyForTest(foo.Operation());
+
+  k.Start();
+
+  EXPECT_TRUE(k.StaticHeapSize().bytes() > 0);
+
+  EXPECT_EQ(42, future.get());
 }
 
 
@@ -101,7 +107,13 @@ TEST(StaticThreadPoolTest, Reschedulable) {
         }));
   };
 
-  *e();
+  auto [future, k] = PromisifyForTest(e());
+
+  k.Start();
+
+  EXPECT_TRUE(k.StaticHeapSize().bytes() > 0);
+
+  future.get();
 }
 
 

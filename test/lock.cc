@@ -60,11 +60,17 @@ TEST(LockTest, Succeed) {
 
   t1.Start();
 
+  EXPECT_EQ(0, t1.StaticHeapSize().bytes());
+
   EXPECT_EQ("t1", future1.get());
 
   t2.Start();
 
+  EXPECT_EQ(0, t2.StaticHeapSize().bytes());
+
   t3.Start();
+
+  EXPECT_EQ(0, t3.StaticHeapSize().bytes());
 
   EXPECT_STREQ("t3", future3.get());
 

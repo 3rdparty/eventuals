@@ -292,6 +292,8 @@ TEST(CatchTest, Interrupt) {
 
   auto [future, k] = PromisifyForTest(e());
 
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+
   Interrupt interrupt;
 
   k.Register(interrupt);

@@ -362,7 +362,13 @@ TEST(StreamTest, MapThenLoop) {
                });
   };
 
-  EXPECT_EQ(20, *s());
+  auto [future, k] = PromisifyForTest(s());
+
+  k.Start();
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+
+  EXPECT_EQ(20, future.get());
 }
 
 TEST(StreamTest, StaticHeapSize1) {
@@ -421,7 +427,13 @@ TEST(StreamTest, MapThenReduce) {
                });
   };
 
-  EXPECT_EQ(20, *s());
+  auto [future, k] = PromisifyForTest(s());
+
+  k.Start();
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+
+  EXPECT_EQ(20, future.get());
 }
 
 

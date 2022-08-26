@@ -121,6 +121,8 @@ TEST(RepeatTest, Interrupt) {
 
   k.Register(interrupt);
 
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+
   EXPECT_CALL(start, Call())
       .WillOnce([&]() {
         interrupt.Trigger();
