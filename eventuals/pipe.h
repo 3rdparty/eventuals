@@ -1,6 +1,7 @@
 #pragma once
 
 #include <deque>
+#include <optional>
 
 #include "eventuals/callback.h"
 #include "eventuals/just.h"
@@ -16,6 +17,7 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
+// A pipe is a queue of values that can be written to and read from.
 template <typename T>
 class Pipe final : public Synchronizable {
  public:
@@ -24,6 +26,9 @@ class Pipe final : public Synchronizable {
 
   ~Pipe() override = default;
 
+  // Writes a value to the pipe if the pipe is not closed. If the pipe is
+  // closed, the value is silently dropped.
+  // TODO(benh): Should we raise errors when writing to a closed pipe?
   [[nodiscard]] auto Write(T&& value) {
     return Synchronized(Then([this, value = std::move(value)]() mutable {
       if (!is_closed_) {
@@ -33,11 +38,13 @@ class Pipe final : public Synchronizable {
     }));
   }
 
+  // Reads the next value from the pipe.
   [[nodiscard]] auto Read() {
     return Repeat()
         >> Synchronized(
                Map([this]() {
                  return has_values_or_closed_.Wait([this]() {
+                   // Check the condition again in case of spurious wakeups.
                    return values_.empty() && !is_closed_;
                  });
                })
@@ -62,6 +69,7 @@ class Pipe final : public Synchronizable {
            });
   }
 
+  // Closes the pipe. Idempotent.
   [[nodiscard]] auto Close() {
     return Synchronized(Then([this]() {
       is_closed_ = true;
@@ -69,12 +77,14 @@ class Pipe final : public Synchronizable {
     }));
   }
 
+  // Returns the number of values currently in the pipe.
   [[nodiscard]] auto Size() {
     return Synchronized(Then([this]() {
       return values_.size();
     }));
   }
 
+  // Returns whether the pipe is closed.
   [[nodiscard]] auto IsClosed() {
     return Synchronized(Then([this]() {
       return is_closed_;
@@ -82,6 +92,7 @@ class Pipe final : public Synchronizable {
   }
 
  private:
+  // Notified whenever we either have new values or the pipe has been closed.
   ConditionVariable has_values_or_closed_;
   std::deque<T> values_;
   bool is_closed_ = false;

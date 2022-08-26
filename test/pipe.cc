@@ -28,7 +28,7 @@ TEST(Pipe, UniqueValue) {
 }
 
 
-TEST(Pipe, Values) {
+TEST(Pipe, ReadWriteFromDifferentThreads) {
   Pipe<int> pipe;
 
   std::thread t([&pipe]() {
@@ -48,29 +48,11 @@ TEST(Pipe, Values) {
   t.join();
 }
 
-
-TEST(Pipe, Close) {
-  Pipe<int> pipe;
-
-  *pipe.Write(1);
-  *pipe.Write(2);
-  *pipe.Close();
-  *pipe.Write(3);
-
-  auto e = [&pipe]() {
-    return pipe.Read()
-        >> Collect<std::vector>();
-  };
-
-  EXPECT_THAT(*e(), ElementsAre(1, 2));
-}
-
-
 TEST(Pipe, Size) {
   Pipe<std::string> pipe;
 
-  *pipe.Write(std::string{"Hello"});
-  *pipe.Write(std::string{" world!"});
+  *pipe.Write("Hello");
+  *pipe.Write(" world!");
   *pipe.Close();
 
   auto e = [&pipe]() {
@@ -79,10 +61,31 @@ TEST(Pipe, Size) {
   };
 
   EXPECT_EQ(*pipe.Size(), 2);
+  EXPECT_THAT(*e(), ElementsAre("Hello", " world!"));
+}
 
-  EXPECT_THAT(
-      *e(),
-      ElementsAre(std::string{"Hello"}, std::string{" world!"}));
+TEST(Pipe, Close) {
+  Pipe<int> pipe;
+
+  *pipe.Write(1);
+  *pipe.Write(2);
+  ASSERT_EQ(*pipe.Size(), 2);
+
+  // Close the pipe, preventing more values from being written.
+  ASSERT_FALSE(*pipe.IsClosed());
+  *pipe.Close();
+  EXPECT_TRUE(*pipe.IsClosed());
+
+  // Values written to a closed pipe are silently dropped.
+  *pipe.Write(3);
+  EXPECT_EQ(*pipe.Size(), 2);
+
+  auto e = [&pipe]() {
+    return pipe.Read()
+        >> Collect<std::vector>();
+  };
+
+  EXPECT_THAT(*e(), ElementsAre(1, 2));
 }
 
 } // namespace
