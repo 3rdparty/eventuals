@@ -1,9 +1,9 @@
-#include "eventuals/type-traits.h"
+#include "eventuals/type-traits.hh"
 
 #include <exception>
 #include <string>
 
-#include "eventuals/task.h"
+#include "eventuals/task.hh"
 
 ////////////////////////////////////////////////////////////////////////
 

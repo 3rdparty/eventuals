@@ -1,14 +1,14 @@
-#include "eventuals/control-loop.h"
+#include "eventuals/control-loop.hh"
 
 #include <optional>
 
-#include "eventuals/collect.h"
-#include "eventuals/eventual.h"
-#include "eventuals/iterate.h"
-#include "eventuals/loop.h"
-#include "eventuals/map.h"
-#include "eventuals/pipe.h"
-#include "eventuals/promisify.h"
+#include "eventuals/collect.hh"
+#include "eventuals/eventual.hh"
+#include "eventuals/iterate.hh"
+#include "eventuals/loop.hh"
+#include "eventuals/map.hh"
+#include "eventuals/pipe.hh"
+#include "eventuals/promisify.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

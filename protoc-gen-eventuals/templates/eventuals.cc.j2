@@ -3,16 +3,16 @@ set namespaces = package_name.split('.')
 -%}
 #include "{{ eventuals_header }}"
 
-#include "eventuals/concurrent.h"
-#include "eventuals/do-all.h"
-#include "eventuals/finally.h"
-#include "eventuals/grpc/server.h"
-#include "eventuals/just.h"
-#include "eventuals/let.h"
-#include "eventuals/loop.h"
-#include "eventuals/map.h"
-#include "eventuals/task.h"
-#include "eventuals/then.h"
+#include "eventuals/concurrent.hh"
+#include "eventuals/do-all.hh"
+#include "eventuals/finally.hh"
+#include "eventuals/grpc/server.hh"
+#include "eventuals/just.hh"
+#include "eventuals/let.hh"
+#include "eventuals/loop.hh"
+#include "eventuals/map.hh"
+#include "eventuals/task.hh"
+#include "eventuals/then.hh"
 
 using eventuals::Concurrent;
 using eventuals::DoAll;

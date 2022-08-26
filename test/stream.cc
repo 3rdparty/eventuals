@@ -1,18 +1,18 @@
-#include "eventuals/stream.h"
+#include "eventuals/stream.hh"
 
 #include <thread>
 
-#include "eventuals/head.h"
-#include "eventuals/lazy.h"
-#include "eventuals/loop.h"
-#include "eventuals/map.h"
-#include "eventuals/raise.h"
-#include "eventuals/reduce.h"
-#include "eventuals/terminal.h"
-#include "eventuals/then.h"
+#include "eventuals/head.hh"
+#include "eventuals/lazy.hh"
+#include "eventuals/loop.hh"
+#include "eventuals/map.hh"
+#include "eventuals/raise.hh"
+#include "eventuals/reduce.hh"
+#include "eventuals/terminal.hh"
+#include "eventuals/then.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

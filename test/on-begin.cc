@@ -1,17 +1,17 @@
-#include "eventuals/on-begin.h"
+#include "eventuals/on-begin.hh"
 
 #include <vector>
 
-#include "eventuals/collect.h"
-#include "eventuals/expected.h"
-#include "eventuals/finally.h"
-#include "eventuals/iterate.h"
-#include "eventuals/promisify.h"
-#include "eventuals/then.h"
-#include "eventuals/timer.h"
+#include "eventuals/collect.hh"
+#include "eventuals/expected.hh"
+#include "eventuals/finally.hh"
+#include "eventuals/iterate.hh"
+#include "eventuals/promisify.hh"
+#include "eventuals/then.hh"
+#include "eventuals/timer.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/event-loop-test.h"
+#include "test/event-loop-test.hh"
 
 namespace eventuals::test {
 namespace {

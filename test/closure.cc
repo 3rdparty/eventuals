@@ -1,19 +1,19 @@
-#include "eventuals/closure.h"
+#include "eventuals/closure.hh"
 
 #include <deque>
 #include <string>
 #include <thread>
 
-#include "eventuals/just.h"
-#include "eventuals/map.h"
-#include "eventuals/raise.h"
-#include "eventuals/reduce.h"
-#include "eventuals/repeat.h"
-#include "eventuals/then.h"
-#include "eventuals/until.h"
+#include "eventuals/just.hh"
+#include "eventuals/map.hh"
+#include "eventuals/raise.hh"
+#include "eventuals/reduce.hh"
+#include "eventuals/repeat.hh"
+#include "eventuals/then.hh"
+#include "eventuals/until.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

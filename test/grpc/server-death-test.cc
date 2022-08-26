@@ -4,17 +4,17 @@
 #include <filesystem>
 #include <thread>
 
-#include "eventuals/finally.h"
-#include "eventuals/grpc/client.h"
-#include "eventuals/grpc/server.h"
-#include "eventuals/let.h"
-#include "eventuals/promisify.h"
-#include "eventuals/terminal.h"
-#include "eventuals/then.h"
+#include "eventuals/finally.hh"
+#include "eventuals/grpc/client.hh"
+#include "eventuals/grpc/server.hh"
+#include "eventuals/let.hh"
+#include "eventuals/promisify.hh"
+#include "eventuals/terminal.hh"
+#include "eventuals/then.hh"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "test/grpc/death-constants.h"
-#include "test/grpc/test.h"
+#include "test/grpc/death-constants.hh"
+#include "test/grpc/test.hh"
 
 namespace eventuals::grpc::test {
 namespace {

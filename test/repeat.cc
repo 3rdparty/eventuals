@@ -1,14 +1,14 @@
-#include "eventuals/repeat.h"
+#include "eventuals/repeat.hh"
 
-#include "eventuals/lock.h"
-#include "eventuals/loop.h"
-#include "eventuals/map.h"
-#include "eventuals/reduce.h"
-#include "eventuals/then.h"
-#include "eventuals/until.h"
+#include "eventuals/lock.hh"
+#include "eventuals/loop.hh"
+#include "eventuals/map.hh"
+#include "eventuals/reduce.hh"
+#include "eventuals/then.hh"
+#include "eventuals/until.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

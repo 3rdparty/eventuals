@@ -1,15 +1,15 @@
-#include "eventuals/pipe.h"
+#include "eventuals/pipe.hh"
 
 #include <chrono>
 #include <future>
 #include <string>
 #include <thread>
 
-#include "eventuals/collect.h"
-#include "eventuals/promisify.h"
+#include "eventuals/collect.hh"
+#include "eventuals/promisify.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

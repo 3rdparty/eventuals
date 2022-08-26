@@ -1,16 +1,16 @@
-#include "eventuals/request-response-channel.h"
+#include "eventuals/request-response-channel.hh"
 
 #include <deque>
 #include <optional>
 #include <tuple>
 
-#include "eventuals/do-all.h"
-#include "eventuals/loop.h"
-#include "eventuals/map.h"
-#include "eventuals/take.h"
-#include "eventuals/then.h"
+#include "eventuals/do-all.hh"
+#include "eventuals/loop.hh"
+#include "eventuals/map.hh"
+#include "eventuals/take.hh"
+#include "eventuals/then.hh"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 using eventuals::DoAll;
 using eventuals::Loop;

@@ -1,12 +1,12 @@
-#include "eventuals/filesystem.h"
+#include "eventuals/filesystem.hh"
 
 #include <filesystem>
 #include <fstream>
 
-#include "event-loop-test.h"
-#include "eventuals/closure.h"
-#include "eventuals/promisify.h"
-#include "eventuals/then.h"
+#include "event-loop-test.hh"
+#include "eventuals/closure.hh"
+#include "eventuals/promisify.hh"
+#include "eventuals/then.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

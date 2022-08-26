@@ -1,13 +1,13 @@
-#include "eventuals/if.h"
+#include "eventuals/if.hh"
 
 #include <thread>
 
-#include "eventuals/just.h"
-#include "eventuals/raise.h"
-#include "eventuals/then.h"
+#include "eventuals/just.hh"
+#include "eventuals/raise.hh"
+#include "eventuals/then.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

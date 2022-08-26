@@ -1,9 +1,9 @@
-#include "eventuals/range.h"
+#include "eventuals/range.hh"
 
 #include <vector>
 
-#include "eventuals/collect.h"
-#include "eventuals/promisify.h"
+#include "eventuals/collect.hh"
+#include "eventuals/promisify.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

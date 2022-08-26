@@ -1,26 +1,26 @@
-#include "eventuals/generator.h"
+#include "eventuals/generator.hh"
 
 #include <atomic>
 #include <thread>
 #include <vector>
 
-#include "eventuals/closure.h"
-#include "eventuals/collect.h"
-#include "eventuals/eventual.h"
-#include "eventuals/flat-map.h"
-#include "eventuals/interrupt.h"
-#include "eventuals/iterate.h"
-#include "eventuals/just.h"
-#include "eventuals/lazy.h"
-#include "eventuals/loop.h"
-#include "eventuals/map.h"
-#include "eventuals/range.h"
-#include "eventuals/stream.h"
-#include "eventuals/task.h"
-#include "eventuals/then.h"
+#include "eventuals/closure.hh"
+#include "eventuals/collect.hh"
+#include "eventuals/eventual.hh"
+#include "eventuals/flat-map.hh"
+#include "eventuals/interrupt.hh"
+#include "eventuals/iterate.hh"
+#include "eventuals/just.hh"
+#include "eventuals/lazy.hh"
+#include "eventuals/loop.hh"
+#include "eventuals/map.hh"
+#include "eventuals/range.hh"
+#include "eventuals/stream.hh"
+#include "eventuals/task.hh"
+#include "eventuals/then.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

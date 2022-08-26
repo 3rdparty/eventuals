@@ -1,14 +1,14 @@
-#include "eventuals/grpc/server.h"
+#include "eventuals/grpc/server.hh"
 
 #include <thread>
 
-#include "eventuals/catch.h"
-#include "eventuals/closure.h"
-#include "eventuals/conditional.h"
-#include "eventuals/grpc/logging.h"
-#include "eventuals/just.h"
-#include "eventuals/loop.h"
-#include "eventuals/repeat.h"
+#include "eventuals/catch.hh"
+#include "eventuals/closure.hh"
+#include "eventuals/conditional.hh"
+#include "eventuals/grpc/logging.hh"
+#include "eventuals/just.hh"
+#include "eventuals/loop.hh"
+#include "eventuals/repeat.hh"
 #include "grpcpp/completion_queue.h"
 #include "grpcpp/server.h"
 

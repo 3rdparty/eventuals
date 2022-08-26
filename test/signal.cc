@@ -1,15 +1,15 @@
-#include "eventuals/signal.h"
+#include "eventuals/signal.hh"
 
 #include <thread>
 
-#include "event-loop-test.h"
-#include "eventuals/event-loop.h"
-#include "eventuals/scheduler.h"
-#include "eventuals/then.h"
-#include "eventuals/type-traits.h"
+#include "event-loop-test.hh"
+#include "eventuals/event-loop.hh"
+#include "eventuals/scheduler.hh"
+#include "eventuals/then.hh"
+#include "eventuals/type-traits.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

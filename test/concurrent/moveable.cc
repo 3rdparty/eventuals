@@ -1,12 +1,12 @@
 #include <vector>
 
-#include "eventuals/collect.h"
-#include "eventuals/interrupt.h"
-#include "eventuals/iterate.h"
-#include "eventuals/let.h"
-#include "eventuals/map.h"
-#include "eventuals/promisify.h"
-#include "test/concurrent/concurrent.h"
+#include "eventuals/collect.hh"
+#include "eventuals/interrupt.hh"
+#include "eventuals/iterate.hh"
+#include "eventuals/let.hh"
+#include "eventuals/map.hh"
+#include "eventuals/promisify.hh"
+#include "test/concurrent/concurrent.hh"
 
 namespace eventuals::test {
 namespace {

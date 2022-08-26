@@ -1,10 +1,10 @@
-#include "eventuals/unpack.h"
+#include "eventuals/unpack.hh"
 
 #include <string>
 
-#include "eventuals/just.h"
-#include "eventuals/promisify.h"
-#include "eventuals/then.h"
+#include "eventuals/just.hh"
+#include "eventuals/promisify.hh"
+#include "eventuals/then.hh"
 #include "gtest/gtest.h"
 
 namespace eventuals::test {

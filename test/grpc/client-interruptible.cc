@@ -1,15 +1,15 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#include "eventuals/grpc/client.h"
-#include "eventuals/grpc/completion-thread-pool.h"
-#include "eventuals/then.h"
+#include "eventuals/grpc/client.hh"
+#include "eventuals/grpc/completion-thread-pool.hh"
+#include "eventuals/then.hh"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "stout/tests/utils.h"
-#include "test/grpc/test.h"
-#include "test/promisify-for-test.h"
+#include "test/grpc/test.hh"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::grpc::test {
 namespace {

@@ -1,11 +1,11 @@
-#include "eventuals/notification.h"
+#include "eventuals/notification.hh"
 
 #include <future>
 
-#include "eventuals/do-all.h"
+#include "eventuals/do-all.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

@@ -1,9 +1,9 @@
-#include "eventuals/expected.h"
+#include "eventuals/expected.hh"
 
 #include <string>
 
-#include "eventuals/promisify.h"
-#include "eventuals/then.h"
+#include "eventuals/promisify.hh"
+#include "eventuals/then.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

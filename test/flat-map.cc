@@ -1,4 +1,4 @@
-#include "eventuals/flat-map.h"
+#include "eventuals/flat-map.hh"
 
 #include <atomic>
 #include <chrono>
@@ -7,19 +7,19 @@
 #include <thread>
 #include <vector>
 
-#include "event-loop-test.h"
-#include "eventuals/collect.h"
-#include "eventuals/event-loop.h"
-#include "eventuals/iterate.h"
-#include "eventuals/just.h"
-#include "eventuals/let.h"
-#include "eventuals/map.h"
-#include "eventuals/range.h"
-#include "eventuals/stream.h"
-#include "eventuals/timer.h"
+#include "event-loop-test.hh"
+#include "eventuals/collect.hh"
+#include "eventuals/event-loop.hh"
+#include "eventuals/iterate.hh"
+#include "eventuals/just.hh"
+#include "eventuals/let.hh"
+#include "eventuals/map.hh"
+#include "eventuals/range.hh"
+#include "eventuals/stream.hh"
+#include "eventuals/timer.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

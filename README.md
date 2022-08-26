@@ -307,7 +307,7 @@ class SomeAggregateSystem : public Synchronizable {
 
 If you just want to wait for a single call to `Notify()` you can invoke `Wait()` with no arguments.
 
-For a good example of `Synchronized()` and `ConditionVariable` see `eventuals/pipe.h`.
+For a good example of `Synchronized()` and `ConditionVariable` see `eventuals/pipe.hh`.
 
 ### `Task`
 

@@ -1,4 +1,4 @@
-#include "eventuals/callback.h"
+#include "eventuals/callback.hh"
 
 #include "gtest/gtest.h"
 #include "stout/borrowed_ptr.h"

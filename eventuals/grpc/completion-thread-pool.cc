@@ -1,4 +1,4 @@
-#include "eventuals/grpc/completion-thread-pool.h"
+#include "eventuals/grpc/completion-thread-pool.hh"
 
 ////////////////////////////////////////////////////////////////////////
 

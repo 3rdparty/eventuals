@@ -1,8 +1,8 @@
-#include "eventuals/grpc/client.h"
-#include "eventuals/promisify.h"
-#include "eventuals/then.h"
+#include "eventuals/grpc/client.hh"
+#include "eventuals/promisify.hh"
+#include "eventuals/then.hh"
 #include "examples/protos/helloworld.grpc.pb.h"
-#include "test/grpc/death-constants.h"
+#include "test/grpc/death-constants.hh"
 
 namespace eventuals::grpc::test {
 namespace {

@@ -1,13 +1,13 @@
-#include "eventuals/closure.h"
-#include "eventuals/grpc/client.h"
-#include "eventuals/grpc/server.h"
-#include "eventuals/head.h"
-#include "eventuals/let.h"
-#include "eventuals/then.h"
+#include "eventuals/closure.hh"
+#include "eventuals/grpc/client.hh"
+#include "eventuals/grpc/server.hh"
+#include "eventuals/head.hh"
+#include "eventuals/let.hh"
+#include "eventuals/then.hh"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "gtest/gtest.h"
-#include "test/grpc/test.h"
-#include "test/promisify-for-test.h"
+#include "test/grpc/test.hh"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::grpc::test {
 namespace {

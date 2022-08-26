@@ -10,7 +10,7 @@ cc_library(
     # compiled in parallel which is significantly faster than having
     # all of the tests in a single file.
     srcs = [
-        "concurrent.h",
+        "concurrent.hh",
         "downstream-done-both-eventuals-success.cc",
         "downstream-done-one-eventual-fail.cc",
         "downstream-done-one-eventual-stop.cc",

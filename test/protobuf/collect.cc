@@ -1,6 +1,6 @@
-#include "eventuals/iterate.h"
-#include "eventuals/promisify.h"
-#include "eventuals/protobuf/collectors.h"
+#include "eventuals/iterate.hh"
+#include "eventuals/promisify.hh"
+#include "eventuals/protobuf/collectors.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

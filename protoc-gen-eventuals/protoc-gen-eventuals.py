@@ -41,7 +41,7 @@ class EventualsProtocPlugin(ProtocPlugin):
 
         proto_file_name = file_digest.pop('proto_file_name')
 
-        header_file_name = proto_file_name.replace('.proto', '.eventuals.h')
+        header_file_name = proto_file_name.replace('.proto', '.eventuals.hh')
         source_file_name = proto_file_name.replace('.proto', '.eventuals.cc')
 
         eventuals_data = {
@@ -52,7 +52,7 @@ class EventualsProtocPlugin(ProtocPlugin):
         template_data = dict(**eventuals_data, **file_digest)
 
         outputs = [
-            (header_file_name, 'eventuals.h.j2'),
+            (header_file_name, 'eventuals.hh.j2'),
             (source_file_name, 'eventuals.cc.j2'),
         ]
 

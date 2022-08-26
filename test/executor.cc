@@ -1,10 +1,10 @@
-#include "eventuals/executor.h"
+#include "eventuals/executor.hh"
 
-#include "eventuals/eventual.h"
-#include "eventuals/just.h"
-#include "eventuals/promisify.h"
-#include "eventuals/task.h"
-#include "eventuals/then.h"
+#include "eventuals/eventual.hh"
+#include "eventuals/just.hh"
+#include "eventuals/promisify.hh"
+#include "eventuals/task.hh"
+#include "eventuals/then.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

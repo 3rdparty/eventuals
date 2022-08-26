@@ -8,12 +8,12 @@ cc_library(
         "server.cc",
     ],
     hdrs = [
-        "call-type.h",
-        "client.h",
-        "completion-thread-pool.h",
-        "logging.h",
-        "server.h",
-        "traits.h",
+        "call-type.hh",
+        "client.hh",
+        "completion-thread-pool.hh",
+        "logging.hh",
+        "server.hh",
+        "traits.hh",
     ],
     copts = copts(),
     # TODO(benh): resolve build issues on Windows and then remove

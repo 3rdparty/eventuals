@@ -1,10 +1,10 @@
-#include "eventuals/type-check.h"
+#include "eventuals/type-check.hh"
 
 #include <vector>
 
-#include "eventuals/collect.h"
-#include "eventuals/iterate.h"
-#include "eventuals/promisify.h"
+#include "eventuals/collect.hh"
+#include "eventuals/iterate.hh"
+#include "eventuals/promisify.hh"
 #include "gtest/gtest.h"
 
 namespace eventuals::test {

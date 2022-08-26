@@ -1,6 +1,6 @@
 #include "glog/logging.h"
 #include "gtest/gtest.h"
-#include "test/grpc/test.h"
+#include "test/grpc/test.hh"
 #include "tools/cpp/runfiles/runfiles.h"
 
 namespace {

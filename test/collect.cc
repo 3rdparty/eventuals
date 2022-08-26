@@ -1,11 +1,11 @@
-#include "eventuals/collect.h"
+#include "eventuals/collect.hh"
 
 #include <set>
 #include <utility>
 #include <vector>
 
-#include "eventuals/iterate.h"
-#include "eventuals/promisify.h"
+#include "eventuals/iterate.hh"
+#include "eventuals/promisify.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

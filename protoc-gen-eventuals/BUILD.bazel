@@ -7,7 +7,7 @@ py_binary(
     srcs = ["protoc-gen-eventuals.py"],
     data = [
         "//protoc-gen-eventuals/templates:eventuals.cc.j2",
-        "//protoc-gen-eventuals/templates:eventuals.h.j2",
+        "//protoc-gen-eventuals/templates:eventuals.hh.j2",
     ],
     srcs_version = "PY3",
     visibility = ["//visibility:public"],

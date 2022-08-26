@@ -5,7 +5,7 @@ load("//bazel:malloc.bzl", "malloc")
 cc_library(
     name = "generate-test-task-name",
     hdrs = [
-        "generate-test-task-name.h",
+        "generate-test-task-name.hh",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -16,7 +16,7 @@ cc_library(
 cc_library(
     name = "promisify-for-test",
     hdrs = [
-        "promisify-for-test.h",
+        "promisify-for-test.hh",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -30,7 +30,7 @@ cc_library(
     name = "http-mock-server",
     testonly = True,
     srcs = ["http-mock-server.cc"],
-    hdrs = ["http-mock-server.h"],
+    hdrs = ["http-mock-server.hh"],
     copts = copts(),
     deps = [
         "//eventuals",
@@ -52,7 +52,7 @@ cc_test(
         "control-loop.cc",
         "dns-resolver.cc",
         "do-all.cc",
-        "event-loop-test.h",
+        "event-loop-test.hh",
         "eventual.cc",
         "executor.cc",
         "expected.cc",

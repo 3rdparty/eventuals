@@ -1,6 +1,6 @@
-#include "eventuals/promisify.h"
-#include "eventuals/terminal.h"
-#include "eventuals/then.h"
+#include "eventuals/promisify.hh"
+#include "eventuals/terminal.hh"
+#include "eventuals/then.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

@@ -1,15 +1,15 @@
 #include <string>
 #include <vector>
 
-// Clang-format automatically places '#include "eventuals/flat-map.h"'
+// Clang-format automatically places '#include "eventuals/flat-map.hh"'
 // at the top of the file.
 // This comment prevents this behaviour.
-#include "eventuals/collect.h"
-#include "eventuals/flat-map.h"
-#include "eventuals/iterate.h"
-#include "eventuals/promisify.h"
-#include "eventuals/range.h"
-#include "test/concurrent/concurrent.h"
+#include "eventuals/collect.hh"
+#include "eventuals/flat-map.hh"
+#include "eventuals/iterate.hh"
+#include "eventuals/promisify.hh"
+#include "eventuals/range.hh"
+#include "test/concurrent/concurrent.hh"
 
 namespace eventuals::test {
 namespace {

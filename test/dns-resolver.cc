@@ -1,14 +1,14 @@
-#include "eventuals/dns-resolver.h"
+#include "eventuals/dns-resolver.hh"
 
 #include <regex>
 
-#include "eventuals/event-loop.h"
-#include "eventuals/then.h"
-#include "eventuals/type-traits.h"
+#include "eventuals/event-loop.hh"
+#include "eventuals/then.hh"
+#include "eventuals/type-traits.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/event-loop-test.h"
-#include "test/promisify-for-test.h"
+#include "test/event-loop-test.hh"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

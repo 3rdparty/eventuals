@@ -1,14 +1,14 @@
-#include "eventuals/filter.h"
+#include "eventuals/filter.hh"
 
 #include <set>
 #include <unordered_set>
 #include <vector>
 
-#include "eventuals/collect.h"
-#include "eventuals/iterate.h"
-#include "eventuals/loop.h"
-#include "eventuals/map.h"
-#include "eventuals/promisify.h"
+#include "eventuals/collect.hh"
+#include "eventuals/iterate.hh"
+#include "eventuals/loop.hh"
+#include "eventuals/map.hh"
+#include "eventuals/promisify.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

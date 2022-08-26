@@ -2,15 +2,15 @@
 #include <string>
 #include <vector>
 
-#include "eventuals/callback.h"
-#include "eventuals/eventual.h"
-#include "eventuals/iterate.h"
-#include "eventuals/let.h"
-#include "eventuals/map.h"
-#include "eventuals/reduce.h"
-#include "eventuals/then.h"
-#include "test/concurrent/concurrent.h"
-#include "test/promisify-for-test.h"
+#include "eventuals/callback.hh"
+#include "eventuals/eventual.hh"
+#include "eventuals/iterate.hh"
+#include "eventuals/let.hh"
+#include "eventuals/map.hh"
+#include "eventuals/reduce.hh"
+#include "eventuals/then.hh"
+#include "test/concurrent/concurrent.hh"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

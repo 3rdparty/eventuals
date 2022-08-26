@@ -1,6 +1,6 @@
-#include "eventuals/scheduler.h"
+#include "eventuals/scheduler.hh"
 
-#include "eventuals/compose.h"
+#include "eventuals/compose.hh"
 #include "glog/logging.h" // For GetTID().
 #include "stout/stringify.h"
 

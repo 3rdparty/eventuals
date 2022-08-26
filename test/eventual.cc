@@ -1,19 +1,19 @@
-#include "eventuals/eventual.h"
+#include "eventuals/eventual.hh"
 
 #include <functional>
 #include <memory>
 #include <optional>
 #include <thread>
 
-#include "eventuals/catch.h"
-#include "eventuals/just.h"
-#include "eventuals/let.h"
-#include "eventuals/raise.h"
-#include "eventuals/terminal.h"
-#include "eventuals/then.h"
+#include "eventuals/catch.hh"
+#include "eventuals/just.hh"
+#include "eventuals/let.hh"
+#include "eventuals/raise.hh"
+#include "eventuals/terminal.hh"
+#include "eventuals/then.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

@@ -1,16 +1,16 @@
-#include "eventuals/timer.h"
+#include "eventuals/timer.hh"
 
-#include "event-loop-test.h"
-#include "eventuals/event-loop.h"
-#include "eventuals/foreach.h"
-#include "eventuals/just.h"
-#include "eventuals/loop.h"
-#include "eventuals/range.h"
-#include "eventuals/repeat.h"
-#include "eventuals/take.h"
-#include "eventuals/terminal.h"
+#include "event-loop-test.hh"
+#include "eventuals/event-loop.hh"
+#include "eventuals/foreach.hh"
+#include "eventuals/just.hh"
+#include "eventuals/loop.hh"
+#include "eventuals/range.hh"
+#include "eventuals/repeat.hh"
+#include "eventuals/take.hh"
+#include "eventuals/terminal.hh"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

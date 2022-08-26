@@ -1,13 +1,13 @@
-#include "eventuals/grpc/client.h"
-#include "eventuals/grpc/server.h"
-#include "eventuals/let.h"
-#include "eventuals/loop.h"
-#include "eventuals/map.h"
-#include "eventuals/promisify.h"
-#include "eventuals/then.h"
+#include "eventuals/grpc/client.hh"
+#include "eventuals/grpc/server.hh"
+#include "eventuals/let.hh"
+#include "eventuals/loop.hh"
+#include "eventuals/map.hh"
+#include "eventuals/promisify.hh"
+#include "eventuals/then.hh"
 #include "gtest/gtest.h"
-#include "test/grpc/helloworld.eventuals.h"
-#include "test/grpc/test.h"
+#include "test/grpc/helloworld.eventuals.hh"
+#include "test/grpc/test.hh"
 
 namespace eventuals::grpc::test {
 namespace {

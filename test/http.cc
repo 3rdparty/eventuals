@@ -1,15 +1,15 @@
-#include "eventuals/http.h"
+#include "eventuals/http.hh"
 
-#include "event-loop-test.h"
-#include "eventuals/interrupt.h"
-#include "eventuals/let.h"
-#include "eventuals/scheduler.h"
-#include "eventuals/then.h"
-#include "eventuals/type-traits.h"
+#include "event-loop-test.hh"
+#include "eventuals/interrupt.hh"
+#include "eventuals/let.hh"
+#include "eventuals/scheduler.hh"
+#include "eventuals/then.hh"
+#include "eventuals/type-traits.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/http-mock-server.h"
-#include "test/promisify-for-test.h"
+#include "test/http-mock-server.hh"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::http::test {
 namespace {

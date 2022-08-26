@@ -1,0 +1,138 @@
+{%-
+set namespaces = package_name.split('.')
+-%}
+#pragma once
+#include <tuple>
+ 
+#include "eventuals/generator.hh"
+#include "eventuals/grpc/server.hh"
+#include "eventuals/task.hh"
+#include "eventuals/then.hh"
+#include "{{ grpc_pb_header }}"
+
+namespace {{ namespaces | join('::') }}::eventuals {
+
+{% for service in services %}
+struct {{ service.name }} {
+  static constexpr char const* service_full_name() {
+    return {{ namespaces | join('::') }}::{{ service.name }}::service_full_name();
+  }
+
+  class TypeErasedService : public ::eventuals::grpc::Service {
+   public:
+    ::eventuals::Task::Of<void> Serve() override;
+
+    char const* name() override {
+      return {{ service.name }}::service_full_name();
+    }
+
+   protected:
+    virtual ~TypeErasedService() = default;
+{% for method in service.methods %}
+{%- set output_type -%}
+    ::eventuals::{#...#}
+    {%- if method.server_streaming -%}
+        Generator::Of
+    {%- else -%}
+        Task::Of
+    {%- endif -%}
+    {#...#}<const {{ method.output_type.split('.') | join('::') }}&>::Raises<std::exception>
+{%- endset %}
+{%- set input_type -%}
+{# Input type does not include pointer #}
+    {%- if method.client_streaming -%}
+        ::eventuals::grpc::ServerReader<{{ method.input_type.split('.') | join('::') }}>
+    {%- else -%}
+        {{ method.input_type.split('.') | join('::') }}
+    {%- endif -%}
+{%- endset %}
+    virtual {{ output_type }} TypeErased{{ method.name }}(
+        std::tuple<
+            TypeErasedService*, // this
+            ::grpc::GenericServerContext*,
+            {{ input_type }}*>* args) = 0;
+{% endfor %}
+
+    private:
+{% for method in service.methods %}
+    ::eventuals::Task::Of<void> Serve{{ method.name }}();
+{% endfor %}    
+  };
+
+  template <typename Implementation>
+  class Service : public TypeErasedService {
+
+{%- for method in service.methods -%}
+{%- set output_type -%}
+    ::eventuals::{#...#}
+    {%- if method.server_streaming -%}
+        Generator::Of
+    {%- else -%}
+        Task::Of
+    {%- endif -%}
+    {#...#}<const {{ method.output_type.split('.') | join('::') }}&>::Raises<std::exception>
+{%- endset %}
+{%- set input_type -%}
+{# Input type does not include pointer #}
+    {%- if method.client_streaming -%}
+        ::eventuals::grpc::ServerReader<{{ method.input_type.split('.') | join('::') }}>
+    {%- else -%}
+        {{ method.input_type.split('.') | join('::') }}
+    {%- endif -%}
+{%- endset %}
+    {{ output_type }} TypeErased{{ method.name }}(
+        std::tuple<
+            TypeErasedService*,
+            ::grpc::GenericServerContext*,
+            {{ input_type }}*>* args) override {
+      return [args]() {
+{%- if not method.server_streaming and not method.client_streaming %}
+{#- No streaming => then and move #}
+        return ::eventuals::Then([args]() mutable {
+          return std::apply(
+              [](auto* implementation, auto* context, auto* request) {
+                static_assert(std::is_base_of_v<Service, Implementation>);
+                return dynamic_cast<Implementation*>(implementation)
+                    ->{{ method.name }}(context, std::move(*request));
+              },
+              *args);
+        });
+{%- elif not method.server_streaming and method.client_streaming %}
+{#- Client streaming => then #}
+        return ::eventuals::Then([args]() mutable {
+          return std::apply(
+              [](auto* implementation, auto* context, auto* reader) {
+                static_assert(std::is_base_of_v<Service, Implementation>);
+                return dynamic_cast<Implementation*>(implementation)
+                    ->{{ method.name }}(context, *reader);
+              },
+              *args);
+        });
+{%- elif method.server_streaming and not method.client_streaming %}
+{#- Server streaming => move #}
+        return std::apply(
+            [](auto* implementation, auto* context, auto* request) {
+              static_assert(std::is_base_of_v<Service, Implementation>);
+              return dynamic_cast<Implementation*>(implementation)
+                  ->{{ method.name }}(context, std::move(*request));
+            },
+            *args);
+{%- elif method.server_streaming and method.client_streaming %}
+{#- Bi-directional streaming => neither #}
+        return std::apply(
+            [](auto* implementation, auto* context, auto* reader) {
+              static_assert(std::is_base_of_v<Service, Implementation>);
+              return dynamic_cast<Implementation*>(implementation)
+                  ->{{ method.name }}(context, *reader);
+            },
+            *args);
+{%- endif %}
+      };
+    }
+{%- endfor %}
+  };
+};
+{%- endfor %}
+
+} // namespace {{ namespaces | join('::') }}::eventuals
+

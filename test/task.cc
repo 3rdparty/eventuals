@@ -1,16 +1,16 @@
-#include "eventuals/task.h"
+#include "eventuals/task.hh"
 
 #include <string>
 
-#include "eventuals/eventual.h"
-#include "eventuals/just.h"
-#include "eventuals/map.h"
-#include "eventuals/terminal.h"
-#include "eventuals/then.h"
+#include "eventuals/eventual.hh"
+#include "eventuals/just.hh"
+#include "eventuals/map.hh"
+#include "eventuals/terminal.hh"
+#include "eventuals/then.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/generate-test-task-name.h"
-#include "test/promisify-for-test.h"
+#include "test/generate-test-task-name.hh"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

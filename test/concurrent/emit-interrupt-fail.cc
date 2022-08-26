@@ -1,13 +1,13 @@
 #include <string>
 #include <vector>
 
-#include "eventuals/collect.h"
-#include "eventuals/interrupt.h"
-#include "eventuals/map.h"
-#include "eventuals/stream.h"
+#include "eventuals/collect.hh"
+#include "eventuals/interrupt.hh"
+#include "eventuals/map.hh"
+#include "eventuals/stream.hh"
 #include "gmock/gmock.h"
-#include "test/concurrent/concurrent.h"
-#include "test/promisify-for-test.h"
+#include "test/concurrent/concurrent.hh"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

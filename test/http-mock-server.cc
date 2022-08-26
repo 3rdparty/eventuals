@@ -1,4 +1,4 @@
-#include "test/http-mock-server.h"
+#include "test/http-mock-server.hh"
 
 #include <memory>
 #include <optional>
@@ -7,9 +7,9 @@
 
 #include "asio.hpp"
 #include "asio/ssl.hpp"
-#include "eventuals/http.h"
-#include "eventuals/rsa.h"
-#include "eventuals/x509.h"
+#include "eventuals/http.hh"
+#include "eventuals/rsa.hh"
+#include "eventuals/x509.hh"
 #include "gtest/gtest.h"
 
 namespace eventuals::http::test {

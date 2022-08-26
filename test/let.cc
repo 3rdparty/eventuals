@@ -1,11 +1,11 @@
-#include "eventuals/let.h"
+#include "eventuals/let.hh"
 
-#include "event-loop-test.h"
-#include "eventuals/event-loop.h"
-#include "eventuals/just.h"
-#include "eventuals/promisify.h"
-#include "eventuals/then.h"
-#include "eventuals/timer.h"
+#include "event-loop-test.hh"
+#include "eventuals/event-loop.hh"
+#include "eventuals/just.hh"
+#include "eventuals/promisify.hh"
+#include "eventuals/then.hh"
+#include "eventuals/timer.hh"
 #include "gtest/gtest.h"
 
 namespace eventuals::test {

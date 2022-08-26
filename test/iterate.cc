@@ -1,4 +1,4 @@
-#include "eventuals/iterate.h"
+#include "eventuals/iterate.hh"
 
 #include <array>
 #include <deque>
@@ -11,11 +11,11 @@
 #include <unordered_set>
 #include <vector>
 
-#include "eventuals/loop.h"
-#include "eventuals/map.h"
-#include "eventuals/promisify.h"
-#include "eventuals/reduce.h"
-#include "eventuals/then.h"
+#include "eventuals/loop.hh"
+#include "eventuals/map.hh"
+#include "eventuals/promisify.hh"
+#include "eventuals/reduce.hh"
+#include "eventuals/then.hh"
 #include "gtest/gtest.h"
 
 namespace eventuals::test {

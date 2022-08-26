@@ -1,7 +1,7 @@
-#include "eventuals/static-thread-pool.h"
+#include "eventuals/static-thread-pool.hh"
 
-#include "eventuals/compose.h"
-#include "eventuals/os.h"
+#include "eventuals/compose.hh"
+#include "eventuals/os.hh"
 
 ////////////////////////////////////////////////////////////////////////
 

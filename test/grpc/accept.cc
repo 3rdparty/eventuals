@@ -1,11 +1,11 @@
-#include "eventuals/grpc/server.h"
-#include "eventuals/head.h"
-#include "eventuals/promisify.h"
+#include "eventuals/grpc/server.hh"
+#include "eventuals/head.hh"
+#include "eventuals/promisify.hh"
 #include "examples/protos/helloworld.grpc.pb.h"
 #include "examples/protos/keyvaluestore.grpc.pb.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/grpc/test.h"
+#include "test/grpc/test.hh"
 
 namespace eventuals::grpc::test {
 namespace {

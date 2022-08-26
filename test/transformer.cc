@@ -1,17 +1,17 @@
-#include "eventuals/transformer.h"
+#include "eventuals/transformer.hh"
 
 #include <string>
 
-#include "eventuals/collect.h"
-#include "eventuals/eventual.h"
-#include "eventuals/interrupt.h"
-#include "eventuals/iterate.h"
-#include "eventuals/let.h"
-#include "eventuals/map.h"
-#include "eventuals/stream.h"
+#include "eventuals/collect.hh"
+#include "eventuals/eventual.hh"
+#include "eventuals/interrupt.hh"
+#include "eventuals/iterate.hh"
+#include "eventuals/let.hh"
+#include "eventuals/map.hh"
+#include "eventuals/stream.hh"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "test/promisify-for-test.h"
+#include "test/promisify-for-test.hh"
 
 namespace eventuals::test {
 namespace {

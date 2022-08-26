@@ -4,7 +4,7 @@ load("//bazel:malloc.bzl", "malloc")
 
 cc_library(
     name = "death-constants",
-    hdrs = ["death-constants.h"],
+    hdrs = ["death-constants.hh"],
 )
 
 cc_binary(
@@ -69,13 +69,13 @@ cc_test(
         "deadline.cc",
         "greeter-server.cc",
         "helloworld.eventuals.cc",
-        "helloworld.eventuals.h",
+        "helloworld.eventuals.hh",
         "main.cc",
         "multiple-hosts.cc",
         "server-death-test.cc",
         "server-unavailable.cc",
         "streaming.cc",
-        "test.h",
+        "test.hh",
         "unary.cc",
         "unimplemented.cc",
     ],
@@ -112,7 +112,7 @@ cc_test(
 cc_library(
     name = "ordering-dependent-test",
     hdrs = [
-        "ordering-dependent-test.h",
+        "ordering-dependent-test.hh",
     ],
     visibility = ["//visibility:public"],
     deps = [
