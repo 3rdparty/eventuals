@@ -2,6 +2,7 @@
 
 #include "eventuals/compose.h"
 #include "eventuals/eventual.h"
+#include "stout/bytes.h"
 #include "tl/expected.hpp"
 
 ////////////////////////////////////////////////////////////////////////
@@ -100,6 +101,10 @@ class expected : public tl::expected<Value_, Error_> {
   auto k(K k) && {
     return ExpectedToEventual(std::move(*this))
         .template k<Value_>(std::move(k));
+  }
+
+  Bytes StaticHeapSize() {
+    return Bytes(0);
   }
 
   using tl::expected<Value_, Error_>::expected;

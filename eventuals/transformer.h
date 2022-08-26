@@ -238,6 +238,8 @@ struct _Transformer final {
     // issues during destruction of 'k_' if it holds any references or
     // pointers to any (or within any) of the above members.
     K_ k_;
+
+    Bytes heap_size_ = 0;
   };
 
   template <typename From_, typename To_, typename Errors_>
