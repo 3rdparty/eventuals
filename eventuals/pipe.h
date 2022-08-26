@@ -9,6 +9,7 @@
 #include "eventuals/map.h"
 #include "eventuals/repeat.h"
 #include "eventuals/then.h"
+#include "eventuals/type-check.h"
 #include "eventuals/until.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -22,7 +23,8 @@ template <typename T>
 class Pipe final : public Synchronizable {
  public:
   Pipe()
-    : has_values_or_closed_(&lock()) {}
+    : has_values_or_closed_(&lock()),
+      closed_and_empty_((&lock())) {}
 
   ~Pipe() override = default;
 
@@ -33,7 +35,7 @@ class Pipe final : public Synchronizable {
     return Synchronized(Then([this, value = std::move(value)]() mutable {
       if (!is_closed_) {
         values_.emplace_back(std::move(value));
-        has_values_or_closed_.Notify();
+        has_values_or_closed_.NotifyAll();
       }
     }));
   }
@@ -52,6 +54,9 @@ class Pipe final : public Synchronizable {
                    if (!values_.empty()) {
                      T value = std::move(values_.front());
                      values_.pop_front();
+                     if (is_closed_ && values_.empty()) {
+                       closed_and_empty_.NotifyAll();
+                     }
                      return std::make_optional(std::move(value));
                    } else {
                      CHECK(is_closed_);
@@ -73,7 +78,10 @@ class Pipe final : public Synchronizable {
   [[nodiscard]] auto Close() {
     return Synchronized(Then([this]() {
       is_closed_ = true;
-      has_values_or_closed_.Notify();
+      has_values_or_closed_.NotifyAll();
+      if (values_.empty()) {
+        closed_and_empty_.NotifyAll();
+      }
     }));
   }
 
@@ -91,9 +99,22 @@ class Pipe final : public Synchronizable {
     }));
   }
 
+  // Blocks until the pipe is closed and drained of values.
+  // Postcondition: IsClosed() == true && Size() == 0.
+  [[nodiscard]] auto WaitForClosedAndEmpty() {
+    return TypeCheck<void>(Synchronized(Then([this]() {
+      return closed_and_empty_.Wait([this]() {
+        return /* while */ !values_.empty() || !is_closed_;
+      });
+    })));
+  }
+
  private:
   // Notified whenever we either have new values or the pipe has been closed.
   ConditionVariable has_values_or_closed_;
+  // Notified once the pipe is closed and is emptied of all values, after which
+  // the pipe will never again contain values.
+  ConditionVariable closed_and_empty_;
   std::deque<T> values_;
   bool is_closed_ = false;
 };

@@ -1,5 +1,7 @@
 #include "eventuals/pipe.h"
 
+#include <chrono>
+#include <future>
 #include <string>
 #include <thread>
 
@@ -7,6 +9,7 @@
 #include "eventuals/promisify.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -86,6 +89,35 @@ TEST(Pipe, Close) {
   };
 
   EXPECT_THAT(*e(), ElementsAre(1, 2));
+}
+
+TEST(Pipe, WaitForClosedAndEmpty) {
+  Pipe<int> pipe;
+
+  *pipe.Write(1);
+  *pipe.Write(2);
+  *pipe.Close();
+  ASSERT_EQ(*pipe.Size(), 2);
+  ASSERT_TRUE(*pipe.IsClosed());
+
+  auto [future, k] = PromisifyForTest(pipe.WaitForClosedAndEmpty());
+  k.Start();
+
+  EXPECT_EQ(
+      std::future_status::timeout,
+      future.wait_for(std::chrono::seconds(0)));
+
+  // Drain the pipe of values.
+  auto e = [&pipe]() {
+    return pipe.Read()
+        >> Collect<std::vector>();
+  };
+  EXPECT_THAT(*e(), ElementsAre(1, 2));
+
+  // WaitForClosedAndEmpty now returns.
+  EXPECT_EQ(
+      std::future_status::ready,
+      future.wait_for(std::chrono::seconds(0)));
 }
 
 } // namespace
