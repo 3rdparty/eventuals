@@ -1,6 +1,7 @@
 #pragma once
 
 #include "eventuals/stream.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -82,6 +83,10 @@ struct _Reduce final {
     void Register(Interrupt& interrupt) {
       interrupt_ = &interrupt;
       k_.Register(interrupt);
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     T_ t_;

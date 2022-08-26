@@ -2,6 +2,7 @@
 
 #include "eventuals/then.h" // For '_Then::Adaptor'.
 #include "eventuals/type-traits.h" // For 'type_identity'.
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +77,10 @@ struct _Conditional {
       assert(interrupt_ == nullptr);
       interrupt_ = &interrupt;
       k_.Register(interrupt);
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     Condition_ condition_;

@@ -561,5 +561,22 @@ TEST(Generator, Raises) {
   EXPECT_THROW(*e(), std::runtime_error);
 }
 
+TEST(Generator, StaticHeapSize) {
+  auto stream = []() -> Generator::Of<int> {
+    return []() {
+      return Iterate({1, 2, 3});
+    };
+  };
+
+  auto e = [&]() {
+    return stream()
+        >> Collect<std::vector>();
+  };
+
+  auto [future, k] = PromisifyForTest(e());
+
+  EXPECT_GT(k.StaticHeapSize().bytes(), 0);
+}
+
 } // namespace
 } // namespace eventuals::test

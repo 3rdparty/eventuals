@@ -671,5 +671,17 @@ TEST(Task, RaisesWith) {
   EXPECT_EQ(42, *e());
 }
 
+TEST(Task, StaticHeapSize) {
+  auto e = []() -> Task::Of<int> {
+    return [x = 42]() {
+      return Just(x);
+    };
+  };
+
+  auto [_, k] = PromisifyForTest(e());
+
+  EXPECT_GT(k.StaticHeapSize().bytes(), 0);
+}
+
 } // namespace
 } // namespace eventuals::test

@@ -3,6 +3,7 @@
 #include "eventuals/compose.h"
 #include "eventuals/eventual.h"
 #include "eventuals/just.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -151,6 +152,10 @@ struct _Then::Continuation<K_, F_, Arg_, false> final {
     k_.Register(interrupt);
   }
 
+  Bytes StaticHeapSize() {
+    return Bytes(0) + k_.StaticHeapSize();
+  }
+
   F_ f_;
 
   // NOTE: we store 'k_' as the _last_ member so it will be
@@ -193,6 +198,10 @@ struct _Then::Continuation<K_, F_, Arg_, true> final {
     assert(interrupt_ == nullptr);
     interrupt_ = &interrupt;
     k_.Register(interrupt);
+  }
+
+  Bytes StaticHeapSize() {
+    return Bytes(0) + k_.StaticHeapSize();
   }
 
   F_ f_;

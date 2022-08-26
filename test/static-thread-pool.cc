@@ -10,13 +10,13 @@
 #include "eventuals/let.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
-#include "eventuals/promisify.h"
 #include "eventuals/repeat.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/then.h"
 #include "eventuals/until.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -48,6 +48,33 @@ TEST(StaticThreadPoolTest, Schedulable) {
 }
 
 
+TEST(StaticThreadPoolTest, StaticHeapSize1) {
+  struct Foo : public StaticThreadPool::Schedulable {
+    Foo()
+      : StaticThreadPool::Schedulable(Pinned::ExactCPU(
+          std::thread::hardware_concurrency() - 1)) {}
+
+    auto Operation() {
+      return Schedule(
+                 Then([this]() {
+                   return i;
+                 }))
+          >> Then([](auto i) {
+               return i + 1;
+             });
+    }
+
+    int i = 41;
+  };
+
+  Foo foo;
+
+  auto [_, k] = PromisifyForTest(foo.Operation());
+
+  EXPECT_GT(k.StaticHeapSize().bytes(), 0);
+}
+
+
 TEST(StaticThreadPoolTest, Reschedulable) {
   StaticThreadPool::Requirements requirements("reschedulable");
   auto e = [&]() {
@@ -75,6 +102,38 @@ TEST(StaticThreadPoolTest, Reschedulable) {
   };
 
   *e();
+}
+
+
+TEST(StaticThreadPoolTest, StaticHeapSize2) {
+  StaticThreadPool::Requirements requirements("reschedulable");
+  auto e = [&]() {
+    return StaticThreadPool::Scheduler().Schedule(
+        &requirements,
+        Closure([id = std::this_thread::get_id()]() mutable {
+          EXPECT_NE(id, std::this_thread::get_id());
+          id = std::this_thread::get_id();
+          return Eventual<void>()
+                     .start([&id](auto& k) {
+                       EXPECT_EQ(id, std::this_thread::get_id());
+                       std::thread thread(
+                           [&id, &k]() {
+                             EXPECT_NE(id, std::this_thread::get_id());
+                             k.Start();
+                           });
+                       thread.detach();
+                     })
+              >> Eventual<void>()
+                     .start([&id](auto& k) {
+                       EXPECT_EQ(id, std::this_thread::get_id());
+                       k.Start();
+                     });
+        }));
+  };
+
+  auto [_, k] = PromisifyForTest(e());
+
+  EXPECT_GT(k.StaticHeapSize().bytes(), 0);
 }
 
 

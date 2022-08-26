@@ -13,6 +13,7 @@
 #include "eventuals/map.h"
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
+#include "stout/bytes.h"
 
 /////////////////////////////////////////////////////////////////////
 
@@ -92,6 +93,10 @@ struct _ReorderAdaptor final {
       buffer_.clear();
       ended_.clear();
       upstream_->Done();
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     TypeErasedStream* upstream_ = nullptr;
@@ -206,6 +211,10 @@ struct _ConcurrentOrderedAdaptor final {
 
     void Done() override {
       upstream_->Done();
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     bool ended_ = false;

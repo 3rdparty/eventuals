@@ -3,6 +3,7 @@
 #include "eventuals/eventual.h"
 #include "eventuals/then.h" // For '_Then::Adaptor'.
 #include "eventuals/type-traits.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +56,10 @@ struct _If final {
       assert(interrupt_ == nullptr);
       interrupt_ = &interrupt;
       k_.Register(interrupt);
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     bool condition_;

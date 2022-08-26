@@ -15,6 +15,7 @@
 #include "eventuals/scheduler.h"
 #include "eventuals/semaphore.h"
 #include "stout/borrowed_ptr.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -482,6 +483,10 @@ struct _StaticThreadPoolSchedule final {
       unsigned int cpu = distribution(engine_);
       CHECK_LT(cpu, pool()->concurrency);
       return cpu;
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(sizeof(Adapted_)) + k_.StaticHeapSize();
     }
 
     E_ e_;

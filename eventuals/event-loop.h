@@ -18,6 +18,7 @@
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
 #include "stout/borrowed_ptr.h"
+#include "stout/bytes.h"
 #include "uv.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -398,6 +399,10 @@ class EventLoop final : public Scheduler {
           handler_->Install();
         }
 
+        Bytes StaticHeapSize() {
+          return Bytes(0) + k_.StaticHeapSize();
+        }
+
        private:
         EventLoop& loop() {
           return clock_->loop();
@@ -738,6 +743,10 @@ class EventLoop final : public Scheduler {
         handler_->Install();
       }
 
+      Bytes StaticHeapSize() {
+        return Bytes(0) + k_.StaticHeapSize();
+      }
+
      private:
       // Adaptors to libuv functions.
       uv_signal_t* signal() {
@@ -1039,6 +1048,10 @@ class EventLoop final : public Scheduler {
         handler_->Install();
       }
 
+      Bytes StaticHeapSize() {
+        return Bytes(0) + k_.StaticHeapSize();
+      }
+
      private:
       // Adaptors to libuv functions.
       uv_poll_t* poll() {
@@ -1257,6 +1270,10 @@ struct _EventLoopSchedule final {
           adapted_->Register(*interrupt_);
         }
       }
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(sizeof(Adapted_)) + k_.StaticHeapSize();
     }
 
     E_ e_;

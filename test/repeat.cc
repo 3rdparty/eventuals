@@ -193,5 +193,38 @@ TEST(RepeatTest, MapAcquire) {
   EXPECT_EQ(5, *r());
 }
 
+
+TEST(RepeatTest, StaticHeapSize) {
+  auto e = [](auto i) {
+    return Eventual<int>()
+        .context(i)
+        .start([](int& i, auto& k) {
+          k.Start(std::move(i));
+        });
+  };
+
+  auto r = [&]() {
+    return Repeat([i = 0]() mutable { return i++; })
+        >> Until([](int& i) {
+             return i == 5;
+           })
+        >> Map([&](int i) {
+             return e(i);
+           })
+        >> Reduce(
+               /* sum = */ 0,
+               [](int& sum) {
+                 return Then([&](int i) {
+                   sum += i;
+                   return true;
+                 });
+               });
+  };
+
+  auto [_, k] = PromisifyForTest(r());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+}
+
 } // namespace
 } // namespace eventuals::test

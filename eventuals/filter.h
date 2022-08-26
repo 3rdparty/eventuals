@@ -1,6 +1,7 @@
 #pragma once
 
 #include "eventuals/stream.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +45,10 @@ struct _Filter final {
 
     void Register(Interrupt& interrupt) {
       k_.Register(interrupt);
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     F_ f_;

@@ -5,9 +5,9 @@
 #include "eventuals/collect.h"
 #include "eventuals/filter.h"
 #include "eventuals/iterate.h"
-#include "eventuals/promisify.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -172,6 +172,34 @@ TEST(Take, TakeRangeInfiniteStream) {
   };
 
   EXPECT_THAT(*s(), ElementsAre(0, 1));
+}
+
+TEST(Take, StaticHeapSize1) {
+  std::vector<int> v = {5, 12, 17, 3};
+
+  auto s = [&]() {
+    return Iterate(v)
+        >> TakeLast(2)
+        >> Collect<std::vector>();
+  };
+
+  auto [_, k] = PromisifyForTest(s());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+}
+
+TEST(Take, StaticHeapSize2) {
+  std::vector<int> v = {5, 12, 17, 20, 22, 1, 1, 1};
+
+  auto s = [&]() {
+    return Iterate(v)
+        >> TakeRange(1, 2)
+        >> Collect<std::vector>();
+  };
+
+  auto [_, k] = PromisifyForTest(s());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
 }
 
 } // namespace

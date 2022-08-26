@@ -4,6 +4,7 @@
 
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -127,6 +128,10 @@ struct _FlatMap final {
           outer_->Done();
         }
       });
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     F_ f_;

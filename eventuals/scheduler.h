@@ -15,6 +15,7 @@
 #include "eventuals/terminal.h"
 #include "eventuals/undefined.h"
 #include "stout/borrowable.h"
+#include "stout/bytes.h"
 #include "stout/stringify.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -288,6 +289,10 @@ struct _Reschedule final {
       k_.Register(interrupt);
     }
 
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
+    }
+
     stout::borrowed_ref<Scheduler::Context> context_;
 
     std::optional<
@@ -392,6 +397,10 @@ struct Reschedulable final {
     interrupt_ = &interrupt;
   }
 
+  Bytes StaticHeapSize() {
+    return Bytes(0) + k_.StaticHeapSize();
+  }
+
   Interrupt* interrupt_ = nullptr;
 
   using Continuation_ =
@@ -469,6 +478,10 @@ struct _Preempt final {
       if (interrupt_ != nullptr) {
         adapted_->Register(*interrupt_);
       }
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     Scheduler::Context context_;

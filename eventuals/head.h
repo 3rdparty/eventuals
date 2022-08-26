@@ -1,6 +1,7 @@
 #pragma once
 
 #include "eventuals/stream.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +44,10 @@ struct _Head final {
 
     void Register(Interrupt& interrupt) {
       k_.Register(interrupt);
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     std::optional<Arg_> arg_;

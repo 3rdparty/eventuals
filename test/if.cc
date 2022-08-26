@@ -130,5 +130,21 @@ TEST(IfTest, Raise) {
   EXPECT_EQ(42, *e());
 }
 
+
+TEST(IfTest, StaticHeapSize) {
+  auto e = []() {
+    return Just(1)
+        >> Then([](int i) {
+             return If(i == 1)
+                 .yes([]() { return Just("yes"); })
+                 .no([]() { return Just("no"); });
+           });
+  };
+
+  auto [_, k] = PromisifyForTest(e());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+}
+
 } // namespace
 } // namespace eventuals::test

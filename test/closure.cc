@@ -158,5 +158,18 @@ TEST(ClosureTest, Interrupt) {
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
 
+TEST(ClosureTest, StaticHeapSize) {
+  auto e = []() {
+    return Just(1)
+        >> Closure([i = 41]() {
+             return Then([&](int value) { return i + value; });
+           });
+  };
+
+  auto [_, k] = PromisifyForTest(e());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+}
+
 } // namespace
 } // namespace eventuals::test

@@ -5,6 +5,7 @@
 #include "eventuals/compose.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/type-erased-stream.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -61,6 +62,10 @@ struct _Closure final {
       }
 
       return *continuation_;
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     F_ f_;
