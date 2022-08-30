@@ -72,20 +72,41 @@ namespace os {
 
 #ifndef _WIN32
 struct StackInfo {
-  void* start = nullptr;
-  void* end = nullptr;
-  Bytes size = 0;
   inline Bytes StackAvailable() {
     [[maybe_unused]] char local_var{};
 #if defined(__x86_64__)
     return Bytes(
         (&local_var)
         - ((char*) end) - sizeof(local_var));
+#elif defined(__arm__) || defined(__arm64__) || defined(__aarch64__)
+    if (stack_grows_downward) {
+      return Bytes((&local_var) - ((char*) end) - sizeof(local_var));
+    } else {
+      return Bytes(((char*) end) - (&local_var));
+    }
 #else
-    return Bytes{0};
+    return Bytes(0);
 #endif
   }
+
+  void* start = nullptr;
+  void* end = nullptr;
+  Bytes size = 0;
+  bool stack_grows_downward = true;
 };
+
+////////////////////////////////////////////////////////////////////////
+
+// Function that returns true if the stack grows downward. If the stack
+// grows upward - returns false.
+inline bool StackGrowsDownward(size_t* var) {
+  char local_var{};
+  if (reinterpret_cast<char*>(var) < &local_var) {
+    return false;
+  } else {
+    return true;
+  }
+}
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -93,6 +114,7 @@ inline StackInfo GetStackInfo() {
   [[maybe_unused]] pthread_t self = pthread_self();
   void* stack_addr = nullptr;
   size_t size = 0;
+  [[maybe_unused]] const bool stack_grows_downward = StackGrowsDownward(&size);
 #ifdef __linux__
   pthread_attr_t attr;
 
@@ -154,6 +176,60 @@ inline StackInfo GetStackInfo() {
         /* start = */ stack_addr,
         /* end = */ static_cast<char*>(stack_addr) - size,
         /* size = */ Bytes(size)};
+  }
+#endif // If macOS.
+
+#elif defined(__arm__) || defined(__arm64__) || defined(__aarch64__)
+// Stack direction growth for arm architecture is selectable.
+// (check_line_length skip)
+// https://stackoverflow.com/questions/19070095/who-selects-the-arm-stack-direction
+#ifdef __linux__
+  // The function `pthread_attr_getstack` on Linux returns
+  // the lowest stack address. So, `stack_addr` will always
+  // have the lowest address.
+  if (stack_grows_downward) {
+    return StackInfo{
+        /* start = */ static_cast<char*>(stack_addr) + size,
+        /* end = */ stack_addr,
+        /* size = */ Bytes(size),
+        stack_grows_downward};
+  } else {
+    return StackInfo{
+        /* start = */ stack_addr,
+        /* end = */ static_cast<char*>(stack_addr) + size,
+        /* size = */ Bytes(size),
+        stack_grows_downward};
+  }
+#endif // If Linux.
+
+#ifdef __MACH__
+  char local_var{};
+
+  // For macOS `stack_addr` can be either the base or the end of the stack.
+  if (&local_var > stack_addr && stack_grows_downward) {
+    return StackInfo{
+        /* start = */ static_cast<char*>(stack_addr) - size,
+        /* end = */ stack_addr,
+        /* size = */ Bytes(size),
+        stack_grows_downward};
+  } else if (&local_var > stack_addr && !stack_grows_downward) {
+    return StackInfo{
+        /* start = */ stack_addr,
+        /* end = */ static_cast<char*>(stack_addr) + size,
+        /* size = */ Bytes(size),
+        stack_grows_downward};
+  } else if (stack_addr > &local_var && stack_grows_downward) {
+    return StackInfo{
+        /* start = */ stack_addr,
+        /* end = */ static_cast<char*>(stack_addr) - size,
+        /* size = */ Bytes(size),
+        stack_grows_downward};
+  } else {
+    return StackInfo{
+        /* start = */ static_cast<char*>(stack_addr) - size,
+        /* end = */ stack_addr,
+        /* size = */ Bytes(size),
+        stack_grows_downward};
   }
 #endif // If macOS.
 #endif
