@@ -174,11 +174,7 @@ TEST(Take, TakeRangeInfiniteStream) {
   EXPECT_THAT(*s(), ElementsAre(0, 1));
 }
 
-<<<<<<< HEAD
 TEST(Take, StaticHeapSize1) {
-=======
-TEST(Take, TakeLastStaticHeapSize) {
->>>>>>> Introduce `HeapSize()`
   std::vector<int> v = {5, 12, 17, 3};
 
   auto s = [&]() {

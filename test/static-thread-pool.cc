@@ -16,6 +16,8 @@
 #include "eventuals/until.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "stout/borrowable.h"
+#include "stout/bytes.h"
 #include "test/promisify-for-test.h"
 
 namespace eventuals::test {
@@ -48,9 +50,54 @@ TEST(StaticThreadPoolTest, Schedulable) {
 
   k.Start();
 
-  EXPECT_TRUE(k.StaticHeapSize().bytes() > 0);
+  EXPECT_EQ(42, future.get());
+}
+
+
+TEST(StaticThreadPoolTest, MonotonicBuffer) {
+  struct Foo : public StaticThreadPool::Schedulable {
+    Foo()
+      : StaticThreadPool::Schedulable(Pinned::ExactCPU(
+          std::thread::hardware_concurrency() - 1)) {}
+
+    auto Operation() {
+      return Schedule(
+                 Then([this]() {
+                   return i;
+                 }))
+          >> Then([](auto i) {
+               return i + 1;
+             });
+    }
+
+    int i = 41;
+  };
+
+  Foo foo;
+
+  std::optional<stout::Borrowable<
+      std::pmr::monotonic_buffer_resource>>
+      resource;
+
+  auto [future, k] = PromisifyForTest(foo.Operation());
+
+  Bytes static_heap_size = k.StaticHeapSize();
+
+  EXPECT_TRUE(static_heap_size > 0);
+
+  char* buffer = new char[static_heap_size.bytes()];
+
+  resource.emplace(
+      buffer,
+      static_heap_size.bytes());
+
+  k.Register(resource->Borrow());
+
+  k.Start();
 
   EXPECT_EQ(42, future.get());
+
+  delete[] buffer;
 }
 
 

@@ -33,6 +33,9 @@ struct _Reduce final {
       // Already registered K once in 'Reduce::Register()'.
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+    }
+
     K_& k_;
     TypeErasedStream* stream_;
   };
@@ -71,6 +74,8 @@ struct _Reduce final {
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
         }
+
+        adapted_->Register(std::move(resource_));
       }
 
       adapted_->Start(std::forward<Args>(args)...);
@@ -83,6 +88,10 @@ struct _Reduce final {
     void Register(Interrupt& interrupt) {
       interrupt_ = &interrupt;
       k_.Register(interrupt);
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
     }
 
     Bytes StaticHeapSize() {
@@ -106,6 +115,8 @@ struct _Reduce final {
         std::declval<Adaptor<K_>>()));
 
     std::optional<Adapted_> adapted_;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

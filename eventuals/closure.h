@@ -4,6 +4,7 @@
 
 #include "eventuals/compose.h"
 #include "eventuals/interrupt.h"
+#include "eventuals/memory.h"
 #include "eventuals/type-erased-stream.h"
 #include "stout/bytes.h"
 
@@ -52,6 +53,10 @@ struct _Closure final {
       interrupt_ = &interrupt;
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
     [[nodiscard]] auto& continuation() {
       if (!continuation_) {
         continuation_.emplace(f_().template k<Arg_>(std::move(k_)));
@@ -59,6 +64,7 @@ struct _Closure final {
         if (interrupt_ != nullptr) {
           continuation_->Register(*interrupt_);
         }
+        continuation_->Register(std::move(resource_));
       }
 
       return *continuation_;
@@ -75,6 +81,8 @@ struct _Closure final {
     using Continuation_ = decltype(f_().template k<Arg_>(std::declval<K_&&>()));
 
     std::optional<Continuation_> continuation_;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

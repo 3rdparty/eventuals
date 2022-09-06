@@ -578,5 +578,42 @@ TEST(Generator, StaticHeapSize) {
   EXPECT_GT(k.StaticHeapSize().bytes(), 0);
 }
 
+TEST(Generator, MonotonicBuffer) {
+  auto stream = []() -> Generator::Of<int> {
+    return []() {
+      return Iterate({1, 2, 3});
+    };
+  };
+
+  auto e = [&]() {
+    return stream()
+        >> Collect<std::vector>();
+  };
+
+  std::optional<stout::Borrowable<
+      std::pmr::monotonic_buffer_resource>>
+      resource;
+
+  auto [future, k] = PromisifyForTest(e());
+
+  Bytes static_heap_size = k.StaticHeapSize();
+
+  EXPECT_GT(static_heap_size, 0);
+
+  char* buffer = new char[static_heap_size.bytes()];
+
+  resource.emplace(
+      buffer,
+      static_heap_size.bytes());
+
+  k.Register(resource->Borrow());
+
+  k.Start();
+
+  EXPECT_EQ(future.get(), (std::vector<int>{1, 2, 3}));
+
+  delete[] buffer;
+}
+
 } // namespace
 } // namespace eventuals::test

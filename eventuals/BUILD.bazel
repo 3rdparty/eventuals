@@ -37,6 +37,7 @@ cc_library(
         "lock.h",
         "loop.h",
         "map.h",
+        "memory.h",
         "notification.h",
         "on-begin.h",
         "on-ended.h",

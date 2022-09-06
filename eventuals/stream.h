@@ -249,6 +249,10 @@ struct _Stream final {
       }
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
     void Next() override {
       static_assert(
           !IsUndefined<Next_>::value,

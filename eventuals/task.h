@@ -8,6 +8,7 @@
 
 #include "eventuals/eventual.h"
 #include "eventuals/just.h"
+#include "eventuals/memory.h"
 #include "eventuals/raise.h"
 #include "eventuals/terminal.h"
 #include "eventuals/type-traits.h"
@@ -53,6 +54,9 @@ struct HeapTask final {
     }
 
     void Register(Interrupt&) {}
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+    }
 
     Callback<function_type_t<void, To_>>* start_;
     Callback<void(std::exception_ptr)>* fail_;
@@ -176,6 +180,7 @@ struct _TaskFromToWith final {
   template <typename From, typename To, typename... Args>
   using DispatchCallback =
       Callback<void(
+          stout::borrowed_ptr<std::pmr::memory_resource>&&,
           Action,
           std::optional<std::exception_ptr>&&,
           Args&...,
@@ -261,6 +266,10 @@ struct _TaskFromToWith final {
       k_.Register(interrupt);
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
     Bytes StaticHeapSize() {
       return static_heap_size_ + k_.StaticHeapSize();
     }
@@ -274,6 +283,7 @@ struct _TaskFromToWith final {
       std::apply(
           [&](auto&... args) {
             std::get<1>(value_or_dispatch_)(
+                std::move(resource_),
                 action,
                 std::move(exception),
                 args...,
@@ -308,12 +318,13 @@ struct _TaskFromToWith final {
 
     Bytes static_heap_size_ = 0;
 
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
+
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete
     // issues during destruction of 'k_' if it holds any references or
     // pointers to any (or within any) of the above members.
     K_ k_;
-    Bytes heap_size_ = 0;
   };
 
   template <
@@ -395,54 +406,53 @@ struct _TaskFromToWith final {
 
       static_heap_size_ = Bytes(sizeof(HeapTask<E, From_, To_>));
 
-      value_or_dispatch_ = [f = std::move(f)](
-                               Action action,
-                               std::optional<std::exception_ptr>&& exception,
-                               Args_&... args,
-                               std::optional<MonostateIfVoidOr<From_>>&& arg,
-                               std::unique_ptr<void, Callback<void(void*)>>& e_,
-                               Interrupt& interrupt,
-                               Callback<function_type_t<void, To_>>&& start,
-                               Callback<void(std::exception_ptr)>&& fail,
-                               Callback<void()>&& stop) mutable {
-        if (!e_) {
-          e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapTask<E, From_, To_>(f(args...)),
-              [](void* e) {
-                delete static_cast<HeapTask<E, From_, To_>*>(e);
-              });
-        }
+      value_or_dispatch_ =
+          [f = std::move(f)](
+              stout::borrowed_ptr<std::pmr::memory_resource>&& resource,
+              Action action,
+              std::optional<std::exception_ptr>&& exception,
+              Args_&... args,
+              std::optional<MonostateIfVoidOr<From_>>&& arg,
+              std::unique_ptr<void, Callback<void(void*)>>& e_,
+              Interrupt& interrupt,
+              Callback<function_type_t<void, To_>>&& start,
+              Callback<void(std::exception_ptr)>&& fail,
+              Callback<void()>&& stop) mutable {
+            if (!e_) {
+              e_ = MakeUniqueUsingMemoryResourceOrNew<
+                  HeapTask<E, From_, To_>>(resource, f(args...));
+            }
 
-        auto* e = static_cast<HeapTask<E, From_, To_>*>(e_.get());
+            auto* e = static_cast<HeapTask<E, From_, To_>*>(e_.get());
 
-        switch (action) {
-          case Action::Start:
-            e->Start(
-                std::move(arg.value()),
-                interrupt,
-                std::move(start),
-                std::move(fail),
-                std::move(stop));
-            break;
-          case Action::Fail:
-            e->Fail(
-                interrupt,
-                std::move(exception.value()),
-                std::move(start),
-                std::move(fail),
-                std::move(stop));
-            break;
-          case Action::Stop:
-            e->Stop(
-                interrupt,
-                std::move(start),
-                std::move(fail),
-                std::move(stop));
-            break;
-          default:
-            LOG(FATAL) << "unreachable";
-        }
-      };
+            switch (action) {
+              case Action::Start:
+                e->Start(
+                    std::move(arg.value()),
+                    interrupt,
+                    std::move(start),
+                    std::move(fail),
+                    std::move(stop));
+                break;
+              case Action::Fail:
+                e->Fail(
+                    interrupt,
+                    std::move(exception.value()),
+                    std::move(start),
+                    std::move(fail),
+                    std::move(stop));
+                break;
+              case Action::Stop:
+                e->Stop(
+                    interrupt,
+                    std::move(start),
+                    std::move(fail),
+                    std::move(stop));
+                break;
+              default:
+                LOG(FATAL) << "unreachable";
+            }
+          };
     }
 
     Composable(

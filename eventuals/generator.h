@@ -5,6 +5,7 @@
 #include <tuple>
 #include <variant>
 
+#include "eventuals/memory.h"
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
@@ -64,6 +65,9 @@ struct HeapGenerator final {
 
     // Already registered in 'adapted_'
     void Register(Interrupt&) {}
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+    }
 
     Callback<void(TypeErasedStream&)>* begin_;
     Callback<void(std::exception_ptr)>* fail_;
@@ -175,6 +179,7 @@ struct _Generator final {
   template <typename From, typename To, typename... Args>
   using DispatchCallback =
       Callback<void(
+          stout::borrowed_ptr<std::pmr::memory_resource>&&,
           Action,
           std::optional<std::exception_ptr>&&,
           Args&...,
@@ -258,6 +263,10 @@ struct _Generator final {
       k_.Register(interrupt);
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
     void Dispatch(
         Action action,
         std::optional<
@@ -269,6 +278,7 @@ struct _Generator final {
       std::apply(
           [&](auto&... args) {
             dispatch_(
+                std::move(resource_),
                 action,
                 std::move(exception),
                 args...,
@@ -307,13 +317,13 @@ struct _Generator final {
 
     Bytes static_heap_size_ = 0;
 
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
+
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete
     // issues during destruction of 'k_' if it holds any references or
     // pointers to any (or within any) of the above members.
     K_ k_;
-
-    Bytes heap_size_ = 0;
   };
 
   template <typename From_, typename To_, typename Errors_, typename... Args_>
@@ -413,6 +423,7 @@ struct _Generator final {
       static_heap_size_ = Bytes(sizeof(HeapGenerator<E, From_, To_>));
 
       dispatch_ = [f = std::move(f)](
+                      stout::borrowed_ptr<std::pmr::memory_resource>&& resource,
                       Action action,
                       std::optional<std::exception_ptr>&& exception,
                       Args_&... args,
@@ -429,11 +440,8 @@ struct _Generator final {
                       Callback<function_type_t<void, To_>>&& body,
                       Callback<void()>&& ended) mutable {
         if (!e_) {
-          e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapGenerator<E, From_, To_>(f(args...)),
-              [](void* e) {
-                delete static_cast<HeapGenerator<E, From_, To_>*>(e);
-              });
+          e_ = MakeUniqueUsingMemoryResourceOrNew<
+              HeapGenerator<E, From_, To_>>(resource, f(args...));
         }
 
         auto* e = static_cast<HeapGenerator<E, From_, To_>*>(e_.get());

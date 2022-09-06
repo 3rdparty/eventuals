@@ -160,6 +160,10 @@ struct _Eventual {
       }
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
     Adaptor<K_, Value_, Errors_>& adaptor() {
       // Note: needed to delay doing this until now because this
       // eventual might have been moved before being started.

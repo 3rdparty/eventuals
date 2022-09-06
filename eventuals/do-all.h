@@ -243,7 +243,7 @@ struct _DoAll final {
           std::make_index_sequence<sizeof...(Eventuals_)>{}));
 
       std::apply(
-          [](auto&... fiber) {
+          [this](auto&... fiber) {
             static std::atomic<int> i = 0;
 
             // Clone the current scheduler context for running the eventual.
@@ -253,11 +253,12 @@ struct _DoAll final {
              ...);
 
             (fiber.context->scheduler()->Submit(
-                 [&]() {
+                 [&, this]() {
                    CHECK_EQ(
                        &fiber.context.value(),
                        Scheduler::Context::Get().get());
                    fiber.k.Register(fiber.interrupt);
+                   fiber.k.Register(resource_.reborrow());
                    fiber.k.Start();
                  },
                  fiber.context.value()),
@@ -286,6 +287,11 @@ struct _DoAll final {
       handler_->Install();
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
+
     Bytes StaticHeapSize() {
       return Bytes(0) + k_.StaticHeapSize();
     }
@@ -313,6 +319,8 @@ struct _DoAll final {
     };
 
     std::optional<Interrupt::Handler> handler_;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

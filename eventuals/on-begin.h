@@ -63,6 +63,8 @@ struct _OnBegin final {
         adapted_->Register(*interrupt_);
       }
 
+      adapted_->Register(std::move(resource_));
+
       adapted_->Start();
     }
 
@@ -90,6 +92,10 @@ struct _OnBegin final {
       k_.Register(interrupt);
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
     Bytes StaticHeapSize() {
       return Bytes(0) + k_.StaticHeapSize();
     }
@@ -102,6 +108,8 @@ struct _OnBegin final {
         std::declval<Adaptor<K_>>()));
 
     std::optional<Adapted_> adapted_;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

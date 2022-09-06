@@ -289,6 +289,10 @@ struct _Reschedule final {
       k_.Register(interrupt);
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
     Bytes StaticHeapSize() {
       return Bytes(0) + k_.StaticHeapSize();
     }
@@ -306,6 +310,8 @@ struct _Reschedule final {
         arg_;
 
     TypeErasedStream* stream_ = nullptr;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete
@@ -382,6 +388,8 @@ struct Reschedulable final {
       if (interrupt_ != nullptr) {
         continuation_->Register(*interrupt_);
       }
+
+      continuation_->Register(std::move(resource_));
     }
 
     // NOTE: there is no invariant that 'previous' equals the current
@@ -397,6 +405,10 @@ struct Reschedulable final {
     interrupt_ = &interrupt;
   }
 
+  void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+    resource_ = std::move(resource);
+  }
+
   Bytes StaticHeapSize() {
     return Bytes(0) + k_.StaticHeapSize();
   }
@@ -408,6 +420,8 @@ struct Reschedulable final {
                    .template k<Arg_>(std::declval<K_>()));
 
   std::optional<Continuation_> continuation_;
+
+  stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
   // NOTE: we store 'k_' as the _last_ member so it will be
   // destructed _first_ and thus we won't have any use-after-delete
@@ -463,6 +477,10 @@ struct _Preempt final {
       interrupt_ = &interrupt;
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
     void Adapt() {
       CHECK(!adapted_);
 
@@ -478,6 +496,8 @@ struct _Preempt final {
       if (interrupt_ != nullptr) {
         adapted_->Register(*interrupt_);
       }
+
+      adapted_->Register(std::move(resource_));
     }
 
     Bytes StaticHeapSize() {
@@ -499,6 +519,8 @@ struct _Preempt final {
                      .template k<Value_>(std::declval<K_>()));
 
     std::optional<Adapted_> adapted_;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

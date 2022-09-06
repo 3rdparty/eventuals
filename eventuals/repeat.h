@@ -42,6 +42,10 @@ struct _Repeat final {
       k_.Register(interrupt);
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
     void Next() override {
       previous_->Continue([this]() {
         k_.Body();

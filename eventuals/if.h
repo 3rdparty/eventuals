@@ -30,6 +30,8 @@ struct _If final {
           yes_adapted_->Register(*interrupt_);
         }
 
+        yes_adapted_->Register(std::move(resource_));
+
         yes_adapted_->Start();
       } else {
         no_adapted_.emplace(
@@ -38,6 +40,8 @@ struct _If final {
         if (interrupt_ != nullptr) {
           no_adapted_->Register(*interrupt_);
         }
+
+        no_adapted_->Register(std::move(resource_));
 
         no_adapted_->Start();
       }
@@ -56,6 +60,10 @@ struct _If final {
       assert(interrupt_ == nullptr);
       interrupt_ = &interrupt;
       k_.Register(interrupt);
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
     }
 
     Bytes StaticHeapSize() {
@@ -89,6 +97,8 @@ struct _If final {
 
     std::optional<YesAdapted_> yes_adapted_;
     std::optional<NoAdapted_> no_adapted_;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

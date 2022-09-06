@@ -1142,6 +1142,10 @@ struct _HTTP final {
       handler_->Install();
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
     Bytes StaticHeapSize() {
       return Bytes(0) + k_.HeapSize();
     }

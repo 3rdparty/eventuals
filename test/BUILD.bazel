@@ -71,7 +71,6 @@ cc_test(
         "notification.cc",
         "on-begin.cc",
         "on-ended.cc",
-        "os.cc",
         "pipe.cc",
         "poll.cc",
         "range.cc",

@@ -12,6 +12,7 @@
 
 #include "eventuals/compose.h"
 #include "eventuals/lazy.h"
+#include "eventuals/memory.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/semaphore.h"
 #include "stout/borrowed_ptr.h"
@@ -164,6 +165,7 @@ struct _StaticThreadPoolSchedule final {
       : e_(std::move(that.e_)),
         context_(std::move(that.context_)),
         engine_(device_()),
+        resource_(std::move(that.resource_)),
         k_(std::move(that.k_)) {}
 
     ~Continuation() override {
@@ -446,9 +448,12 @@ struct _StaticThreadPoolSchedule final {
 
     void Register(Interrupt& interrupt) {
       interrupt_ = &interrupt;
-
       // NOTE: we propagate interrupt registration when we adapt or
       // when we call 'Fail()' in the cases when we aren't adapting.
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
     }
 
     void Adapt() {
@@ -457,19 +462,14 @@ struct _StaticThreadPoolSchedule final {
         stout::borrowed_ref<Scheduler::Context> previous =
             Scheduler::Context::Get().reborrow();
 
-        adapted_.reset(
-            // NOTE: for now we're assuming usage of something like
-            // 'jemalloc' so 'new' should use lock-free and thread-local
-            // arenas. Ideally allocating memory during runtime should
-            // actually be *faster* because the memory should have
-            // better locality for the execution resource being used
-            // (i.e., a local NUMA node). However, we should reconsider
-            // this design decision if in practice this performance
-            // tradeoff is not emperically a benefit.
-            new Adapted_(
-                std::move(e_).template k<Arg_>(
-                    Reschedule(std::move(previous))
-                        .template k<Value_>(std::move(k_)))));
+        adapted_ = MakeUniqueUsingMemoryResourceOrNew<Adapted_>(
+            resource_,
+            std::move(e_).template k<Arg_>(
+                Reschedule(
+                    std::move(previous))
+                    .template k<Value_>(std::move(k_))));
+
+        adapted_->Register(std::move(resource_));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
@@ -516,7 +516,12 @@ struct _StaticThreadPoolSchedule final {
         std::declval<_Reschedule::Composable>()
             .template k<Value_>(std::declval<K_>())));
 
-    std::unique_ptr<Adapted_> adapted_;
+    std::unique_ptr<
+        Adapted_,
+        Callback<void(void*)>>
+        adapted_{nullptr, [](void*) {}};
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

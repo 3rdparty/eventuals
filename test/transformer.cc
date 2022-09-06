@@ -266,5 +266,49 @@ TEST(Transformer, StaticHeapSize) {
   EXPECT_GT(k.StaticHeapSize().bytes(), 0);
 }
 
+TEST(Transformer, MonotonicBuffer) {
+  auto transformer = []() {
+    return Transformer::From<int>::To<std::string>(
+        []() {
+          return Map([](int x) {
+            return std::to_string(x);
+          });
+        });
+  };
+
+  auto e = [&]() {
+    return Iterate({100})
+        >> transformer()
+        >> Map([](std::string s) {
+             return s;
+           })
+        >> Collect<std::vector>();
+  };
+
+  std::optional<stout::Borrowable<
+      std::pmr::monotonic_buffer_resource>>
+      resource;
+
+  auto [future, k] = PromisifyForTest(e());
+
+  Bytes static_heap_size = k.StaticHeapSize();
+
+  EXPECT_GT(static_heap_size, 0);
+
+  char* buffer = new char[static_heap_size.bytes()];
+
+  resource.emplace(
+      buffer,
+      static_heap_size.bytes());
+
+  k.Register(resource->Borrow());
+
+  k.Start();
+
+  EXPECT_EQ(future.get(), (std::vector<std::string>{"100"}));
+
+  delete[] buffer;
+}
+
 } // namespace
 } // namespace eventuals::test

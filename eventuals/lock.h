@@ -457,6 +457,10 @@ struct _Acquire final {
       k_.Register(interrupt);
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
     Bytes StaticHeapSize() {
       return Bytes(0) + k_.StaticHeapSize();
     }
@@ -551,6 +555,10 @@ struct _Release final {
 
     void Register(Interrupt& interrupt) {
       k_.Register(interrupt);
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
     }
 
     Bytes StaticHeapSize() {
@@ -783,6 +791,10 @@ struct _Wait final {
 
     void Register(Interrupt& interrupt) {
       k_.Register(interrupt);
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
     }
 
     Bytes StaticHeapSize() {

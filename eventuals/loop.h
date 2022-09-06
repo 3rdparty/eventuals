@@ -165,6 +165,10 @@ struct _Loop final {
       }
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
     template <typename... Args>
     void Body(Args&&... args) {
       if constexpr (IsUndefined<Body_>::value) {

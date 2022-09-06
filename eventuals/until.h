@@ -62,6 +62,9 @@ struct _Until final {
       // Already registered K once in 'Until::Register()'.
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+    }
+
     K_& k_;
     TypeErasedStream& stream_;
   };
@@ -141,6 +144,10 @@ struct _Until::Continuation<K_, F_, Arg_, false> final {
     k_.Register(interrupt);
   }
 
+  void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+    k_.Register(std::move(resource));
+  }
+
   template <typename... Args>
   void Body(Args&&... args) {
     bool done = f_(args...); // NOTE: explicitly not forwarding.
@@ -199,6 +206,10 @@ struct _Until::Continuation<K_, F_, Arg_, true> final {
     k_.Register(interrupt);
   }
 
+  void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+    resource_ = std::move(resource);
+  }
+
   template <typename... Args>
   void Body(Args&&... args) {
     static_assert(
@@ -221,6 +232,8 @@ struct _Until::Continuation<K_, F_, Arg_, true> final {
     if (interrupt_ != nullptr) {
       adapted_->Register(*interrupt_);
     }
+
+    adapted_->Register(std::move(resource_));
 
     adapted_->Start();
   }
@@ -259,6 +272,8 @@ struct _Until::Continuation<K_, F_, Arg_, true> final {
       std::declval<Adaptor<K_, Arg_>>()));
 
   std::optional<Adapted_> adapted_;
+
+  stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
   // NOTE: we store 'k_' as the _last_ member so it will be
   // destructed _first_ and thus we won't have any use-after-delete
