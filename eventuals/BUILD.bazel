@@ -129,7 +129,15 @@ cc_library(
         ":base",
         ":events",
         "@com_github_3rdparty_stout//:stout",
-    ],
+    ] + select({
+        # We support backward lib only for macOS and Linux.
+        # The support for Windows might be added in future.
+        # https://github.com/3rdparty/eventuals/issues/450
+        "@bazel_tools//src/conditions:windows": [],
+        "//conditions:default": [
+            "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
+        ],
+    }),
 )
 
 cc_library(

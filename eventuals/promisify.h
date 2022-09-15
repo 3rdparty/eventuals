@@ -1,5 +1,6 @@
 #pragma once
 
+#include "backward.hpp"
 #include "eventuals/closure.h"
 #include "eventuals/compose.h"
 #include "eventuals/event-loop.h"
@@ -105,7 +106,42 @@ auto Run(E e) {
     if (EventLoop::HasDefault()) {
       while (future.wait_for(std::chrono::seconds::zero())
              != std::future_status::ready) {
+#ifndef _WIN32
+        // if (EventualsLog(3) {
+          backward::StackTrace stack_trace;
+          stack_trace.load_here(32);
+          backward::Printer printer;
+          // printer.object = true;
+          printer.color_mode = backward::ColorMode::automatic;
+          // printer.address = true;
+          std::ostringstream os;
+          printer.print(stack_trace, os);
+          // EVENTUALS_LOG(3)
+          LOG(WARNING)
+              << "Waiting on future at: \n"
+              << os.str();
+        // }
+#endif
         EventLoop::Default().RunOnce();
+      }
+    } else // if (EventualsLog(3))
+    {
+      while (future.wait_for(std::chrono::seconds(1))
+             != std::future_status::ready) {
+#ifndef _WIN32
+            backward::StackTrace stack_trace;
+            stack_trace.load_here(32);
+            backward::Printer printer;
+            // printer.object = true;
+            printer.color_mode = backward::ColorMode::automatic;
+            // printer.address = true;
+            std::ostringstream os;
+            printer.print(stack_trace, os);
+            // EVENTUALS_LOG(3)
+            LOG(WARNING)
+                << "Waiting on future at: \n"
+                << os.str();
+#endif
       }
     }
 
