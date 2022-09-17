@@ -87,13 +87,16 @@ struct _Then final {
         void>;
 
     template <typename Arg, typename Errors>
-    using ErrorsFrom = ErrorsFromMaybeComposable<
-        typename std::conditional_t<
-            std::is_void_v<Arg>,
-            std::invoke_result<F_>,
-            std::invoke_result<F_, Arg>>::type,
-        void,
-        Errors>;
+    using ErrorsFrom =
+        tuple_types_union_t<
+            Errors,
+            ErrorsFromMaybeComposable<
+                typename std::conditional_t<
+                    std::is_void_v<Arg>,
+                    std::invoke_result<F_>,
+                    std::invoke_result<F_, Arg>>::type,
+                void,
+                Errors>>;
 
 
     template <typename Downstream>
