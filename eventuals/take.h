@@ -6,6 +6,7 @@
 #include "eventuals/eventual.h"
 #include "eventuals/filter.h"
 #include "eventuals/stream.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +68,10 @@ struct _TakeLast final {
       k_.Register(interrupt);
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
     void Next() override {
       // When Next is called from the next eventual,
       // the element should be taken from the stored stream.
@@ -92,6 +97,10 @@ struct _TakeLast final {
       previous_->Continue([this]() {
         k_.Ended();
       });
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     size_t n_;
@@ -210,6 +219,14 @@ struct _TakeRange final {
 
     void Register(Interrupt& interrupt) {
       k_.Register(interrupt);
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     size_t begin_;

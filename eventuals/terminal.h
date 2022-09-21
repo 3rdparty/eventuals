@@ -1,8 +1,11 @@
 #pragma once
 
+#include <memory_resource>
+
 #include "eventuals/compose.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/undefined.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +59,13 @@ struct _Terminal final {
     }
 
     void Register(Interrupt&) {}
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0);
+    }
 
     Context_ context_;
     Start_ start_;

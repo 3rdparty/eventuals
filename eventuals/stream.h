@@ -21,6 +21,7 @@
 #include "eventuals/type-traits.h"
 #include "eventuals/undefined.h"
 #include "stout/borrowed_ptr.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -248,6 +249,10 @@ struct _Stream final {
       }
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
     void Next() override {
       static_assert(
           !IsUndefined<Next_>::value,
@@ -301,6 +306,10 @@ struct _Stream final {
         adaptor_.k_ = &k_;
       }
       return adaptor_;
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     Context_ context_;

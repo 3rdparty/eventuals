@@ -8,9 +8,9 @@
 #include "eventuals/iterate.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
-#include "eventuals/promisify.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -91,6 +91,22 @@ TEST(Filter, OddMapCollectFlow) {
   };
 
   EXPECT_THAT(*s(), UnorderedElementsAre(6, 18));
+}
+
+TEST(Filter, StaticHeapSize) {
+  std::vector<int> v = {5, 12, 17};
+  auto begin = v.begin();
+  auto end = v.end();
+
+  auto e = [&]() {
+    return Iterate(begin, end)
+        >> Filter([](int x) { return x % 2 == 1; })
+        >> Collect<std::set>();
+  };
+
+  auto [_, k] = PromisifyForTest(e());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
 }
 
 } // namespace

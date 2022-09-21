@@ -6,12 +6,12 @@
 #include "eventuals/expected.h"
 #include "eventuals/finally.h"
 #include "eventuals/iterate.h"
-#include "eventuals/promisify.h"
 #include "eventuals/then.h"
 #include "eventuals/timer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/event-loop-test.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -40,6 +40,23 @@ TEST_F(OnBeginTest, OnlyOnceAndAsynchronous) {
   };
 
   EXPECT_THAT(*e(), ElementsAre(1, 2, 3));
+}
+
+TEST_F(OnBeginTest, StaticHeapSize) {
+  auto e = [&]() {
+    return Iterate({1, 2, 3})
+        >> OnBegin([&]() {
+             return Timer(std::chrono::milliseconds(10))
+                 >> Finally([&](expected<void, std::exception_ptr>&& e) {
+                      EXPECT_TRUE(e);
+                    });
+           })
+        >> Collect<std::vector>();
+  };
+
+  auto [_, t] = PromisifyForTest(e());
+
+  EXPECT_EQ(0, t.StaticHeapSize().bytes());
 }
 
 } // namespace

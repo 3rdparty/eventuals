@@ -3,6 +3,7 @@
 #include "eventuals/compose.h"
 #include "eventuals/eventual.h"
 #include "eventuals/just.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -60,6 +61,9 @@ struct _Then final {
 
     void Register(Interrupt&) {
       // Already registered K once in 'Then::Register()'.
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
     }
 
     K_& k_;
@@ -154,6 +158,14 @@ struct _Then::Continuation<K_, F_, Arg_, false> final {
     k_.Register(interrupt);
   }
 
+  void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+    k_.Register(std::move(resource));
+  }
+
+  Bytes StaticHeapSize() {
+    return Bytes(0) + k_.StaticHeapSize();
+  }
+
   F_ f_;
 
   // NOTE: we store 'k_' as the _last_ member so it will be
@@ -180,6 +192,8 @@ struct _Then::Continuation<K_, F_, Arg_, true> final {
       adapted_->Register(*interrupt_);
     }
 
+    adapted_->Register(std::move(resource_));
+
     adapted_->Start();
   }
 
@@ -198,6 +212,14 @@ struct _Then::Continuation<K_, F_, Arg_, true> final {
     k_.Register(interrupt);
   }
 
+  void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+    resource_ = std::move(resource);
+  }
+
+  Bytes StaticHeapSize() {
+    return Bytes(0) + k_.StaticHeapSize();
+  }
+
   F_ f_;
 
   Interrupt* interrupt_ = nullptr;
@@ -211,6 +233,8 @@ struct _Then::Continuation<K_, F_, Arg_, true> final {
       std::declval<Adaptor<K_>>()));
 
   std::optional<Adapted_> adapted_;
+
+  stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
   // NOTE: we store 'k_' as the _last_ member so it will be
   // destructed _first_ and thus we won't have any use-after-delete

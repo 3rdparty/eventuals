@@ -1,6 +1,7 @@
 #pragma once
 
 #include "eventuals/stream.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +44,14 @@ struct _Head final {
 
     void Register(Interrupt& interrupt) {
       k_.Register(interrupt);
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     std::optional<Arg_> arg_;

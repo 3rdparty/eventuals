@@ -7,6 +7,7 @@
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -114,6 +115,8 @@ struct _Catch final {
         k_.Register(*interrupt_);
       }
 
+      k_.Register(std::move(resource_));
+
       k_.Start(std::forward<Args>(args)...);
     }
 
@@ -153,6 +156,8 @@ struct _Catch final {
           k_.Register(*interrupt_);
         }
 
+        k_.Register(std::move(resource_));
+
         k_.Fail(std::forward<Error>(error));
       }
     }
@@ -161,6 +166,8 @@ struct _Catch final {
       if (interrupt_ != nullptr) {
         k_.Register(*interrupt_);
       }
+
+      k_.Register(std::move(resource_));
 
       k_.Stop();
     }
@@ -174,9 +181,19 @@ struct _Catch final {
       // the handler.
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
+    }
+
     std::tuple<CatchHandlers_...> catch_handlers_;
 
     Interrupt* interrupt_ = nullptr;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

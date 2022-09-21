@@ -60,11 +60,17 @@ TEST(LockTest, Succeed) {
 
   t1.Start();
 
+  EXPECT_EQ(0, t1.StaticHeapSize().bytes());
+
   EXPECT_EQ("t1", future1.get());
 
   t2.Start();
 
+  EXPECT_EQ(0, t2.StaticHeapSize().bytes());
+
   t3.Start();
+
+  EXPECT_EQ(0, t3.StaticHeapSize().bytes());
 
   EXPECT_STREQ("t3", future3.get());
 
@@ -411,6 +417,27 @@ TEST(LockTest, ConditionVariable_UseAfterFree) {
   // There should be none, but if the previous call caused the temporary
   // eventual to be queued up, this will blow up.
   *foo.NotifyAll();
+}
+
+TEST(LockTest, StaticHeapSize) {
+  Lock lock;
+
+  auto e = [&]() {
+    return Eventual<std::string>()
+               .start([](auto& k) {
+                 std::thread thread(
+                     [&k]() mutable {
+                       k.Start("t1");
+                     });
+                 thread.detach();
+               })
+        >> Acquire(&lock)
+        >> Then([](std::string&& value) { return std::move(value); });
+  };
+
+  auto [_, t] = PromisifyForTest(e());
+
+  EXPECT_EQ(0, t.StaticHeapSize().bytes());
 }
 
 } // namespace

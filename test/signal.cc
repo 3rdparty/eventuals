@@ -27,6 +27,17 @@ class SignalTest : public EventLoopTest {};
 
 #if !defined(_WIN32)
 
+TEST_F(SignalTest, StaticHeapSize) {
+  auto e = WaitForSignal(SIGQUIT)
+      >> Then([]() {
+             return "quit";
+           });
+
+  auto [_, k] = PromisifyForTest(std::move(e));
+
+  EXPECT_EQ(k.StaticHeapSize().bytes(), 0);
+}
+
 TEST_F(SignalTest, SignalComposition) {
   auto e = WaitForSignal(SIGQUIT)
       >> Then([]() {

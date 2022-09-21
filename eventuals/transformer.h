@@ -4,8 +4,10 @@
 #include <optional>
 
 #include "eventuals/callback.h"
+#include "eventuals/memory.h"
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -148,8 +150,9 @@ struct _Transformer final {
   template <typename K_, typename From_, typename To_, typename Errors_>
   struct Continuation final {
     template <typename Dispatch>
-    Continuation(K_ k, Dispatch dispatch)
+    Continuation(K_ k, Dispatch dispatch, Bytes&& static_heap_size)
       : dispatch_(std::move(dispatch)),
+        static_heap_size_(std::move(static_heap_size)),
         k_(std::move(k)) {}
 
     void Begin(TypeErasedStream& stream) {
@@ -182,11 +185,16 @@ struct _Transformer final {
       k_.Register(interrupt);
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
     void Dispatch(
         Action action,
         std::optional<From_>&& from = std::nullopt,
         std::optional<std::exception_ptr>&& exception = std::nullopt) {
       dispatch_(
+          std::move(resource_),
           action,
           std::move(exception),
           std::move(from),
@@ -209,7 +217,12 @@ struct _Transformer final {
           });
     }
 
+    Bytes StaticHeapSize() {
+      return static_heap_size_ + k_.StaticHeapSize();
+    }
+
     Callback<void(
+        stout::borrowed_ptr<std::pmr::memory_resource>&&,
         Action,
         std::optional<std::exception_ptr>&&,
         std::optional<From_>&&,
@@ -224,6 +237,10 @@ struct _Transformer final {
 
     std::unique_ptr<void, Callback<void(void*)>> e_;
     Interrupt* interrupt_ = nullptr;
+
+    Bytes static_heap_size_ = 0;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete
@@ -297,7 +314,10 @@ struct _Transformer final {
           "eventual result type can not be converted "
           "into type of 'Transformer'");
 
+      static_heap_size_ = Bytes(sizeof(HeapTransformer<E, From_, To_>));
+
       dispatch_ = [f = std::move(f)](
+                      stout::borrowed_ptr<std::pmr::memory_resource>&& resource,
                       Action action,
                       std::optional<std::exception_ptr>&& exception,
                       std::optional<From_>&& from,
@@ -309,11 +329,8 @@ struct _Transformer final {
                       Callback<void()>&& stop,
                       Callback<void()>&& ended) {
         if (!e_) {
-          e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapTransformer<E, From_, To_>(f()),
-              [](void* e) {
-                delete static_cast<HeapTransformer<E, From_, To_>*>(e);
-              });
+          e_ = MakeUniqueUsingMemoryResourceOrNew<
+              HeapTransformer<E, From_, To_>>(resource, f());
         }
 
         auto* e = static_cast<HeapTransformer<E, From_, To_>*>(e_.get());
@@ -360,10 +377,12 @@ struct _Transformer final {
     auto k(K k) && {
       return Continuation<K, From_, To_, Errors_>(
           std::move(k),
-          std::move(dispatch_));
+          std::move(dispatch_),
+          std::move(static_heap_size_));
     }
 
     Callback<void(
+        stout::borrowed_ptr<std::pmr::memory_resource>&&,
         Action,
         std::optional<std::exception_ptr>&&,
         std::optional<From_>&&,
@@ -375,6 +394,8 @@ struct _Transformer final {
         Callback<void()>&&,
         Callback<void()>&&)>
         dispatch_;
+
+    Bytes static_heap_size_ = 0;
   };
 };
 

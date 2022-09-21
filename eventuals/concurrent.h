@@ -14,6 +14,7 @@
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/until.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -703,6 +704,14 @@ struct _Concurrent final {
       });
 
       handler_->Install();
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     Adaptor<F_, Arg_> adaptor_;

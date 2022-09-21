@@ -2,6 +2,7 @@
 
 #include "eventuals/then.h" // For '_Then::Adaptor'.
 #include "eventuals/type-traits.h" // For 'type_identity'.
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +50,8 @@ struct _Conditional {
           then_adapted_->Register(*interrupt_);
         }
 
+        then_adapted_->Register(std::move(resource_));
+
         then_adapted_->Start();
       } else {
         else_adapted_.emplace(
@@ -58,6 +61,8 @@ struct _Conditional {
         if (interrupt_ != nullptr) {
           else_adapted_->Register(*interrupt_);
         }
+
+        else_adapted_->Register(std::move(resource_));
 
         else_adapted_->Start();
       }
@@ -76,6 +81,14 @@ struct _Conditional {
       assert(interrupt_ == nullptr);
       interrupt_ = &interrupt;
       k_.Register(interrupt);
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     Condition_ condition_;
@@ -113,6 +126,8 @@ struct _Conditional {
 
     std::optional<ThenAdapted_> then_adapted_;
     std::optional<ElseAdapted_> else_adapted_;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

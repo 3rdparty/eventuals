@@ -14,10 +14,12 @@
 #include "eventuals/callback.h"
 #include "eventuals/closure.h"
 #include "eventuals/lazy.h"
+#include "eventuals/memory.h"
 #include "eventuals/stream.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
 #include "stout/borrowed_ptr.h"
+#include "stout/bytes.h"
 #include "uv.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -398,6 +400,15 @@ class EventLoop final : public Scheduler {
           handler_->Install();
         }
 
+        void Register(
+            stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+          k_.Register(std::move(resource));
+        }
+
+        Bytes StaticHeapSize() {
+          return Bytes(0) + k_.StaticHeapSize();
+        }
+
        private:
         EventLoop& loop() {
           return clock_->loop();
@@ -738,6 +749,14 @@ class EventLoop final : public Scheduler {
         handler_->Install();
       }
 
+      void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+        k_.Register(std::move(resource));
+      }
+
+      Bytes StaticHeapSize() {
+        return Bytes(0) + k_.StaticHeapSize();
+      }
+
      private:
       // Adaptors to libuv functions.
       uv_signal_t* signal() {
@@ -1039,6 +1058,14 @@ class EventLoop final : public Scheduler {
         handler_->Install();
       }
 
+      void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+        k_.Register(std::move(resource));
+      }
+
+      Bytes StaticHeapSize() {
+        return Bytes(0) + k_.StaticHeapSize();
+      }
+
      private:
       // Adaptors to libuv functions.
       uv_poll_t* poll() {
@@ -1131,6 +1158,7 @@ struct _EventLoopSchedule final {
     Continuation(Continuation&& that)
       : e_(std::move(that.e_)),
         context_(std::move(that.context_)),
+        resource_(std::move(that.resource_)),
         k_(std::move(that.k_)) {}
 
     ~Continuation() override {
@@ -1233,30 +1261,32 @@ struct _EventLoopSchedule final {
       k_.Register(interrupt);
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
     void Adapt() {
       if (!adapted_) {
         // Save previous context (even if it's us).
         stout::borrowed_ref<Scheduler::Context> previous =
             Scheduler::Context::Get().reborrow();
 
-        adapted_.reset(
-            // NOTE: for now we're assuming usage of something like
-            // 'jemalloc' so 'new' should use lock-free and thread-local
-            // arenas. Ideally allocating memory during runtime should
-            // actually be *faster* because the memory should have
-            // better locality for the execution resource being used
-            // (i.e., a local NUMA node). However, we should reconsider
-            // this design decision if in practice this performance
-            // tradeoff is not emperically a benefit.
-            new Adapted_(
-                std::move(e_).template k<Arg_>(
-                    Reschedule(std::move(previous))
-                        .template k<Value_>(_Then::Adaptor<K_>{k_}))));
+        adapted_ = MakeUniqueUsingMemoryResourceOrNew<Adapted_>(
+            resource_,
+            std::move(e_).template k<Arg_>(
+                Reschedule(std::move(previous))
+                    .template k<Value_>(_Then::Adaptor<K_>{k_})));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
         }
+
+        adapted_->Register(std::move(resource_));
       }
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(sizeof(Adapted_)) + k_.StaticHeapSize();
     }
 
     E_ e_;
@@ -1280,7 +1310,12 @@ struct _EventLoopSchedule final {
         std::declval<_Reschedule::Composable>()
             .template k<Value_>(std::declval<_Then::Adaptor<K_>>())));
 
-    std::unique_ptr<Adapted_> adapted_;
+    std::unique_ptr<
+        Adapted_,
+        Callback<void(void*)>>
+        adapted_{nullptr, [](void*) {}};
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

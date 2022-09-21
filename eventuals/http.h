@@ -10,6 +10,7 @@
 #include "eventuals/event-loop.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/x509.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -1139,6 +1140,14 @@ struct _HTTP final {
       // NOTE: we always install the handler in case 'Start()'
       // never gets called.
       handler_->Install();
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.HeapSize();
     }
 
    private:

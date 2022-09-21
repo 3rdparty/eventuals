@@ -127,5 +127,18 @@ TEST(DoAllTest, Interrupt) {
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
 
+TEST(DoAllTest, StaticHeapSize) {
+  auto e = []() {
+    return DoAll(
+        Eventual<int>([](auto& k) { k.Start(42); }),
+        Eventual<std::string>([](auto& k) { k.Start(std::string("hello")); }),
+        Eventual<void>([](auto& k) { k.Start(); }));
+  };
+
+  auto [_, k] = PromisifyForTest(e());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+}
+
 } // namespace
 } // namespace eventuals::test

@@ -6,6 +6,7 @@
 #include "eventuals/interrupt.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/undefined.h"
+#include "stout/bytes.h"
 
 // TODO(benh): catch exceptions from 'start', 'fail', 'stop', etc.
 
@@ -159,6 +160,10 @@ struct _Eventual {
       }
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
     Adaptor<K_, Value_, Errors_>& adaptor() {
       // Note: needed to delay doing this until now because this
       // eventual might have been moved before being started.
@@ -168,6 +173,10 @@ struct _Eventual {
       k_();
 
       return adaptor_;
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     Context_ context_;

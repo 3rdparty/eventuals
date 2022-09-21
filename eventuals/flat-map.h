@@ -4,6 +4,7 @@
 
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +52,9 @@ struct _FlatMap final {
       // Already registered K once in 'FlatMap::Body()'.
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+    }
+
     FlatMap_* streamforeach_;
   };
 
@@ -88,6 +92,10 @@ struct _FlatMap final {
       k_.Register(interrupt);
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
     template <typename... Args>
     void Body(Args&&... args) {
       CHECK(!adapted_.has_value());
@@ -99,6 +107,8 @@ struct _FlatMap final {
       if (interrupt_ != nullptr) {
         adapted_->Register(*interrupt_);
       }
+
+      adapted_->Register(std::move(resource_));
 
       adapted_->Start();
     }
@@ -129,6 +139,10 @@ struct _FlatMap final {
       });
     }
 
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
+    }
+
     F_ f_;
 
     TypeErasedStream* outer_ = nullptr;
@@ -146,6 +160,8 @@ struct _FlatMap final {
     bool done_ = false;
 
     stout::borrowed_ptr<Scheduler::Context> previous_;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

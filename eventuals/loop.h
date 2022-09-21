@@ -6,6 +6,7 @@
 #include "eventuals/stream.h"
 #include "eventuals/type-traits.h"
 #include "eventuals/undefined.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -164,6 +165,10 @@ struct _Loop final {
       }
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
     template <typename... Args>
     void Body(Args&&... args) {
       if constexpr (IsUndefined<Body_>::value) {
@@ -214,6 +219,10 @@ struct _Loop final {
       k_();
 
       return adaptor_;
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     Context_ context_;

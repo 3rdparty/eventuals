@@ -1,8 +1,11 @@
 #pragma once
 
+#include <memory_resource>
+
 #include "eventuals/expected.h"
 #include "eventuals/terminal.h" // For 'StoppedException'.
 #include "eventuals/then.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +42,14 @@ struct _Finally final {
 
     void Register(Interrupt& interrupt) {
       k_.Register(interrupt);
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      k_.Register(std::move(resource));
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     K_ k_;

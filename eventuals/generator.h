@@ -5,10 +5,12 @@
 #include <tuple>
 #include <variant>
 
+#include "eventuals/memory.h"
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -63,6 +65,9 @@ struct HeapGenerator final {
 
     // Already registered in 'adapted_'
     void Register(Interrupt&) {}
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+    }
 
     Callback<void(TypeErasedStream&)>* begin_;
     Callback<void(std::exception_ptr)>* fail_;
@@ -174,6 +179,7 @@ struct _Generator final {
   template <typename From, typename To, typename... Args>
   using DispatchCallback =
       Callback<void(
+          stout::borrowed_ptr<std::pmr::memory_resource>&&,
           Action,
           std::optional<std::exception_ptr>&&,
           Args&...,
@@ -202,9 +208,11 @@ struct _Generator final {
     Continuation(
         K_ k,
         std::tuple<Args_...>&& args,
-        DispatchCallback<From_, To_, Args_...>&& dispatch)
+        DispatchCallback<From_, To_, Args_...>&& dispatch,
+        Bytes&& static_heap_size)
       : args_(std::move(args)),
         dispatch_(std::move(dispatch)),
+        static_heap_size_(std::move(static_heap_size)),
         k_(std::move(k)) {}
 
     // All Continuation functions just trigger dispatch Callback,
@@ -255,6 +263,10 @@ struct _Generator final {
       k_.Register(interrupt);
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
     void Dispatch(
         Action action,
         std::optional<
@@ -266,6 +278,7 @@ struct _Generator final {
       std::apply(
           [&](auto&... args) {
             dispatch_(
+                std::move(resource_),
                 action,
                 std::move(exception),
                 args...,
@@ -291,12 +304,20 @@ struct _Generator final {
           args_);
     }
 
+    Bytes StaticHeapSize() {
+      return static_heap_size_ + k_.StaticHeapSize();
+    }
+
     std::tuple<Args_...> args_;
 
     DispatchCallback<From_, To_, Args_...> dispatch_;
 
     std::unique_ptr<void, Callback<void(void*)>> e_;
     Interrupt* interrupt_ = nullptr;
+
+    Bytes static_heap_size_ = 0;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete
@@ -399,7 +420,10 @@ struct _Generator final {
           std::is_convertible_v<Value, To_>,
           "eventual result type can not be converted into type of 'Generator'");
 
+      static_heap_size_ = Bytes(sizeof(HeapGenerator<E, From_, To_>));
+
       dispatch_ = [f = std::move(f)](
+                      stout::borrowed_ptr<std::pmr::memory_resource>&& resource,
                       Action action,
                       std::optional<std::exception_ptr>&& exception,
                       Args_&... args,
@@ -416,11 +440,8 @@ struct _Generator final {
                       Callback<function_type_t<void, To_>>&& body,
                       Callback<void()>&& ended) mutable {
         if (!e_) {
-          e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapGenerator<E, From_, To_>(f(args...)),
-              [](void* e) {
-                delete static_cast<HeapGenerator<E, From_, To_>*>(e);
-              });
+          e_ = MakeUniqueUsingMemoryResourceOrNew<
+              HeapGenerator<E, From_, To_>>(resource, f(args...));
         }
 
         auto* e = static_cast<HeapGenerator<E, From_, To_>*>(e_.get());
@@ -474,7 +495,8 @@ struct _Generator final {
       return Continuation<K, From_, To_, Errors_, Args_...>(
           std::move(k),
           std::move(args_),
-          std::move(dispatch_));
+          std::move(dispatch_),
+          std::move(static_heap_size_));
     }
 
     std::conditional_t<
@@ -484,6 +506,8 @@ struct _Generator final {
         dispatch_;
 
     std::tuple<Args_...> args_;
+
+    Bytes static_heap_size_ = 0;
   };
 };
 

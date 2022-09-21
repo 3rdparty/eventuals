@@ -3,6 +3,7 @@
 #include "eventuals/compose.h" // For 'HasValueFrom'.
 #include "eventuals/stream.h"
 #include "eventuals/then.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +30,9 @@ struct _Map final {
 
     void Register(Interrupt&) {
       // Already registered K once in 'Map::Register()'.
+    }
+
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&&) {
     }
 
     K_& k_;
@@ -63,6 +67,8 @@ struct _Map final {
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
         }
+
+        adapted_->Register(std::move(resource_));
       }
 
       adapted_->Start(std::forward<Args>(args)...);
@@ -78,6 +84,14 @@ struct _Map final {
       k_.Register(interrupt);
     }
 
+    void Register(stout::borrowed_ptr<std::pmr::memory_resource>&& resource) {
+      resource_ = std::move(resource);
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
+    }
+
     E_ e_;
 
     using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
@@ -86,6 +100,8 @@ struct _Map final {
     std::optional<Adapted_> adapted_;
 
     Interrupt* interrupt_ = nullptr;
+
+    stout::borrowed_ptr<std::pmr::memory_resource> resource_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete

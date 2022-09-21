@@ -671,5 +671,49 @@ TEST(Task, RaisesWith) {
   EXPECT_EQ(42, *e());
 }
 
+TEST(Task, StaticHeapSize) {
+  auto e = []() -> Task::Of<int> {
+    return [x = 42]() {
+      return Just(x);
+    };
+  };
+
+  auto [_, k] = PromisifyForTest(e());
+
+  EXPECT_GT(k.StaticHeapSize().bytes(), 0);
+}
+
+TEST(Task, MonotonicBuffer) {
+  auto e = []() -> Task::Of<int> {
+    return [x = 42]() {
+      return Just(x);
+    };
+  };
+
+  std::optional<stout::Borrowable<
+      std::pmr::monotonic_buffer_resource>>
+      resource;
+
+  auto [future, k] = PromisifyForTest(e());
+
+  Bytes static_heap_size = k.StaticHeapSize();
+
+  EXPECT_GT(static_heap_size, 0);
+
+  char* buffer = new char[static_heap_size.bytes()];
+
+  resource.emplace(
+      buffer,
+      static_heap_size.bytes());
+
+  k.Register(resource->Borrow());
+
+  k.Start();
+
+  EXPECT_EQ(future.get(), 42);
+
+  delete[] buffer;
+}
+
 } // namespace
 } // namespace eventuals::test

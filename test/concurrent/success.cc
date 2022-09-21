@@ -49,6 +49,8 @@ TYPED_TEST(ConcurrentTypedTest, Success) {
 
   k.Start();
 
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+
   ASSERT_EQ(2, callbacks.size());
 
   EXPECT_EQ(
