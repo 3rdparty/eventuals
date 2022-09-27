@@ -364,6 +364,9 @@ class Client {
               ResponseType>>
           stream;
       void* k = nullptr;
+      // We need to keep a pointer to the interrupt handler around so we can
+      // later uninstall it.
+      Interrupt::Handler* handler = nullptr;
     };
 
     return Eventual<ClientCall<Request, Response>>()
@@ -394,6 +397,9 @@ class Client {
                 if (!installed) {
                   // TODO: Should we just k.Stop() here?
                   data.context->TryCancel();
+                } else {
+                  // Save pointer so that we can uninstall the handler later.
+                  data.handler = &handler.value();
                 }
               }
 
@@ -442,6 +448,14 @@ class Client {
                     using K = std::decay_t<decltype(k)>;
                     data.k = &k;
                     callback = [&data](bool ok) {
+                      // We are done waiting and thus don't need the interrupt
+                      // handler anymore. Uninstall the interrupt handler if it
+                      // was previously installed.
+                      if (data.handler != nullptr) {
+                        data.handler->Uninstall();
+                        data.handler = nullptr;
+                      }
+
                       auto& k = *reinterpret_cast<K*>(data.k);
                       if (ok) {
                         EVENTUALS_GRPC_LOG(1)
