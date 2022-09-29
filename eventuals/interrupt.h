@@ -46,6 +46,10 @@ class Interrupt final {
     }
 
     ~Handler() {
+      Uninstall();
+    }
+
+    void Uninstall() {
       State state = state_.state();
 
       if (state == INSTALLED && state_.Update(state, UNINSTALLING)) {
