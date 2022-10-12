@@ -2,6 +2,7 @@
 
 #include "eventuals/concurrent.h"
 #include "eventuals/do-all.h"
+#include "eventuals/expected.h"
 #include "eventuals/finally.h"
 #include "eventuals/grpc/server.h"
 #include "eventuals/just.h"
@@ -20,6 +21,7 @@ using eventuals::Loop;
 using eventuals::Map;
 using eventuals::Task;
 using eventuals::Then;
+using eventuals::What;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -64,15 +66,7 @@ Task::Of<void> Greeter::TypeErasedService::Serve() {
                >> Loop())
         >> Finally([&](auto&& expected) {
              if (!expected.has_value()) {
-               try {
-                 std::rethrow_exception(expected.error());
-               } catch (std::exception& e) {
-                 LOG(WARNING) << "Failed to serve: " << e.what();
-               } catch (...) {
-                 LOG(WARNING)
-                     << "Failed to serve (unexpected error that "
-                     << "does not extend from 'std::exception')";
-               }
+               LOG(WARNING) << "Failed to serve: " << What(expected.error());
              }
            });
   };
