@@ -6,6 +6,7 @@
 #include <thread>
 
 #include "eventuals/catch.h"
+#include "eventuals/expected.h"
 #include "eventuals/just.h"
 #include "eventuals/let.h"
 #include "eventuals/raise.h"
@@ -262,11 +263,7 @@ TEST(EventualTest, CatchVoid) {
         >> Raise("error")
         >> Catch(Let([](auto& error) {
              return Then([&]() {
-               try {
-                 std::rethrow_exception(error);
-               } catch (const std::runtime_error& error) {
-                 EXPECT_STREQ(error.what(), "error");
-               }
+               EXPECT_EQ("error", What(error));
              });
            }))
         >> Then([]() {
