@@ -1,6 +1,7 @@
 #pragma once
 
 #include "eventuals/stream.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +65,10 @@ struct _Range final {
       previous_->Continue([this]() {
         k_.Ended();
       });
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     int from_;

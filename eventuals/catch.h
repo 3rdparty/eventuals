@@ -7,6 +7,7 @@
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -172,6 +173,10 @@ struct _Catch final {
       // NOTE: we defer registering the interrupt with 'k_' in case on
       // of our handlers handles an error and we 'std::move(k_)' into
       // the handler.
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     std::tuple<CatchHandlers_...> catch_handlers_;

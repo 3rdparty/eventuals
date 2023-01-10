@@ -6,11 +6,11 @@
 #include "eventuals/finally.h"
 #include "eventuals/if.h"
 #include "eventuals/just.h"
-#include "eventuals/promisify.h"
 #include "eventuals/raise.h"
 #include "eventuals/then.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -149,6 +149,19 @@ TEST(Finally, FinallyInsideThen) {
   };
 
   EXPECT_NO_THROW(*e());
+}
+
+TEST(Finally, StaticHeapSize) {
+  auto e = []() {
+    return Just(42)
+        >> Finally([](expected<int, std::exception_ptr>&& expected) {
+             return Just(std::move(expected));
+           });
+  };
+
+  auto [_, k] = PromisifyForTest(e());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
 }
 
 } // namespace

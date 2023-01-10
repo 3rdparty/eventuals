@@ -3,6 +3,7 @@
 #include "eventuals/compose.h" // For 'HasValueFrom'.
 #include "eventuals/stream.h"
 #include "eventuals/then.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +77,10 @@ struct _Map final {
       assert(interrupt_ == nullptr);
       interrupt_ = &interrupt;
       k_.Register(interrupt);
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     E_ e_;

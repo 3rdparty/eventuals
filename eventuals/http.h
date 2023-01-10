@@ -10,6 +10,7 @@
 #include "eventuals/event-loop.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/x509.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -1149,6 +1150,10 @@ struct _HTTP final {
             },
             interrupt_context_);
       });
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.HeapSize();
     }
 
    private:

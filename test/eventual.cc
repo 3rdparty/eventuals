@@ -329,5 +329,17 @@ TEST(EventualTest, Ref) {
   EXPECT_EQ(110, x);
 }
 
+TEST(EventualTest, StaticHeapSize) {
+  auto e = []() {
+    return Eventual<int>([](auto& k) {
+      k.Start(1);
+    });
+  };
+
+  auto [_, k] = PromisifyForTest(e());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+}
+
 } // namespace
 } // namespace eventuals::test

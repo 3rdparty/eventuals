@@ -3,6 +3,7 @@
 #include "eventuals/eventual.h"
 #include "eventuals/stream.h"
 #include "eventuals/then.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -87,6 +88,10 @@ struct _OnBegin final {
       CHECK_EQ(interrupt_, nullptr);
       interrupt_ = &interrupt;
       k_.Register(interrupt);
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     E_ e_;

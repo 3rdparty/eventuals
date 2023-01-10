@@ -6,6 +6,7 @@
 #include "eventuals/interrupt.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/undefined.h"
+#include "stout/bytes.h"
 
 // TODO(benh): catch exceptions from 'start', 'fail', 'stop', etc.
 
@@ -168,6 +169,10 @@ struct _Eventual {
       k_();
 
       return adaptor_;
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     Context_ context_;

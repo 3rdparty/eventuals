@@ -132,5 +132,36 @@ TEST(ThenTest, Interrupt) {
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
 
+
+TEST(ThenTest, StaticHeapSize) {
+  auto e = [](std::string s) {
+    return Eventual<std::string>()
+        .context(std::move(s))
+        .start([](std::string& s, auto& k) {
+          k.Start(std::move(s));
+        });
+  };
+
+  auto c = [&]() {
+    return Eventual<int>()
+               .context(1)
+               .start([](int& value, auto& k) {
+                 std::thread thread(
+                     [&value, &k]() mutable {
+                       k.Start(value);
+                     });
+                 thread.detach();
+               })
+        >> Then([](int i) { return i + 1; })
+        >> Then([&](int i) {
+             return e("then");
+           });
+  };
+
+  auto [_, k] = PromisifyForTest(c());
+
+  EXPECT_EQ(k.StaticHeapSize().bytes(), 0);
+}
+
 } // namespace
 } // namespace eventuals::test

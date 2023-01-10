@@ -365,6 +365,34 @@ TEST(StreamTest, MapThenLoop) {
   EXPECT_EQ(20, *s());
 }
 
+TEST(StreamTest, StaticHeapSize1) {
+  auto s = []() {
+    return Stream<int>()
+               .context(5)
+               .next([](auto& count, auto& k) {
+                 if (count > 0) {
+                   k.Emit(count--);
+                 } else {
+                   k.Ended();
+                 }
+               })
+        >> Map([](int i) { return i + 1; })
+        >> Loop<int>()
+               .context(0)
+               .body([](auto& sum, auto& stream, auto&& value) {
+                 sum += value;
+                 stream.Next();
+               })
+               .ended([](auto& sum, auto& k) {
+                 k.Start(sum);
+               });
+  };
+
+  auto [_, k] = PromisifyForTest(s());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+}
+
 
 TEST(StreamTest, MapThenReduce) {
   auto s = []() {
@@ -394,6 +422,39 @@ TEST(StreamTest, MapThenReduce) {
   };
 
   EXPECT_EQ(20, *s());
+}
+
+
+TEST(StreamTest, StaticHeapSize2) {
+  auto s = []() {
+    return Stream<int>()
+               .context(5)
+               .next([](auto& count, auto& k) {
+                 if (count > 0) {
+                   k.Emit(count--);
+                 } else {
+                   k.Ended();
+                 }
+               })
+               .done([](auto&, auto& k) {
+                 k.Ended();
+               })
+        >> Map([](int i) {
+             return i + 1;
+           })
+        >> Reduce(
+               /* sum = */ 0,
+               [](auto& sum) {
+                 return Then([&](auto&& value) {
+                   sum += value;
+                   return true;
+                 });
+               });
+  };
+
+  auto [_, k] = PromisifyForTest(s());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
 }
 
 
@@ -497,6 +558,20 @@ TEST(StreamTest, ThrowGeneralError) {
   EXPECT_THAT(
       [&]() { *e(); },
       ThrowsMessage<std::runtime_error>(StrEq("error")));
+}
+
+TEST(StreamTest, StaticHeapSize3) {
+  auto s = []() {
+    return Stream<int>()
+               .next([](auto& k) {
+                 k.Emit(42);
+               })
+        >> Head();
+  };
+
+  auto [_, k] = PromisifyForTest(s());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
 }
 
 } // namespace

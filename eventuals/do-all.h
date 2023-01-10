@@ -8,6 +8,7 @@
 #include "eventuals/compose.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/terminal.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -289,6 +290,10 @@ struct _DoAll final {
       handler_.emplace(&interrupt, [this]() {
         interrupter_();
       });
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     // NOTE: need to destruct the fibers LAST since they have a

@@ -3,6 +3,7 @@
 #include "eventuals/compose.h" // For 'HasValueFrom'.
 #include "eventuals/map.h"
 #include "eventuals/stream.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +52,10 @@ struct _Repeat final {
       previous_->Continue([this]() {
         k_.Ended();
       });
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     stout::borrowed_ptr<Scheduler::Context> previous_;

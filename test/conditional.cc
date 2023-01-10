@@ -184,5 +184,20 @@ TEST(ConditionalTest, Raise) {
   EXPECT_EQ(2, *c());
 }
 
+TEST(ConditionalTest, StaticHeapSize) {
+  auto e = []() {
+    return Just(1)
+        >> Then([](int i) { return i + 1; })
+        >> Conditional(
+               [](int i) { return i > 1; },
+               [](int i) { return Just(i); },
+               [](int i) { return Raise("raise"); });
+  };
+
+  auto [_, k] = PromisifyForTest(e());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+}
+
 } // namespace
 } // namespace eventuals::test

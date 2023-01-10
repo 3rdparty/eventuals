@@ -166,6 +166,8 @@ TEST_P(HttpTest, GetInterrupt) {
 
   Interrupt interrupt;
 
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+
   k.Register(interrupt);
 
   k.Start();
@@ -193,6 +195,8 @@ TEST_P(HttpTest, PostInterrupt) {
 
   k.Start();
 
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+
   interrupt.Trigger();
 
   RunUntil(future);
@@ -210,6 +214,8 @@ TEST_P(HttpTest, GetInterruptAfterStart) {
   Interrupt interrupt;
 
   k.Register(interrupt);
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
 
   k.Start();
 
@@ -242,6 +248,8 @@ TEST_P(HttpTest, PostInterruptAfterStart) {
   auto [future, k] = PromisifyForTest(std::move(e));
 
   Interrupt interrupt;
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
 
   k.Register(interrupt);
 

@@ -301,5 +301,48 @@ TEST(CatchTest, Interrupt) {
   EXPECT_EQ(future.get(), "100");
 }
 
+TEST(CatchTest, StaticHeapSize) {
+  auto e1 = []() {
+    return Just("error")
+        >> Then([](const char* i) {
+             return;
+           })
+        >> Catch()
+               .raised<std::exception>([](std::exception&& error) {
+                 EXPECT_STREQ(error.what(), "error");
+               })
+        >> Then([]() {
+             return 1;
+           });
+  };
+
+  auto e2 = []() {
+    return Just(1)
+        >> Raise(std::runtime_error("message"))
+        >> Catch()
+               .raised<std::overflow_error>([](std::overflow_error&& error) {
+                 ADD_FAILURE() << "Encountered unexpected matched raised";
+                 return Then([]() {
+                   return 100;
+                 });
+               })
+               .raised<std::runtime_error>([](std::runtime_error&& error) {
+                 EXPECT_STREQ(error.what(), "message");
+                 return Just(100);
+               })
+        >> Then([](int i) {
+             return std::to_string(i);
+           });
+  };
+
+  auto [future1, k1] = PromisifyForTest(e1());
+
+  EXPECT_EQ(0, k1.StaticHeapSize().bytes());
+
+  auto [future2, k2] = PromisifyForTest(e2());
+
+  EXPECT_EQ(0, k2.StaticHeapSize().bytes());
+}
+
 } // namespace
 } // namespace eventuals::test

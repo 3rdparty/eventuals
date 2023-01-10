@@ -413,5 +413,26 @@ TEST(LockTest, ConditionVariable_UseAfterFree) {
   *foo.NotifyAll();
 }
 
+TEST(LockTest, StaticHeapSize) {
+  Lock lock;
+
+  auto e = [&]() {
+    return Eventual<std::string>()
+               .start([](auto& k) {
+                 std::thread thread(
+                     [&k]() mutable {
+                       k.Start("t1");
+                     });
+                 thread.detach();
+               })
+        >> Acquire(&lock)
+        >> Then([](std::string&& value) { return std::move(value); });
+  };
+
+  auto [_, t] = PromisifyForTest(e());
+
+  EXPECT_EQ(0, t.StaticHeapSize().bytes());
+}
+
 } // namespace
 } // namespace eventuals::test

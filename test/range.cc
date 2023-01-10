@@ -3,9 +3,9 @@
 #include <vector>
 
 #include "eventuals/collect.h"
-#include "eventuals/promisify.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/promisify-for-test.h"
 
 namespace eventuals::test {
 namespace {
@@ -87,6 +87,17 @@ TEST(Range, SpecifiedStepNegative) {
       >> Collect<std::vector>();
 
   EXPECT_THAT(*s, ElementsAre(0, -2, -4, -6, -8));
+}
+
+TEST(Range, StaticHeapSize) {
+  auto s = []() {
+    return Range(0, 5)
+        >> Collect<std::vector>();
+  };
+
+  auto [_, k] = PromisifyForTest(s());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
 }
 
 } // namespace

@@ -3,6 +3,7 @@
 #include "eventuals/compose.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/undefined.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +57,10 @@ struct _Terminal final {
     }
 
     void Register(Interrupt&) {}
+
+    Bytes StaticHeapSize() {
+      return Bytes(0);
+    }
 
     Context_ context_;
     Start_ start_;

@@ -242,5 +242,29 @@ TEST(Transformer, PropagateFail) {
       ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
+TEST(Transformer, StaticHeapSize) {
+  auto transformer = []() {
+    return Transformer::From<int>::To<std::string>(
+        []() {
+          return Map([](int x) {
+            return std::to_string(x);
+          });
+        });
+  };
+
+  auto e = [&]() {
+    return Iterate({100})
+        >> transformer()
+        >> Map([](std::string s) {
+             return s;
+           })
+        >> Collect<std::vector>();
+  };
+
+  auto [_, k] = PromisifyForTest(e());
+
+  EXPECT_GT(k.StaticHeapSize().bytes(), 0);
+}
+
 } // namespace
 } // namespace eventuals::test

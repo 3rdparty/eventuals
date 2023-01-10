@@ -277,5 +277,17 @@ TEST(FlatMap, InterruptReturn) {
   EXPECT_THROW(future.get(), eventuals::StoppedException);
 }
 
+TEST(FlatMap, StaticHeapSize) {
+  auto s = []() {
+    return Range(2)
+        >> FlatMap([](int x) { return Range(2); })
+        >> Collect<std::vector>();
+  };
+
+  auto [_, k] = PromisifyForTest(s());
+
+  EXPECT_EQ(0, k.StaticHeapSize().bytes());
+}
+
 } // namespace
 } // namespace eventuals::test

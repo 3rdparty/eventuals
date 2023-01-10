@@ -2,6 +2,7 @@
 
 #include "eventuals/stream.h"
 #include "eventuals/then.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -154,6 +155,10 @@ struct _Until::Continuation<K_, F_, Arg_, false> final {
     k_.Ended();
   }
 
+  Bytes StaticHeapSize() {
+    return Bytes(0) + k_.StaticHeapSize();
+  }
+
   F_ f_;
 
   TypeErasedStream* stream_ = nullptr;
@@ -222,6 +227,10 @@ struct _Until::Continuation<K_, F_, Arg_, true> final {
 
   void Ended() {
     k_.Ended();
+  }
+
+  Bytes StaticHeapSize() {
+    return Bytes(0) + k_.StaticHeapSize();
   }
 
   F_ f_;

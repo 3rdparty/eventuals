@@ -34,6 +34,17 @@ TEST_F(EventLoopTest, Timer) {
 }
 
 
+TEST_F(EventLoopTest, StaticHeapSize) {
+  auto e = []() {
+    return Timer(std::chrono::milliseconds(10));
+  };
+
+  auto [_, k] = PromisifyForTest(e());
+
+  EXPECT_EQ(k.StaticHeapSize().bytes(), 0);
+}
+
+
 TEST_F(EventLoopTest, PauseAndAdvanceClock) {
   Clock().Pause();
 

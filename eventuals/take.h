@@ -6,6 +6,7 @@
 #include "eventuals/eventual.h"
 #include "eventuals/filter.h"
 #include "eventuals/stream.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -92,6 +93,10 @@ struct _TakeLast final {
       previous_->Continue([this]() {
         k_.Ended();
       });
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     size_t n_;
@@ -210,6 +215,10 @@ struct _TakeRange final {
 
     void Register(Interrupt& interrupt) {
       k_.Register(interrupt);
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     size_t begin_;

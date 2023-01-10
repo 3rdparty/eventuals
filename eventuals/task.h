@@ -11,6 +11,7 @@
 #include "eventuals/raise.h"
 #include "eventuals/terminal.h"
 #include "eventuals/type-traits.h"
+#include "stout/bytes.h"
 #include "stout/stringify.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -204,9 +205,11 @@ struct _TaskFromToWith final {
         std::variant<
             MonostateIfVoidOrReferenceWrapperOr<To_>,
             DispatchCallback<From_, To_, Args_...>>&&
-            value_or_dispatch)
+            value_or_dispatch,
+        Bytes&& static_heap_size)
       : args_(std::move(args)),
         value_or_dispatch_(std::move(value_or_dispatch)),
+        static_heap_size_(std::move(static_heap_size)),
         k_(std::move(k)) {}
 
     template <typename... From>
@@ -258,6 +261,10 @@ struct _TaskFromToWith final {
       k_.Register(interrupt);
     }
 
+    Bytes StaticHeapSize() {
+      return static_heap_size_ + k_.StaticHeapSize();
+    }
+
     void Dispatch(
         Action action,
         std::optional<MonostateIfVoidOr<From_>>&& from = std::nullopt,
@@ -298,6 +305,8 @@ struct _TaskFromToWith final {
 
     std::unique_ptr<void, Callback<void(void*)>> e_;
     Interrupt* interrupt_ = nullptr;
+
+    Bytes static_heap_size_ = 0;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete
@@ -383,6 +392,8 @@ struct _TaskFromToWith final {
               std::is_convertible<Value, To_>>,
           "eventual result type can not be converted into type of 'Task'");
 
+      static_heap_size_ = Bytes(sizeof(HeapTask<E, From_, To_>));
+
       value_or_dispatch_ = [f = std::move(f)](
                                Action action,
                                std::optional<std::exception_ptr>&& exception,
@@ -451,7 +462,8 @@ struct _TaskFromToWith final {
       return Continuation<K, From_, To_, Errors_, Args_...>(
           std::move(k),
           std::move(args_),
-          std::move(value_or_dispatch_.value()));
+          std::move(value_or_dispatch_.value()),
+          std::move(static_heap_size_));
     }
 
     // See comment in `Continuation` for explanation of `dispatch_` member.
@@ -464,6 +476,8 @@ struct _TaskFromToWith final {
         value_or_dispatch_;
 
     std::tuple<Args_...> args_;
+
+    Bytes static_heap_size_ = 0;
   };
 };
 

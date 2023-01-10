@@ -14,6 +14,7 @@
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/until.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -708,6 +709,10 @@ struct _Concurrent final {
 
         interrupt_->Start();
       });
+    }
+
+    Bytes StaticHeapSize() {
+      return Bytes(0) + k_.StaticHeapSize();
     }
 
     Adaptor<F_, Arg_> adaptor_;

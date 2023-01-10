@@ -6,6 +6,7 @@
 #include "eventuals/callback.h"
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
+#include "stout/bytes.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -148,8 +149,9 @@ struct _Transformer final {
   template <typename K_, typename From_, typename To_, typename Errors_>
   struct Continuation final {
     template <typename Dispatch>
-    Continuation(K_ k, Dispatch dispatch)
+    Continuation(K_ k, Dispatch dispatch, Bytes&& static_heap_size)
       : dispatch_(std::move(dispatch)),
+        static_heap_size_(std::move(static_heap_size)),
         k_(std::move(k)) {}
 
     void Begin(TypeErasedStream& stream) {
@@ -209,6 +211,10 @@ struct _Transformer final {
           });
     }
 
+    Bytes StaticHeapSize() {
+      return static_heap_size_ + k_.StaticHeapSize();
+    }
+
     Callback<void(
         Action,
         std::optional<std::exception_ptr>&&,
@@ -224,6 +230,8 @@ struct _Transformer final {
 
     std::unique_ptr<void, Callback<void(void*)>> e_;
     Interrupt* interrupt_ = nullptr;
+
+    Bytes static_heap_size_ = 0;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete
@@ -297,6 +305,8 @@ struct _Transformer final {
           "eventual result type can not be converted "
           "into type of 'Transformer'");
 
+      static_heap_size_ = Bytes(sizeof(HeapTransformer<E, From_, To_>));
+
       dispatch_ = [f = std::move(f)](
                       Action action,
                       std::optional<std::exception_ptr>&& exception,
@@ -360,7 +370,8 @@ struct _Transformer final {
     auto k(K k) && {
       return Continuation<K, From_, To_, Errors_>(
           std::move(k),
-          std::move(dispatch_));
+          std::move(dispatch_),
+          std::move(static_heap_size_));
     }
 
     Callback<void(
@@ -375,6 +386,8 @@ struct _Transformer final {
         Callback<void()>&&,
         Callback<void()>&&)>
         dispatch_;
+
+    Bytes static_heap_size_ = 0;
   };
 };
 
