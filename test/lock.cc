@@ -116,8 +116,8 @@ TEST(LockTest, Stop) {
     return Acquire(&lock)
         | Eventual<std::string>()
               .interruptible()
-              .start([&](auto& k, Interrupt::Handler& handler) {
-                handler.Install([&k]() {
+              .start([&](auto& k, auto& handler) {
+                handler->Install([&k]() {
                   k.Stop();
                 });
                 start.Call();

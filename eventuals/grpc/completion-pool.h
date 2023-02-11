@@ -77,8 +77,7 @@ class CompletionPool {
         load = borrows;
       }
     }
-    CHECK(selected != nullptr);
-    return selected->Borrow();
+    return Borrow(*CHECK_NOTNULL(selected));
   }
 
  private:

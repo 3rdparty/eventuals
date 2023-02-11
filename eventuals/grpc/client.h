@@ -47,12 +47,29 @@ class ClientReader {
       void* k = nullptr;
     };
     return eventuals::Stream<ResponseType_>()
+        .interruptible()
+        .begin([this](auto& k, auto& handler, auto&&...) {
+          // TODO(benh): move this to 'next()' so that we install the
+          // interrupt handler only when we wait.
+          if (handler) {
+            bool installed = handler->Install([this]() {
+              // Best effort cancel.
+              context_->TryCancel();
+            });
+
+            if (!installed) {
+              // Interrupt must have been triggered!
+              context_->TryCancel();
+            }
+          }
+          k.Begin();
+        })
         .next([this,
                data = Data{},
                callback = Callback<void(bool)>()](auto& k) mutable {
           using K = std::decay_t<decltype(k)>;
+          data.reader = this;
           if (!callback) {
-            data.reader = this;
             data.k = &k;
             callback = [&data](bool ok) mutable {
               auto& k = *reinterpret_cast<K*>(data.k);
@@ -120,6 +137,8 @@ class ClientWriter {
   [[nodiscard]] auto Write(
       RequestType_ request,
       ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
+    // TODO(benh): support interruptibility (which may occur if a
+    // write has been throttled).
     return Eventual<void>()
         .raises<std::runtime_error>()
         .start(
@@ -307,7 +326,7 @@ class Client {
 
   [[nodiscard]] auto Context() {
     return Eventual<::grpc::ClientContext*>()
-        .context(eventuals::Lazy<::grpc::ClientContext>())
+        .context(Lazy<::grpc::ClientContext>())
         .start([](auto& context, auto& k) {
           k.Start(context.get());
         });
@@ -362,97 +381,109 @@ class Client {
 
     return Eventual<ClientCall<Request, Response>>()
         .template raises<std::runtime_error>()
-        .start(
-            [data = Data{
-                 context,
-                 std::move(name),
-                 std::string(),
-                 std::move(host),
-                 pool_->Schedule(),
-                 ::grpc::TemplatedGenericStub<
-                     RequestType,
-                     ResponseType>(channel_)},
-             callback = Callback<void(bool)>()](auto& k) mutable {
-              const auto* method =
-                  google::protobuf::DescriptorPool::generated_pool()
-                      ->FindMethodByName(data.name);
-
-              if (method == nullptr) {
-                k.Fail(std::runtime_error(
-                    "Method " + data.name + " not found"));
-              } else {
-                auto error = Traits::Validate<Request, Response>(method);
-                if (error) {
-                  k.Fail(std::runtime_error(error->message));
-                } else {
-                  if (data.host) {
-                    data.context->set_authority(data.host.value());
-                  }
-
-                  data.path = "/" + data.name;
-                  size_t index = data.path.find_last_of(".");
-                  data.path.replace(index, 1, "/");
-
-                  EVENTUALS_GRPC_LOG(1)
-                      << "Preparing call (" << data.context << ")"
-                      << " with host = " << data.host.value_or("*")
-                      << " with path = " << data.path;
-
-                  data.stream = data.stub.PrepareCall(
-                      data.context,
-                      data.path,
-                      data.cq.get());
-
-                  if (!data.stream) {
-                    EVENTUALS_GRPC_LOG(1)
-                        << "Failed to prepare call (" << data.context << ")"
-                        << " with host = " << data.host.value_or("*")
-                        << " with path = " << data.path;
-
-                    // TODO(benh): Check status of channel, is this a
-                    // redundant check because 'PrepareCall' also does
-                    // this?  At the very least we'll probably give a
-                    // better error message by checking.
-                    k.Fail(std::runtime_error("Failed to prepare call"));
-                  } else {
-                    using K = std::decay_t<decltype(k)>;
-                    data.k = &k;
-                    callback = [&data](bool ok) {
-                      auto& k = *reinterpret_cast<K*>(data.k);
-                      if (ok) {
-                        EVENTUALS_GRPC_LOG(1)
-                            << "Started call (" << data.context << ")"
-                            << " with host = " << data.host.value_or("*")
-                            << " with path = " << data.path;
-
-                        k.Start(
-                            ClientCall<Request, Response>(
-                                data.path,
-                                data.host,
-                                data.context,
-                                std::move(data.cq),
-                                std::move(data.stub),
-                                std::move(data.stream)));
-                      } else {
-                        EVENTUALS_GRPC_LOG(1)
-                            << "Failed to start call (" << data.context << ")"
-                            << " with host = " << data.host.value_or("*")
-                            << " with path = " << data.path;
-
-                        k.Fail(std::runtime_error("Failed to start call"));
-                      }
-                    };
-
-                    EVENTUALS_GRPC_LOG(1)
-                        << "Starting call (" << data.context << ")"
-                        << " with host = " << data.host.value_or("*")
-                        << " with path = " << data.path;
-
-                    data.stream->StartCall(&callback);
-                  }
-                }
-              }
+        .interruptible()
+        .context(
+            Data{
+                context,
+                std::move(name),
+                std::string(),
+                std::move(host),
+                pool_->Schedule(),
+                ::grpc::TemplatedGenericStub<
+                    RequestType,
+                    ResponseType>(channel_)})
+        .start([callback = Callback<void(bool)>()](
+                   auto& data,
+                   auto& k,
+                   std::optional<Interrupt::Handler>& handler) mutable {
+          // Best effort attempt to cancel if someone registered an
+          // interrupt with us and it gets triggered.
+          if (handler) {
+            handler->Install([&]() {
+              data.context->TryCancel();
             });
+          }
+
+          const auto* method =
+              google::protobuf::DescriptorPool::generated_pool()
+                  ->FindMethodByName(data.name);
+
+          if (method == nullptr) {
+            k.Fail(std::runtime_error(
+                "Method " + data.name + " not found"));
+          } else {
+            auto error = Traits::Validate<Request, Response>(method);
+            if (error) {
+              k.Fail(std::runtime_error(error->message));
+            } else {
+              if (data.host) {
+                data.context->set_authority(data.host.value());
+              }
+
+              data.path = "/" + data.name;
+              size_t index = data.path.find_last_of(".");
+              data.path.replace(index, 1, "/");
+
+              EVENTUALS_GRPC_LOG(1)
+                  << "Preparing call (" << data.context << ")"
+                  << " with host = " << data.host.value_or("*")
+                  << " with path = " << data.path;
+
+              data.stream = data.stub.PrepareCall(
+                  data.context,
+                  data.path,
+                  data.cq.get());
+
+              if (!data.stream) {
+                EVENTUALS_GRPC_LOG(1)
+                    << "Failed to prepare call (" << data.context << ")"
+                    << " with host = " << data.host.value_or("*")
+                    << " with path = " << data.path;
+
+                // TODO(benh): Check status of channel, is this a
+                // redundant check because 'PrepareCall' also does
+                // this?  At the very least we'll probably give a
+                // better error message by checking.
+                k.Fail(std::runtime_error("Failed to prepare call"));
+              } else {
+                using K = std::decay_t<decltype(k)>;
+                data.k = &k;
+                callback = [&data](bool ok) {
+                  auto& k = *reinterpret_cast<K*>(data.k);
+                  if (ok) {
+                    EVENTUALS_GRPC_LOG(1)
+                        << "Started call (" << data.context << ")"
+                        << " with host = " << data.host.value_or("*")
+                        << " with path = " << data.path;
+
+                    k.Start(
+                        ClientCall<Request, Response>(
+                            data.path,
+                            data.host,
+                            data.context,
+                            std::move(data.cq),
+                            std::move(data.stub),
+                            std::move(data.stream)));
+                  } else {
+                    EVENTUALS_GRPC_LOG(1)
+                        << "Failed to start call (" << data.context << ")"
+                        << " with host = " << data.host.value_or("*")
+                        << " with path = " << data.path;
+
+                    k.Fail(std::runtime_error("Failed to start call"));
+                  }
+                };
+
+                EVENTUALS_GRPC_LOG(1)
+                    << "Starting call (" << data.context << ")"
+                    << " with host = " << data.host.value_or("*")
+                    << " with path = " << data.path;
+
+                data.stream->StartCall(&callback);
+              }
+            }
+          }
+        });
   }
 
   template <typename Service, typename Request, typename Response>

@@ -47,8 +47,8 @@ TEST(ExecutorTest, Interrupt) {
                    [&]() {
                      return Eventual<void>()
                          .interruptible()
-                         .start([&](auto& k, Interrupt::Handler& handler) {
-                           handler.Install([&]() {
+                         .start([&](auto& k, auto& handler) {
+                           handler->Install([&]() {
                              interrupted = true;
                              k.Stop();
                            });

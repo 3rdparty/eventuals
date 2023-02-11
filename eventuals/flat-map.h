@@ -67,7 +67,7 @@ struct _FlatMap final {
 
     void Begin(TypeErasedStream& stream) {
       outer_ = &stream;
-      previous_ = Scheduler::Context::Get();
+      previous_ = Reborrow(Scheduler::Context::Get());
 
       k_.Begin(*this);
     }

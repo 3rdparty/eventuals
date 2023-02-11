@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 // See the 'Contributor Guide' in README.md for documentation about
 // how to create your own compile-time "builder".
 

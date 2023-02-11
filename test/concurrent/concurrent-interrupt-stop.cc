@@ -27,8 +27,8 @@ TYPED_TEST(ConcurrentTypedTest, InterruptStop) {
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
                   .interruptible()
-                  .start([&](auto& k, Interrupt::Handler& handler) mutable {
-                    handler.Install([&k]() {
+                  .start([&](auto& k, auto& handler) mutable {
+                    handler->Install([&k]() {
                       k.Stop();
                     });
                     callbacks.emplace_back([]() {});

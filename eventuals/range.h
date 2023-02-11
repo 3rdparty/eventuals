@@ -23,7 +23,7 @@ struct _Range final {
     ~Continuation() override = default;
 
     void Start() {
-      previous_ = Scheduler::Context::Get();
+      previous_ = Reborrow(Scheduler::Context::Get());
 
       k_.Begin(*this);
     }

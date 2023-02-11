@@ -23,14 +23,31 @@ class DefaultScheduler final : public Scheduler {
     // callbacks).
     CHECK_EQ(this, context.scheduler());
 
-    stout::borrowed_ref<Context> previous = Context::Switch(context.Borrow());
+    CHECK(!context.blocked()) << context.name();
+
+    CHECK_NE(&context, &Context::Default())
+        << "Default context should not be used when submitting!";
+
+    stout::borrowed_ref<Context> previous =
+        Reborrow(Context::Switch(Borrow(context)));
 
     EVENTUALS_LOG(1)
         << "'" << context.name() << "' preempted '" << previous->name() << "'";
 
     callback();
 
-    CHECK_EQ(&context, Context::Switch(std::move(previous)).get());
+    //////////////////////////////////////////////////////////
+    // NOTE: can't use 'context' at this point              //
+    // in time because it might have been deallocated!      //
+    //////////////////////////////////////////////////////////
+
+    Context::Switch(std::move(previous));
+
+    // TODO(benh): check that the returned context pointer is the same
+    // as what we switched to (but nothing more because it might have
+    // been deallocated) or is the default context because the context
+    // blocked (in which case we can check if it's blocked because
+    // we're the only ones that would unblock and run it!)
   }
 
   void Clone(Context& context) override {
@@ -57,9 +74,13 @@ thread_local Scheduler::Context Scheduler::Context::default_(
 ////////////////////////////////////////////////////////////////////////
 
 thread_local stout::borrowed_ref<Scheduler::Context>
-    Scheduler::Context::current_ = []() {
-      return default_.Borrow();
-    }();
+    Scheduler::Context::current_ = Borrow(default_);
+
+////////////////////////////////////////////////////////////////////////
+
+Scheduler::Context& Scheduler::Context::Default() {
+  return default_;
+}
 
 ////////////////////////////////////////////////////////////////////////
 

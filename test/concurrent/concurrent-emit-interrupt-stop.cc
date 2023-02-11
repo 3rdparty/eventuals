@@ -17,8 +17,8 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptStop) {
   auto e = [&]() {
     return Stream<int>()
                .interruptible()
-               .begin([](auto& k, Interrupt::Handler& handler) {
-                 handler.Install([&k]() {
+               .begin([](auto& k, auto& handler) {
+                 handler->Install([&k]() {
                    k.Stop();
                  });
                  k.Begin();

@@ -6,6 +6,7 @@
 #include <variant>
 
 #include "eventuals/compose.h"
+#include "eventuals/scheduler.h"
 #include "eventuals/terminal.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -15,24 +16,47 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 struct _DoAll final {
+  template <typename K_>
+  struct Fiber {
+    Fiber(K_ k)
+      : k(std::move(k)) {}
+
+    Fiber(Fiber&& that)
+      : k(std::move(that.k)) {
+      CHECK(!context) << "moving after starting";
+    }
+
+    std::optional<Scheduler::Context> context;
+    Interrupt interrupt;
+    K_ k;
+  };
+
   template <typename K_, typename... Eventuals_>
   struct Adaptor final {
-    Adaptor(K_& k, Interrupt& interrupt)
+    Adaptor(
+        K_& k,
+        stout::borrowed_ref<Scheduler::Context>&& context,
+        Callback<void()>& interrupter)
       : k_(k),
-        interrupt_(interrupt) {}
+        context_(std::move(context)),
+        interrupter_(interrupter) {}
 
-    Adaptor(Adaptor&& that)
-      : k_(that.k_),
-        interrupt_(that.interrupt_) {
-      CHECK(that.counter_.load() == sizeof...(Eventuals_))
-          << "moving after starting is illegal";
+    // NOTE: need to define move constructor but it shouldn't be
+    // executed at runtime.
+    Adaptor(Adaptor&& that) {
+      LOG(FATAL) << "moving after starting";
     }
 
     K_& k_;
-    Interrupt& interrupt_;
+    stout::borrowed_ref<Scheduler::Context> context_;
+    Callback<void()>& interrupter_;
 
     std::tuple<
         std::variant<
+            // NOTE: we use a dummy 'Undefined' in order to default
+            // initialize the tuple. We don't use 'std::monostate'
+            // because that's what we use for 'void' return types.
+            Undefined,
             std::conditional_t<
                 std::is_void_v<typename Eventuals_::template ValueFrom<void>>,
                 std::monostate,
@@ -43,17 +67,23 @@ struct _DoAll final {
     std::atomic<size_t> counter_ = sizeof...(Eventuals_);
 
     template <size_t index, typename Eventual>
-    [[nodiscard]] auto BuildEventual(Eventual eventual) {
-      return Build(
+    [[nodiscard]] auto BuildFiber(Eventual eventual) {
+      auto k = Build(
           std::move(eventual)
+          // NOTE: need to reschedule to initial context beforew we
+          // call into continuation!
+          | Reschedule(Reborrow(context_))
           | Terminal()
                 .start([this](auto&&... value) {
-                  if constexpr (sizeof...(value) != 0) {
+                  using Value = typename Eventual::template ValueFrom<void>;
+                  static_assert(std::is_void_v<Value> || sizeof...(value) == 1);
+                  if constexpr (!std::is_void_v<Value>) {
                     std::get<index>(values_)
                         .template emplace<std::decay_t<decltype(value)>...>(
                             std::forward<decltype(value)>(value)...);
                   } else {
-                    // Assume it's void, std::monostate will be the default.
+                    std::get<index>(values_)
+                        .template emplace<std::monostate>();
                   }
                   if (counter_.fetch_sub(1) == 1) {
                     // You're the last eventual so call the continuation.
@@ -94,7 +124,7 @@ struct _DoAll final {
                   } else {
                     // Interrupt the remaining eventuals so we can
                     // propagate the failure.
-                    interrupt_.Trigger();
+                    interrupter_();
                   }
                 })
                 .stop([this]() {
@@ -118,9 +148,10 @@ struct _DoAll final {
                   } else {
                     // Interrupt the remaining eventuals so we can
                     // propagate the stop.
-                    interrupt_.Trigger();
+                    interrupter_();
                   }
                 }));
+      return Fiber<decltype(k)>(std::move(k));
     }
 
     std::tuple<
@@ -130,16 +161,16 @@ struct _DoAll final {
             typename Eventuals_::template ValueFrom<void>>...>
     GetTupleOfValues() {
       return std::apply(
-          [](auto&... value) {
+          [](auto&&... value) {
             // NOTE: not using `CHECK_EQ()` here because compiler
             // messages out the error: expected expression
-            //    (CHECK_EQ(0, value.index()), ...);
+            //    (CHECK_EQ(1, value.index()), ...);
             //     ^
             // That's why we use CHECK instead.
-            ((CHECK(value.index() == 0)), ...);
-            return std::make_tuple(std::get<0>(value)...);
+            ((CHECK(value.index() == 1)), ...);
+            return std::make_tuple(std::get<1>(std::move(value))...);
           },
-          values_);
+          std::move(values_));
     }
 
     std::optional<std::exception_ptr> GetExceptionIfExists() {
@@ -176,11 +207,11 @@ struct _DoAll final {
     }
 
     template <size_t... index>
-    [[nodiscard]] auto BuildAll(
+    [[nodiscard]] auto BuildFibers(
         std::tuple<Eventuals_...>&& eventuals,
         std::index_sequence<index...>) {
       return std::make_tuple(
-          BuildEventual<index>(std::move(std::get<index>(eventuals)))...);
+          BuildFiber<index>(std::move(std::get<index>(eventuals)))...);
     }
   };
 
@@ -192,25 +223,40 @@ struct _DoAll final {
 
     Continuation(Continuation&& that)
       : eventuals_(std::move(that.eventuals_)),
-        adaptor_(std::move(that.adaptor_)),
-        ks_(std::move(that.ks_)),
-        handler_(std::move(that.handler_)),
-        k_(std::move(that.k_)) {}
+        k_(std::move(that.k_)) {
+      CHECK(!adaptor_) << "moving after starting";
+    }
 
     template <typename... Args>
     void Start(Args&&...) {
-      adaptor_.emplace(k_, interrupt_);
+      adaptor_.emplace(k_, Reborrow(Scheduler::Context::Get()), interrupter_);
 
-      ks_.emplace(adaptor_->BuildAll(
+      fibers_.emplace(adaptor_->BuildFibers(
           std::move(eventuals_),
           std::make_index_sequence<sizeof...(Eventuals_)>{}));
 
       std::apply(
-          [this](auto&... k) {
-            (k.Register(interrupt_), ...);
-            (k.Start(), ...);
+          [](auto&... fiber) {
+            static std::atomic<int> i = 0;
+
+            // Clone the current scheduler context for running the eventual.
+            (fiber.context.emplace(
+                 Scheduler::Context::Get()->name()
+                 + " [DoAll - " + std::to_string(i++) + "]"),
+             ...);
+
+            (fiber.context->scheduler()->Submit(
+                 [&]() {
+                   CHECK_EQ(
+                       &fiber.context.value(),
+                       Scheduler::Context::Get().get());
+                   fiber.k.Register(fiber.interrupt);
+                   fiber.k.Start();
+                 },
+                 fiber.context.value()),
+             ...);
           },
-          ks_.value());
+          fibers_.value());
     }
 
     template <typename Error>
@@ -227,21 +273,33 @@ struct _DoAll final {
       k_.Register(interrupt);
 
       handler_.emplace(&interrupt, [this]() {
-        // Trigger inner interrupt for each eventual.
-        interrupt_.Trigger();
+        interrupter_();
       });
+
+      handler_->Install();
     }
 
+    // NOTE: need to destruct the fibers LAST since they have a
+    // Scheduler::Context which may get borrowed in 'adaptor_' and
+    // it's continuations so those need to be destructed first.
+    std::optional<
+        decltype(std::declval<Adaptor<K_, Eventuals_...>>().BuildFibers(
+            std::declval<std::tuple<Eventuals_...>>(),
+            std::make_index_sequence<sizeof...(Eventuals_)>{}))>
+        fibers_;
+
     std::tuple<Eventuals_...> eventuals_;
-    Interrupt interrupt_;
 
     std::optional<Adaptor<K_, Eventuals_...>> adaptor_;
 
-    std::optional<
-        decltype(adaptor_->BuildAll(
-            std::move(eventuals_),
-            std::make_index_sequence<sizeof...(Eventuals_)>{}))>
-        ks_;
+    Callback<void()> interrupter_ = [this]() {
+      // Trigger inner interrupt for each eventual.
+      std::apply(
+          [](auto&... fiber) {
+            (fiber.interrupt.Trigger(), ...);
+          },
+          fibers_.value());
+    };
 
     std::optional<Interrupt::Handler> handler_;
 
@@ -280,10 +338,14 @@ struct _DoAll final {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Eventual, typename... Eventuals>
-[[nodiscard]] auto DoAll(Eventual eventual, Eventuals... eventuals) {
-  return _DoAll::Composable<Eventual, Eventuals...>{
-      std::make_tuple(std::move(eventual), std::move(eventuals)...)};
+template <typename... Eventuals>
+[[nodiscard]] auto DoAll(Eventuals... eventuals) {
+  static_assert(
+      sizeof...(Eventuals) > 0,
+      "'DoAll' expects at least one eventual");
+
+  return _DoAll::Composable<Eventuals...>{
+      std::make_tuple(std::move(eventuals)...)};
 }
 
 ////////////////////////////////////////////////////////////////////////

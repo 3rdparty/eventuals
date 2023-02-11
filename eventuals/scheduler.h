@@ -7,6 +7,8 @@
 #include <string>
 #include <tuple>
 
+#include <csignal>
+
 #include "eventuals/callback.h"
 #include "eventuals/closure.h"
 #include "eventuals/compose.h"
@@ -51,16 +53,39 @@ class Scheduler {
     }
 
     static stout::borrowed_ref<Context> Switch(
-        stout::borrowed_ref<Context> context) {
-      stout::borrowed_ref<Context> previous = std::move(current_);
-      current_ = std::move(context);
-      return previous;
+        stout::borrowed_ref<Context>&& context) {
+      // CHECK(!context->blocked());
+      if (context.get() != current_.get()) {
+        stout::borrowed_ref<Context> previous = Reborrow(std::move(current_));
+        current_ = Reborrow(std::move(context));
+        DLOG(INFO) << previous->name() << " SWITCHED TO " << current_->name();
+        return previous;
+      } else {
+        return context;
+      }
     }
+
+    static stout::borrowed_ref<Context> Block() {
+      auto context = Switch(Borrow(default_));
+      context->block();
+      return context;
+    }
+
+    static void Unblock(stout::borrowed_ref<Context>&& context) {
+      context->unblock();
+      Switch(Reborrow(std::move(context)));
+    }
+
+    // NOTE: the default context is not something you should be using
+    // unless you know what you're doing!
+    static Context& Default();
 
     Context(Scheduler* scheduler, std::string&& name, void* data = nullptr)
       : data(data),
         scheduler_(CHECK_NOTNULL(scheduler)),
-        name_(std::move(name)) {}
+        name_(std::move(name)) {
+      CHECK(!name_.empty()) << "please use a non-empty name";
+    }
 
     Context(std::string&& name)
       : Context(Context::Get()->scheduler(), std::move(name)) {
@@ -82,40 +107,52 @@ class Scheduler {
       // borrows otherwise when we destruct our 'waiter' member it may
       // relinquish the last borrow of 'this' leading us to deallocate
       // 'this' before it is safe.
+
+      DLOG(INFO) << Scheduler::Context::Get()->name() << " waiting for " << name() << " (" << static_cast<TypeErasedBorrowable*>(this) << ") with borrows " << borrows();
       WaitUntilBorrowsEquals(0);
+      DLOG(INFO) << Scheduler::Context::Get()->name() << " DONE waiting for " << name();
     }
 
     Scheduler* scheduler() const {
       return CHECK_NOTNULL(scheduler_);
     }
 
-    void block() {
-      blocked_ = true;
-    }
-
-    void unblock() {
-      blocked_ = false;
+    const std::string& name() const {
+      return name_;
     }
 
     bool blocked() const {
       return blocked_;
     }
 
-    const std::string& name() const {
-      return name_;
+    void block() {
+      CHECK(!blocked_) << name();
+      CHECK_NE(this, &default_) << "Default context should never be blocked!";
+
+      blocked_ = true;
+
+      DLOG(INFO) << name() << " BLOCKED";
     }
 
-    template <typename F>
-    void Unblock(F f) {
-      scheduler()->Submit(std::move(f), *this);
+    void unblock() {
+      CHECK(blocked_) << name();
+      CHECK_NE(this, &default_) << "Default context should never be blocked!";
+
+      blocked_ = false;
+
+      DLOG(INFO) << name() << " UNBLOCKED";
     }
 
     template <typename F>
     void Continue(F&& f) {
       if (scheduler()->Continuable(*this)) {
-        auto previous = Switch(Borrow());
-        f();
-        Switch(std::move(previous));
+        if (current_.get() != this) {
+          auto previous = Reborrow(Switch(Borrow(*this)));
+          f();
+          Switch(std::move(previous));
+        } else {
+          f();
+        }
       } else {
         scheduler()->Submit(std::move(f), *this);
       }
@@ -124,9 +161,13 @@ class Scheduler {
     template <typename F, typename G>
     void Continue(F&& f, G&& g) {
       if (scheduler()->Continuable(*this)) {
-        auto previous = Switch(Borrow());
-        f();
-        Switch(std::move(previous));
+        if (current_.get() != this) {
+          auto previous = Reborrow(Switch(Borrow(*this)));
+          f();
+          Switch(std::move(previous));
+        } else {
+          f();
+        }
       } else {
         scheduler()->Submit(g(), *this);
       }
@@ -144,7 +185,6 @@ class Scheduler {
 
     Scheduler* scheduler_ = nullptr;
 
-    // There is the most common set of variables to create contexts.
     bool blocked_ = false;
 
     std::string name_;
@@ -158,6 +198,12 @@ class Scheduler {
 
   virtual void Submit(Callback<void()> callback, Context& context) = 0;
 
+  virtual void Unblock(Callback<void()> callback, Context& context) {
+    CHECK(context.blocked());
+    context.unblock();
+    Submit(std::move(callback), context);
+  }
+
   virtual void Clone(Context& child) = 0;
 };
 
@@ -166,8 +212,8 @@ class Scheduler {
 struct _Reschedule final {
   template <typename K_, typename Arg_>
   struct Continuation final {
-    Continuation(K_ k, stout::borrowed_ref<Scheduler::Context> context)
-      : context_(std::move(context)),
+    Continuation(K_ k, stout::borrowed_ref<Scheduler::Context>&& context)
+      : context_(Reborrow(std::move(context))),
         k_(std::move(k)) {}
 
     template <typename... Args>
@@ -330,7 +376,7 @@ struct _Reschedule final {
 // Returns an eventual which will switch to the specified context
 // before continuing it's continuation.
 [[nodiscard]] inline auto Reschedule(
-    stout::borrowed_ref<Scheduler::Context> context) {
+    stout::borrowed_ref<Scheduler::Context>&& context) {
   return _Reschedule::Composable{std::move(context)};
 }
 
@@ -343,7 +389,7 @@ template <typename E>
 [[nodiscard]] auto RescheduleAfter(E e) {
   return Closure([e = std::move(e)]() mutable {
     return std::move(e)
-        | Reschedule(Scheduler::Context::Get().reborrow());
+        | Reschedule(Reborrow(Scheduler::Context::Get()));
   });
 }
 
@@ -359,7 +405,7 @@ struct Reschedulable final {
   auto& operator()() {
     if (!continuation_) {
       stout::borrowed_ref<Scheduler::Context> previous =
-          Scheduler::Context::Get().reborrow();
+          Reborrow(Scheduler::Context::Get());
 
       continuation_.emplace(
           Reschedule(std::move(previous)).template k<Arg_>(std::move(k_)));
@@ -415,7 +461,7 @@ struct _Preempt final {
           std::move(const_cast<std::string&>(that.context_.name()))),
         e_(std::move(that.e_)),
         k_(std::move(that.k_)) {
-      CHECK_EQ(that.previous_, nullptr) << "moving after starting";
+      CHECK(!that.adapted_) << "moving after starting";
     }
 
     ~Continuation() = default;
@@ -448,13 +494,13 @@ struct _Preempt final {
       CHECK(!adapted_);
 
       stout::borrowed_ref<Scheduler::Context> previous =
-          Scheduler::Context::Get().reborrow();
+          Reborrow(Scheduler::Context::Get());
 
       adapted_.emplace(
-          (Reschedule(context_.Borrow())
+          (Reschedule(Borrow(context_))
            | std::move(e_)
            | Reschedule(std::move(previous)))
-              .template k<Value_>(std::move(k_)));
+              .template k<void>(std::move(k_)));
 
       if (interrupt_ != nullptr) {
         adapted_->Register(*interrupt_);
@@ -473,7 +519,7 @@ struct _Preempt final {
         decltype((std::declval<_Reschedule::Composable>()
                   | std::declval<E_>()
                   | std::declval<_Reschedule::Composable>())
-                     .template k<Value_>(std::declval<K_>()));
+                     .template k<void>(std::declval<K_>()));
 
     std::optional<Adapted_> adapted_;
 
@@ -536,7 +582,7 @@ template <typename E>
                    std::move(name))]() mutable {
         // NOTE: intentionally rescheduling with our context and never
         // rescheduling again because when we terminate we're done!
-        return Reschedule(context->Borrow());
+        return Reschedule(Borrow(*context));
       })
       | std::move(e)
       | Terminal()

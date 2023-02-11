@@ -5,7 +5,6 @@
 #include <optional>
 
 #include "eventuals/iterate.h"
-#include "eventuals/let.h"
 #include "eventuals/lock.h"
 #include "eventuals/loop.h"
 #include "eventuals/map.h"
@@ -81,6 +80,9 @@ struct _Concurrent final {
 
       virtual ~TypeErasedFiber() = default;
 
+      // Need to store a cloned context in which would be stored callback.
+      std::optional<Scheduler::Context> context;
+
       // A fiber indicates it is done with this boolean.
       bool done = false;
 
@@ -90,9 +92,6 @@ struct _Concurrent final {
 
       // Each fiber forms a linked list of currently created fibers.
       std::unique_ptr<TypeErasedFiber> next;
-
-      // Need to store a cloned context in which would be stored callback.
-      std::optional<Scheduler::Context> context;
     };
 
     // Returns the fiber created from the templated class 'Adaptor'
@@ -444,7 +443,7 @@ struct _Concurrent final {
 
     // Returns an eventual which represents the computation we perform
     // for each upstream value.
-    [[nodiscard]] auto FiberEventual(TypeErasedFiber* fiber, Arg_&& arg) {
+    [[nodiscard]] auto FiberEventual(TypeErasedFiber* fiber, Arg_& arg) {
       // NOTE: we do a 'RescheduleAfter()' so that we don't end up
       // borrowing any 'Scheduler::Context' (for example from
       // 'Synchronized()') that might have come from the eventual
@@ -455,7 +454,18 @@ struct _Concurrent final {
                  // return a 'FlatMap()' so we need to use 'Loop()'
                  // down below even though we know we only have a
                  // single 'arg' to iterate from the top.
-                 Iterate({std::move(arg)})
+                 Stream<Arg_>()
+                     .next([&arg, emitted = false](auto& k) mutable {
+                       if (!emitted) {
+                         emitted = true;
+                         k.Emit(std::forward<Arg_>(arg));
+                       } else {
+                         k.Ended();
+                       }
+                     })
+                     .done([](auto& k) {
+                       k.Ended();
+                     })
                  | f_())
           | Synchronized(Map([this](auto&& value) {
                values_.push_back(std::forward<decltype(value)>(value));
@@ -468,21 +478,24 @@ struct _Concurrent final {
 
     // Returns an upcasted 'TypeErasedFiber' from our typeful 'Fiber'.
     TypeErasedFiber* CreateFiber() override {
-      using E = decltype(FiberEventual(nullptr, std::declval<Arg_>()));
+      using E = decltype(FiberEventual(nullptr, std::declval<Arg_&>()));
       return new Fiber<E>();
     }
 
     // Helper that starts a fiber by downcasting to typeful fiber.
-    void StartFiber(TypeErasedFiber* fiber, Arg_&& arg) {
-      using E = decltype(FiberEventual(fiber, std::move(arg)));
+    void StartFiber(TypeErasedFiber* fiber, Arg_& arg) {
+      using E = decltype(FiberEventual(fiber, arg));
 
       static_cast<Fiber<E>*>(fiber)->k.emplace(
-          Build(FiberEventual(fiber, std::move(arg))));
+          Build(FiberEventual(fiber, arg)));
+
+      static std::atomic<int> i = 0;
 
       // TODO(benh): differentiate the names of the fibers for
       // easier debugging!
       fiber->context.emplace(
-          Scheduler::Context::Get()->name() + " [concurrent fiber]");
+          Scheduler::Context::Get()->name()
+          + " [Concurrent - " + std::to_string(i++) + "]");
 
       fiber->context->scheduler()->Submit(
           [fiber]() {
@@ -496,7 +509,7 @@ struct _Concurrent final {
     // Returns an eventual which implements the logic of handling each
     // upstream value.
     [[nodiscard]] auto Ingress() {
-      return Map(Let([this](Arg_& arg) {
+      return Until([this](Arg_& arg) {
                return CreateOrReuseFiber()
                    | Then([&](TypeErasedFiber* fiber) {
                         // A nullptr indicates that we should tell
@@ -505,13 +518,12 @@ struct _Concurrent final {
                         bool done = fiber == nullptr;
 
                         if (!done) {
-                          StartFiber(fiber, std::move(arg));
+                          StartFiber(fiber, arg);
                         }
 
                         return done;
                       });
-             }))
-          | Until([](bool done) { return done; })
+             })
           | Loop() // Eagerly try to get next value to run concurrently!
           | IngressEpilogue()
           | Terminal();
@@ -520,49 +532,55 @@ struct _Concurrent final {
     // Returns an eventual which implements the logic for handling
     // each value emitted from our fibers and moving them downstream.
     [[nodiscard]] auto Egress() {
-      return Synchronized(
-                 Wait([this](auto notify) {
-                   notify_egress_ = std::move(notify);
-                   return [this]() {
-                     if (values_.empty()) {
-                       return !(upstream_done_ && fibers_done_);
-                     } else {
-                       return false;
-                     }
-                   };
-                 })
-                 // Need to check for an exception _before_
-                 // 'Until()' because we have no way of hooking
-                 // into "ended" after 'Until()'.
-                 | Map([this]() {
-                     return Eventual<std::optional<Value_>>()
-                         .start([this](auto& k) {
-                           if (exception_ && upstream_done_ && fibers_done_) {
-                             // TODO(benh): flush remaining values first?
-                             try {
-                               std::rethrow_exception(*exception_);
-                             } catch (const StoppedException&) {
-                               k.Stop();
-                             } catch (...) {
-                               k.Fail(std::current_exception());
+      Scheduler::Context* context = nullptr;
+      return Closure([this, context]() mutable {
+        context = Scheduler::Context::Get().get();
+        return Synchronized(
+                   Wait([this](auto notify) {
+                     notify_egress_ = std::move(notify);
+                     return [this]() {
+                       if (values_.empty()) {
+                         return !(upstream_done_ && fibers_done_);
+                       } else {
+                         return false;
+                       }
+                     };
+                   })
+                   // Need to check for an exception _before_
+                   // 'Until()' because we have no way of hooking
+                   // into "ended" after 'Until()'.
+                   | Map([this]() {
+                       return Eventual<std::optional<Value_>>()
+                           .start([this](auto& k) {
+                             if (exception_ && upstream_done_ && fibers_done_) {
+                               // TODO(benh): flush remaining values first?
+                               try {
+                                 std::rethrow_exception(*exception_);
+                               } catch (const StoppedException&) {
+                                 k.Stop();
+                               } catch (...) {
+                                 k.Fail(std::current_exception());
+                               }
+                             } else if (!values_.empty()) {
+                               auto value = std::move(values_.front());
+                               values_.pop_front();
+                               k.Start(std::optional<Value_>(std::move(value)));
+                             } else {
+                               CHECK(upstream_done_ && fibers_done_);
+                               k.Start(std::optional<Value_>());
                              }
-                           } else if (!values_.empty()) {
-                             auto value = std::move(values_.front());
-                             values_.pop_front();
-                             k.Start(std::optional<Value_>(std::move(value)));
-                           } else {
-                             CHECK(upstream_done_ && fibers_done_);
-                             k.Start(std::optional<Value_>());
-                           }
-                         });
-                   }))
-          | Until([](std::optional<Value_>& value) {
-               return !value;
-             })
-          | Map([](std::optional<Value_>&& value) {
-               CHECK(value);
-               return std::move(*value);
-             });
+                           });
+                     }))
+            | Until([&](std::optional<Value_>& value) {
+                 CHECK_EQ(context, Scheduler::Context::Get().get());
+                 return !value;
+               })
+            | Map([&](std::optional<Value_>&& value) {
+                 CHECK_EQ(context, Scheduler::Context::Get().get());
+                 CHECK(value);
+                 return std::move(*value);
+               });
+      });
     }
 
     F_ f_;
@@ -595,6 +613,23 @@ struct _Concurrent final {
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
 
+      // Clone all of our contexts based on the current scheduler context.
+      interrupt_context_.emplace(
+          Scheduler::Context::Get()->name() + " [Concurrent - Interrupt]");
+
+      wait_for_done_context_.emplace(
+          Scheduler::Context::Get()->name() + " [Concurrent - WaitForDone]");
+
+      egress_context_.emplace(
+          Scheduler::Context::Get()->name() + " [Concurrent - Egress]");
+
+      done_context_.emplace(
+          Scheduler::Context::Get()->name() + " [Concurrent - Done]");
+
+      // NOTE: we use the current scheduler context for ingress since
+      // it's the context from upstream!
+      ingress_context_ = Reborrow(Scheduler::Context::Get());
+
       ingress_.emplace(Build<Arg_>(adaptor_.Ingress()));
 
       // NOTE: we don't register an interrupt for 'ingress_' since we
@@ -609,7 +644,10 @@ struct _Concurrent final {
       // since we explicitly handle interrupts with
       // 'Adaptor::Interrupt()'.
 
-      wait_for_done_->Start();
+      CHECK(wait_for_done_context_);
+      wait_for_done_context_->Continue([this]() {
+        wait_for_done_->Start();
+      });
 
       // NOTE: we move 'k_' so 'Concurrent()' can't be reused.
       CHECK(!egress_) << "Concurrent() reuse is unsupported";
@@ -619,7 +657,10 @@ struct _Concurrent final {
       // NOTE: we don't register an interrupt for 'egress_' since we
       // explicitly handle interrupts with 'Adaptor::Interrupt()'.
 
-      egress_->Begin(*this);
+      CHECK(egress_context_);
+      egress_context_->Continue([this]() {
+        egress_->Begin(*this);
+      });
     }
 
     template <typename Error>
@@ -628,6 +669,8 @@ struct _Concurrent final {
         CHECK(!egress_);
         k_.Fail(std::forward<Error>(error));
       } else {
+        CHECK(ingress_context_);
+        CHECK_EQ(ingress_context_.get(), Scheduler::Context::Get().get());
         ingress_->Fail(std::forward<Error>(error));
       }
     }
@@ -637,31 +680,47 @@ struct _Concurrent final {
         CHECK(!egress_);
         k_.Stop();
       } else {
+        CHECK(ingress_context_);
+        CHECK_EQ(ingress_context_.get(), Scheduler::Context::Get().get());
         ingress_->Stop();
       }
     }
 
     template <typename... Args>
     void Body(Args&&... args) {
+      CHECK(ingress_context_);
+      CHECK_EQ(ingress_context_.get(), Scheduler::Context::Get().get());
       CHECK(ingress_);
       ingress_->Body(std::forward<Args>(args)...);
     }
 
     void Ended() {
-      CHECK(ingress_);
-      ingress_->Ended();
+      CHECK(ingress_context_);
+      ingress_context_->Continue([this]() {
+        CHECK(ingress_);
+        ingress_->Ended();
+      });
     }
 
     void Next() override {
+      CHECK(egress_context_);
+      CHECK_EQ(&egress_context_.value(), Scheduler::Context::Get().get());
+
       // NOTE: we go "down" into egress before going "up" to ingress
       // so that we have saved the 'Wait()' notify callbacks.
-      CHECK(egress_);
-      egress_->Body();
+      CHECK(egress_context_);
+      egress_context_->Continue([this]() {
+        CHECK(egress_);
+        egress_->Body();
+      });
 
       // Using std::atomic_flag so we only start ingress once!
       if (!next_.test_and_set()) {
-        CHECK(ingress_);
-        ingress_->Begin(*CHECK_NOTNULL(stream_));
+        CHECK(ingress_context_);
+        ingress_context_->Continue([this]() {
+          CHECK(ingress_);
+          ingress_->Begin(*CHECK_NOTNULL(stream_));
+        });
       }
     }
 
@@ -673,17 +732,24 @@ struct _Concurrent final {
       // NOTE: we don't register an interrupt for 'done_' since we
       // explicitly handle interrupts with 'Adaptor::Interrupt()'.
 
-      done_->Start();
+      CHECK(done_context_);
+      done_context_->Continue([this]() {
+        done_->Start();
+      });
     }
 
     void Register(Interrupt& interrupt) {
       handler_.emplace(&interrupt, [this]() {
         interrupt_.emplace(Build(adaptor_.Interrupt()));
 
-        // NOTE: we don't register an interrupt for 'done_' since we
-        // explicitly handle interrupts with 'Adaptor::Interrupt()'.
+        // NOTE: we don't register an interrupt for 'interrupt_' since
+        // we explicitly handle interrupts with
+        // 'Adaptor::Interrupt()'.
 
-        interrupt_->Start();
+        CHECK(interrupt_context_);
+        interrupt_context_->Continue([this]() {
+          interrupt_->Start();
+        });
       });
 
       handler_->Install();
@@ -697,19 +763,24 @@ struct _Concurrent final {
 
     using Ingress_ = decltype(Build<Arg_>(adaptor_.Ingress()));
     std::optional<Ingress_> ingress_;
+    stout::borrowed_ptr<Scheduler::Context> ingress_context_;
 
     using Egress_ = decltype(Build(adaptor_.Egress(), std::declval<K_>()));
     std::optional<Egress_> egress_;
+    std::optional<Scheduler::Context> egress_context_;
 
     using WaitForDone_ = decltype(Build(
         adaptor_.WaitForDone(std::declval<Callback<void()>>())));
     std::optional<WaitForDone_> wait_for_done_;
+    std::optional<Scheduler::Context> wait_for_done_context_;
 
     using Done_ = decltype(Build(adaptor_.Done()));
     std::optional<Done_> done_;
+    std::optional<Scheduler::Context> done_context_;
 
     using Interrupt_ = decltype(Build(adaptor_.Interrupt()));
     std::optional<Interrupt_> interrupt_;
+    std::optional<Scheduler::Context> interrupt_context_;
 
     std::optional<Interrupt::Handler> handler_;
 

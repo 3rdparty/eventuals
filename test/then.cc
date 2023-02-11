@@ -3,6 +3,7 @@
 #include <thread>
 
 #include "eventuals/just.h"
+#include "eventuals/timeout-after.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "test/promisify-for-test.h"
@@ -96,8 +97,8 @@ TEST(ThenTest, Interrupt) {
   auto e = [&](auto) {
     return Eventual<std::string>()
         .interruptible()
-        .start([&](auto& k, Interrupt::Handler& handler) {
-          handler.Install([&k]() {
+        .start([&](auto& k, auto& handler) {
+          handler->Install([&k]() {
             k.Stop();
           });
           start.Call();
@@ -129,6 +130,15 @@ TEST(ThenTest, Interrupt) {
   k.Start();
 
   EXPECT_THROW(future.get(), eventuals::StoppedException);
+}
+
+
+TEST(ThenTest, Move) {
+  auto e = []() {
+    return TimeoutAfter(std::chrono::seconds(1), Just(42));
+  };
+
+  EXPECT_EQ(42, *e());
 }
 
 } // namespace

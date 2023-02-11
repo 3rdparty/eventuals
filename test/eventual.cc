@@ -112,8 +112,8 @@ TEST(EventualTest, Interrupt) {
     return Eventual<int>()
                .context(5)
                .interruptible()
-               .start([&](auto&, auto& k, Interrupt::Handler& handler) {
-                 handler.Install([&k]() {
+               .start([&](auto&, auto& k, auto& handler) {
+                 handler->Install([&k]() {
                    k.Stop();
                  });
                  start.Call();

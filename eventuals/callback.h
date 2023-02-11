@@ -4,6 +4,8 @@
 #include <type_traits> // For std::aligned_storage.
 #include <utility> // For std::move.
 
+#include "stout/borrowable.h"
+
 ////////////////////////////////////////////////////////////////////////
 
 namespace eventuals {
@@ -129,9 +131,15 @@ struct Callback<R(Args...)> final {
     F f_;
   };
 
-  // NOTE: we allow up to 2 * sizeof(void*) to accomodate storing a
-  // 'stout::borrowed_callable'.
-  static constexpr std::size_t SIZE = (2 * sizeof(void*)) + sizeof(Base);
+  // NOTE: we accomodate storing a 'stout::borrowed_callable'.
+  static auto BorrowedCallable() {
+    return Borrow(
+        std::declval<stout::Borrowable<int>&>(),
+        [i = new int()]() {});
+  }
+
+  static constexpr std::size_t SIZE =
+    sizeof(decltype(BorrowedCallable())) + sizeof(Base);
 
   std::aligned_storage_t<SIZE> storage_;
 

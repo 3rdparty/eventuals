@@ -88,8 +88,8 @@ TEST(RepeatTest, Interrupt) {
   auto e = [&](auto s) {
     return Eventual<int>()
         .interruptible()
-        .start([&](auto& k, Interrupt::Handler& handler) {
-          handler.Install([&k]() {
+        .start([&](auto& k, auto& handler) {
+          handler->Install([&k]() {
             k.Stop();
           });
           start.Call();

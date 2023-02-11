@@ -45,7 +45,7 @@ template <typename Container>
 
   return Stream<T>()
       .context(Data{container, std::nullopt})
-      .begin([](auto& data, auto& k) {
+      .begin([](auto& data, auto& k, auto&&...) {
         data.begin = data.container.cbegin();
         k.Begin();
       })
@@ -76,7 +76,7 @@ template <typename Container>
 
   return Stream<T>()
       .context(Data{container, std::nullopt})
-      .begin([](auto& data, auto& k) {
+      .begin([](auto& data, auto& k, auto&&...) {
         data.begin = data.container.begin();
         k.Begin();
       })
@@ -109,7 +109,7 @@ template <typename Container>
 
   return Stream<T>()
       .context(Data{std::move(container), std::nullopt})
-      .begin([](auto& data, auto& k) {
+      .begin([](auto& data, auto& k, auto&&...) {
         data.begin = data.container.begin();
         k.Begin();
       })

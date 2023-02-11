@@ -13,7 +13,7 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct _TakeLastN final {
+struct _TakeLast final {
   template <typename K_, typename Arg_>
   struct Continuation final : public TypeErasedStream {
     // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
@@ -27,7 +27,7 @@ struct _TakeLastN final {
 
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
-      previous_ = Scheduler::Context::Get();
+      previous_ = Reborrow(Scheduler::Context::Get());
 
       k_.Begin(*this);
     }
@@ -134,10 +134,22 @@ struct _TakeLastN final {
 
 struct _TakeRange final {
   template <typename K_, typename Arg_>
-  struct Continuation final {
+  struct Continuation final : public TypeErasedStream {
+    // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
+    Continuation(K_ k, size_t begin, size_t amount)
+      : begin_(begin),
+        amount_(amount),
+        k_(std::move(k)) {}
+
+    Continuation(Continuation&& that) = default;
+
+    ~Continuation() override = default;
+
     void Begin(TypeErasedStream& stream) {
       stream_ = &stream;
-      k_.Begin(stream);
+      previous_ = Reborrow(Scheduler::Context::Get());
+
+      k_.Begin(*this);
     }
 
     template <typename Error>
@@ -150,15 +162,15 @@ struct _TakeRange final {
     }
 
     template <typename... Args>
-    // 'in_range_' needs to prevent calling Next
-    // when stream has already passed the set amount_ of elements.
     void Body(Args&&... args) {
-      if (CheckRange()) {
-        in_range_ = true;
+      if (begin_ <= i_ && i_ < begin_ + amount_) {
+        i_++;
         k_.Body(std::forward<Args>(args)...);
-      } else if (!in_range_) {
+      } else if (i_ < begin_) {
+        i_++;
         stream_->Next();
       } else {
+        CHECK_EQ(i_, begin_ + amount_);
         stream_->Done();
       }
     }
@@ -167,23 +179,39 @@ struct _TakeRange final {
       k_.Ended();
     }
 
+    void Next() override {
+      previous_->Continue([this]() {
+        if (i_ < begin_ + amount_) {
+          stream_->Next();
+        } else {
+          CHECK_EQ(i_, begin_ + amount_);
+          stream_->Done();
+        }
+      });
+    }
+
+    void Done() override {
+      previous_->Continue([this]() {
+        stream_->Done();
+      });
+    }
+
     void Register(Interrupt& interrupt) {
       k_.Register(interrupt);
     }
 
-    bool CheckRange() {
-      bool result = i_ >= begin_ && i_ < begin_ + amount_;
-      ++i_;
-      return result;
-    }
-
-    K_ k_;
     size_t begin_;
     size_t amount_;
     size_t i_ = 0;
-    bool in_range_ = false;
 
     TypeErasedStream* stream_ = nullptr;
+    stout::borrowed_ptr<Scheduler::Context> previous_;
+
+    // NOTE: we store 'k_' as the _last_ member so it will be
+    // destructed _first_ and thus we won't have any use-after-delete
+    // issues during destruction of 'k_' if it holds any references or
+    // pointers to any (or within any) of the above members.
+    K_ k_;
   };
 
   struct Composable final {
@@ -205,15 +233,15 @@ struct _TakeRange final {
 
 ////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] inline auto TakeLastN(size_t N) {
-  return _TakeLastN::Composable{N};
+[[nodiscard]] inline auto TakeLast(size_t n) {
+  return _TakeLast::Composable{n};
 }
 
 [[nodiscard]] inline auto TakeRange(size_t begin, size_t amount) {
   return _TakeRange::Composable{begin, amount};
 }
 
-[[nodiscard]] inline auto TakeFirstN(size_t amount) {
+[[nodiscard]] inline auto TakeFirst(size_t amount) {
   return _TakeRange::Composable{0, amount};
 }
 

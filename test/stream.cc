@@ -184,12 +184,12 @@ TEST(StreamTest, InterruptStream) {
     return Stream<int>()
                .context(Lazy<std::atomic<bool>>(false))
                .interruptible()
-               .begin([](auto& interrupted,
-                         auto& k,
-                         Interrupt::Handler& handler) {
-                 handler.Install([&interrupted]() {
-                   interrupted->store(true);
-                 });
+               .begin([](auto& interrupted, auto& k, auto& handler) {
+                 if (handler) {
+                   handler->Install([&interrupted]() {
+                     interrupted->store(true);
+                   });
+                 }
                  k.Begin();
                })
                .next([](auto& interrupted, auto& k) {
@@ -264,12 +264,12 @@ TEST(StreamTest, InterruptLoop) {
               .context(Lazy<std::atomic<bool>>(false))
               .interruptible()
               .raises<std::runtime_error>()
-              .begin([](auto& interrupted,
-                        auto& k,
-                        Interrupt::Handler& handler) {
-                handler.Install([&interrupted]() {
-                  interrupted->store(true);
-                });
+              .begin([](auto& interrupted, auto& k, auto& handler) {
+                if (handler) {
+                  handler->Install([&interrupted]() {
+                    interrupted->store(true);
+                  });
+                }
                 k.Next();
               })
               .body([&](auto&, auto& k, auto&&) {

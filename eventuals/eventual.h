@@ -104,13 +104,11 @@ struct _Eventual {
           "Undefined 'start' (and no default)");
 
       if constexpr (!IsUndefined<Context_>::value && Interruptible_) {
-        CHECK(handler_);
-        start_(context_, adaptor(), *handler_, std::forward<Args>(args)...);
+        start_(context_, adaptor(), handler_, std::forward<Args>(args)...);
       } else if constexpr (!IsUndefined<Context_>::value && !Interruptible_) {
         start_(context_, adaptor(), std::forward<Args>(args)...);
       } else if constexpr (IsUndefined<Context_>::value && Interruptible_) {
-        CHECK(handler_);
-        start_(adaptor(), *handler_, std::forward<Args>(args)...);
+        start_(adaptor(), handler_, std::forward<Args>(args)...);
       } else {
         start_(adaptor(), std::forward<Args>(args)...);
       }

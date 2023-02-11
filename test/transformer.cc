@@ -140,8 +140,8 @@ TEST(Transformer, Interrupt) {
   auto e = [&]() {
     return Stream<int>()
                .interruptible()
-               .begin([](auto& k, Interrupt::Handler& handler) {
-                 handler.Install([&]() {
+               .begin([](auto& k, auto& handler) {
+                 handler->Install([&]() {
                    k.Stop();
                  });
                  k.Begin();

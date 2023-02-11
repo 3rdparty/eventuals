@@ -2,7 +2,6 @@
 
 #include <deque>
 
-#include "eventuals/callback.h"
 #include "eventuals/just.h"
 #include "eventuals/lock.h"
 #include "eventuals/map.h"
@@ -22,10 +21,13 @@ class Pipe final : public Synchronizable {
   Pipe()
     : has_values_or_closed_(&lock()) {}
 
-  ~Pipe() override = default;
+  ~Pipe() override {
+    // TODO(benh): check we're closed and have no more borrowers!
+  }
 
   [[nodiscard]] auto Write(T&& value) {
     return Synchronized(Then([this, value = std::move(value)]() mutable {
+      // TODO(benh): raise an error if already closed?
       if (!is_closed_) {
         values_.emplace_back(std::move(value));
         has_values_or_closed_.Notify();
@@ -62,10 +64,32 @@ class Pipe final : public Synchronizable {
            });
   }
 
+  // Returns an eventual 'std::optional<std::deque<T>>' where no value
+  // implies the pipe has been closed.
+  [[nodiscard]] auto ReadBatch() {
+    return Synchronized(
+        Then([this]() {
+          return has_values_or_closed_.Wait([this]() {
+            return values_.empty() && !is_closed_;
+          });
+        })
+        | Then([this]() {
+            if (!values_.empty()) {
+              std::deque<T> values = std::move(values_);
+              values_.clear();
+              return std::make_optional(values);
+            } else {
+              CHECK(is_closed_);
+              return std::optional<std::deque<T>()>();
+            }
+          }));
+  }
+
   [[nodiscard]] auto Close() {
     return Synchronized(Then([this]() {
+      // TODO(benh): raise an error if already closed?
       is_closed_ = true;
-      has_values_or_closed_.Notify();
+      has_values_or_closed_.NotifyAll();
     }));
   }
 

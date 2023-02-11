@@ -22,8 +22,8 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
     return Stream<int>()
                .raises<std::runtime_error>()
                .interruptible()
-               .begin([](auto& k, Interrupt::Handler& handler) {
-                 handler.Install([&k]() {
+               .begin([](auto& k, auto& handler) {
+                 handler->Install([&k]() {
                    k.Fail(std::runtime_error("error"));
                  });
                  k.Begin();

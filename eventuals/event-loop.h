@@ -226,13 +226,13 @@ class EventLoop final : public Scheduler {
           // some later timer after a paused clock has been advanced
           // or unpaused.
           clock_->Submit(
-              this->Borrow([this](const auto& nanoseconds) {
+              BorrowThis([this](const auto& nanoseconds) {
                 // NOTE: need to update nanoseconds in the event the clock
                 // was paused/advanced and the nanosecond count differs.
                 nanoseconds_ = nanoseconds;
 
                 loop().Submit(
-                    this->Borrow([this]() {
+                    BorrowThis([this]() {
                       if (!completed_) {
                         CHECK(!started_);
                         started_ = true;
@@ -305,7 +305,7 @@ class EventLoop final : public Scheduler {
 
           // Submitting to event loop to avoid race with interrupt.
           loop().Submit(
-              this->Borrow([tuple = std::move(tuple)]() mutable {
+              BorrowThis([tuple = std::move(tuple)]() mutable {
                 std::apply(
                     [](auto* continuation, auto&&... args) {
                       if (!continuation->completed_) {
@@ -323,7 +323,7 @@ class EventLoop final : public Scheduler {
         void Stop() {
           // Submitting to event loop to avoid race with interrupt.
           loop().Submit(
-              this->Borrow([this]() {
+              BorrowThis([this]() {
                 if (!completed_) {
                   CHECK(!started_);
                   completed_ = true;
@@ -336,13 +336,13 @@ class EventLoop final : public Scheduler {
         void Register(Interrupt& interrupt) {
           k_.Register(interrupt);
 
-          handler_.emplace(&interrupt, this->Borrow([this]() {
+          handler_.emplace(&interrupt, BorrowThis([this]() {
             // NOTE: even though we execute the interrupt handler on
             // the event loop we will properly context switch to the
             // scheduling context that first created the timer because
             // we used 'RescheduleAfter()' in 'EventLoop::Close::Timer()'.
             loop().Submit(
-                this->Borrow([this]() {
+                BorrowThis([this]() {
                   if (!started_) {
                     CHECK(!completed_);
                     completed_ = true;
@@ -468,6 +468,8 @@ class EventLoop final : public Scheduler {
 
   template <typename T>
   void RunUntil(std::future<T>& future) {
+    CHECK(!in_event_loop_);
+    CHECK(!running_.load());
     auto status = std::future_status::ready;
     do {
       in_event_loop_ = true;
@@ -485,6 +487,8 @@ class EventLoop final : public Scheduler {
   }
 
   void RunWhileWaiters() {
+    CHECK(!in_event_loop_);
+    CHECK(!running_.load());
     do {
       in_event_loop_ = true;
       running_ = true;
@@ -570,7 +574,7 @@ class EventLoop final : public Scheduler {
 
       void Start() {
         loop_.Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               if (!completed_) {
                 CHECK(!started_);
                 started_ = true;
@@ -630,7 +634,7 @@ class EventLoop final : public Scheduler {
 
         // Submitting to event loop to avoid race with interrupt.
         loop_.Submit(
-            this->Borrow([tuple = std::move(tuple)]() {
+            BorrowThis([tuple = std::move(tuple)]() {
               std::apply(
                   [](auto* continuation, auto&&... args) {
                     if (!continuation->completed_) {
@@ -648,7 +652,7 @@ class EventLoop final : public Scheduler {
       void Stop() {
         // Submitting to event loop to avoid race with interrupt.
         loop_.Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               if (!completed_) {
                 CHECK(!started_);
                 completed_ = true;
@@ -663,7 +667,7 @@ class EventLoop final : public Scheduler {
 
         handler_.emplace(&interrupt, [this]() {
           loop_.Submit(
-              this->Borrow([this]() {
+              BorrowThis([this]() {
                 if (!started_) {
                   CHECK(!completed_);
                   completed_ = true;
@@ -791,7 +795,7 @@ class EventLoop final : public Scheduler {
 
       void Start() {
         loop_.Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               if (!completed_) {
                 CHECK(!started_);
                 started_ = true;
@@ -820,7 +824,7 @@ class EventLoop final : public Scheduler {
 
       void Next() override {
         loop_.Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               if (!completed_) {
                 CHECK(started_);
                 CHECK_EQ(this, handle()->data);
@@ -881,7 +885,7 @@ class EventLoop final : public Scheduler {
 
       void Done() override {
         loop_.Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               if (!completed_) {
                 CHECK(started_);
                 completed_ = true;
@@ -915,7 +919,7 @@ class EventLoop final : public Scheduler {
 
         // Submitting to event loop to avoid race with interrupt.
         loop_.Submit(
-            this->Borrow([tuple = std::move(tuple)]() {
+            BorrowThis([tuple = std::move(tuple)]() {
               std::apply(
                   [](auto* continuation, auto&&... args) {
                     if (!continuation->completed_) {
@@ -933,7 +937,7 @@ class EventLoop final : public Scheduler {
       void Stop() {
         // Submitting to event loop to avoid race with interrupt.
         loop_.Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               if (!completed_) {
                 CHECK(!started_);
                 completed_ = true;
@@ -948,7 +952,7 @@ class EventLoop final : public Scheduler {
 
         handler_.emplace(&interrupt, [this]() {
           loop_.Submit(
-              this->Borrow([this]() {
+              BorrowThis([this]() {
                 if (!started_) {
                   CHECK(!completed_);
                   completed_ = true;
@@ -1059,10 +1063,10 @@ struct _EventLoopSchedule final {
   struct Continuation final
     : public stout::enable_borrowable_from_this<Continuation<K_, E_, Arg_>> {
     Continuation(K_ k, E_ e, EventLoop* loop, std::string&& name)
-      : e_(std::move(e)),
-        context_(
+      : context_(
             CHECK_NOTNULL(loop),
             std::move(name)),
+        e_(std::move(e)),
         k_(std::move(k)) {}
 
     // To avoid casting default 'Scheduler*' to 'EventLoop*' each time.
@@ -1078,17 +1082,16 @@ struct _EventLoopSchedule final {
 
       if (loop()->InEventLoop()) {
         Adapt();
-        auto previous = Scheduler::Context::Switch(context_->Borrow());
+        auto previous = Reborrow(Scheduler::Context::Switch(Borrow(*context_)));
         adapted_->Start(std::forward<Args>(args)...);
-        previous = Scheduler::Context::Switch(std::move(previous));
-        CHECK_EQ(previous.get(), context_.get());
+        Scheduler::Context::Switch(std::move(previous));
       } else {
         if constexpr (!std::is_void_v<Arg_>) {
           arg_.emplace(std::forward<Args>(args)...);
         }
 
         loop()->Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               Adapt();
               if constexpr (sizeof...(args) > 0) {
                 adapted_->Start(std::move(*arg_));
@@ -1108,10 +1111,9 @@ struct _EventLoopSchedule final {
       // propagate a different failure.
       if (loop()->InEventLoop()) {
         Adapt();
-        auto previous = Scheduler::Context::Switch(context_->Borrow());
+        auto previous = Reborrow(Scheduler::Context::Switch(Borrow(*context_)));
         adapted_->Fail(std::forward<Error>(error));
-        previous = Scheduler::Context::Switch(std::move(previous));
-        CHECK_EQ(previous.get(), context_.get());
+        Scheduler::Context::Switch(std::move(previous));
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
@@ -1121,7 +1123,7 @@ struct _EventLoopSchedule final {
             std::forward<Error>(error));
 
         loop()->Submit(
-            this->Borrow([tuple = std::move(tuple)]() mutable {
+            BorrowThis([tuple = std::move(tuple)]() mutable {
               std::apply(
                   [](auto* schedule, auto&&... args) {
                     schedule->Adapt();
@@ -1142,13 +1144,12 @@ struct _EventLoopSchedule final {
 
       if (loop()->InEventLoop()) {
         Adapt();
-        auto previous = Scheduler::Context::Switch(context_->Borrow());
+        auto previous = Reborrow(Scheduler::Context::Switch(Borrow(context_)));
         adapted_->Stop();
-        previous = Scheduler::Context::Switch(std::move(previous));
-        CHECK_EQ(previous.get(), context_.get());
+        Scheduler::Context::Switch(std::move(previous));
       } else {
         loop()->Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               Adapt();
               adapted_->Stop();
             }),
@@ -1165,7 +1166,7 @@ struct _EventLoopSchedule final {
       if (!adapted_) {
         // Save previous context (even if it's us).
         stout::borrowed_ref<Scheduler::Context> previous =
-            Scheduler::Context::Get().reborrow();
+            Reborrow(Scheduler::Context::Get());
 
         adapted_.reset(
             // NOTE: for now we're assuming usage of something like
@@ -1187,18 +1188,21 @@ struct _EventLoopSchedule final {
       }
     }
 
+    // Need to store context using '_Lazy' because we need to be able to move
+    // this class _before_ it's started and 'Context' is not movable.
+    //
+    // NOTE: context always need to be destructed LAST since they may
+    // be borrowed in a continuation!
+    Lazy::Of<Scheduler::Context>::Args<
+        EventLoop*,
+        std::string>
+        context_;
+
     E_ e_;
 
     std::optional<
         std::conditional_t<!std::is_void_v<Arg_>, Arg_, Undefined>>
         arg_;
-
-    // Need to store context using '_Lazy' because we need to be able to move
-    // this class _before_ it's started and 'Context' is not movable.
-    Lazy::Of<Scheduler::Context>::Args<
-        EventLoop*,
-        std::string>
-        context_;
 
     Interrupt* interrupt_ = nullptr;
 
@@ -1280,7 +1284,7 @@ inline std::chrono::nanoseconds EventLoop::Clock::Now() {
   // scheduling context to invoke the continuation after the timer has
   // fired (or was interrupted).
   return RescheduleAfter(
-      _Timer::Composable{Borrow(), std::move(nanoseconds)});
+      _Timer::Composable{Borrow(*this), std::move(nanoseconds)});
 }
 
 ////////////////////////////////////////////////////////////////////////

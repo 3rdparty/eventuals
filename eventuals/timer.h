@@ -8,8 +8,8 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] inline auto Timer(const std::chrono::milliseconds& milliseconds) {
-  return Clock().Timer(milliseconds);
+[[nodiscard]] inline auto Timer(std::chrono::nanoseconds nanoseconds) {
+  return Clock().Timer(std::move(nanoseconds));
 }
 
 ////////////////////////////////////////////////////////////////////////

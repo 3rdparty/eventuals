@@ -758,28 +758,16 @@ template <typename Request, typename Response>
             })
       | Then([&](::grpc::Status status) {
            return call.Finish(status)
-               | Finally([&](expected<void, std::exception_ptr>&& e) {
-                    return If(e.has_value())
-                               .no([e = std::move(e), &call]() {
-                                 return Raise(std::move(e.error()))
-                                     | Catch()
-                                           .raised<std::exception>(
-                                               [&call](std::exception&& e) {
-                                                 EVENTUALS_GRPC_LOG(1)
-                                                     << "Finishing call ("
-                                                     << call.context() << ")"
-                                                     << " for host = "
-                                                     << call.context()->host()
-                                                     << " and path = "
-                                                     << call.context()
-                                                            ->method()
-                                                     << " failed: "
-                                                     << e.what();
-                                               });
-                               })
-                               .yes([]() { return Just(); })
-                        | call.WaitForDone();
-                  });
+               | Finally([&](expected<void>&& e) {
+                    if (!e.has_value()) {
+                      EVENTUALS_GRPC_LOG(1)
+                          << "Finishing call (" << call.context() << ")"
+                          << " for host = " << call.context()->host()
+                          << " and path = " << call.context()->method()
+                          << " failed: " << e.error();
+                    }
+                  })
+               | call.WaitForDone();
          });
 }
 
@@ -800,28 +788,16 @@ template <typename Request, typename Response>
             })
       | Then([&](::grpc::Status status) {
            return call.Finish(status)
-               | Finally([&](expected<void, std::exception_ptr>&& e) {
-                    return If(e.has_value())
-                               .no([e = std::move(e), &call]() {
-                                 return Raise(std::move(e.error()))
-                                     | Catch()
-                                           .raised<std::exception>(
-                                               [&call](std::exception&& e) {
-                                                 EVENTUALS_GRPC_LOG(1)
-                                                     << "Finishing call ("
-                                                     << call.context() << ")"
-                                                     << " for host = "
-                                                     << call.context()->host()
-                                                     << " and path = "
-                                                     << call.context()
-                                                            ->method()
-                                                     << " failed: "
-                                                     << e.what();
-                                               });
-                               })
-                               .yes([]() { return Just(); })
-                        | call.WaitForDone();
-                  });
+               | Finally([&](expected<void>&& e) {
+                    if (!e.has_value()) {
+                      EVENTUALS_GRPC_LOG(1)
+                          << "Finishing call (" << call.context() << ")"
+                          << " for host = " << call.context()->host()
+                          << " and path = " << call.context()->method()
+                          << " failed: " << e.error();
+                    }
+                  })
+               | call.WaitForDone();
          });
 }
 

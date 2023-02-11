@@ -27,13 +27,13 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualFail) {
               return Eventual<std::string>()
                   .raises<std::runtime_error>()
                   .interruptible()
-                  .start([&](auto& k, Interrupt::Handler& handler) mutable {
+                  .start([&](auto& k, auto& handler) mutable {
                     if (i == 1) {
                       callbacks.emplace_back([&k]() {
                         k.Start("1");
                       });
                     } else {
-                      handler.Install([&k]() {
+                      handler->Install([&k]() {
                         k.Fail(std::runtime_error("error"));
                       });
                       callbacks.emplace_back([]() {});

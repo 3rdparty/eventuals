@@ -61,7 +61,9 @@ struct _Head final {
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>
-    using ErrorsFrom = Errors;
+    using ErrorsFrom = tuple_types_union_t<
+        std::tuple<std::runtime_error>,
+        Errors>;
 
     template <typename Arg, typename K>
     auto k(K k) && {

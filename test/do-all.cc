@@ -103,7 +103,7 @@ TEST(DoAllTest, Interrupt) {
   auto e = [&start, &fail]() {
     return DoAll(Eventual<int>()
                      .interruptible()
-                     .start([&start](auto& k, Interrupt::Handler& handler) {
+                     .start([&start](auto& k, auto& handler) {
                        start.Call();
                        k.Stop();
                      })

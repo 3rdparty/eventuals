@@ -555,7 +555,7 @@ class _Task final {
     context_.emplace(Scheduler::Default(), std::move(name));
 
     k_.emplace(Build(
-        Reschedule(context_->Borrow())
+        Reschedule(Borrow(*context_))
         | std::move(e_)
         | Terminal()
               .start(std::move(start))
@@ -641,7 +641,7 @@ class _Task final {
     context_.emplace(Scheduler::Default(), std::move(name));
 
     k_.emplace(Build(
-        Reschedule(context_->Borrow())
+        Reschedule(Borrow(context_))
         | std::move(e_)
         | Terminal()
               .start(std::move(start))
@@ -674,7 +674,7 @@ class _Task final {
     context_.emplace(Scheduler::Default(), std::move(name));
 
     k_.emplace(Build(
-        Reschedule(context_->Borrow())
+        Reschedule(Borrow(context_))
         | std::move(e_)
         | Terminal()
               .start(std::move(start))
@@ -776,6 +776,9 @@ class _Task final {
   template <typename, typename, typename, typename...>
   friend class _Task;
 
+  // Possible context to use if we are invoked as a continuation.
+  std::optional<Scheduler::Context> context_;
+
   std::conditional_t<
       std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
       decltype(Eventual<Undefined>()),
@@ -792,9 +795,6 @@ class _Task final {
   // Possible interrupt to use if we are invoked as a continuation.
   class Interrupt interrupt_;
 
-  // Possible context to use if we are invoked as a continuation.
-  std::optional<Scheduler::Context> context_;
-
   // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
   // a composable but also a continuation which has a terminal made up
   // of the callbacks passed to 'Task::Start()'.
@@ -802,7 +802,7 @@ class _Task final {
       std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
       Undefined,
       decltype(Build(
-          Reschedule(context_->Borrow())
+          Reschedule(Borrow(*context_))
           | std::move(e_)
           | Terminal()
                 .start(std::declval<Callback<function_type_t<void, To_>>&&>())

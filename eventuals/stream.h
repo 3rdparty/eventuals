@@ -189,13 +189,11 @@ struct _Stream final {
         adaptor().Begin(std::forward<Args>(args)...);
       } else {
         if constexpr (!IsUndefined<Context_>::value && Interruptible_) {
-          CHECK(handler_);
-          begin_(context_, adaptor(), *handler_, std::forward<Args>(args)...);
+          begin_(context_, adaptor(), handler_, std::forward<Args>(args)...);
         } else if constexpr (!IsUndefined<Context_>::value && !Interruptible_) {
           begin_(context_, adaptor(), std::forward<Args>(args)...);
         } else if constexpr (IsUndefined<Context_>::value && Interruptible_) {
-          CHECK(handler_);
-          begin_(adaptor(), *handler_, std::forward<Args>(args)...);
+          begin_(adaptor(), handler_, std::forward<Args>(args)...);
         } else {
           begin_(adaptor(), std::forward<Args>(args)...);
         }
@@ -268,7 +266,7 @@ struct _Stream final {
 
     auto& adaptor() {
       if (!previous_) {
-        previous_ = Scheduler::Context::Get();
+        previous_ = Reborrow(Scheduler::Context::Get());
         adaptor_.stream_ = this;
         adaptor_.k_ = &k_;
       }

@@ -33,13 +33,13 @@ TYPED_TEST(ConcurrentTypedTest, InterruptFailOrStop) {
               return Eventual<std::string>()
                   .raises<std::runtime_error>()
                   .interruptible()
-                  .start([&](auto& k, Interrupt::Handler& handler) mutable {
+                  .start([&](auto& k, auto& handler) mutable {
                     if (i == 1) {
-                      handler.Install([&k]() {
+                      handler->Install([&k]() {
                         k.Stop();
                       });
                     } else {
-                      handler.Install([&k]() {
+                      handler->Install([&k]() {
                         k.Fail(std::runtime_error("error"));
                       });
                     }

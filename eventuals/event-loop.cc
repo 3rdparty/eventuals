@@ -268,6 +268,9 @@ EventLoop::~EventLoop() {
 ////////////////////////////////////////////////////////////////////////
 
 void EventLoop::RunForever() {
+  CHECK(!in_event_loop_);
+  CHECK(!running_.load());
+
   in_event_loop_ = true;
   running_ = true;
 
@@ -308,7 +311,7 @@ void EventLoop::Submit(Callback<void()> callback, Context& context) {
 
   Waiter* waiter = &context.waiter;
 
-  waiter->context = context.Borrow();
+  waiter->context = Borrow(context);
 
   waiter->callback = std::move(callback);
 
@@ -356,12 +359,26 @@ void EventLoop::Check() {
 
       CHECK_NOTNULL(waiter);
 
+      // NOTE: explicitly not borrowing the context here because we
+      // don't want to prevent the destruction of the context after we
+      // invoke the callback below.
       Context* context = CHECK_NOTNULL(waiter->context.get());
 
-      context->unblock();
+      EVENTUALS_LOG(1) << "Resuming '" << context->name() << "'";
 
-      stout::borrowed_ref<Context> previous =
-          Context::Switch(std::move(waiter->context).reference());
+      Context::Unblock(Borrow(*context));
+
+      // // TODO(benh): can't we just use 'Context::Unblock()' here
+      // // because shouldn't we be on the default context?
+      // context->unblock();
+
+      // stout::borrowed_ref<Context> previous =
+      //     Reborrow(Context::Switch(Borrow(*context)));
+
+      // NOTE: need to relinquish borrow of context now rather than
+      // waiting for the destructor to avoid a possile deadlock when
+      // trying to destruct the context.
+      waiter->context.relinquish();
 
       CHECK(waiter->callback);
 
@@ -369,12 +386,21 @@ void EventLoop::Check() {
 
       callback();
 
-      ////////////////////////////////////////////////////
-      // NOTE: can't use 'waiter' at this point in time //
-      // because it might have been deallocated!        //
-      ////////////////////////////////////////////////////
+      //////////////////////////////////////////////////////////
+      // NOTE: can't use 'waiter' or 'context' at this  point //
+      // in time because it might have been deallocated!      //
+      //////////////////////////////////////////////////////////
 
-      CHECK_EQ(context, Context::Switch(std::move(previous)).get());
+      // Context::Switch(std::move(previous));
+
+      Context::Switch(Borrow(Context::Default()));
+
+      // TODO(benh): check that the returned context pointer is the
+      // same as what we switched to (but nothing more because it
+      // might have been deallocated) or is the default context
+      // because the context blocked (in which case we can check if
+      // it's blocked because we're the only ones that would unblock
+      // and run it!)
     }
   } while (waiter != nullptr);
 }

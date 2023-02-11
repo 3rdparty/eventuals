@@ -3,6 +3,7 @@
 #include <atomic>
 #include <deque>
 #include <memory>
+#include <random>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -153,6 +154,8 @@ struct _StaticThreadPoolSchedule final {
             CHECK_NOTNULL(pool),
             std::move(name),
             CHECK_NOTNULL(requirements)),
+        engine_(device_()),
+        distribution_(0, CHECK_NOTNULL(pool)->concurrency - 1),
         k_(std::move(k)) {}
 
     // Helper to avoid casting default 'Scheduler*' to 'StaticThreadPool*'
@@ -183,17 +186,18 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(0);
+        unsigned int cpu = distribution_(engine_);
+        CHECK_LT(cpu, pool()->concurrency);
+        pinned = Pinned::ExactCPU(cpu);
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
 
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
-        auto previous = Scheduler::Context::Switch(context_->Borrow());
+        auto previous = Reborrow(Scheduler::Context::Switch(Borrow(*context_)));
         adapted_->Start(std::forward<Args>(args)...);
-        previous = Scheduler::Context::Switch(std::move(previous));
-        CHECK_EQ(previous.get(), context_.get());
+        Scheduler::Context::Switch(std::move(previous));
       } else {
         if constexpr (!std::is_void_v<Arg_>) {
           arg_.emplace(std::forward<Args>(args)...);
@@ -203,7 +207,7 @@ struct _StaticThreadPoolSchedule final {
             << "Schedule submitting '" << context_->name() << "'";
 
         pool()->Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               Adapt();
               if constexpr (sizeof...(args) > 0) {
                 adapted_->Start(std::move(*arg_));
@@ -231,17 +235,18 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(0);
+        unsigned int cpu = distribution_(engine_);
+        CHECK_LT(cpu, pool()->concurrency);
+        pinned = Pinned::ExactCPU(cpu);
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
 
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
-        auto previous = Scheduler::Context::Switch(context_->Borrow());
+        auto previous = Reborrow(Scheduler::Context::Switch(Borrow(*context_)));
         adapted_->Fail(std::forward<Error>(error));
-        previous = Scheduler::Context::Switch(std::move(previous));
-        CHECK_EQ(previous.get(), context_.get());
+        Scheduler::Context::Switch(std::move(previous));
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
@@ -254,7 +259,7 @@ struct _StaticThreadPoolSchedule final {
             << "Schedule submitting '" << context_->name() << "'";
 
         pool()->Submit(
-            this->Borrow([tuple = std::move(tuple)]() mutable {
+            BorrowThis([tuple = std::move(tuple)]() mutable {
               std::apply(
                   [](auto* schedule, auto&&... args) {
                     schedule->Adapt();
@@ -282,23 +287,24 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(0);
+        unsigned int cpu = distribution_(engine_);
+        CHECK_LT(cpu, pool()->concurrency);
+        pinned = Pinned::ExactCPU(cpu);
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
 
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
-        auto previous = Scheduler::Context::Switch(context_->Borrow());
+        auto previous = Reborrow(Scheduler::Context::Switch(Borrow(*context_)));
         adapted_->Stop();
-        previous = Scheduler::Context::Switch(std::move(previous));
-        CHECK_EQ(previous.get(), context_.get());
+        Scheduler::Context::Switch(std::move(previous));
       } else {
         EVENTUALS_LOG(1)
             << "Schedule submitting '" << context_->name() << "'";
 
         pool()->Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               Adapt();
               adapted_->Stop();
             }),
@@ -319,23 +325,24 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(0);
+        unsigned int cpu = distribution_(engine_);
+        CHECK_LT(cpu, pool()->concurrency);
+        pinned = Pinned::ExactCPU(cpu);
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
 
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
-        auto previous = Scheduler::Context::Switch(context_->Borrow());
+        auto previous = Reborrow(Scheduler::Context::Switch(Borrow(*context_)));
         adapted_->Begin(*CHECK_NOTNULL(stream_));
-        previous = Scheduler::Context::Switch(std::move(previous));
-        CHECK_EQ(previous.get(), context_.get());
+        Scheduler::Context::Switch(std::move(previous));
       } else {
         EVENTUALS_LOG(1)
             << "Schedule submitting '" << context_->name() << "'";
 
         pool()->Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               Adapt();
               adapted_->Begin(*CHECK_NOTNULL(stream_));
             }),
@@ -358,17 +365,18 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(0);
+        unsigned int cpu = distribution_(engine_);
+        CHECK_LT(cpu, pool()->concurrency);
+        pinned = Pinned::ExactCPU(cpu);
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
 
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
-        auto previous = Scheduler::Context::Switch(context_->Borrow());
+        auto previous = Reborrow(Scheduler::Context::Switch(Borrow(*context_)));
         adapted_->Body(std::forward<Args>(args)...);
-        previous = Scheduler::Context::Switch(std::move(previous));
-        CHECK_EQ(previous.get(), context_.get());
+        Scheduler::Context::Switch(std::move(previous));
       } else {
         if constexpr (!std::is_void_v<Arg_>) {
           arg_.emplace(std::forward<Args>(args)...);
@@ -378,7 +386,7 @@ struct _StaticThreadPoolSchedule final {
             << "Schedule submitting '" << context_->name() << "'";
 
         pool()->Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               Adapt();
               if constexpr (sizeof...(args) > 0) {
                 adapted_->Body(std::move(*arg_));
@@ -405,23 +413,24 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(0);
+        unsigned int cpu = distribution_(engine_);
+        CHECK_LT(cpu, pool()->concurrency);
+        pinned = Pinned::ExactCPU(cpu);
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
 
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
-        auto previous = Scheduler::Context::Switch(context_->Borrow());
+        auto previous = Reborrow(Scheduler::Context::Switch(Borrow(*context_)));
         adapted_->Ended();
-        previous = Scheduler::Context::Switch(std::move(previous));
-        CHECK_EQ(previous.get(), context_.get());
+        Scheduler::Context::Switch(std::move(previous));
       } else {
         EVENTUALS_LOG(1)
             << "Schedule submitting '" << context_->name() << "'";
 
         pool()->Submit(
-            this->Borrow([this]() {
+            BorrowThis([this]() {
               Adapt();
               adapted_->Ended();
             }),
@@ -440,7 +449,7 @@ struct _StaticThreadPoolSchedule final {
       if (!adapted_) {
         // Save previous context (even if it's us).
         stout::borrowed_ref<Scheduler::Context> previous =
-            Scheduler::Context::Get().reborrow();
+            Reborrow(Scheduler::Context::Get());
 
         adapted_.reset(
             // NOTE: for now we're assuming usage of something like
@@ -462,6 +471,17 @@ struct _StaticThreadPoolSchedule final {
       }
     }
 
+    // Need to store context using '_Lazy' because we need to be able to move
+    // this class _before_ it's started and 'Context' is not movable.
+    //
+    // NOTE: context always need to be destructed LAST since they may
+    // be borrowed in a continuation!
+    Lazy::Of<Scheduler::Context>::Args<
+        StaticThreadPool*,
+        std::string,
+        StaticThreadPool::Requirements*>
+        context_;
+
     E_ e_;
 
     std::optional<
@@ -472,13 +492,9 @@ struct _StaticThreadPoolSchedule final {
 
     Interrupt* interrupt_ = nullptr;
 
-    // Need to store context using '_Lazy' because we need to be able to move
-    // this class _before_ it's started and 'Context' is not movable.
-    Lazy::Of<Scheduler::Context>::Args<
-        StaticThreadPool*,
-        std::string,
-        StaticThreadPool::Requirements*>
-        context_;
+    std::random_device device_;
+    std::mt19937 engine_;
+    std::uniform_int_distribution<> distribution_;
 
     using Value_ = typename E_::template ValueFrom<Arg_>;
 

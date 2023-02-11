@@ -122,6 +122,10 @@ struct _Then::Continuation<K_, F_, Arg_, false> final {
     : f_(std::move(f)),
       k_(std::move(k)) {}
 
+  Continuation(Continuation&& that)
+    : f_(std::move(that.f_)),
+      k_(std::move(that.k_)) {}
+
   template <typename... Args>
   void Start(Args&&... args) {
     if constexpr (std::is_void_v<std::invoke_result_t<F_, Args...>>) {
@@ -162,8 +166,15 @@ struct _Then::Continuation<K_, F_, Arg_, true> final {
     : f_(std::move(f)),
       k_(std::move(k)) {}
 
+  Continuation(Continuation&& that)
+    : f_(std::move(that.f_)),
+      k_(std::move(that.k_)) {
+    CHECK(!that.adapted_) << "moving after starting";
+  }
+
   template <typename... Args>
   void Start(Args&&... args) {
+    // TODO(benh): CHECK(!adapted_);
     adapted_.emplace(
         f_(std::forward<Args>(args)...).template k<void>(Adaptor<K_>{k_}));
 

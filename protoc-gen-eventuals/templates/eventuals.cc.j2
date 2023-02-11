@@ -5,6 +5,7 @@ set namespaces = package_name.split('.')
 
 #include "eventuals/concurrent.h"
 #include "eventuals/do-all.h"
+#include "eventuals/finally.h"
 #include "eventuals/grpc/server.h"
 #include "eventuals/just.h"
 #include "eventuals/let.h"
@@ -19,6 +20,7 @@ using eventuals::Just;
 using eventuals::Let;
 using eventuals::Loop;
 using eventuals::Map;
+using eventuals::StreamFinally;
 using eventuals::Task;
 using eventuals::Then;
 
@@ -123,6 +125,11 @@ Task::Of<void> {{ service.name }}::TypeErasedService::Serve{{ method.name }}() {
 {%- endif %}
               }));{# Map #}
           }){# Concurrent #}
+          | StreamFinally([](auto&& expected) {
+              if (!expected.has_value()) {
+                LOG(WARNING) << "Failed to serve: " << expected.error();
+              }
+            })
           | Loop();
         };
 }

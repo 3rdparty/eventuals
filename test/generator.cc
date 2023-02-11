@@ -172,8 +172,8 @@ TEST(Generator, InterruptStream) {
       return Stream<int>()
           .context(Lazy<std::atomic<bool>>(false))
           .interruptible()
-          .begin([](auto&, auto& k, Interrupt::Handler& handler) {
-            handler.Install([&k]() {
+          .begin([](auto&, auto& k, auto& handler) {
+            handler->Install([&k]() {
               k.Stop();
             });
             k.Begin();

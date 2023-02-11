@@ -121,7 +121,9 @@ struct _Reduce final {
             std::add_lvalue_reference_t<T_>>;
 
     template <typename Arg, typename Errors>
-    using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
+    using ErrorsFrom = tuple_types_union_t<
+        Errors,
+        typename E_::template ErrorsFrom<Arg, std::tuple<>>>;
 
     template <typename Arg, typename K>
     auto k(K k) && {

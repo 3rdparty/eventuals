@@ -109,13 +109,11 @@ struct _Loop final {
         stream_->Next();
       } else {
         if constexpr (!IsUndefined<Context_>::value && Interruptible_) {
-          CHECK(handler_);
-          begin_(context_, *stream_, *handler_);
+          begin_(context_, *stream_, handler_);
         } else if constexpr (!IsUndefined<Context_>::value && !Interruptible_) {
           begin_(context_, *stream_);
         } else if constexpr (IsUndefined<Context_>::value && Interruptible_) {
-          CHECK(handler_);
-          begin_(*stream_, *handler_);
+          begin_(*stream_, handler_);
         } else {
           begin_(*stream_);
         }
