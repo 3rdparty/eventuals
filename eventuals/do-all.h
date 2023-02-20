@@ -81,7 +81,9 @@ struct _DoAll final {
           >> Reschedule(previous_.reborrow())
           >> Terminal()
                  .start([this](auto&&... value) {
-                   using Value = typename Eventual::template ValueFrom<void>;
+                   using Value = typename Eventual::template ValueFrom<
+                       void,
+                       std::tuple<>>;
                    static_assert(
                        std::is_void_v<Value> || sizeof...(value) == 1);
                    if constexpr (!std::is_void_v<Value>) {
@@ -297,9 +299,11 @@ struct _DoAll final {
     // Scheduler::Context which may get borrowed in 'adaptor_' and
     // it's continuations so those need to be destructed first.
     std::optional<
-        decltype(std::declval<Adaptor<K_, Eventuals_...>>().BuildFibers(
-            std::declval<std::tuple<Eventuals_...>>(),
-            std::make_index_sequence<sizeof...(Eventuals_)>{}))>
+        decltype(std::declval<
+                     Adaptor<K_, Errors_, Eventuals_...>>()
+                     .BuildFibers(
+                         std::declval<std::tuple<Eventuals_...>>(),
+                         std::make_index_sequence<sizeof...(Eventuals_)>{}))>
         fibers_;
 
     std::tuple<Eventuals_...> eventuals_;

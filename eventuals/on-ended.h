@@ -76,7 +76,7 @@ struct _OnEnded final {
     void Ended() {
       previous_->Continue([this]() {
         adapted_.emplace(
-            std::move(e_).template k<void>(Adaptor<K_>{k_}));
+            std::move(e_).template k<void, std::tuple<>>(Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
@@ -98,7 +98,7 @@ struct _OnEnded final {
 
     stout::borrowed_ptr<Scheduler::Context> previous_;
 
-    using Adapted_ = decltype(std::declval<E_>().template k<void>(
+    using Adapted_ = decltype(std::declval<E_>().template k<void, std::tuple<>>(
         std::declval<Adaptor<K_>>()));
 
     std::optional<Adapted_> adapted_;
@@ -112,7 +112,7 @@ struct _OnEnded final {
 
   template <typename E_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>
@@ -120,7 +120,7 @@ struct _OnEnded final {
         Errors,
         typename E_::template ErrorsFrom<void, std::tuple<>>>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, E_>(std::move(k), std::move(e_));
     }
@@ -152,13 +152,13 @@ template <typename F>
 
   using E = decltype(e);
 
-  using Value = typename E::template ValueFrom<void>;
+  using Errors = typename E::template ErrorsFrom<void, std::tuple<>>;
+
+  using Value = typename E::template ValueFrom<void, Errors>;
 
   static_assert(
       std::is_void_v<Value>,
       "'OnEnded' eventual should return 'void'");
-
-  using Errors = typename E::template ErrorsFrom<void, std::tuple<>>;
 
   static_assert(
       std::is_same_v<Errors, std::tuple<>>,

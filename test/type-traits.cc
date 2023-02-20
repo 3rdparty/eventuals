@@ -249,6 +249,11 @@ static_assert(
         std::tuple<A, B, D>>);
 
 static_assert(
+    tuple_types_subset_subtype_v<
+        std::tuple<>,
+        std::tuple<std::runtime_error>>);
+
+static_assert(
     !tuple_types_subset_subtype_v<
         std::tuple<B, A>,
         std::tuple<B, D>>);
@@ -278,29 +283,15 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////
 
-static_assert(
-    std::is_same_v<
-        std::variant<int, double>,
-        TupleToVariant<std::tuple<int, double>>::type>);
+static_assert(!check_errors_v<int>);
 
-////////////////////////////////////////////////////////////////////////
+static_assert(!check_errors_v<int, std::string>);
 
-static_assert(!CheckErrorsTypesForVariant<int>::value);
+static_assert(!check_errors_v<std::string, std::runtime_error>);
 
-static_assert(
-    !CheckErrorsTypesForVariant<std::variant<int, std::string>>::value);
+static_assert(check_errors_v<std::exception_ptr, std::runtime_error>);
 
-static_assert(
-    !CheckErrorsTypesForVariant<
-        std::variant<std::string, std::runtime_error>>::value);
-
-static_assert(
-    CheckErrorsTypesForVariant<
-        std::variant<std::exception_ptr, std::runtime_error>>::value);
-
-static_assert(
-    CheckErrorsTypesForVariant<
-        std::variant<std::overflow_error, std::runtime_error>>::value);
+static_assert(check_errors_v<std::overflow_error, std::runtime_error>);
 
 ////////////////////////////////////////////////////////////////////////
 

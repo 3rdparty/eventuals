@@ -10,6 +10,21 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename...>
+struct StoppedOrVariantFrom {};
+
+template <typename... Errors>
+struct StoppedOrVariantFrom<std::tuple<Errors...>> {
+  using type = std::exception_ptr;
+  // fix task.h to not use std::exception_ptr
+  // std::conditional_t<
+  //     sizeof...(Errors) == 0,
+  //     Stopped,
+  //     std::variant<Stopped, Errors...>>;
+};
+
+////////////////////////////////////////////////////////////////////////
+
 struct _Finally final {
   template <typename K_, typename Arg_, typename Errors_>
   struct Continuation final {
@@ -25,14 +40,14 @@ struct _Finally final {
       k_.Start(
           expected<Arg_, Errors_>(
               make_unexpected(
-                  std::forward<Error>(error))));
+                  std::make_exception_ptr(std::forward<Error>(error)))));
     }
 
     void Stop() {
       k_.Start(
           expected<Arg_, Errors_>(
               make_unexpected(
-                  Stopped())));
+                  std::make_exception_ptr(Stopped()))));
     }
 
     void Register(Interrupt& interrupt) {
@@ -43,18 +58,9 @@ struct _Finally final {
   };
 
   struct Composable final {
-    template <typename...>
-    struct AddStopped {};
-
-    template <typename... Errors>
-    struct AddStopped<std::variant<Errors...>> {
-      using type = std::variant<Stopped, Errors...>;
-    };
-
     template <typename Arg, typename Errors>
-    using ValueFrom = expected<
-        Arg,
-        typename AddStopped<typename TupleToVariant<Errors>::type>::type>;
+    using ValueFrom =
+        expected<Arg, typename StoppedOrVariantFrom<Errors>::type>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = std::tuple<>;
@@ -64,8 +70,7 @@ struct _Finally final {
       return Continuation<
           K,
           Arg,
-          typename AddStopped<typename TupleToVariant<Errors>::type>::type>{
-          std::move(k)};
+          typename StoppedOrVariantFrom<Errors>::type>{std::move(k)};
     }
 
     template <typename Downstream>

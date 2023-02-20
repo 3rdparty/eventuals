@@ -7,6 +7,7 @@
 #include <variant>
 
 #include "eventuals/eventual.h"
+#include "eventuals/finally.h"
 #include "eventuals/just.h"
 #include "eventuals/raise.h"
 #include "eventuals/terminal.h"
@@ -37,12 +38,9 @@ struct HeapTask final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      (*fail_)(
-          make_exception_ptr_or_forward(
-              std::forward<Error>(error)));
+      (*fail_)(std::make_exception_ptr(std::forward<Error>(error)));
     }
 
-    // NOTE: overload so we don't create nested std::exception_ptr.
     void Fail(std::exception_ptr exception) {
       (*fail_)(std::move(exception));
     }
@@ -172,7 +170,7 @@ struct _TaskFromToWith final {
 
   // Using templated type name to allow using both
   // in 'Composable' and 'Continuation'.
-  template <typename From, typename To, typename... Args>
+  template <typename From, typename To, typename Errors, typename... Args>
   using DispatchCallback =
       Callback<void(
           Action,
@@ -203,7 +201,7 @@ struct _TaskFromToWith final {
         std::tuple<Args_...>&& args,
         std::variant<
             MonostateIfVoidOrReferenceWrapperOr<To_>,
-            DispatchCallback<From_, To_, Args_...>>&&
+            DispatchCallback<From_, To_, Errors_, Args_...>>&&
             value_or_dispatch)
       : args_(std::move(args)),
         value_or_dispatch_(std::move(value_or_dispatch)),
@@ -241,10 +239,8 @@ struct _TaskFromToWith final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      std::exception_ptr exception;
-
-      exception = make_exception_ptr_or_forward(
-          std::forward<Error>(error));
+      std::exception_ptr exception =
+          make_exception_ptr_or_forward(std::forward<Error>(error));
 
       Dispatch(Action::Fail, std::nullopt, std::move(exception));
     }
@@ -276,8 +272,8 @@ struct _TaskFromToWith final {
                 [this](auto&&... args) {
                   k_.Start(std::forward<decltype(args)>(args)...);
                 },
-                [this](std::exception_ptr error) {
-                  k_.Fail(std::move(error));
+                [this](std::exception_ptr errors) {
+                  k_.Fail(std::move(errors));
                 },
                 [this]() {
                   k_.Stop();
@@ -293,7 +289,7 @@ struct _TaskFromToWith final {
     // passed on to the continuation.
     std::variant<
         MonostateIfVoidOrReferenceWrapperOr<To_>,
-        DispatchCallback<From_, To_, Args_...>>
+        DispatchCallback<From_, To_, Errors_, Args_...>>
         value_or_dispatch_;
 
     std::unique_ptr<void, Callback<void(void*)>> e_;
@@ -371,7 +367,7 @@ struct _TaskFromToWith final {
 
       using Value = typename E::template ValueFrom<From_, Errors_>;
 
-      using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
+      using ErrorsFromE = typename E::template ErrorsFrom<From_, Errors_>;
 
       static_assert(
           tuple_types_subset_subtype_v<ErrorsFromE, Errors_>,
@@ -437,7 +433,8 @@ struct _TaskFromToWith final {
         std::optional<
             std::variant<
                 MonostateIfVoidOrReferenceWrapperOr<To_>,
-                DispatchCallback<From_, To_, Args_...>>>&& value_or_dispatch,
+                DispatchCallback<From_, To_, Errors_, Args_...>>>&&
+            value_or_dispatch,
         std::tuple<Args_...>&& args)
       : value_or_dispatch_(std::move(value_or_dispatch)),
         args_(std::move(args)) {}
@@ -465,7 +462,7 @@ struct _TaskFromToWith final {
     std::optional<
         std::variant<
             MonostateIfVoidOrReferenceWrapperOr<To_>,
-            DispatchCallback<From_, To_, Args_...>>>
+            DispatchCallback<From_, To_, Errors_, Args_...>>>
         value_or_dispatch_;
 
     std::tuple<Args_...> args_;
@@ -549,7 +546,8 @@ class _Task final {
         !std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
         "'Task' 'From' or 'To' type is not specified");
 
-    return std::move(e_).template k<Arg, Errors>(std::move(k));
+    return std::move(e_).template k<Arg, tuple_types_union_t<Errors, Errors_>>(
+        std::move(k));
   }
 
   // Treat this task as a continuation and "start" it. Every task gets
@@ -605,9 +603,19 @@ class _Task final {
         // from within 'this' and borrowing could create a cycle.
         [this](auto&& error) {
           CHECK(promise_.has_value());
-          promise_->set_exception(
-              make_exception_ptr_or_forward(
-                  std::forward<decltype(error)>(error)));
+          if constexpr (is_variant_v<std::decay_t<decltype(error)>>) {
+            std::visit(
+                [this](auto&& error) {
+                  promise_->set_exception(
+                      std::make_exception_ptr(
+                          std::forward<decltype(error)>(error)));
+                },
+                error);
+          } else {
+            promise_->set_exception(
+                make_exception_ptr_or_forward(
+                    std::forward<decltype(error)>(error)));
+          }
         },
         // NOTE: not borrowing 'this' because callback is stored/used
         // from within 'this' and borrowing could create a cycle.

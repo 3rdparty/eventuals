@@ -33,10 +33,7 @@ struct _Eventual {
       // exceptions or if we should have our own type to ensure that
       // only types derived from 'std::exception' are used.
       static_assert(
-          std::disjunction_v<
-              CheckErrorsTypesForVariant<std::decay_t<Error>>,
-              std::is_same<std::exception_ptr, std::decay_t<Error>>,
-              std::is_base_of<std::exception, std::decay_t<Error>>>,
+          check_errors_v<Error>,
           "Expecting a type derived from std::exception");
 
       static_assert(
@@ -244,8 +241,11 @@ struct _Eventual {
           Stop_,
           Interruptible_,
           Value_,
-          Errors_>(
-          Reschedulable<K, Value_, Errors_>{std::move(k)},
+          tuple_types_union_t<Errors_, Errors>>(
+          Reschedulable<
+              K,
+              Value_,
+              tuple_types_union_t<Errors_, Errors>>{std::move(k)},
           std::move(context_),
           std::move(start_),
           std::move(fail_),

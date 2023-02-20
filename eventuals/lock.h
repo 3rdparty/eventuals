@@ -853,8 +853,8 @@ struct _Synchronized final {
     using Composed_ =
         decltype(Acquire(lock_) >> std::move(e_) >> Release(lock_));
 
-    template <typename Arg>
-    using ValueFrom = typename Composed_::template ValueFrom<Arg>;
+    template <typename Arg, typename Errors>
+    using ValueFrom = typename Composed_::template ValueFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename Composed_::template ErrorsFrom<Arg, Errors>;
@@ -864,9 +864,9 @@ struct _Synchronized final {
 
     using Expects = typename E_::Expects;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Build<Arg>(
+      return Build<Arg, Errors>(
           Acquire(lock_) >> std::move(e_) >> Release(lock_),
           std::move(k));
     }

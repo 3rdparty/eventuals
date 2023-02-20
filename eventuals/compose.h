@@ -62,9 +62,7 @@ template <typename Error>
 auto make_exception_ptr_or_forward(Error&& error) {
   static_assert(!std::is_same_v<std::decay_t<Error>, std::exception_ptr>);
   static_assert(
-      std::disjunction_v<
-          CheckErrorsTypesForVariant<std::decay_t<Error>>,
-          std::is_base_of<std::exception, std::decay_t<Error>>>,
+      check_errors_v<Error>,
       "Expecting a type derived from std::exception");
   return std::make_exception_ptr(std::forward<Error>(error));
 }

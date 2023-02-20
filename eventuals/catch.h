@@ -123,7 +123,6 @@ struct _Catch final {
     void Fail(Error&& error) {
       static_assert(
           std::disjunction_v<
-              CheckErrorsTypesForVariant<std::decay_t<Error>>,
               std::is_base_of<std::exception, std::decay_t<Error>>,
               std::is_same<std::exception_ptr, std::decay_t<Error>>>,
           "'Catch' expects a type derived from "

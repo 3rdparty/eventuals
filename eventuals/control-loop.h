@@ -55,16 +55,17 @@ class ControlLoop final
             "'ControlLoop' expects a callable (e.g., a lambda) that "
             "returns an eventual but you're not returning anything");
 
-        using Value = typename E::template ValueFrom<void>;
+        using Errors = typename E::template ErrorsFrom<void, std::tuple<>>;
+        using Value = typename E::template ValueFrom<void, Errors>;
 
         static_assert(
             std::is_void_v<Value>,
             "'ControlLoop' eventual should return 'void'");
 
-        using Errors = typename E::template ErrorsFrom<void, std::tuple<>>;
-
         static_assert(
-            std::is_same_v<Errors, std::tuple<>>,
+            std::disjunction_v<
+                std::is_void<Errors>,
+                std::is_same<Errors, std::tuple<>>>,
             "'ControlLoop' eventual should not raise any errors");
 
         return std::move(f)()
@@ -73,7 +74,7 @@ class ControlLoop final
                   if (!expected) {
                     try {
                       std::rethrow_exception(expected.error());
-                    } catch (StoppedException& e) {
+                    } catch (Stopped& e) {
                     } catch (std::exception& e) {
                       LOG(WARNING) << "Unreachable: " << e.what();
                     } catch (...) {

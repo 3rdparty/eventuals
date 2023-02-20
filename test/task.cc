@@ -152,8 +152,7 @@ TEST(Task, FailOnCallback) {
                  })
                  .fail([&](auto& k, auto&& error) {
                    functions.fail.Call();
-                   k.Fail(eventuals::make_exception_ptr_or_forward(
-                       std::forward<decltype(error)>(error)));
+                   k.Fail(std::forward<decltype(error)>(error));
                  });
     };
   };
@@ -404,7 +403,7 @@ TEST(Task, FromTo) {
 }
 
 TEST(Task, FromToFail) {
-  auto task = []() -> Task::From<int>::To<std::string> {
+  auto task = []() -> Task::From<int>::To<std::string> { //-> errors -empty
     return []() {
       return Then([](int x) {
         return std::to_string(x);
@@ -412,7 +411,7 @@ TEST(Task, FromToFail) {
     };
   };
 
-  auto e = [&]() {
+  auto e = [&task]() {
     return Eventual<int>()
                .raises<std::runtime_error>()
                .start([](auto& k) {
@@ -432,7 +431,7 @@ TEST(Task, FromToFail) {
           std::tuple<std::runtime_error>>);
 
   EXPECT_THAT(
-      [&]() { *e(); },
+      [&e]() { *e(); },
       ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 

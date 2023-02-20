@@ -16,9 +16,11 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
   // TODO(benh): support any error type that can be "stringified".
   static_assert(
       std::disjunction_v<
-          CheckErrorsTypesForVariant<std::decay_t<E>>,
-          std::is_base_of<std::exception, std::decay_t<E>>,
-          std::is_base_of<std::exception_ptr, std::decay_t<E>>,
+          // 'std::disjunction_v' expects a type instead of bool.
+          std::conditional_t<
+              check_errors_v<E>,
+              std::true_type,
+              std::false_type>,
           std::is_same<std::string, std::decay_t<E>>,
           std::is_same<char*, std::decay_t<E>>>,
       "To use an 'expected' as an eventual it must have "
@@ -28,10 +30,7 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
   return Eventual<T>()
       .template raises<
           std::conditional_t<
-              std::disjunction_v<
-                  CheckErrorsTypesForVariant<std::decay_t<E>>,
-                  std::is_base_of<std::exception, std::decay_t<E>>,
-                  std::is_base_of<std::exception_ptr, std::decay_t<E>>>,
+              check_errors_v<E>,
               E,
               std::runtime_error>>()
       // NOTE: we only care about "start" here because on "stop"
@@ -47,11 +46,42 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
             return k.Start(std::move(expected.value()));
           }
         } else {
-          if constexpr (
-              std::disjunction_v<
-                  CheckErrorsTypesForVariant<std::decay_t<E>>,
-                  std::is_base_of<std::exception, std::decay_t<E>>,
-                  std::is_base_of<std::exception_ptr, std::decay_t<E>>>) {
+          if constexpr (check_errors_v<E>) {
+            return k.Fail(std::move(expected.error()));
+          } else {
+            return k.Fail(std::runtime_error(std::move(expected.error())));
+          }
+        }
+      });
+}
+
+// Helper for creating an eventual from an 'expected' with 'std::variant'
+// errors.
+template <typename T, typename... Errors>
+auto ExpectedToEventual(tl::expected<T, std::variant<Errors...>>&& expected) {
+  // TODO(benh): support any error type that can be "stringified".
+  static_assert(
+      check_errors_v<Errors...>,
+      "To use an 'expected' with 'std::variant' errors as an eventual "
+      "it must have all error types derived from 'std::exception' "
+      "or be a 'std::exception_ptr'");
+
+  return Eventual<T>()
+      .template raises<Errors...>()
+      // NOTE: we only care about "start" here because on "stop"
+      // or "fail" we want to propagate that. We don't want to
+      // override a "stop" with our failure because then
+      // downstream eventuals might not stop but instead try and
+      // recover from the error.
+      .start([expected = std::move(expected)](auto& k) mutable {
+        if (expected.has_value()) {
+          if constexpr (std::is_void_v<T>) {
+            return k.Start();
+          } else {
+            return k.Start(std::move(expected.value()));
+          }
+        } else {
+          if constexpr (check_errors_v<Errors...>) {
             return k.Fail(std::move(expected.error()));
           } else {
             return k.Fail(std::runtime_error(std::move(expected.error())));
@@ -107,11 +137,7 @@ class expected : public tl::expected<Value_, Error_> {
             tuple_types_union_t<
                 std::tuple<
                     std::conditional_t<
-                        std::disjunction_v<
-                            CheckErrorsTypesForVariant<std::decay_t<Error_>>,
-                            std::is_base_of<
-                                std::exception,
-                                std::decay_t<Error_>>>,
+                        check_errors_v<Error_>,
                         Error_,
                         std::runtime_error>>,
                 Errors>>(std::move(k));

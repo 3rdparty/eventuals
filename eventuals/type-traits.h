@@ -9,6 +9,8 @@
 
 namespace eventuals {
 
+struct Stopped;
+
 ////////////////////////////////////////////////////////////////////////
 
 // Helper for checking if a template type exists. Can be used with
@@ -300,26 +302,23 @@ using apply_tuple_types_t = typename apply_tuple_types<T, Tuple>::type;
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename...>
-struct TupleToVariant;
-
-template <typename... Types>
-struct TupleToVariant<std::tuple<Types...>> {
-  using type = std::variant<Types...>;
-};
-
-template <typename...>
-struct CheckErrorsTypesForVariant {
-  static constexpr bool value = false;
-};
-
 template <typename... Errors>
-struct CheckErrorsTypesForVariant<std::variant<Errors...>> {
-  static constexpr bool value = std::conjunction_v<
-      std::disjunction<
-          std::is_base_of<std::exception, std::decay_t<Errors>>,
-          std::is_base_of<std::exception_ptr, std::decay_t<Errors>>>...>;
-};
+inline constexpr bool check_errors_v =
+    std::conjunction_v<
+        std::disjunction<
+            std::is_base_of<std::exception, std::decay_t<Errors>>,
+            std::is_same<std::exception_ptr, std::decay_t<Errors>>>...>;
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+struct is_variant : std::false_type {};
+
+template <typename... Args>
+struct is_variant<std::variant<Args...>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_variant_v = is_variant<T>::value;
 
 ////////////////////////////////////////////////////////////////////////
 
