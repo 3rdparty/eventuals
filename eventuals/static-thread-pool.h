@@ -505,7 +505,11 @@ struct _StaticThreadPoolSchedule final {
             new Adapted_(
                 std::move(e_).template k<Arg_, Errors_>(
                     Reschedule(std::move(previous))
-                        .template k<Value_, Errors_>(std::move(k_)))));
+                        .template k<
+                            Value_,
+                            typename E_::template ErrorsFrom<
+                                Arg_,
+                                Errors_>>(std::move(k_)))));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
@@ -535,7 +539,11 @@ struct _StaticThreadPoolSchedule final {
 
     using Adapted_ = decltype(std::declval<E_>().template k<Arg_, Errors_>(
         std::declval<_Reschedule::Composable>()
-            .template k<Value_, Errors_>(std::declval<K_>())));
+            .template k<
+                Value_,
+                typename E_::template ErrorsFrom<
+                    Arg_,
+                    Errors_>>(std::declval<K_>())));
 
     std::unique_ptr<Adapted_> adapted_;
 
@@ -556,7 +564,7 @@ struct _StaticThreadPoolSchedule final {
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, E_, Arg, ErrorsFrom<Arg, Errors>>(
+      return Continuation<K, E_, Arg, Errors>(
           std::move(k),
           pool_,
           requirements_,

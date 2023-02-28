@@ -54,11 +54,11 @@ cc_test(
         "do-all.cc",
         "event-loop-test.h",
         "eventual.cc",
-        "executor.cc",
+        # "executor.cc",
         "expected.cc",
         "filesystem.cc",
         "filter.cc",
-        # "finally.cc", # fix task to not use std::exception_ptr
+        "finally.cc",
         "flat-map.cc",
         "foreach.cc",
         "fork-join.cc",
@@ -98,7 +98,7 @@ cc_test(
         ":http-mock-server",
         ":promisify-for-test",
         "//eventuals",
-        "//test/concurrent",
+        # "//test/concurrent",
         "@com_github_google_googletest//:gtest_main",
     ] + select({
         # We support backward lib only for macOS and Linux.

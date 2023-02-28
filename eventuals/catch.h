@@ -124,7 +124,8 @@ struct _Catch final {
       static_assert(
           std::disjunction_v<
               std::is_base_of<std::exception, std::decay_t<Error>>,
-              std::is_same<std::exception_ptr, std::decay_t<Error>>>,
+              std::is_same<std::exception_ptr, std::decay_t<Error>>,
+              check_variant_errors<std::decay_t<Error>>>,
           "'Catch' expects a type derived from "
           "std::exception or a std::exception_ptr");
 
@@ -140,10 +141,21 @@ struct _Catch final {
             // Using a fold expression to simplify the iteration.
             ([&](auto& catch_handler) {
               if (!handled) {
-                handled = catch_handler.TryHandle(
-                    std::move(k_),
-                    interrupt_,
-                    std::forward<Error>(error));
+                if constexpr (is_variant_v<std::decay_t<Error>>) {
+                  std::visit(
+                      [&](auto&& e) {
+                        handled = catch_handler.TryHandle(
+                            std::move(k_),
+                            interrupt_,
+                            std::forward<decltype(e)>(e));
+                      },
+                      std::forward<Error>(error));
+                } else {
+                  handled = catch_handler.TryHandle(
+                      std::move(k_),
+                      interrupt_,
+                      std::forward<Error>(error));
+                }
               }
             }(catch_handler),
              ...);
@@ -229,7 +241,6 @@ struct _Catch final {
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      // static_assert(std::is_void_v<Errors>);
       static_assert(
           sizeof...(CatchHandlers_) > 0,
           "No handlers were specified for 'Catch'");
@@ -278,8 +289,7 @@ struct _Catch final {
 
       using Value = ValueFromMaybeComposable<
           std::invoke_result_t<F, Error>,
-          void,
-          std::tuple<>>;
+          void>;
 
       static_assert(
           std::disjunction_v<
@@ -305,8 +315,7 @@ struct _Catch final {
 
       using Value = ValueFromMaybeComposable<
           std::invoke_result_t<F, std::exception_ptr>,
-          void,
-          std::tuple<>>;
+          void>;
 
       static_assert(
           std::disjunction_v<

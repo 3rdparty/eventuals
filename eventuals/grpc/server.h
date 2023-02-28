@@ -817,42 +817,26 @@ template <typename Request, typename Response>
            return call.Finish(status)
                >> Finally([&](expected<
                               void,
-                              std::exception_ptr>&& e) {
+                              std::variant<eventuals::Stopped, std::runtime_error>>&& e) {
                     return If(e.has_value())
                                .no([e = std::move(e), &call]() {
-                                 // Fix task.h to use std::variant
-                                 //  EVENTUALS_GRPC_LOG(1)
-                                 //      << "Finishing call ("
-                                 //      << call.context() << ")"
-                                 //      << " for host = "
-                                 //      << call.context()->host()
-                                 //      << " and path = "
-                                 //      << call.context()
-                                 //             ->method()
-                                 //      << " failed: ";
+                                 EVENTUALS_GRPC_LOG(1)
+                                     << "Finishing call ("
+                                     << call.context() << ")"
+                                     << " for host = "
+                                     << call.context()->host()
+                                     << " and path = "
+                                     << call.context()
+                                            ->method()
+                                     << " failed: ";
 
-                                 //  std::visit(
-                                 //      [](auto&& error) {
-                                 //        EVENTUALS_GRPC_LOG(1)
-                                 //            << error.what();
-                                 //      },
-                                 //      e.error());
-                                 //  return Just();
-                                 return Raise(std::move(e.error()))
-                                     >> Catch()
-                                            .raised<std::exception>(
-                                                [&call](std::exception&& e) {
-                                                  EVENTUALS_GRPC_LOG(1)
-                                                      << "Finishing call ("
-                                                      << call.context() << ")"
-                                                      << " for host = "
-                                                      << call.context()->host()
-                                                      << " and path = "
-                                                      << call.context()
-                                                             ->method()
-                                                      << " failed: "
-                                                      << e.what();
-                                                });
+                                 std::visit(
+                                     [](auto&& error) {
+                                       EVENTUALS_GRPC_LOG(1)
+                                           << error.what();
+                                     },
+                                     e.error());
+                                 return Just();
                                })
                                .yes([]() { return Just(); })
                         >> call.WaitForDone();
@@ -879,42 +863,26 @@ template <typename Request, typename Response>
            return call.Finish(status)
                >> Finally([&](expected<
                               void,
-                              std::exception_ptr>&& e) {
+                              std::variant<eventuals::Stopped, std::runtime_error>>&& e) {
                     return If(e.has_value())
                                .no([e = std::move(e), &call]() {
-                                 // Fix task.h to use std::variant
-                                 //  EVENTUALS_GRPC_LOG(1)
-                                 //      << "Finishing call ("
-                                 //      << call.context() << ")"
-                                 //      << " for host = "
-                                 //      << call.context()->host()
-                                 //      << " and path = "
-                                 //      << call.context()
-                                 //             ->method()
-                                 //      << " failed: ";
+                                 EVENTUALS_GRPC_LOG(1)
+                                     << "Finishing call ("
+                                     << call.context() << ")"
+                                     << " for host = "
+                                     << call.context()->host()
+                                     << " and path = "
+                                     << call.context()
+                                            ->method()
+                                     << " failed: ";
 
-                                 //  std::visit(
-                                 //      [](auto&& error) {
-                                 //        EVENTUALS_GRPC_LOG(1)
-                                 //            << error.what();
-                                 //      },
-                                 //      e.error());
-                                 //  return Just();
-                                 return Raise(std::move(e.error()))
-                                     >> Catch()
-                                            .raised<std::exception>(
-                                                [&call](std::exception&& e) {
-                                                  EVENTUALS_GRPC_LOG(1)
-                                                      << "Finishing call ("
-                                                      << call.context() << ")"
-                                                      << " for host = "
-                                                      << call.context()->host()
-                                                      << " and path = "
-                                                      << call.context()
-                                                             ->method()
-                                                      << " failed: "
-                                                      << e.what();
-                                                });
+                                 std::visit(
+                                     [](auto&& error) {
+                                       EVENTUALS_GRPC_LOG(1)
+                                           << error.what();
+                                     },
+                                     e.error());
+                                 return Just();
                                })
                                .yes([]() { return Just(); })
                         >> call.WaitForDone();

@@ -53,7 +53,7 @@ struct _Eventual {
       (*k_)().Register(interrupt);
     }
 
-    Reschedulable<K_, Value_, Errors_>* k_ = nullptr;
+    Reschedulable<K_, Value_>* k_ = nullptr;
   };
 
   template <
@@ -67,7 +67,7 @@ struct _Eventual {
       typename Errors_>
   struct Continuation final {
     Continuation(
-        Reschedulable<K_, Value_, Errors_> k,
+        Reschedulable<K_, Value_> k,
         Context_ context,
         Start_ start,
         Fail_ fail,
@@ -181,7 +181,7 @@ struct _Eventual {
     // destructed _first_ and thus we won't have any use-after-delete
     // issues during destruction of 'k_' if it holds any references or
     // pointers to any (or within any) of the above members.
-    Reschedulable<K_, Value_, Errors_> k_;
+    Reschedulable<K_, Value_> k_;
   };
 
   template <
@@ -244,8 +244,7 @@ struct _Eventual {
           tuple_types_union_t<Errors_, Errors>>(
           Reschedulable<
               K,
-              Value_,
-              tuple_types_union_t<Errors_, Errors>>{std::move(k)},
+              Value_>{std::move(k)},
           std::move(context_),
           std::move(start_),
           std::move(fail_),

@@ -135,7 +135,7 @@ Server::Server(
               << " completed serving";
           serve->done.store(true);
         },
-        [&serve](std::exception_ptr) {
+        [&serve](auto&&) {
           EVENTUALS_GRPC_LOG(1)
               << serve->service->name()
               << " failed serving";
@@ -207,7 +207,7 @@ Server::Server(
         [&worker]() {
           worker->done.store(true);
         },
-        [](std::exception_ptr) {
+        [](Stopped) {
           LOG(FATAL) << "Unreachable";
         },
         []() {

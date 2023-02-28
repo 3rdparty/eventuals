@@ -34,7 +34,7 @@ struct _Map final {
     K_& k_;
   };
 
-  template <typename K_, typename E_, typename Arg_, typename Errors_>
+  template <typename K_, typename E_, typename Arg_>
   struct Continuation final {
     Continuation(K_ k, E_ e)
       : e_(std::move(e)),
@@ -59,7 +59,7 @@ struct _Map final {
     void Body(Args&&... args) {
       if (!adapted_) {
         adapted_.emplace(
-            std::move(e_).template k<Arg_, Errors_>(Adaptor<K_>{k_}));
+            std::move(e_).template k<Arg_, std::tuple<>>(Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
@@ -81,7 +81,7 @@ struct _Map final {
 
     E_ e_;
 
-    using Adapted_ = decltype(std::declval<E_>().template k<Arg_, Errors_>(
+    using Adapted_ = decltype(std::declval<E_>().template k<Arg_, std::tuple<>>(
         std::declval<Adaptor<K_>>()));
 
     std::optional<Adapted_> adapted_;
@@ -100,8 +100,8 @@ struct _Map final {
     static constexpr bool exists = false;
   };
 
-  template <typename K_, typename E_, typename Arg_, typename Errors_>
-  struct Traits<Continuation<K_, E_, Arg_, Errors_>> {
+  template <typename K_, typename E_, typename Arg_>
+  struct Traits<Continuation<K_, E_, Arg_>> {
     static constexpr bool exists = true;
   };
 
@@ -127,11 +127,11 @@ struct _Map final {
       if constexpr (Traits<K>::exists) {
         auto e = std::move(e_) >> std::move(k.e_);
         using E = decltype(e);
-        return Continuation<decltype(k.k_), E, Arg, Errors>(
+        return Continuation<decltype(k.k_), E, Arg>(
             std::move(k.k_),
             std::move(e));
       } else {
-        return Continuation<K, E_, Arg, Errors>(std::move(k), std::move(e_));
+        return Continuation<K, E_, Arg>(std::move(k), std::move(e_));
       }
     }
 

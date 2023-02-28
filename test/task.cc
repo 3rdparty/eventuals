@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "eventuals/catch.h"
 #include "eventuals/eventual.h"
 #include "eventuals/just.h"
 #include "eventuals/map.h"
@@ -74,6 +75,37 @@ TEST(Task, Void) {
   *e();
 
   EXPECT_EQ(100, x);
+}
+
+TEST(Task, CatchesFinally) {
+  auto f = []() -> Task::Of<int>::Catches<std::runtime_error> {
+    return []() {
+      return Finally([](expected<
+                         void,
+                         std::variant<
+                             Stopped,
+                             std::runtime_error>>&& expected) {
+               return Just(100);
+             })
+          >> Just(10);
+    };
+  };
+
+  auto e = [&f]() {
+    return Raise(std::runtime_error("error"))
+        >> f();
+  };
+
+  static_assert(eventuals::tuple_types_unordered_equals_v<
+                decltype(e())::ErrorsFrom<void, std::tuple<>>,
+                std::tuple<>>);
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<std::overflow_error>>,
+          std::tuple<std::overflow_error>>);
+
+  EXPECT_EQ(*e(), 10);
 }
 
 TEST(Task, TaskWithNonCopyable) {
@@ -271,7 +303,7 @@ TEST(Task, Start) {
       [&](int x) {
         result = x;
       },
-      [](std::exception_ptr) {
+      [](Stopped) {
         FAIL() << "test should not have failed";
       },
       []() {
@@ -298,22 +330,17 @@ TEST(Task, StartFuture) {
 }
 
 TEST(Task, FailContinuation) {
-  auto e = []() -> Task::Of<int> {
+  auto e = []() -> Task::Of<int>::Raises<std::runtime_error> {
     return [x = 42]() {
       return Just(x);
     };
   };
 
-  static_assert(
-      eventuals::tuple_types_unordered_equals_v<
-          decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<>>);
-
   std::optional<Task::Of<int>::Raises<std::runtime_error>> task;
 
   task.emplace(e());
 
-  std::exception_ptr result;
+  std::optional<std::runtime_error> result;
 
   task->Fail(
       GenerateTestTaskName(),
@@ -321,8 +348,9 @@ TEST(Task, FailContinuation) {
       [](int) {
         FAIL() << "test should not have succeeded";
       },
-      [&](std::exception_ptr exception) {
-        result = std::move(exception);
+      [&](std::variant<Stopped, std::runtime_error>&& exception) {
+        CHECK(std::holds_alternative<std::runtime_error>(exception));
+        result.emplace(std::get<1>(std::move(exception)));
       },
       []() {
         FAIL() << "test should not have stopped";
@@ -335,9 +363,7 @@ TEST(Task, FailContinuation) {
               std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  EXPECT_THAT(
-      [&]() { std::rethrow_exception(result); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  EXPECT_STREQ(result.value().what(), "error");
 }
 
 TEST(Task, StopContinuation) {
@@ -358,7 +384,7 @@ TEST(Task, StopContinuation) {
       [](int) {
         FAIL() << "test should not have succeeded";
       },
-      [](std::exception_ptr) {
+      [](Stopped) {
         FAIL() << "test should not have failed";
       },
       [&]() {
@@ -403,7 +429,7 @@ TEST(Task, FromTo) {
 }
 
 TEST(Task, FromToFail) {
-  auto task = []() -> Task::From<int>::To<std::string> { //-> errors -empty
+  auto task = []() -> Task::From<int>::To<std::string> {
     return []() {
       return Then([](int x) {
         return std::to_string(x);
@@ -430,9 +456,43 @@ TEST(Task, FromToFail) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  EXPECT_THAT(
-      [&e]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  EXPECT_THROW(*e(), std::runtime_error);
+}
+
+TEST(Task, FromToFailCatch) {
+  auto task = []() -> Task::From<int>::To<std::string>::Catches<std::runtime_error> {
+    return []() {
+      return Catch()
+                 .raised<std::runtime_error>([](std::runtime_error&& error) {
+                   EXPECT_STREQ(error.what(), "error");
+                   return 10;
+                 })
+          >> Then([](int x) {
+               return std::to_string(x);
+             });
+    };
+  };
+
+  auto e = [&task]() {
+    return Eventual<int>()
+               .raises<std::runtime_error>()
+               .start([](auto& k) {
+                 k.Fail(std::runtime_error("error"));
+               })
+        >> Just(10)
+        >> task()
+        >> Then([](std::string&& s) {
+             s += "1";
+             return std::move(s);
+           });
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
+  *e();
 }
 
 TEST(Task, FromToStop) {
@@ -499,7 +559,7 @@ TEST(Task, Inheritance) {
 
   struct Sync : public Base {
     Task::Of<int>::Raises<std::runtime_error> GetTask() override {
-      return Task::Success<int>(10);
+      return Task::Of<int>::Raises<std::runtime_error>::Success<int>(10);
     }
   };
 
@@ -513,7 +573,7 @@ TEST(Task, Inheritance) {
 
   struct Failure : public Base {
     Task::Of<int>::Raises<std::runtime_error> GetTask() override {
-      return Task::Failure("error");
+      return Task::Of<int>::Raises<std::runtime_error>::Failure("error");
     }
   };
 

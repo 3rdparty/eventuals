@@ -66,7 +66,7 @@ Task::Of<void> Greeter::TypeErasedService::Serve() {
                >> Loop())
         >> Finally([&](auto&& expected) {
              if (!expected.has_value()) {
-               LOG(WARNING) << "Failed to serve: " << What(expected.error());
+               //  LOG(WARNING) << "Failed to serve: " << What(expected.error());
              }
            });
   };

@@ -233,6 +233,34 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////
 
+static_assert(tuple_contains_exact_type_v<
+              std::runtime_error,
+              std::tuple<int, std::runtime_error>>);
+
+static_assert(!tuple_contains_exact_type_v<
+              std::runtime_error,
+              std::tuple<>>);
+
+static_assert(!tuple_contains_exact_type_v<
+              std::runtime_error,
+              std::tuple<int, std::exception>>);
+
+////////////////////////////////////////////////////////////////////////
+
+static_assert(std::is_same_v<
+              tuple_types_unique_t<
+                  std::tuple<int>,
+                  std::tuple<int, std::exception>>,
+              std::tuple<>>);
+
+static_assert(std::is_same_v<
+              tuple_types_unique_t<
+                  std::tuple<int, std::runtime_error>,
+                  std::tuple<int, std::exception>>,
+              std::tuple<std::runtime_error>>);
+
+////////////////////////////////////////////////////////////////////////
+
 static_assert(
     tuple_types_subset_subtype_v<
         std::tuple<B>,
@@ -294,6 +322,31 @@ static_assert(check_errors_v<std::exception_ptr, std::runtime_error>);
 static_assert(check_errors_v<std::overflow_error, std::runtime_error>);
 
 ////////////////////////////////////////////////////////////////////////
+
+static_assert(check_variant_types_in_tuple_v<std::variant<>, std::tuple<>>);
+
+static_assert(!check_variant_types_in_tuple_v<
+              std::variant<std::runtime_error>,
+              std::tuple<>>);
+
+static_assert(check_variant_types_in_tuple_v<
+              std::variant<std::runtime_error>,
+              std::tuple<std::runtime_error>>);
+
+static_assert(check_variant_types_in_tuple_v<
+              std::variant<>,
+              std::tuple<std::runtime_error>>);
+
+static_assert(check_variant_types_in_tuple_v<
+              std::variant<std::runtime_error, std::overflow_error>,
+              std::tuple<std::overflow_error, std::runtime_error>>);
+
+static_assert(!check_variant_types_in_tuple_v<
+              std::variant<
+                  std::runtime_error,
+                  std::overflow_error,
+                  std::bad_cast>,
+              std::tuple<std::overflow_error, std::runtime_error>>);
 
 } // namespace
 } // namespace eventuals::test

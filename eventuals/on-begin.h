@@ -150,7 +150,7 @@ template <typename F>
 
   using Errors = typename E::template ErrorsFrom<void, std::tuple<>>;
 
-  using Value = typename E::template ValueFrom<void, Errors>;
+  using Value = typename E::template ValueFrom<void, std::tuple<>>;
 
   static_assert(
       std::is_void_v<Value>,

@@ -235,7 +235,7 @@ TEST(Generator, FailStream) {
       .Times(0);
 
   EXPECT_CALL(functions.fail, Call())
-      .Times(2);
+      .Times(1);
 
   EXPECT_CALL(functions.stop, Call())
       .Times(0);
@@ -244,7 +244,7 @@ TEST(Generator, FailStream) {
       .Times(0);
 
   auto stream = [&functions]()
-      -> Generator::Of<int>::Raises<std::runtime_error> {
+      -> Generator::Of<int> {
     return [&]() {
       return Stream<int>()
           .next([&](auto& k) {
@@ -254,10 +254,9 @@ TEST(Generator, FailStream) {
             functions.done.Call();
           })
           .fail([&](auto& k, auto&& error) {
-            // No need to specify 'raises' because type of error is
-            // 'std::exception_ptr', that just propagates.
+            // Will not be invoked since we do not specify any of
+            // 'Catches' or 'Raises'.
             functions.fail.Call();
-            k.Fail(error);
           })
           .stop([&](auto& k) {
             functions.stop.Call();
@@ -280,8 +279,6 @@ TEST(Generator, FailStream) {
                  functions.ended.Call();
                })
                .fail([&](auto& k, auto&& error) {
-                 // No need to specify 'raises' because type of error is
-                 // 'std::exception_ptr', that just propagates.
                  functions.fail.Call();
                  k.Fail(std::forward<decltype(error)>(error));
                })

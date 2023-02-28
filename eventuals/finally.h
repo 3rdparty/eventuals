@@ -15,12 +15,11 @@ struct StoppedOrVariantFrom {};
 
 template <typename... Errors>
 struct StoppedOrVariantFrom<std::tuple<Errors...>> {
-  using type = std::exception_ptr;
-  // fix task.h to not use std::exception_ptr
-  // std::conditional_t<
-  //     sizeof...(Errors) == 0,
-  //     Stopped,
-  //     std::variant<Stopped, Errors...>>;
+  using type =
+      std::conditional_t<
+          sizeof...(Errors) == 0,
+          Stopped,
+          std::variant<Stopped, Errors...>>;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -40,14 +39,14 @@ struct _Finally final {
       k_.Start(
           expected<Arg_, Errors_>(
               make_unexpected(
-                  std::make_exception_ptr(std::forward<Error>(error)))));
+                  std::forward<Error>(error))));
     }
 
     void Stop() {
       k_.Start(
           expected<Arg_, Errors_>(
               make_unexpected(
-                  std::make_exception_ptr(Stopped()))));
+                  Stopped())));
     }
 
     void Register(Interrupt& interrupt) {

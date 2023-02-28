@@ -239,6 +239,9 @@ struct tuple_types_union<
 template <typename Left, typename Right>
 using tuple_types_union_t = typename tuple_types_union<Left, Right>::type;
 
+template <typename Left, typename Right>
+using tuple_types_unique_t = typename tuple_types_union<Left, Right>::unique_left;
+
 ////////////////////////////////////////////////////////////////////////
 
 template <typename...>
@@ -321,6 +324,60 @@ template <typename T>
 inline constexpr bool is_variant_v = is_variant<T>::value;
 
 ////////////////////////////////////////////////////////////////////////
+
+template <typename V, typename T>
+struct tuple_contains_exact_type;
+
+template <typename V, typename T0, typename... T>
+struct tuple_contains_exact_type<V, std::tuple<T0, T...>> {
+  static constexpr bool value = tuple_contains_exact_type<V, std::tuple<T...>>::value;
+};
+
+template <typename V, typename... T>
+struct tuple_contains_exact_type<V, std::tuple<V, T...>> {
+  static constexpr bool value = true;
+};
+
+template <typename V>
+struct tuple_contains_exact_type<V, std::tuple<>> {
+  static constexpr bool value = false;
+};
+
+template <typename V, typename T>
+inline constexpr bool tuple_contains_exact_type_v = tuple_contains_exact_type<V, T>::value;
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename>
+struct check_variant_errors {
+  static constexpr bool value = false;
+};
+
+template <typename... Errors>
+struct check_variant_errors<std::variant<Errors...>> {
+  static constexpr bool value = check_errors_v<Errors...>;
+};
+
+template <typename Variant>
+inline constexpr bool check_variant_errors_v = check_variant_errors<Variant>::value;
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename...>
+struct check_variant_types_in_tuple {
+  static constexpr bool value = false;
+};
+
+template <typename Tuple, typename... Errors>
+struct check_variant_types_in_tuple<std::variant<Errors...>, Tuple> {
+  static constexpr bool value = std::conjunction_v<
+      tuple_contains_exact_type<
+          Errors,
+          tuple_types_union_t<Tuple, std::tuple<Stopped>>>...>;
+};
+
+template <typename... Ts>
+inline constexpr bool check_variant_types_in_tuple_v = check_variant_types_in_tuple<Ts...>::value;
 
 } // namespace eventuals
 

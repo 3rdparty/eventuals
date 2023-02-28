@@ -56,7 +56,7 @@ class ControlLoop final
             "returns an eventual but you're not returning anything");
 
         using Errors = typename E::template ErrorsFrom<void, std::tuple<>>;
-        using Value = typename E::template ValueFrom<void, Errors>;
+        using Value = typename E::template ValueFrom<void, std::tuple<>>;
 
         static_assert(
             std::is_void_v<Value>,
@@ -70,17 +70,9 @@ class ControlLoop final
 
         return std::move(f)()
             >> loop->Synchronized(
-                Finally([loop](expected<void, std::exception_ptr>&& expected) {
+                Finally([loop](expected<void, Stopped>&& expected) {
                   if (!expected) {
-                    try {
-                      std::rethrow_exception(expected.error());
-                    } catch (Stopped& e) {
-                    } catch (std::exception& e) {
-                      LOG(WARNING) << "Unreachable: " << e.what();
-                    } catch (...) {
-                      LOG(WARNING) << "Unreachable (error does not derive from"
-                                      " 'std::exception')";
-                    }
+                    LOG(WARNING) << "Eventual stopped";
                   }
                   loop->finished_ = true;
                   loop->wait_until_finished_.Notify();
@@ -95,7 +87,7 @@ class ControlLoop final
     task_.Start(
         std::string(name_), // Copy.
         [borrow = std::move(borrow)]() mutable { borrow.relinquish(); },
-        [](std::exception_ptr) { LOG(FATAL) << "Unreachable"; },
+        [](Stopped) { LOG(FATAL) << "Unreachable"; },
         []() { LOG(FATAL) << "Unreachable"; });
   }
 

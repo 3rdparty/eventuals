@@ -32,8 +32,8 @@ TEST_F(OnEndedTest, OnlyOnceAndAsynchronous) {
         >> OnEnded([&]() {
              ended.Call();
              return Timer(std::chrono::milliseconds(10))
-                 >> Finally([&](expected<void, std::exception_ptr>&& e) {
-                      // EXPECT_TRUE(e);
+                 >> Finally([&](expected<void, std::variant<Stopped, std::runtime_error>>&& e) {
+                      EXPECT_TRUE(e);
                     });
            })
         >> Collect<std::vector>();

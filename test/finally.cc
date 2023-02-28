@@ -51,9 +51,9 @@ TEST(Finally, Fail) {
 
   ASSERT_FALSE(result.has_value());
 
-  ASSERT_EQ(result.error().index(), 1);
+  CHECK(std::holds_alternative<std::runtime_error>(result.error()));
 
-  EXPECT_STREQ(std::get<1>(result.error()).what(), "error");
+  EXPECT_STREQ(std::get<std::runtime_error>(result.error()).what(), "error");
 }
 
 TEST(Finally, Stop) {
@@ -108,9 +108,9 @@ TEST(Finally, VoidFail) {
 
   ASSERT_FALSE(result.has_value());
 
-  ASSERT_EQ(result.error().index(), 1);
+  CHECK(std::holds_alternative<std::runtime_error>(result.error()));
 
-  EXPECT_STREQ(std::get<1>(result.error()).what(), "error");
+  EXPECT_STREQ(std::get<std::runtime_error>(result.error()).what(), "error");
 }
 
 TEST(Finally, VoidStop) {
@@ -151,8 +151,8 @@ TEST(Finally, FinallyInsideThen) {
                             return Raise("another error");
                           })
                           .no([e = std::move(e)]() {
-                            CHECK_EQ(e.error().index(), 1);
-                            return Raise(std::get<1>(std::move(e.error())))
+                            CHECK(std::holds_alternative<std::runtime_error>(e.error()));
+                            return Raise(std::get<std::runtime_error>(std::move(e.error())))
                                 >> Catch()
                                        .raised<std::runtime_error>(
                                            [](std::runtime_error e) {

@@ -54,7 +54,7 @@ struct _FlatMap final {
     FlatMap_* streamforeach_;
   };
 
-  template <typename K_, typename F_, typename Arg_, typename Errors_>
+  template <typename K_, typename F_, typename Arg_>
   struct Continuation final : public TypeErasedStream {
     // NOTE: explicit constructor because inheriting 'TypeErasedStream'.
     Continuation(K_ k, F_ f)
@@ -94,7 +94,7 @@ struct _FlatMap final {
 
       adapted_.emplace(
           f_(std::forward<Args>(args)...)
-              .template k<void, Errors_>(Adaptor<Continuation>{this}));
+              .template k<void, std::tuple<>>(Adaptor<Continuation>{this}));
 
       if (interrupt_ != nullptr) {
         adapted_->Register(*interrupt_);
@@ -136,7 +136,7 @@ struct _FlatMap final {
 
     using E_ = typename std::invoke_result<F_, Arg_>::type;
 
-    using Adapted_ = decltype(std::declval<E_>().template k<void, Errors_>(
+    using Adapted_ = decltype(std::declval<E_>().template k<void, std::tuple<>>(
         std::declval<Adaptor<Continuation>>()));
 
     std::optional<Adapted_> adapted_;
@@ -160,17 +160,17 @@ struct _FlatMap final {
     using ValueFrom = typename std::conditional_t<
         std::is_void_v<Arg>,
         std::invoke_result<F_>,
-        std::invoke_result<F_, Arg>>::type::template ValueFrom<void, Errors>;
+        std::invoke_result<F_, Arg>>::type::template ValueFrom<void, std::tuple<>>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename std::conditional_t<
         std::is_void_v<Arg>,
         std::invoke_result<F_>,
-        std::invoke_result<F_, Arg>>::type::template ErrorsFrom<void, Errors>;
+        std::invoke_result<F_, Arg>>::type::template ErrorsFrom<void, std::tuple<>>;
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, F_, Arg, Errors>(std::move(k), std::move(f_));
+      return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
     }
 
     template <typename Downstream>

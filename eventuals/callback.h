@@ -22,20 +22,6 @@ struct Callback;
 
 template <typename R, typename... Args>
 struct Callback<R(Args...)> final {
-  ////////////////////////////////////////////////////////////////////////
-
-  template <typename>
-  struct IsCallback {
-    static constexpr bool value = false;
-  };
-
-  template <typename T>
-  struct IsCallback<Callback<T>> {
-    static constexpr bool value = true;
-  };
-
-  ////////////////////////////////////////////////////////////////////////
-
   // TODO(benh): Delete default constructor and force a usage pattern
   // where a delayed initialization requires std::optional so that a
   // user doesn't run into issues where they try and invoke a callback
@@ -44,22 +30,11 @@ struct Callback<R(Args...)> final {
 
   template <typename F>
   Callback(F f) {
-    if constexpr (!IsCallback<F>::value) {
-      static_assert(
-          !std::is_same_v<Callback, std::decay_t<F>>,
-          "Not to be used as a *copy* constructor!");
+    static_assert(
+        !std::is_same_v<Callback, std::decay_t<F>>,
+        "Not to be used as a *copy* constructor!");
 
-      this->operator=(std::move(f));
-    } else {
-      // Applicable if we call a constructor from 'Callback', but
-      // handler has another signature.
-      if (f.base_ != nullptr) {
-        base_ = (f.base_->Move(&storage_));
-
-        // Set 'base_' to nullptr so we only destruct once.
-        f.base_ = nullptr;
-      }
-    }
+    this->operator=(std::move(f));
   }
 
   Callback& operator=(Callback&& that) noexcept {

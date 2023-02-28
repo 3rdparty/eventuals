@@ -10,34 +10,29 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename T, typename Arg, typename Errors>
+template <typename T, typename Arg>
 using ValueFromMaybeComposable = typename std::conditional_t<
     !HasValueFrom<T>::value,
     decltype(Eventual<T>()),
-    T>::template ValueFrom<Arg, Errors>;
+    T>::template ValueFrom<Arg, std::tuple<>>;
 
 ////////////////////////////////////////////////////////////////////////
 
-template <
-    typename Arg_,
-    typename Left_,
-    typename Right_,
-    typename Errors_>
+template <typename Arg_, typename Left_, typename Right_>
 struct ErrorsFromComposed {
   using Errors = typename Right_::template ErrorsFrom<
-      typename Left_::template ValueFrom<Arg_, Errors_>,
-      typename Left_::template ErrorsFrom<Arg_, Errors_>>;
+      typename Left_::template ValueFrom<Arg_, std::tuple<>>,
+      typename Left_::template ErrorsFrom<Arg_, std::tuple<>>>;
 };
 
-template <typename T, typename Arg, typename Errors>
+template <typename T, typename Arg>
 using ErrorsFromMaybeComposable = typename ErrorsFromComposed<
     Arg,
     std::conditional_t<
         !HasValueFrom<T>::value,
         decltype(Just()),
         T>,
-    decltype(Just()),
-    Errors>::Errors;
+    decltype(Just())>::Errors;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +64,6 @@ struct _Then final {
       typename K_,
       typename F_,
       typename Arg_,
-      typename Errors_,
       bool = HasValueFrom<
           typename std::conditional_t<
               std::is_void_v<Arg_>,
@@ -85,8 +79,7 @@ struct _Then final {
             std::is_void_v<Arg>,
             std::invoke_result<F_>,
             std::invoke_result<F_, Arg>>::type,
-        void,
-        Errors>;
+        void>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom =
@@ -97,8 +90,7 @@ struct _Then final {
                     std::is_void_v<Arg>,
                     std::invoke_result<F_>,
                     std::invoke_result<F_, Arg>>::type,
-                void,
-                Errors>>;
+                void>>;
 
     template <typename Downstream>
     static constexpr bool CanCompose = Downstream::ExpectsValue;
@@ -117,7 +109,7 @@ struct _Then final {
           "callable passed to 'Then' is not invocable "
           "with the type of argument it receives");
 
-      return Continuation<K, F_, Arg, Errors>(std::move(k), std::move(f_));
+      return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
     }
 
     F_ f_;
@@ -126,8 +118,8 @@ struct _Then final {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename F_, typename Arg_, typename Errors_>
-struct _Then::Continuation<K_, F_, Arg_, Errors_, false> final {
+template <typename K_, typename F_, typename Arg_>
+struct _Then::Continuation<K_, F_, Arg_, false> final {
   Continuation(K_ k, F_ f)
     : f_(std::move(f)),
       k_(std::move(k)) {}
@@ -166,8 +158,8 @@ struct _Then::Continuation<K_, F_, Arg_, Errors_, false> final {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename F_, typename Arg_, typename Errors_>
-struct _Then::Continuation<K_, F_, Arg_, Errors_, true> final {
+template <typename K_, typename F_, typename Arg_>
+struct _Then::Continuation<K_, F_, Arg_, true> final {
   Continuation(K_ k, F_ f)
     : f_(std::move(f)),
       k_(std::move(k)) {}
@@ -177,7 +169,7 @@ struct _Then::Continuation<K_, F_, Arg_, Errors_, true> final {
     adapted_.emplace(
         f_(
             std::forward<Args>(args)...)
-            .template k<void, Errors_>(Adaptor<K_>{k_}));
+            .template k<void, std::tuple<>>(Adaptor<K_>{k_}));
 
     if (interrupt_ != nullptr) {
       adapted_->Register(*interrupt_);
@@ -210,7 +202,7 @@ struct _Then::Continuation<K_, F_, Arg_, Errors_, true> final {
       std::invoke_result<F_>,
       std::invoke_result<F_, Arg_>>::type;
 
-  using Adapted_ = decltype(std::declval<E_>().template k<void, Errors_>(
+  using Adapted_ = decltype(std::declval<E_>().template k<void, std::tuple<>>(
       std::declval<Adaptor<K_>>()));
 
   std::optional<Adapted_> adapted_;

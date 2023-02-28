@@ -361,7 +361,7 @@ template <typename E>
 
 // Helper for exposing continuations that might need to get
 // rescheduled before being executed.
-template <typename K_, typename Arg_, typename Errors_>
+template <typename K_, typename Arg_>
 struct Reschedulable final {
   Reschedulable(K_ k)
     : k_(std::move(k)) {}
@@ -374,7 +374,7 @@ struct Reschedulable final {
       continuation_.emplace(
           Reschedule(
               std::move(previous))
-              .template k<Arg_, Errors_>(std::move(k_)));
+              .template k<Arg_, std::tuple<>>(std::move(k_)));
 
       if (interrupt_ != nullptr) {
         continuation_->Register(*interrupt_);
@@ -398,7 +398,7 @@ struct Reschedulable final {
 
   using Continuation_ =
       decltype(std::declval<_Reschedule::Composable>()
-                   .template k<Arg_, Errors_>(std::declval<K_>()));
+                   .template k<Arg_, std::tuple<>>(std::declval<K_>()));
 
   std::optional<Continuation_> continuation_;
 
@@ -412,7 +412,7 @@ struct Reschedulable final {
 ////////////////////////////////////////////////////////////////////////
 
 struct _Preempt final {
-  template <typename K_, typename E_, typename Arg_, typename Errors_>
+  template <typename K_, typename E_, typename Arg_>
   struct Continuation final {
     Continuation(K_ k, E_ e, std::string name)
       : context_(
@@ -479,7 +479,7 @@ struct _Preempt final {
 
     Interrupt* interrupt_ = nullptr;
 
-    using Value_ = typename E_::template ValueFrom<Arg_, Errors_>;
+    using Value_ = typename E_::template ValueFrom<Arg_, std::tuple<>>;
 
     using Adapted_ =
         decltype((std::declval<_Reschedule::Composable>()
@@ -499,10 +499,10 @@ struct _Preempt final {
   template <typename E_>
   struct Composable final {
     template <typename Arg, typename Errors>
-    using ValueFrom = typename E_::template ValueFrom<Arg, Errors>;
+    using ValueFrom = typename E_::template ValueFrom<Arg, std::tuple<>>;
 
     template <typename Arg, typename Errors>
-    using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
+    using ErrorsFrom = typename E_::template ErrorsFrom<Arg, std::tuple<>>;
 
     template <typename Downstream>
     static constexpr bool CanCompose = Downstream::ExpectsValue;
@@ -511,7 +511,7 @@ struct _Preempt final {
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, E_, Arg, Errors>(
+      return Continuation<K, E_, Arg>(
           std::move(k),
           std::move(e_),
           std::move(name_));
