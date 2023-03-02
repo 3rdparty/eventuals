@@ -11,15 +11,11 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename...>
-struct StoppedOrVariantFrom {};
+struct VariantOfStoppedAndErrors {};
 
 template <typename... Errors>
-struct StoppedOrVariantFrom<std::tuple<Errors...>> {
-  using type =
-      std::conditional_t<
-          sizeof...(Errors) == 0,
-          Stopped,
-          std::variant<Stopped, Errors...>>;
+struct VariantOfStoppedAndErrors<std::tuple<Errors...>> {
+  using type = std::variant<Stopped, Errors...>;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -30,21 +26,21 @@ struct _Finally final {
     template <typename... Args>
     void Start(Args&&... args) {
       k_.Start(
-          expected<Arg_, Errors_>(
+          expected<Arg_, typename VariantOfStoppedAndErrors<Errors_>::type>(
               std::forward<Args>(args)...));
     }
 
     template <typename Error>
     void Fail(Error&& error) {
       k_.Start(
-          expected<Arg_, Errors_>(
+          expected<Arg_, typename VariantOfStoppedAndErrors<Errors_>::type>(
               make_unexpected(
                   std::forward<Error>(error))));
     }
 
     void Stop() {
       k_.Start(
-          expected<Arg_, Errors_>(
+          expected<Arg_, typename VariantOfStoppedAndErrors<Errors_>::type>(
               make_unexpected(
                   Stopped())));
     }
@@ -59,7 +55,7 @@ struct _Finally final {
   struct Composable final {
     template <typename Arg, typename Errors>
     using ValueFrom =
-        expected<Arg, typename StoppedOrVariantFrom<Errors>::type>;
+        expected<Arg, typename VariantOfStoppedAndErrors<Errors>::type>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = std::tuple<>;
@@ -69,7 +65,7 @@ struct _Finally final {
       return Continuation<
           K,
           Arg,
-          typename StoppedOrVariantFrom<Errors>::type>{std::move(k)};
+          Errors>{std::move(k)};
     }
 
     template <typename Downstream>

@@ -25,7 +25,7 @@ struct HeapTask final {
   struct Adaptor final {
     Adaptor(
         Callback<function_type_t<void, To_>>* start,
-        Callback<void(typename StoppedOrVariantFrom<Errors_>::type)>* fail,
+        Callback<void(typename VariantOfStoppedAndErrors<Errors_>::type)>* fail,
         Callback<void()>* stop)
       : start_(start),
         fail_(fail),
@@ -38,7 +38,9 @@ struct HeapTask final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      (*fail_)(std::move(error));
+      if constexpr (std::tuple_size_v<Errors_> != 0) {
+        (*fail_)(std::move(error));
+      }
     }
 
     void Stop() {
@@ -48,7 +50,7 @@ struct HeapTask final {
     void Register(Interrupt&) {}
 
     Callback<function_type_t<void, To_>>* start_;
-    Callback<void(typename StoppedOrVariantFrom<Errors_>::type)>* fail_;
+    Callback<void(typename VariantOfStoppedAndErrors<Errors_>::type)>* fail_;
     Callback<void()>* stop_;
   };
 
@@ -64,7 +66,7 @@ struct HeapTask final {
           From_>&& arg,
       Interrupt& interrupt,
       Callback<function_type_t<void, To_>>&& start,
-      Callback<void(typename StoppedOrVariantFrom<Errors_>::type)>&& fail,
+      Callback<void(typename VariantOfStoppedAndErrors<Errors_>::type)>&& fail,
       Callback<void()>&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
@@ -83,9 +85,9 @@ struct HeapTask final {
 
   void Fail(
       Interrupt& interrupt,
-      typename StoppedOrVariantFrom<Errors_>::type&& exception,
+      typename VariantOfStoppedAndErrors<Errors_>::type&& exception,
       Callback<function_type_t<void, To_>>&& start,
-      Callback<void(typename StoppedOrVariantFrom<Errors_>::type)>&& fail,
+      Callback<void(typename VariantOfStoppedAndErrors<Errors_>::type)>&& fail,
       Callback<void()>&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
@@ -101,7 +103,7 @@ struct HeapTask final {
   void Stop(
       Interrupt& interrupt,
       Callback<function_type_t<void, To_>>&& start,
-      Callback<void(typename StoppedOrVariantFrom<Errors_>::type)>&& fail,
+      Callback<void(typename VariantOfStoppedAndErrors<Errors_>::type)>&& fail,
       Callback<void()>&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
@@ -115,7 +117,7 @@ struct HeapTask final {
   }
 
   Callback<function_type_t<void, To_>> start_;
-  Callback<void(typename StoppedOrVariantFrom<Errors_>::type)> fail_;
+  Callback<void(typename VariantOfStoppedAndErrors<Errors_>::type)> fail_;
   Callback<void()> stop_;
 
   using Adapted_ = decltype(std::declval<E_>().template k<From_, Errors_>(
@@ -170,7 +172,7 @@ struct _TaskFromToWith final {
   using DispatchCallback =
       Callback<void(
           Action,
-          std::optional<typename StoppedOrVariantFrom<Errors>::type>&&,
+          std::optional<typename VariantOfStoppedAndErrors<Errors>::type>&&,
           Args&...,
           // Can't have a 'void' argument type
           // so we are using 'std::monostate'.
@@ -182,7 +184,7 @@ struct _TaskFromToWith final {
           std::unique_ptr<void, Callback<void(void*)>>&,
           Interrupt&,
           Callback<function_type_t<void, To>>&&,
-          Callback<void(typename StoppedOrVariantFrom<Errors>::type)>&&,
+          Callback<void(typename VariantOfStoppedAndErrors<Errors>::type)>&&,
           Callback<void()>&&)>;
 
   template <
@@ -237,7 +239,7 @@ struct _TaskFromToWith final {
     template <typename Error>
     void Fail(Error&& error) {
       if constexpr (tuple_contains_exact_type_v<Error, tuple_types_union_t<Errors_, Catches_>>) {
-        typename StoppedOrVariantFrom<tuple_types_union_t<Errors_, Catches_>>::type exception =
+        typename VariantOfStoppedAndErrors<tuple_types_union_t<Errors_, Catches_>>::type exception =
             std::forward<Error>(error);
 
         Dispatch(Action::Fail, std::nullopt, std::move(exception));
@@ -258,7 +260,7 @@ struct _TaskFromToWith final {
     void Dispatch(
         Action action,
         std::optional<MonostateIfVoidOr<From_>>&& from = std::nullopt,
-        std::optional<typename StoppedOrVariantFrom<tuple_types_union_t<Errors_, Catches_>>::type>&& exception = std::nullopt) {
+        std::optional<typename VariantOfStoppedAndErrors<tuple_types_union_t<Errors_, Catches_>>::type>&& exception = std::nullopt) {
       CHECK_EQ(value_or_dispatch_.index(), 1u);
 
       std::apply(
@@ -273,7 +275,7 @@ struct _TaskFromToWith final {
                 [this](auto&&... args) {
                   k_.Start(std::forward<decltype(args)>(args)...);
                 },
-                [this](typename StoppedOrVariantFrom<tuple_types_union_t<Errors_, Catches_>>::type errors) {
+                [this](typename VariantOfStoppedAndErrors<tuple_types_union_t<Errors_, Catches_>>::type errors) {
                   if constexpr (!is_variant_v<std::decay_t<decltype(errors)>>) {
                     k_.Fail(std::forward<decltype(errors)>(errors));
                   } else {
@@ -401,7 +403,7 @@ struct _TaskFromToWith final {
 
       value_or_dispatch_ = [f = std::move(f)](
                                Action action,
-                               std::optional<typename StoppedOrVariantFrom<
+                               std::optional<typename VariantOfStoppedAndErrors<
                                    tuple_types_union_t<
                                        Errors_,
                                        Catches_>>::type>&& exception,
@@ -410,7 +412,7 @@ struct _TaskFromToWith final {
                                std::unique_ptr<void, Callback<void(void*)>>& e_,
                                Interrupt& interrupt,
                                Callback<function_type_t<void, To_>>&& start,
-                               Callback<void(typename StoppedOrVariantFrom<
+                               Callback<void(typename VariantOfStoppedAndErrors<
                                              tuple_types_union_t<
                                                  Errors_,
                                                  Catches_>>::type)>&& fail,
@@ -600,7 +602,7 @@ class _Task final {
   void Start(
       std::string&& name,
       Callback<function_type_t<void, To_>>&& start,
-      Callback<void(typename StoppedOrVariantFrom<tuple_types_union_t<Errors_, Catches_>>::type)>&& fail,
+      Callback<void(typename VariantOfStoppedAndErrors<tuple_types_union_t<Errors_, Catches_>>::type)>&& fail,
       Callback<void()>&& stop) {
     CHECK(!context_.has_value()) << "Task already started";
 
@@ -684,7 +686,7 @@ class _Task final {
       std::string&& name,
       Error&& error,
       Callback<function_type_t<void, To_>>&& start,
-      Callback<void(typename StoppedOrVariantFrom<tuple_types_union_t<Errors_, Catches_>>::type)>&& fail,
+      Callback<void(typename VariantOfStoppedAndErrors<tuple_types_union_t<Errors_, Catches_>>::type)>&& fail,
       Callback<void()>&& stop) {
     static_assert(
         std::disjunction_v<
@@ -729,7 +731,7 @@ class _Task final {
   void Stop(
       std::string&& name,
       Callback<function_type_t<void, To_>>&& start,
-      Callback<void(typename StoppedOrVariantFrom<tuple_types_union_t<Errors_, Catches_>>::type)>&& fail,
+      Callback<void(typename VariantOfStoppedAndErrors<tuple_types_union_t<Errors_, Catches_>>::type)>&& fail,
       Callback<void()>&& stop) {
     CHECK(!context_.has_value()) << "Task already started";
 
@@ -871,7 +873,7 @@ class _Task final {
           >> std::move(e_)
           >> Terminal()
                  .start(std::declval<Callback<function_type_t<void, To_>>&&>())
-                 .fail(std::declval<Callback<void(typename StoppedOrVariantFrom<tuple_types_union_t<Errors_, Catches_>>::type)>&&>())
+                 .fail(std::declval<Callback<void(typename VariantOfStoppedAndErrors<tuple_types_union_t<Errors_, Catches_>>::type)>&&>())
                  .stop(std::declval<Callback<void()>&&>())))>;
 
   // NOTE: we store 'k_' as the _last_ member so it will be

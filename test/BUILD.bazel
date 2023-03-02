@@ -54,7 +54,7 @@ cc_test(
         "do-all.cc",
         "event-loop-test.h",
         "eventual.cc",
-        # "executor.cc",
+        "executor.cc",
         "expected.cc",
         "filesystem.cc",
         "filter.cc",
@@ -85,7 +85,7 @@ cc_test(
         "task.cc",
         "then.cc",
         "timer.cc",
-        "transformer.cc",
+        # "transformer.cc",
         "type-check.cc",
         "type-traits.cc",
         "unpack.cc",
@@ -98,7 +98,7 @@ cc_test(
         ":http-mock-server",
         ":promisify-for-test",
         "//eventuals",
-        # "//test/concurrent",
+        "//test/concurrent",
         "@com_github_google_googletest//:gtest_main",
     ] + select({
         # We support backward lib only for macOS and Linux.

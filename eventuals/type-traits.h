@@ -325,6 +325,17 @@ inline constexpr bool is_variant_v = is_variant<T>::value;
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename T>
+struct is_tuple : std::false_type {};
+
+template <typename... Args>
+struct is_tuple<std::tuple<Args...>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_tuple_v = is_tuple<T>::value;
+
+////////////////////////////////////////////////////////////////////////
+
 template <typename V, typename T>
 struct tuple_contains_exact_type;
 

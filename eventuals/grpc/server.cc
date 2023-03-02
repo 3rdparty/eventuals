@@ -187,8 +187,8 @@ Server::Server(
                        })
                     >> Loop()
                     >> Catch()
-                           .raised<std::exception>(
-                               [this](std::exception&& e) {
+                           .raised<std::runtime_error>(
+                               [this](std::runtime_error&& e) {
                                  EVENTUALS_GRPC_LOG(1)
                                      << "Failed to accept a call: "
                                      << e.what() << "; shutting down";

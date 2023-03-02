@@ -21,14 +21,20 @@ using testing::ThrowsMessage;
 TEST(Finally, Succeed) {
   auto e = []() {
     return Just(42)
-        >> Finally([](expected<int, Stopped>&& expected) {
+        >> Finally([](expected<int, std::variant<Stopped>>&& expected) {
              return Just(std::move(expected));
            });
   };
 
-  expected<int, Stopped> result = *e();
+  static_assert(
+      std::is_same_v<
+          decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
+  expected<int, std::variant<Stopped>> result = *e();
 
   ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(42, result);
 
   EXPECT_EQ(42, *result);
 }
@@ -61,32 +67,32 @@ TEST(Finally, Stop) {
     return Eventual<std::string>([](auto& k) {
              k.Stop();
            })
-        >> Finally([](expected<std::string, Stopped>&& expected) {
+        >> Finally([](expected<std::string, std::variant<Stopped>>&& expected) {
              return Just(std::move(expected));
            });
   };
 
   expected<
       std::string,
-      Stopped>
+      std::variant<Stopped>>
       result = *e();
 
   ASSERT_FALSE(result.has_value());
 
   EXPECT_STREQ(
-      result.error().what(),
+      std::get<Stopped>(result.error()).what(),
       "Eventual computation stopped (cancelled)");
 }
 
 TEST(Finally, VoidSucceed) {
   auto e = []() {
     return Just()
-        >> Finally([](expected<void, Stopped>&& expected) {
+        >> Finally([](expected<void, std::variant<Stopped>>&& expected) {
              return Just(std::move(expected));
            });
   };
 
-  expected<void, Stopped> result = *e();
+  expected<void, std::variant<Stopped>> result = *e();
 
   EXPECT_TRUE(result.has_value());
 }
@@ -118,17 +124,17 @@ TEST(Finally, VoidStop) {
     return Eventual<void>([](auto& k) {
              k.Stop();
            })
-        >> Finally([](expected<void, Stopped>&& exception) {
+        >> Finally([](expected<void, std::variant<Stopped>>&& exception) {
              return Just(std::move(exception));
            });
   };
 
-  expected<void, Stopped> result = *e();
+  expected<void, std::variant<Stopped>> result = *e();
 
   ASSERT_FALSE(result.has_value());
 
   EXPECT_STREQ(
-      result.error().what(),
+      std::get<Stopped>(result.error()).what(),
       "Eventual computation stopped (cancelled)");
 }
 

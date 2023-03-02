@@ -303,7 +303,7 @@ TEST(Task, Start) {
       [&](int x) {
         result = x;
       },
-      [](Stopped) {
+      [](std::variant<Stopped>) {
         FAIL() << "test should not have failed";
       },
       []() {
@@ -384,7 +384,7 @@ TEST(Task, StopContinuation) {
       [](int) {
         FAIL() << "test should not have succeeded";
       },
-      [](Stopped) {
+      [](std::variant<Stopped>) {
         FAIL() << "test should not have failed";
       },
       [&]() {

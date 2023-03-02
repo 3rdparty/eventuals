@@ -22,7 +22,7 @@ struct HeapGenerator final {
   struct Adaptor final {
     Adaptor(
         Callback<void(TypeErasedStream&)>* begin,
-        Callback<void(typename StoppedOrVariantFrom<Errors_>::type)>* fail,
+        Callback<void(typename VariantOfStoppedAndErrors<Errors_>::type)>* fail,
         Callback<void()>* stop,
         Callback<function_type_t<void, To_>>* body,
         Callback<void()>* ended)
@@ -59,7 +59,7 @@ struct HeapGenerator final {
     void Register(Interrupt&) {}
 
     Callback<void(TypeErasedStream&)>* begin_;
-    Callback<void(typename StoppedOrVariantFrom<Errors_>::type)>* fail_;
+    Callback<void(typename VariantOfStoppedAndErrors<Errors_>::type)>* fail_;
     Callback<void()>* stop_;
     Callback<function_type_t<void, To_>>* body_;
     Callback<void()>* ended_;
@@ -77,7 +77,7 @@ struct HeapGenerator final {
           std::monostate,
           From_>&& arg,
       Callback<void(TypeErasedStream&)>&& begin,
-      Callback<void(typename StoppedOrVariantFrom<Errors_>::type)>&& fail,
+      Callback<void(typename VariantOfStoppedAndErrors<Errors_>::type)>&& fail,
       Callback<void()>&& stop,
       Callback<function_type_t<void, To_>>&& body,
       Callback<void()>&& ended) {
@@ -100,9 +100,9 @@ struct HeapGenerator final {
 
   void Fail(
       Interrupt& interrupt,
-      typename StoppedOrVariantFrom<Errors_>::type&& fail_exception,
+      typename VariantOfStoppedAndErrors<Errors_>::type&& fail_exception,
       Callback<void(TypeErasedStream&)>&& begin,
-      Callback<void(typename StoppedOrVariantFrom<Errors_>::type)>&& fail,
+      Callback<void(typename VariantOfStoppedAndErrors<Errors_>::type)>&& fail,
       Callback<void()>&& stop,
       Callback<function_type_t<void, To_>>&& body,
       Callback<void()>&& ended) {
@@ -124,7 +124,7 @@ struct HeapGenerator final {
   void Stop(
       Interrupt& interrupt,
       Callback<void(TypeErasedStream&)>&& begin,
-      Callback<void(typename StoppedOrVariantFrom<Errors_>::type)>&& fail,
+      Callback<void(typename VariantOfStoppedAndErrors<Errors_>::type)>&& fail,
       Callback<void()>&& stop,
       Callback<function_type_t<void, To_>>&& body,
       Callback<void()>&& ended) {
@@ -142,7 +142,7 @@ struct HeapGenerator final {
   }
 
   Callback<void(TypeErasedStream&)> begin_;
-  Callback<void(typename StoppedOrVariantFrom<Errors_>::type)> fail_;
+  Callback<void(typename VariantOfStoppedAndErrors<Errors_>::type)> fail_;
   Callback<void()> stop_;
   Callback<function_type_t<void, To_>> body_;
   Callback<void()> ended_;
@@ -171,7 +171,7 @@ struct _Generator final {
   using DispatchCallback =
       Callback<void(
           Action,
-          std::optional<typename StoppedOrVariantFrom<Errors>::type>&&,
+          std::optional<typename VariantOfStoppedAndErrors<Errors>::type>&&,
           Args&...,
           // Can't have a 'void' argument type
           // so we are using 'std::monostate'.
@@ -183,7 +183,7 @@ struct _Generator final {
           std::unique_ptr<void, Callback<void(void*)>>&,
           Interrupt&,
           Callback<void(TypeErasedStream&)>&&,
-          Callback<void(typename StoppedOrVariantFrom<Errors>::type)>&&,
+          Callback<void(typename VariantOfStoppedAndErrors<Errors>::type)>&&,
           Callback<void()>&&,
           Callback<function_type_t<void, To>>&&,
           Callback<void()>&&)>;
@@ -231,7 +231,7 @@ struct _Generator final {
           "Expecting a type derived from std::exception");
 
       if constexpr (tuple_contains_exact_type_v<Error, tuple_types_union_t<Errors_, Catches_>>) {
-        typename StoppedOrVariantFrom<tuple_types_union_t<Errors_, Catches_>>::type exception =
+        typename VariantOfStoppedAndErrors<tuple_types_union_t<Errors_, Catches_>>::type exception =
             std::forward<Error>(error);
 
         Dispatch(Action::Fail, std::nullopt, std::move(exception));
@@ -256,7 +256,7 @@ struct _Generator final {
                 std::is_void_v<From_>,
                 std::monostate,
                 From_>>&& from = std::nullopt,
-        std::optional<typename StoppedOrVariantFrom<tuple_types_union_t<Errors_, Catches_>>::type>&& exception = std::nullopt) {
+        std::optional<typename VariantOfStoppedAndErrors<tuple_types_union_t<Errors_, Catches_>>::type>&& exception = std::nullopt) {
       std::apply(
           [&](auto&... args) {
             dispatch_(
@@ -269,7 +269,7 @@ struct _Generator final {
                 [this](TypeErasedStream& stream) {
                   k_.Begin(stream);
                 },
-                [this](typename StoppedOrVariantFrom<tuple_types_union_t<Errors_, Catches_>>::type errors) {
+                [this](typename VariantOfStoppedAndErrors<tuple_types_union_t<Errors_, Catches_>>::type errors) {
                   if constexpr (!is_variant_v<std::decay_t<decltype(errors)>>) {
                     k_.Fail(std::forward<decltype(errors)>(errors));
                   } else {
@@ -417,7 +417,7 @@ struct _Generator final {
       dispatch_ = [f = std::move(f)](
                       Action action,
                       std::optional<
-                          typename StoppedOrVariantFrom<
+                          typename VariantOfStoppedAndErrors<
                               tuple_types_union_t<
                                   Errors_,
                                   Catches_>>::type>&& exception,
@@ -431,7 +431,7 @@ struct _Generator final {
                       Interrupt& interrupt,
                       Callback<void(TypeErasedStream&)>&& begin,
                       Callback<void(
-                          typename StoppedOrVariantFrom<
+                          typename VariantOfStoppedAndErrors<
                               tuple_types_union_t<
                                   Errors_,
                                   Catches_>>::type)>&& fail,

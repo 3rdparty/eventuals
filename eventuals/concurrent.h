@@ -158,8 +158,9 @@ struct _Concurrent final {
     // addressed before doing so and we should ensure that we see
     // further speed ups that are beyond what we get already from
     // putting all of these in 'TypeErasedAdaptor'.
-    [[nodiscard]] auto CreateOrReuseFiber() {
-      return Synchronized(Then([this]() {
+    template <typename Exception>
+    [[nodiscard]] auto CreateOrReuseFiber(const Exception& exception) {
+      return Synchronized(Then([this, &exception]() {
         // As long as downstream isn't done, or we've been interrupted,
         // or have encountered an error, then add a new fiber if none
         // exist, otherwise trim done fibers from the front, then look
@@ -167,7 +168,7 @@ struct _Concurrent final {
         // a new one.
         TypeErasedFiber* fiber = nullptr;
 
-        if (!(downstream_done_ || interrupted_ || exception_)) {
+        if (!(downstream_done_ || interrupted_ || exception)) {
           do {
             if (!fibers_) {
               fibers_.reset(CreateFiber());
@@ -213,7 +214,8 @@ struct _Concurrent final {
     // NOTE: this could also be moved to a .cc file but see the
     // comments above 'CreateOrReuseFiber()' above for what's
     // preventing us from doing so.
-    [[nodiscard]] auto IngressEpilogue() {
+    template <typename Exception>
+    [[nodiscard]] auto IngressEpilogue(Exception& exception) {
       return Synchronized(
           Eventual<void>()
               .start([this](auto& k) {
@@ -228,12 +230,11 @@ struct _Concurrent final {
 
                 k.Start(); // Exits the synchronized block!
               })
-              .fail([this](auto& k, auto&& error) {
+              .fail([this, &exception](auto& k, auto&& error) {
                 upstream_done_ = true;
 
-                if (!exception_) {
-                  exception_ = make_exception_ptr_or_forward(
-                      std::forward<decltype(error)>(error));
+                if (!exception) {
+                  exception.emplace(std::forward<decltype(error)>(error));
                 }
 
                 fibers_done_ = FibersDone();
@@ -245,12 +246,11 @@ struct _Concurrent final {
 
                 k.Start(); // Exits the synchronized block!
               })
-              .stop([this](auto& k) {
+              .stop([this, &exception](auto& k) {
                 upstream_done_ = true;
 
-                if (!exception_) {
-                  exception_ = std::make_exception_ptr(
-                      eventuals::Stopped());
+                if (!exception) {
+                  exception.emplace(eventuals::Stopped());
                 }
 
                 fibers_done_ = FibersDone();
@@ -270,7 +270,8 @@ struct _Concurrent final {
     // NOTE: this could also be moved to a .cc file but see the
     // comments above 'CreateOrReuseFiber()' above for what's
     // preventing us from doing so.
-    [[nodiscard]] auto FiberEpilogue(TypeErasedFiber* fiber) {
+    template <typename Exception>
+    [[nodiscard]] auto FiberEpilogue(TypeErasedFiber* fiber, Exception& exception) {
       return Synchronized(
           Eventual<void>()
               .start([this, fiber](auto& k) {
@@ -285,12 +286,11 @@ struct _Concurrent final {
 
                 k.Start(); // Exits the synchronized block!
               })
-              .fail([this, fiber](auto& k, auto&& error) {
+              .fail([this, fiber, &exception](auto& k, auto&& error) {
                 fiber->done = true;
 
-                if (!exception_) {
-                  exception_ = make_exception_ptr_or_forward(
-                      std::forward<decltype(error)>(error));
+                if (!exception) {
+                  exception.emplace(std::forward<decltype(error)>(error));
                 }
 
                 fibers_done_ = !InterruptFibers();
@@ -302,12 +302,11 @@ struct _Concurrent final {
 
                 k.Start(); // Exits the synchronized block!
               })
-              .stop([this, fiber](auto& k) {
+              .stop([this, fiber, &exception](auto& k) {
                 fiber->done = true;
 
-                if (!exception_) {
-                  exception_ = std::make_exception_ptr(
-                      eventuals::Stopped());
+                if (!exception) {
+                  exception.emplace(eventuals::Stopped());
                 }
 
                 fibers_done_ = !InterruptFibers();
@@ -435,10 +434,6 @@ struct _Concurrent final {
     // Indicates whether or not we've received an interrupt and we
     // should stop requesting the next upstream value.
     bool interrupted_ = false;
-
-    // Indicates whether or not we've got a failure and we should stop
-    // requesting the next upstream value.
-    std::optional<std::exception_ptr> exception_;
   };
 
   // 'Adaptor' is our typeful adaptor that the concurrent continuation
@@ -478,7 +473,7 @@ struct _Concurrent final {
                notify_egress_();
              }))
           >> Loop()
-          >> FiberEpilogue(fiber)
+          >> FiberEpilogue(fiber, exception_)
           >> Terminal();
     }
 
@@ -513,7 +508,7 @@ struct _Concurrent final {
     // upstream value.
     [[nodiscard]] auto Ingress() {
       return Map(Let([this](Arg_& arg) {
-               return CreateOrReuseFiber()
+               return CreateOrReuseFiber(exception_)
                    >> Then([&](TypeErasedFiber* fiber) {
                         // A nullptr indicates that we should tell
                         // upstream we're "done" because something
@@ -529,7 +524,7 @@ struct _Concurrent final {
              }))
           >> Until([](bool done) { return done; })
           >> Loop() // Eagerly try to get next value to run concurrently!
-          >> IngressEpilogue()
+          >> IngressEpilogue(exception_)
           >> Terminal();
     }
 
@@ -552,16 +547,19 @@ struct _Concurrent final {
                  // into "ended" after 'Until()'.
                  >> Map([this]() {
                      return Eventual<std::optional<Value_>>()
+                         .template raises<Errors_>()
                          .start([this](auto& k) {
                            if (exception_ && upstream_done_ && fibers_done_) {
                              // TODO(benh): flush remaining values first?
-                             try {
-                               std::rethrow_exception(*exception_);
-                             } catch (const Stopped&) {
-                               k.Stop();
-                             } catch (...) {
-                               k.Fail(std::current_exception());
-                             }
+                             std::visit(
+                                 [&k](auto&& error) {
+                                   if constexpr (std::is_same_v<std::decay_t<decltype(error)>, Stopped>) {
+                                     k.Stop();
+                                   } else {
+                                     k.Fail(std::forward<decltype(error)>(error));
+                                   }
+                                 },
+                                 exception_.value());
                            } else if (!values_.empty()) {
                              auto value = std::move(values_.front());
                              values_.pop_front();
@@ -585,6 +583,10 @@ struct _Concurrent final {
 
     using Value_ = typename decltype(f_())::template ValueFrom<Arg_, Errors_>;
     std::deque<Value_> values_;
+
+    // Indicates whether or not we've got a failure and we should stop
+    // requesting the next upstream value.
+    std::optional<typename VariantOfStoppedAndErrors<Errors_>::type> exception_;
   };
 
   // 'Continuation' is implemented by acting as both a loop for the
@@ -749,7 +751,9 @@ struct _Concurrent final {
     using ValueFrom = typename E_::template ValueFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors>
-    using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
+    using ErrorsFrom = tuple_types_union_t<
+        typename E_::template ErrorsFrom<Arg, std::tuple<>>,
+        Errors>;
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
@@ -757,7 +761,7 @@ struct _Concurrent final {
           !std::is_void_v<ValueFrom<Arg, Errors>>,
           "'Concurrent' does not (yet) support 'void' eventual values");
 
-      return Continuation<K, F_, Arg, Errors>(std::move(k), std::move(f_));
+      return Continuation<K, F_, Arg, ErrorsFrom<Arg, Errors>>(std::move(k), std::move(f_));
     }
 
     template <typename Downstream>

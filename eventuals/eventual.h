@@ -303,11 +303,21 @@ struct _Eventual {
     template <typename Error = std::exception, typename... Errors>
     auto raises() && {
       static_assert(std::tuple_size_v<Errors_> == 0, "Duplicate 'raises'");
-      return create<Interruptible_, Value_, std::tuple<Error, Errors...>>(
-          std::move(context_),
-          std::move(start_),
-          std::move(fail_),
-          std::move(stop_));
+
+      if constexpr (is_tuple_v<Error>) {
+        static_assert(sizeof...(Errors) == 0, "'raises' with tuple doesn't support other types");
+        return create<Interruptible_, Value_, Error>(
+            std::move(context_),
+            std::move(start_),
+            std::move(fail_),
+            std::move(stop_));
+      } else {
+        return create<Interruptible_, Value_, std::tuple<Error, Errors...>>(
+            std::move(context_),
+            std::move(start_),
+            std::move(fail_),
+            std::move(stop_));
+      }
     }
 
     Context_ context_;

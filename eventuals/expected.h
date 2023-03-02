@@ -82,7 +82,11 @@ auto ExpectedToEventual(tl::expected<T, std::variant<Errors...>>&& expected) {
           }
         } else {
           if constexpr (check_errors_v<Errors...>) {
-            return k.Fail(std::move(expected.error()));
+            std::visit(
+                [&k](auto&& error) {
+                  return k.Fail(std::forward<decltype(error)>(error));
+                },
+                std::move(expected.error()));
           } else {
             return k.Fail(std::runtime_error(std::move(expected.error())));
           }

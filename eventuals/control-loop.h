@@ -70,7 +70,7 @@ class ControlLoop final
 
         return std::move(f)()
             >> loop->Synchronized(
-                Finally([loop](expected<void, Stopped>&& expected) {
+                Finally([loop](expected<void, std::variant<Stopped>>&& expected) {
                   if (!expected) {
                     LOG(WARNING) << "Eventual stopped";
                   }
@@ -87,7 +87,7 @@ class ControlLoop final
     task_.Start(
         std::string(name_), // Copy.
         [borrow = std::move(borrow)]() mutable { borrow.relinquish(); },
-        [](Stopped) { LOG(FATAL) << "Unreachable"; },
+        [](std::variant<Stopped>) { LOG(FATAL) << "Unreachable"; },
         []() { LOG(FATAL) << "Unreachable"; });
   }
 

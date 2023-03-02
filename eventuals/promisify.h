@@ -84,7 +84,7 @@ template <typename E>
                volatile EventLoop* volatile_loop = loop;
 
                promise.set_exception(
-                   make_exception_ptr_or_forward(
+                   std::make_exception_ptr(
                        std::forward<decltype(error)>(error)));
 
                ////////////////////////////////////////////////////
