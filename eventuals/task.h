@@ -38,9 +38,7 @@ struct HeapTask final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      if constexpr (std::tuple_size_v<Errors_> != 0) {
-        (*fail_)(std::move(error));
-      }
+      (*fail_)(std::move(error));
     }
 
     void Stop() {
@@ -97,7 +95,11 @@ struct HeapTask final {
     // 'Register()' more than once is well-defined.
     adapted_.Register(interrupt);
 
-    adapted_.Fail(std::move(exception));
+    std::visit(
+        [this](auto&& error) {
+          adapted_.Fail(std::forward<decltype(error)>(error));
+        },
+        std::move(exception));
   }
 
   void Stop(
@@ -276,17 +278,13 @@ struct _TaskFromToWith final {
                   k_.Start(std::forward<decltype(args)>(args)...);
                 },
                 [this](typename VariantOfStoppedAndErrors<tuple_types_union_t<Errors_, Catches_>>::type errors) {
-                  if constexpr (!is_variant_v<std::decay_t<decltype(errors)>>) {
-                    k_.Fail(std::forward<decltype(errors)>(errors));
-                  } else {
-                    std::visit(
-                        [this](auto&& error) {
-                          if constexpr (!std::is_same_v<Stopped, std::decay_t<decltype(error)>>) {
-                            k_.Fail(std::forward<decltype(error)>(error));
-                          }
-                        },
-                        errors);
-                  }
+                  std::visit(
+                      [this](auto&& error) {
+                        if constexpr (!std::is_same_v<Stopped, std::decay_t<decltype(error)>>) {
+                          k_.Fail(std::forward<decltype(error)>(error));
+                        }
+                      },
+                      errors);
                 },
                 [this]() {
                   k_.Stop();
@@ -644,19 +642,13 @@ class _Task final {
         // from within 'this' and borrowing could create a cycle.
         [this](auto&& error) {
           CHECK(promise_.has_value());
-          if constexpr (is_variant_v<std::decay_t<decltype(error)>>) {
-            std::visit(
-                [this](auto&& error) {
-                  promise_->set_exception(
-                      std::make_exception_ptr(
-                          std::forward<decltype(error)>(error)));
-                },
-                error);
-          } else {
-            promise_->set_exception(
-                make_exception_ptr_or_forward(
-                    std::forward<decltype(error)>(error)));
-          }
+          std::visit(
+              [this](auto&& error) {
+                promise_->set_exception(
+                    std::make_exception_ptr(
+                        std::forward<decltype(error)>(error)));
+              },
+              error);
         },
         // NOTE: not borrowing 'this' because callback is stored/used
         // from within 'this' and borrowing could create a cycle.

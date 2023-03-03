@@ -207,7 +207,7 @@ Server::Server(
         [&worker]() {
           worker->done.store(true);
         },
-        [](Stopped) {
+        [](std::variant<Stopped>) {
           LOG(FATAL) << "Unreachable";
         },
         []() {
