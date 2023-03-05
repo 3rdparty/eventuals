@@ -16,11 +16,7 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
   // TODO(benh): support any error type that can be "stringified".
   static_assert(
       std::disjunction_v<
-          // 'std::disjunction_v' expects a type instead of bool.
-          std::conditional_t<
-              check_errors_v<E>,
-              std::true_type,
-              std::false_type>,
+          check_errors_t<E>,
           std::is_same<std::string, std::decay_t<E>>,
           std::is_same<char*, std::decay_t<E>>>,
       "To use an 'expected' as an eventual it must have "
@@ -64,7 +60,7 @@ auto ExpectedToEventual(tl::expected<T, std::variant<Errors...>>&& expected) {
       check_errors_v<Errors...>,
       "To use an 'expected' with 'std::variant' errors as an eventual "
       "it must have all error types derived from 'std::exception' "
-      "or be a 'std::exception_ptr'");
+      "or be string-like");
 
   return Eventual<T>()
       .template raises<Errors...>()

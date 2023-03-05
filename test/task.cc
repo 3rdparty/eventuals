@@ -85,9 +85,8 @@ TEST(Task, CatchesFinally) {
                          std::variant<
                              Stopped,
                              std::runtime_error>>&& expected) {
-               return Just(100);
-             })
-          >> Just(10);
+        return Just(100);
+      });
     };
   };
 
@@ -105,7 +104,28 @@ TEST(Task, CatchesFinally) {
           decltype(e())::ErrorsFrom<void, std::tuple<std::overflow_error>>,
           std::tuple<std::overflow_error>>);
 
-  EXPECT_EQ(*e(), 10);
+  EXPECT_EQ(*e(), 100);
+}
+
+TEST(Task, CatchesRaiseFinallyInside) {
+  auto f = []() -> Task::Of<int> {
+    return []() {
+      return Raise("error")
+          >> Finally([](auto&& expected) {
+               return Just(100);
+             });
+    };
+  };
+
+  auto e = [&f]() {
+    return f();
+  };
+
+  static_assert(eventuals::tuple_types_unordered_equals_v<
+                decltype(e())::ErrorsFrom<void, std::tuple<>>,
+                std::tuple<>>);
+
+  EXPECT_EQ(*e(), 100);
 }
 
 TEST(Task, TaskWithNonCopyable) {
@@ -176,6 +196,7 @@ TEST(Task, FailOnCallback) {
                  })
           >> Then([](int) { return 1; })
           >> Eventual<int>()
+                 .raises<std::runtime_error>()
                  .start([&](auto& k, auto&& value) {
                    functions.start.Call();
                  })
@@ -199,13 +220,52 @@ TEST(Task, FailOnCallback) {
       ThrowsMessage<std::runtime_error>(StrEq("error from start")));
 }
 
-TEST(Task, FailTerminated) {
+TEST(Task, FailTerminatedPropagate) {
+  MockFunction<void()> fail;
+
+  EXPECT_CALL(fail, Call())
+      .Times(0);
+
+  auto e = [&]() -> Task::Of<int>::Raises<std::runtime_error> {
+    return [&]() {
+      return Eventual<int>()
+                 .raises<std::runtime_error>()
+                 .start([](auto& k) {
+                   k.Fail(std::runtime_error("error from start"));
+                 })
+                 .fail([&](auto& k, auto&& error) {
+                   fail.Call();
+                   k.Fail(std::runtime_error("error from fail"));
+                 })
+          >> Then([](int x) { return x + 1; });
+    };
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+
+  auto [future, k] = PromisifyForTest(e());
+  k.Fail(std::runtime_error("error"));
+
+  EXPECT_THAT(
+      // NOTE: capturing 'future' as a pointer because until C++20 we
+      // can't capture a "local binding" by reference and there is a
+      // bug with 'EXPECT_THAT' that forces our lambda to be const so
+      // if we capture it by copy we can't call 'get()' because that
+      // is a non-const function.
+      [future = &future]() { future->get(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
+}
+
+TEST(Task, FailTerminatedCatch) {
   MockFunction<void()> fail;
 
   EXPECT_CALL(fail, Call())
       .Times(1);
 
-  auto e = [&]() -> Task::Of<int>::Raises<std::runtime_error> {
+  auto e = [&]() -> Task::Of<int>::Raises<std::runtime_error>::Catches<std::runtime_error> {
     return [&]() {
       return Eventual<int>()
                  .raises<std::runtime_error>()
@@ -350,7 +410,7 @@ TEST(Task, FailContinuation) {
       },
       [&](std::variant<Stopped, std::runtime_error>&& exception) {
         CHECK(std::holds_alternative<std::runtime_error>(exception));
-        result.emplace(std::get<1>(std::move(exception)));
+        result.emplace(std::get<std::runtime_error>(std::move(exception)));
       },
       []() {
         FAIL() << "test should not have stopped";
@@ -456,7 +516,9 @@ TEST(Task, FromToFail) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  EXPECT_THROW(*e(), std::runtime_error);
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
 TEST(Task, FromToFailCatch) {
@@ -492,7 +554,7 @@ TEST(Task, FromToFailCatch) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<>>);
 
-  *e();
+  EXPECT_EQ(*e(), "101");
 }
 
 TEST(Task, FromToStop) {

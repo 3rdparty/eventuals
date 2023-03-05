@@ -1,6 +1,7 @@
 #pragma once
 
 #include <exception>
+#include <experimental/type_traits>
 #include <tuple>
 #include <type_traits>
 #include <variant>
@@ -239,9 +240,6 @@ struct tuple_types_union<
 template <typename Left, typename Right>
 using tuple_types_union_t = typename tuple_types_union<Left, Right>::type;
 
-template <typename Left, typename Right>
-using tuple_types_unique_t = typename tuple_types_union<Left, Right>::unique_left;
-
 ////////////////////////////////////////////////////////////////////////
 
 template <typename...>
@@ -308,9 +306,14 @@ using apply_tuple_types_t = typename apply_tuple_types<T, Tuple>::type;
 template <typename... Errors>
 inline constexpr bool check_errors_v =
     std::conjunction_v<
-        std::disjunction<
-            std::is_base_of<std::exception, std::decay_t<Errors>>,
-            std::is_same<std::exception_ptr, std::decay_t<Errors>>>...>;
+        std::is_base_of<std::exception, std::decay_t<Errors>>...>;
+
+template <typename... Errors>
+using check_errors_t =
+    std::conditional_t<
+        check_errors_v<Errors...>,
+        std::true_type,
+        std::false_type>;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -360,9 +363,7 @@ inline constexpr bool tuple_contains_exact_type_v = tuple_contains_exact_type<V,
 ////////////////////////////////////////////////////////////////////////
 
 template <typename>
-struct check_variant_errors {
-  static constexpr bool value = false;
-};
+struct check_variant_errors;
 
 template <typename... Errors>
 struct check_variant_errors<std::variant<Errors...>> {
@@ -374,21 +375,31 @@ inline constexpr bool check_variant_errors_v = check_variant_errors<Variant>::va
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename...>
-struct check_variant_types_in_tuple {
-  static constexpr bool value = false;
+template <typename T>
+struct LambdaType : public LambdaType<decltype(&T::operator())> {};
+
+template <typename ClassType, typename ReturnType, typename... Args>
+struct LambdaType<ReturnType (ClassType::*)(Args...) const> {
+  static constexpr int size = sizeof...(Args);
+
+  template <size_t i>
+  struct arg {
+    typedef typename std::tuple_element<i, std::tuple<Args...>>::type type;
+  };
+
+  typedef ReturnType result_type;
 };
 
-template <typename Tuple, typename... Errors>
-struct check_variant_types_in_tuple<std::variant<Errors...>, Tuple> {
-  static constexpr bool value = std::conjunction_v<
-      tuple_contains_exact_type<
-          Errors,
-          tuple_types_union_t<Tuple, std::tuple<Stopped>>>...>;
-};
+////////////////////////////////////////////////////////////////////////
 
-template <typename... Ts>
-inline constexpr bool check_variant_types_in_tuple_v = check_variant_types_in_tuple<Ts...>::value;
+template <typename T>
+using has_operator = decltype(&T::operator());
+
+template <typename T>
+using is_default_lambda =
+    std::experimental::is_detected<has_operator, T>;
+
+////////////////////////////////////////////////////////////////////////
 
 } // namespace eventuals
 

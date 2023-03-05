@@ -2,8 +2,10 @@
 
 #include <memory>
 #include <optional>
+#include <variant>
 
 #include "eventuals/callback.h"
+#include "eventuals/finally.h"
 #include "eventuals/stream.h"
 #include "eventuals/terminal.h"
 
@@ -13,12 +15,13 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E_, typename From_, typename To_, typename Errors_>
+template <typename E_, typename From_, typename To_, typename Catches_>
 struct HeapTransformer final {
   struct Adaptor final {
     Adaptor(
         Callback<void(TypeErasedStream&)>* begin,
-        Callback<void(std::exception_ptr)>* fail,
+        Callback<void(
+            typename VariantOfStoppedAndErrors<Catches_>::type)>* fail,
         Callback<void()>* stop,
         Callback<void(To_)>* body,
         Callback<void()>* ended)
@@ -40,9 +43,11 @@ struct HeapTransformer final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      (*fail_)(
-          make_exception_ptr_or_forward(
-              std::forward<Error>(error)));
+      // Using to avoid compile error when we do both 'Raise' and 'Catch'
+      // inside a task.
+      if constexpr (std::tuple_size_v<Catches_> != 0) {
+        (*fail_)(std::move(error));
+      }
     }
 
     void Stop() {
@@ -57,7 +62,7 @@ struct HeapTransformer final {
     void Register(Interrupt&) {}
 
     Callback<void(TypeErasedStream&)>* begin_;
-    Callback<void(std::exception_ptr)>* fail_;
+    Callback<void(typename VariantOfStoppedAndErrors<Catches_>::type)>* fail_;
     Callback<void()>* stop_;
     Callback<void(To_)>* body_;
     Callback<void()>* ended_;
@@ -65,14 +70,15 @@ struct HeapTransformer final {
 
   HeapTransformer(E_ e)
     : adapted_(
-        std::move(e).template k<From_, Errors_>(
+        std::move(e).template k<From_, Catches_>(
             Adaptor{&begin_, &fail_, &stop_, &body_, &ended_})) {}
 
   void Body(
       From_&& arg,
       Interrupt& interrupt,
       Callback<void(TypeErasedStream&)>&& begin,
-      Callback<void(std::exception_ptr)>&& fail,
+      Callback<void(
+          typename VariantOfStoppedAndErrors<Catches_>::type)>&& fail,
       Callback<void()>&& stop,
       Callback<void(To_)>&& body,
       Callback<void()>&& ended) {
@@ -89,9 +95,10 @@ struct HeapTransformer final {
 
   void Fail(
       Interrupt& interrupt,
-      std::exception_ptr&& exception,
+      typename VariantOfStoppedAndErrors<Catches_>::type&& error,
       Callback<void(TypeErasedStream&)>&& begin,
-      Callback<void(std::exception_ptr)>&& fail,
+      Callback<
+          void(typename VariantOfStoppedAndErrors<Catches_>::type)>&& fail,
       Callback<void()>&& stop,
       Callback<void(To_)>&& body,
       Callback<void()>&& ended) {
@@ -103,13 +110,18 @@ struct HeapTransformer final {
 
     adapted_.Register(interrupt);
 
-    adapted_.Fail(std::move(exception));
+    // Using to avoid compile error when we do both 'Raise' and 'Catch'
+    // inside a task.
+    if constexpr (std::tuple_size_v<Catches_> != 0) {
+      adapted_.Fail(std::move(error));
+    }
   }
 
   void Stop(
       Interrupt& interrupt,
       Callback<void(TypeErasedStream&)>&& begin,
-      Callback<void(std::exception_ptr)>&& fail,
+      Callback<
+          void(typename VariantOfStoppedAndErrors<Catches_>::type)>&& fail,
       Callback<void()>&& stop,
       Callback<void(To_)>&& body,
       Callback<void()>&& ended) {
@@ -125,12 +137,12 @@ struct HeapTransformer final {
   }
 
   Callback<void(TypeErasedStream&)> begin_;
-  Callback<void(std::exception_ptr)> fail_;
+  Callback<void(typename VariantOfStoppedAndErrors<Catches_>::type)> fail_;
   Callback<void()> stop_;
   Callback<void(To_)> body_;
   Callback<void()> ended_;
 
-  using Adapted_ = decltype(std::declval<E_>().template k<From_, Errors_>(
+  using Adapted_ = decltype(std::declval<E_>().template k<From_, Catches_>(
       std::declval<Adaptor>()));
 
   Adapted_ adapted_;
@@ -145,8 +157,15 @@ struct _Transformer final {
     Stop = 2,
   };
 
-  template <typename K_, typename From_, typename To_, typename Errors_>
+  template <
+      typename K_,
+      typename From_,
+      typename To_,
+      typename Catches_,
+      typename Raises_>
   struct Continuation final {
+    using ErrorTypes = tuple_types_union_t<Raises_, Catches_>;
+
     template <typename Dispatch>
     Continuation(K_ k, Dispatch dispatch)
       : dispatch_(std::move(dispatch)),
@@ -158,10 +177,17 @@ struct _Transformer final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      auto exception = make_exception_ptr_or_forward(
-          std::forward<Error>(error));
+      static_assert(
+          std::disjunction_v<
+              std::is_base_of<std::exception, std::decay_t<Error>>,
+              check_variant_errors<std::decay_t<Error>>>,
+          "Expecting a type derived from std::exception");
 
-      Dispatch(Action::Fail, std::nullopt, std::move(exception));
+      if constexpr (tuple_contains_exact_type_v<Error, ErrorTypes>) {
+        Dispatch(Action::Fail, std::nullopt, std::forward<Error>(error));
+      } else {
+        k_.Fail(std::forward<Error>(error));
+      }
     }
 
     void Stop() {
@@ -185,10 +211,12 @@ struct _Transformer final {
     void Dispatch(
         Action action,
         std::optional<From_>&& from = std::nullopt,
-        std::optional<std::exception_ptr>&& exception = std::nullopt) {
+        std::optional<
+            typename VariantOfStoppedAndErrors<
+                ErrorTypes>::type>&& error = std::nullopt) {
       dispatch_(
           action,
-          std::move(exception),
+          std::move(error),
           std::move(from),
           e_,
           *interrupt_,
@@ -198,8 +226,14 @@ struct _Transformer final {
           [this](To_ arg) {
             k_.Body(std::move(arg));
           },
-          [this](std::exception_ptr e) {
-            k_.Fail(std::move(e));
+          [this](
+              typename VariantOfStoppedAndErrors<
+                  ErrorTypes>::type errors) {
+            std::visit(
+                [this](auto&& error) {
+                  k_.Fail(std::forward<decltype(error)>(error));
+                },
+                errors);
           },
           [this]() {
             k_.Stop();
@@ -211,13 +245,17 @@ struct _Transformer final {
 
     Callback<void(
         Action,
-        std::optional<std::exception_ptr>&&,
+        std::optional<
+            typename VariantOfStoppedAndErrors<
+                ErrorTypes>::type>&&,
         std::optional<From_>&&,
         std::unique_ptr<void, Callback<void(void*)>>&,
         Interrupt&,
         Callback<void(TypeErasedStream&)>&&,
         Callback<void(To_)>&&,
-        Callback<void(std::exception_ptr)>&&,
+        Callback<void(
+            typename VariantOfStoppedAndErrors<
+                ErrorTypes>::type)>&&,
         Callback<void()>&&,
         Callback<void()>&&)>
         dispatch_;
@@ -232,13 +270,19 @@ struct _Transformer final {
     K_ k_;
   };
 
-  template <typename From_, typename To_, typename Errors_>
+  template <
+      typename From_,
+      typename To_,
+      typename Catches_,
+      typename Raises_>
   struct Composable final {
     template <typename Arg, typename Errors>
     using ValueFrom = To_;
 
     template <typename Arg, typename Errors>
-    using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
+    using ErrorsFrom = tuple_types_union_t<
+        Raises_,
+        tuple_types_subtract_t<Errors, Catches_>>;
 
     template <typename Downstream>
     static constexpr bool CanCompose = Downstream::ExpectsStream;
@@ -248,17 +292,24 @@ struct _Transformer final {
     template <typename T>
     using From = std::enable_if_t<
         IsUndefined<From_>::value,
-        Composable<T, To_, Errors_>>;
+        Composable<T, To_, Catches_, Raises_>>;
 
     template <typename T>
     using To = std::enable_if_t<
         !IsUndefined<From_>::value && IsUndefined<To_>::value,
-        Composable<From_, T, Errors_>>;
+        Composable<From_, T, Catches_, Raises_>>;
+
+    template <typename... Errors>
+    using Catches = std::enable_if_t<
+        std::tuple_size_v<Catches_> == 0,
+        Composable<From_, To_, std::tuple<Errors...>, Raises_>>;
 
     template <typename... Errors>
     using Raises = std::enable_if_t<
-        std::tuple_size_v<Errors_> == 0,
-        Composable<From_, To_, std::tuple<Errors...>>>;
+        std::tuple_size_v<Raises_> == 0,
+        Composable<From_, To_, Catches_, std::tuple<Errors...>>>;
+
+    using ErrorTypes = tuple_types_union_t<Raises_, Catches_>;
 
     template <typename F>
     Composable(F f) {
@@ -284,13 +335,13 @@ struct _Transformer final {
           "'Transformer' expects a callable (e.g., a lambda) that "
           "returns an eventual but you're not returning anything");
 
-      using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
+      using ErrorsFromE = typename E::template ErrorsFrom<From_, Catches_>;
 
       static_assert(
-          eventuals::tuple_types_subset_subtype_v<ErrorsFromE, Errors_>,
+          eventuals::tuple_types_subset_subtype_v<ErrorsFromE, Raises_>,
           "Specified errors can't be thrown from 'Transformer'");
 
-      using Value = typename E::template ValueFrom<From_, Errors_>;
+      using Value = typename E::template ValueFrom<From_, Catches_>;
 
       static_assert(
           std::is_convertible_v<Value, To_>,
@@ -299,26 +350,30 @@ struct _Transformer final {
 
       dispatch_ = [f = std::move(f)](
                       Action action,
-                      std::optional<std::exception_ptr>&& exception,
+                      std::optional<
+                          typename VariantOfStoppedAndErrors<
+                              ErrorTypes>::type>&& error,
                       std::optional<From_>&& from,
                       std::unique_ptr<void, Callback<void(void*)>>& e_,
                       Interrupt& interrupt,
                       Callback<void(TypeErasedStream&)>&& begin,
                       Callback<void(To_)>&& body,
-                      Callback<void(std::exception_ptr)>&& fail,
+                      Callback<
+                          void(typename VariantOfStoppedAndErrors<
+                               ErrorTypes>::type)>&& fail,
                       Callback<void()>&& stop,
                       Callback<void()>&& ended) {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapTransformer<E, From_, To_, Errors_>(f()),
+              new HeapTransformer<E, From_, To_, ErrorTypes>(f()),
               [](void* e) {
                 delete static_cast<
-                    HeapTransformer<E, From_, To_, Errors_>*>(e);
+                    HeapTransformer<E, From_, To_, ErrorTypes>*>(e);
               });
         }
 
         auto* e = static_cast<
-            HeapTransformer<E, From_, To_, Errors_>*>(e_.get());
+            HeapTransformer<E, From_, To_, ErrorTypes>*>(e_.get());
 
         switch (action) {
           case Action::Body:
@@ -333,10 +388,10 @@ struct _Transformer final {
                 std::move(ended));
             break;
           case Action::Fail:
-            CHECK(exception);
+            CHECK(error);
             e->Fail(
                 interrupt,
-                std::move(exception.value()),
+                std::move(error.value()),
                 std::move(begin),
                 std::move(fail),
                 std::move(stop),
@@ -360,20 +415,28 @@ struct _Transformer final {
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, From_, To_, Errors_>(
+      static_assert(
+          !std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
+          "'Transformer' 'From' or 'To' type is not specified");
+
+      return Continuation<K, From_, To_, Catches_, Raises_>(
           std::move(k),
           std::move(dispatch_));
     }
 
     Callback<void(
         Action,
-        std::optional<std::exception_ptr>&&,
+        std::optional<
+            typename VariantOfStoppedAndErrors<
+                ErrorTypes>::type>&&,
         std::optional<From_>&&,
         std::unique_ptr<void, Callback<void(void*)>>&,
         Interrupt&,
         Callback<void(TypeErasedStream&)>&&,
         Callback<void(To_)>&&,
-        Callback<void(std::exception_ptr)>&&,
+        Callback<void(
+            typename VariantOfStoppedAndErrors<
+                ErrorTypes>::type)>&&,
         Callback<void()>&&,
         Callback<void()>&&)>
         dispatch_;
@@ -385,6 +448,7 @@ struct _Transformer final {
 using Transformer = _Transformer::Composable<
     Undefined,
     Undefined,
+    std::tuple<>,
     std::tuple<>>;
 
 ////////////////////////////////////////////////////////////////////////

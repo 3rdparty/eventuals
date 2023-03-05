@@ -182,7 +182,7 @@ TEST(EventualTest, Reuse) {
                })
                .fail([](std::promise<int>& promise, auto&& error) {
                  promise.set_exception(
-                     make_exception_ptr_or_forward(
+                     make_exception_ptr(
                          std::forward<decltype(error)>(error)));
                })
                .stop([](std::promise<int>& promise) {
@@ -240,7 +240,7 @@ TEST(EventualTest, Catch) {
   auto e = []() {
     return Just(41)
         >> Raise("error")
-        >> Catch([](std::exception_ptr&& error) {
+        >> Catch([](std::variant<std::runtime_error>&& error) {
              return 42;
            })
         >> Then([](int value) {
@@ -261,9 +261,9 @@ TEST(EventualTest, CatchVoid) {
   auto e = []() {
     return Just()
         >> Raise("error")
-        >> Catch(Let([](auto& error) {
+        >> Catch(Let([](std::variant<std::runtime_error>& error) {
              return Then([&]() {
-               EXPECT_EQ("error", What(error));
+               EXPECT_STREQ(std::get<0>(error).what(), "error");
              });
            }))
         >> Then([]() {

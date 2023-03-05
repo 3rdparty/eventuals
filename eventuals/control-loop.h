@@ -63,9 +63,7 @@ class ControlLoop final
             "'ControlLoop' eventual should return 'void'");
 
         static_assert(
-            std::disjunction_v<
-                std::is_void<Errors>,
-                std::is_same<Errors, std::tuple<>>>,
+            std::is_same_v<Errors, std::tuple<>>,
             "'ControlLoop' eventual should not raise any errors");
 
         return std::move(f)()

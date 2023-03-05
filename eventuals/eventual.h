@@ -18,7 +18,7 @@ namespace eventuals {
 struct _Eventual {
   // Helper struct for enforcing that values and errors are only
   // propagated of the correct type.
-  template <typename K_, typename Value_, typename Errors_>
+  template <typename K_, typename Value_, typename Raises_, typename Errors_>
   struct Adaptor final {
     template <typename... Args>
     void Start(Args&&... args) {
@@ -28,18 +28,12 @@ struct _Eventual {
 
     template <typename Error>
     void Fail(Error&& error) {
-      // TODO(benh): revisit whether or not we want to always allow
-      // 'std::exception_ptr' to be an escape hatch for arbitrary
-      // exceptions or if we should have our own type to ensure that
-      // only types derived from 'std::exception' are used.
       static_assert(
           check_errors_v<Error>,
           "Expecting a type derived from std::exception");
 
       static_assert(
-          std::disjunction_v<
-              std::is_same<std::exception_ptr, std::decay_t<Error>>,
-              tuple_types_contains_subtype<std::decay_t<Error>, Errors_>>,
+          tuple_types_contains_subtype_v<std::decay_t<Error>, Raises_>,
           "Error is not specified in 'raises<...>()'");
 
       (*k_)().Fail(std::forward<Error>(error));
@@ -53,7 +47,7 @@ struct _Eventual {
       (*k_)().Register(interrupt);
     }
 
-    Reschedulable<K_, Value_>* k_ = nullptr;
+    Reschedulable<K_, Value_, Errors_>* k_ = nullptr;
   };
 
   template <
@@ -64,10 +58,11 @@ struct _Eventual {
       typename Stop_,
       bool Interruptible_,
       typename Value_,
+      typename Raises_,
       typename Errors_>
   struct Continuation final {
     Continuation(
-        Reschedulable<K_, Value_> k,
+        Reschedulable<K_, Value_, Errors_> k,
         Context_ context,
         Start_ start,
         Fail_ fail,
@@ -157,7 +152,7 @@ struct _Eventual {
       }
     }
 
-    Adaptor<K_, Value_, Errors_>& adaptor() {
+    Adaptor<K_, Value_, Raises_, Errors_>& adaptor() {
       // Note: needed to delay doing this until now because this
       // eventual might have been moved before being started.
       adaptor_.k_ = &k_;
@@ -175,13 +170,13 @@ struct _Eventual {
 
     std::optional<Interrupt::Handler> handler_;
 
-    Adaptor<K_, Value_, Errors_> adaptor_;
+    Adaptor<K_, Value_, Raises_, Errors_> adaptor_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete
     // issues during destruction of 'k_' if it holds any references or
     // pointers to any (or within any) of the above members.
-    Reschedulable<K_, Value_> k_;
+    Reschedulable<K_, Value_, Errors_> k_;
   };
 
   template <
@@ -241,10 +236,9 @@ struct _Eventual {
           Stop_,
           Interruptible_,
           Value_,
+          Errors_,
           tuple_types_union_t<Errors_, Errors>>(
-          Reschedulable<
-              K,
-              Value_>{std::move(k)},
+          Reschedulable<K, Value_, tuple_types_union_t<Errors_, Errors>>{std::move(k)},
           std::move(context_),
           std::move(start_),
           std::move(fail_),

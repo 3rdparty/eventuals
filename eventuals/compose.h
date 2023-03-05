@@ -57,22 +57,6 @@ struct StreamOrValue {
 
 ////////////////////////////////////////////////////////////////////////
 
-// Helper to avoid creating nested 'std::exception_ptr'.
-template <typename Error>
-auto make_exception_ptr_or_forward(Error&& error) {
-  static_assert(!std::is_same_v<std::decay_t<Error>, std::exception_ptr>);
-  static_assert(
-      check_errors_v<Error>,
-      "Expecting a type derived from std::exception");
-  return std::make_exception_ptr(std::forward<Error>(error));
-}
-
-inline auto make_exception_ptr_or_forward(std::exception_ptr error) {
-  return error;
-}
-
-////////////////////////////////////////////////////////////////////////
-
 // Using to get right type for 'std::promise' at 'Terminate' because
 // using 'std::promise<std::reference_wrapper<T>>' is forbidden on
 // Windows build using MSVC.
@@ -118,23 +102,23 @@ struct Composed final {
 
   template <typename Arg, typename Errors>
   auto k() && {
-    using Value = typename Left_::template ValueFrom<Arg, Errors>;
+    using LeftValue = typename Left_::template ValueFrom<Arg, Errors>;
     using LeftErrors = typename Left_::template ErrorsFrom<Arg, Errors>;
 
     return std::move(left_)
         .template k<
             Arg,
-            Errors>(std::move(right_).template k<Value, LeftErrors>());
+            Errors>(std::move(right_).template k<LeftValue, LeftErrors>());
   }
 
   template <typename Arg, typename Errors, typename K>
   auto k(K k) && {
-    using Value = typename Left_::template ValueFrom<Arg, Errors>;
+    using LeftValue = typename Left_::template ValueFrom<Arg, Errors>;
     using LeftErrors = typename Left_::template ErrorsFrom<Arg, Errors>;
 
     auto composed = [&]() {
       return std::move(left_).template k<Arg, Errors>(
-          std::move(right_).template k<Value, LeftErrors>(std::move(k)));
+          std::move(right_).template k<LeftValue, LeftErrors>(std::move(k)));
     };
 
     os::CheckSufficientStackSpace(sizeof(decltype(composed())));

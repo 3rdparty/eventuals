@@ -152,13 +152,13 @@ template <typename F>
 
   using E = decltype(e);
 
-  using Errors = typename E::template ErrorsFrom<void, std::tuple<>>;
-
   using Value = typename E::template ValueFrom<void, std::tuple<>>;
 
   static_assert(
       std::is_void_v<Value>,
       "'OnEnded' eventual should return 'void'");
+
+  using Errors = typename E::template ErrorsFrom<void, std::tuple<>>;
 
   static_assert(
       std::is_same_v<Errors, std::tuple<>>,

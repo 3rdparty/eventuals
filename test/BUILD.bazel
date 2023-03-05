@@ -85,7 +85,7 @@ cc_test(
         "task.cc",
         "then.cc",
         "timer.cc",
-        # "transformer.cc",
+        "transformer.cc",
         "type-check.cc",
         "type-traits.cc",
         "unpack.cc",

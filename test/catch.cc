@@ -86,12 +86,8 @@ TEST(CatchTest, All) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return 10;
                })
-               .all([](std::exception_ptr&& error) {
-                 try {
-                   std::rethrow_exception(error);
-                 } catch (const std::runtime_error& error) {
-                   EXPECT_STREQ(error.what(), "10");
-                 }
+               .all([](std::variant<std::runtime_error>&& error) {
+                 EXPECT_STREQ(std::get<0>(error).what(), "10");
                  return 100;
                })
         >> Then([](int value) {
@@ -119,14 +115,12 @@ TEST(CatchTest, UnexpectedRaise) {
   };
 
   auto e = [&]() {
-    return f() // Throwing 'std::exception_ptr' there.
+    return f()
         >> Catch()
                .raised<std::overflow_error>([](std::overflow_error&& error) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return 1;
                })
-               // Receive 'Error' type there, that had been rethrowed from
-               // 'std::exception_ptr'.
                .raised<Error>([](Error&& error) {
                  EXPECT_STREQ("child exception", error.what());
                  return 100;
@@ -153,7 +147,7 @@ TEST(CatchTest, UnexpectedAll) {
   };
 
   auto e = [&]() {
-    return f() // Throwing 'std::exception_ptr' there.
+    return f()
         >> Catch()
                .raised<std::overflow_error>([](std::overflow_error&& error) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
@@ -163,14 +157,8 @@ TEST(CatchTest, UnexpectedAll) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return 1;
                })
-               .all([](std::exception_ptr&& error) {
-                 try {
-                   std::rethrow_exception(error);
-                 } catch (const Error& e) {
-                   EXPECT_STREQ(e.what(), "child exception");
-                 } catch (...) {
-                   ADD_FAILURE() << "Failure on rethrowing";
-                 }
+               .all([](auto&& error) {
+                 EXPECT_STREQ(std::get<0>(error).what(), "child exception");
 
                  return 100;
                });
@@ -216,7 +204,7 @@ TEST(CatchTest, ReRaise) {
                  EXPECT_STREQ(error.what(), "10");
                  return Raise("1");
                })
-               .all([](std::exception_ptr&& error) {
+               .all([](std::variant<std::runtime_error>&& error) {
                  ADD_FAILURE() << "Encountered an unexpected all";
                  return Just(100);
                })

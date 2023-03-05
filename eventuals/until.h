@@ -69,7 +69,6 @@ struct _Until final {
       typename K_,
       typename F_,
       typename Arg_,
-      typename Errors_,
       bool = HasValueFrom<
           typename std::conditional_t<
               std::is_void_v<Arg_>,
@@ -107,7 +106,7 @@ struct _Until final {
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, F_, Arg, Errors>(std::move(k), std::move(f_));
+      return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
     }
 
     F_ f_;
@@ -116,8 +115,8 @@ struct _Until final {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename F_, typename Arg_, typename Errors_>
-struct _Until::Continuation<K_, F_, Arg_, Errors_, false> final {
+template <typename K_, typename F_, typename Arg_>
+struct _Until::Continuation<K_, F_, Arg_, false> final {
   Continuation(K_ k, F_ f)
     : f_(std::move(f)),
       k_(std::move(k)) {}
@@ -168,8 +167,8 @@ struct _Until::Continuation<K_, F_, Arg_, Errors_, false> final {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename K_, typename F_, typename Arg_, typename Errors_>
-struct _Until::Continuation<K_, F_, Arg_, Errors_, true> final {
+template <typename K_, typename F_, typename Arg_>
+struct _Until::Continuation<K_, F_, Arg_, true> final {
   Continuation(K_ k, F_ f)
     : f_(std::move(f)),
       k_(std::move(k)) {}
@@ -208,13 +207,13 @@ struct _Until::Continuation<K_, F_, Arg_, Errors_, true> final {
     if constexpr (!std::is_void_v<Arg_>) {
       adapted_.emplace(
           f_(*arg_) // NOTE: passing '&' not '&&'.
-              .template k<void, Errors_>(Adaptor<K_, Arg_>{
+              .template k<void, std::tuple<>>(Adaptor<K_, Arg_>{
                   k_,
                   *arg_,
                   *stream_}));
     } else {
       adapted_.emplace(
-          f_().template k<void, Errors_>(Adaptor<K_, Arg_>{k_, *stream_}));
+          f_().template k<void, std::tuple<>>(Adaptor<K_, Arg_>{k_, *stream_}));
     }
 
     if (interrupt_ != nullptr) {
@@ -250,7 +249,7 @@ struct _Until::Continuation<K_, F_, Arg_, Errors_, true> final {
       std::invoke_result<F_>,
       std::invoke_result<F_, std::add_lvalue_reference_t<Arg_>>>::type;
 
-  using Adapted_ = decltype(std::declval<E_>().template k<void, Errors_>(
+  using Adapted_ = decltype(std::declval<E_>().template k<void, std::tuple<>>(
       std::declval<Adaptor<K_, Arg_>>()));
 
   std::optional<Adapted_> adapted_;

@@ -254,9 +254,7 @@ TEST(Generator, FailStream) {
             functions.done.Call();
           })
           .fail([&](auto& k, auto&& error) {
-            // Will not be invoked since we do not specify any of
-            // 'Catches' or 'Raises'.
-            functions.fail.Call();
+            FAIL() << "Should not get called because we did not specify any 'Catches'";
           })
           .stop([&](auto& k) {
             functions.stop.Call();
@@ -272,6 +270,7 @@ TEST(Generator, FailStream) {
                })
         >> stream()
         >> Loop<int>()
+               .raises<std::runtime_error>()
                .body([&](auto& k, auto&&) {
                  functions.body.Call();
                })

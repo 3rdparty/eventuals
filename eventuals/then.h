@@ -167,8 +167,7 @@ struct _Then::Continuation<K_, F_, Arg_, true> final {
   template <typename... Args>
   void Start(Args&&... args) {
     adapted_.emplace(
-        f_(
-            std::forward<Args>(args)...)
+        f_(std::forward<Args>(args)...)
             .template k<void, std::tuple<>>(Adaptor<K_>{k_}));
 
     if (interrupt_ != nullptr) {

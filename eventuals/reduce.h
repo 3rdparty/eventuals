@@ -36,11 +36,7 @@ struct _Reduce final {
     TypeErasedStream* stream_;
   };
 
-  template <
-      typename K_,
-      typename T_,
-      typename F_,
-      typename Arg_>
+  template <typename K_, typename T_, typename F_, typename Arg_>
   struct Continuation final {
     Continuation(K_ k, T_ t, F_ f)
       : t_(std::move(t)),
