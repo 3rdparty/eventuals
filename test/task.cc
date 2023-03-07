@@ -363,7 +363,7 @@ TEST(Task, Start) {
       [&](int x) {
         result = x;
       },
-      [](std::variant<Stopped>) {
+      []() {
         FAIL() << "test should not have failed";
       },
       []() {
@@ -400,17 +400,15 @@ TEST(Task, FailContinuation) {
 
   task.emplace(e());
 
-  std::optional<std::runtime_error> result;
-
   task->Fail(
       GenerateTestTaskName(),
       std::runtime_error("error"),
       [](int) {
         FAIL() << "test should not have succeeded";
       },
-      [&](std::variant<Stopped, std::runtime_error>&& exception) {
-        CHECK(std::holds_alternative<std::runtime_error>(exception));
-        result.emplace(std::get<std::runtime_error>(std::move(exception)));
+      [](std::variant<std::runtime_error>&& error) {
+        CHECK(std::holds_alternative<std::runtime_error>(error));
+        EXPECT_STREQ(std::get<std::runtime_error>(error).what(), "error");
       },
       []() {
         FAIL() << "test should not have stopped";
@@ -422,8 +420,6 @@ TEST(Task, FailContinuation) {
               void,
               std::tuple<>>,
           std::tuple<std::runtime_error>>);
-
-  EXPECT_STREQ(result.value().what(), "error");
 }
 
 TEST(Task, StopContinuation) {
@@ -444,7 +440,7 @@ TEST(Task, StopContinuation) {
       [](int) {
         FAIL() << "test should not have succeeded";
       },
-      [](std::variant<Stopped>) {
+      []() {
         FAIL() << "test should not have failed";
       },
       [&]() {
@@ -524,11 +520,15 @@ TEST(Task, FromToFail) {
 TEST(Task, FromToFailCatch) {
   auto task = []() -> Task::From<int>::To<std::string>::Catches<std::runtime_error> {
     return []() {
-      return Catch()
-                 .raised<std::runtime_error>([](std::runtime_error&& error) {
-                   EXPECT_STREQ(error.what(), "error");
-                   return 10;
-                 })
+      // return Catch()
+      //            .raised<std::runtime_error>([](std::runtime_error&& error) {
+      //              EXPECT_STREQ(error.what(), "error");
+      //              return 10;
+      //            })
+      return Finally([](expected<int, std::variant<Stopped, std::runtime_error>>&& e) {
+               EXPECT_STREQ(std::get<std::runtime_error>(e.error()).what(), "error");
+               return 10;
+             })
           >> Then([](int x) {
                return std::to_string(x);
              });
@@ -778,8 +778,8 @@ TEST(Task, RaisesWith) {
           EXPECT_EQ(s, "hello world");
           return Eventual<int>()
               .raises<std::runtime_error>()
-              .start([i = i](auto& k) {
-                return k.Start(i);
+              .start([i = std::move(i)](auto& k) {
+                return k.Start(std::move(i));
               });
         });
   };

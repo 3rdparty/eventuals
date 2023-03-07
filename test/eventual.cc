@@ -77,7 +77,7 @@ TEST(EventualTest, Fail) {
 
   auto e = [&]() {
     return Eventual<int>()
-               .raises()
+               .raises<std::runtime_error>()
                .context("error")
                .start([](const char*& error, auto& k) {
                  std::thread thread(
@@ -181,6 +181,12 @@ TEST(EventualTest, Reuse) {
                  promise.set_value(std::forward<decltype(value)>(value));
                })
                .fail([](std::promise<int>& promise, auto&& error) {
+                 static_assert(
+                     !std::is_same_v<
+                         std::decay_t<decltype(error)>,
+                         std::exception_ptr>,
+                     "Not expecting a 'std::exception_ptr' to "
+                     "propagate through an eventual");
                  promise.set_exception(
                      make_exception_ptr(
                          std::forward<decltype(error)>(error)));
@@ -263,7 +269,7 @@ TEST(EventualTest, CatchVoid) {
         >> Raise("error")
         >> Catch(Let([](std::variant<std::runtime_error>& error) {
              return Then([&]() {
-               EXPECT_STREQ(std::get<0>(error).what(), "error");
+               EXPECT_STREQ(std::get<std::runtime_error>(error).what(), "error");
              });
            }))
         >> Then([]() {

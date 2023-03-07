@@ -67,32 +67,32 @@ TEST(Finally, Stop) {
     return Eventual<std::string>([](auto& k) {
              k.Stop();
            })
-        >> Finally([](expected<std::string, std::variant<Stopped>>&& expected) {
+        >> Finally([](expected<std::string, Stopped>&& expected) {
              return Just(std::move(expected));
            });
   };
 
   expected<
       std::string,
-      std::variant<Stopped>>
+      Stopped>
       result = *e();
 
   ASSERT_FALSE(result.has_value());
 
   EXPECT_STREQ(
-      std::get<Stopped>(result.error()).what(),
+      result.error().what(),
       "Eventual computation stopped (cancelled)");
 }
 
 TEST(Finally, VoidSucceed) {
   auto e = []() {
     return Just()
-        >> Finally([](expected<void, std::variant<Stopped>>&& expected) {
+        >> Finally([](expected<void, Stopped>&& expected) {
              return Just(std::move(expected));
            });
   };
 
-  expected<void, std::variant<Stopped>> result = *e();
+  expected<void, Stopped> result = *e();
 
   EXPECT_TRUE(result.has_value());
 }
@@ -105,8 +105,8 @@ TEST(Finally, VoidFail) {
                        void,
                        std::variant<
                            Stopped,
-                           std::runtime_error>>&& exception) {
-             return Just(std::move(exception));
+                           std::runtime_error>>&& expected) {
+             return Just(std::move(expected));
            });
   };
 
@@ -124,17 +124,17 @@ TEST(Finally, VoidStop) {
     return Eventual<void>([](auto& k) {
              k.Stop();
            })
-        >> Finally([](expected<void, std::variant<Stopped>>&& exception) {
-             return Just(std::move(exception));
+        >> Finally([](expected<void, Stopped>&& error) {
+             return Just(std::move(error));
            });
   };
 
-  expected<void, std::variant<Stopped>> result = *e();
+  expected<void, Stopped> result = *e();
 
   ASSERT_FALSE(result.has_value());
 
   EXPECT_STREQ(
-      std::get<Stopped>(result.error()).what(),
+      result.error().what(),
       "Eventual computation stopped (cancelled)");
 }
 
@@ -161,9 +161,9 @@ TEST(Finally, FinallyInsideThen) {
                             return Raise(std::get<std::runtime_error>(std::move(e.error())))
                                 >> Catch()
                                        .raised<std::runtime_error>(
-                                           [](std::runtime_error e) {
+                                           [](std::runtime_error&& error) {
                                              EXPECT_STREQ(
-                                                 e.what(),
+                                                 error.what(),
                                                  "error");
                                            });
                           });

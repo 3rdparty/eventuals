@@ -55,12 +55,13 @@ class ControlLoop final
             "'ControlLoop' expects a callable (e.g., a lambda) that "
             "returns an eventual but you're not returning anything");
 
-        using Errors = typename E::template ErrorsFrom<void, std::tuple<>>;
         using Value = typename E::template ValueFrom<void, std::tuple<>>;
 
         static_assert(
             std::is_void_v<Value>,
             "'ControlLoop' eventual should return 'void'");
+
+        using Errors = typename E::template ErrorsFrom<void, std::tuple<>>;
 
         static_assert(
             std::is_same_v<Errors, std::tuple<>>,
@@ -68,7 +69,7 @@ class ControlLoop final
 
         return std::move(f)()
             >> loop->Synchronized(
-                Finally([loop](expected<void, std::variant<Stopped>>&& expected) {
+                Finally([loop](expected<void, Stopped>&& expected) {
                   if (!expected) {
                     LOG(WARNING) << "Eventual stopped";
                   }
@@ -85,7 +86,7 @@ class ControlLoop final
     task_.Start(
         std::string(name_), // Copy.
         [borrow = std::move(borrow)]() mutable { borrow.relinquish(); },
-        [](std::variant<Stopped>) { LOG(FATAL) << "Unreachable"; },
+        []() { LOG(FATAL) << "Unreachable"; },
         []() { LOG(FATAL) << "Unreachable"; });
   }
 

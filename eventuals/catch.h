@@ -15,17 +15,10 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 struct _Catch final {
-  template <typename>
-  struct TupleToVariant;
-
-  template <typename... Errors>
-  struct TupleToVariant<std::tuple<Errors...>> {
-    using type = std::variant<Errors...>;
-  };
-
-  template <typename K_, typename Error_, typename F_, typename Errors_>
+  template <typename K_, typename Error_, typename F_>
   struct Handler final {
     using Error = Error_;
+    using F = F_;
 
     Handler(F_ f)
       : f_(std::move(f)) {}
@@ -35,22 +28,13 @@ struct _Catch final {
       adapted_.emplace(
           Then(
               std::move(f_))
-              .template k<
-                  std::conditional_t<
-                      std::is_same_v<Error_, std::monostate>,
-                      typename TupleToVariant<Errors_>::type,
-                      Error_>,
-                  Errors_>(std::move(k)));
+              .template k<Error_, std::tuple<>>(std::move(k)));
 
       if (interrupt != nullptr) {
         adapted_->Register(*interrupt);
       }
 
-      if constexpr (std::is_same_v<Error_, std::monostate>) {
-        adapted_->Start(typename TupleToVariant<Errors_>::type(std::forward<E>(e)));
-      } else {
-        adapted_->Start(std::forward<E>(e));
-      }
+      adapted_->Start(std::forward<E>(e));
     }
 
     template <typename E>
@@ -59,33 +43,22 @@ struct _Catch final {
     // calling this function in the event that we _don't_ end up handling the
     // error.
     bool TryHandle(K_&& k, Interrupt* interrupt, E&& e) {
-      // When 'Error_' is 'std::monostate' it indicates we're the
+      // When 'Error_' is a variant it indicates we're the
       // 'all' handler which catches everything.
-      if constexpr (std::is_same_v<Error_, std::monostate>) {
+      if constexpr (is_variant_v<Error_>) {
         Handle(
             std::move(k),
             interrupt,
-            std::forward<E>(e));
+            // Since we are in 'all' handler, we want to be sure that it is
+            // invoked with a 'std::variant', so need to create a variant
+            // from the propagated error 'E'.
+            Error_(std::forward<E>(e)));
         return true;
       } else if constexpr (std::disjunction_v<
                                std::is_same<Error_, E>,
                                std::is_base_of<Error_, E>>) {
         Handle(std::move(k), interrupt, std::forward<E>(e));
         return true;
-      } else if constexpr (std::is_same_v<E, std::exception_ptr>) {
-        // Applicable for case when user explicitly specify raise of
-        // std::exception_ptr.
-        try {
-          std::rethrow_exception(e);
-        }
-        // Catch by reference because if 'Error_' is a polymorphic
-        // type it can't be caught by value.
-        catch (Error_& error) {
-          Handle(std::move(k), interrupt, std::move(error));
-          return true;
-        } catch (...) {
-          return false;
-        }
       } else {
         // Just to avoid '-Werror=unused-but-set-parameter' warning.
         (void) interrupt;
@@ -97,12 +70,7 @@ struct _Catch final {
 
     using Adapted_ =
         decltype(Then(std::move(f_))
-                     .template k<
-                         std::conditional_t<
-                             std::is_same_v<Error_, std::monostate>,
-                             typename TupleToVariant<Errors_>::type,
-                             Error_>,
-                         Errors_>(std::declval<K_>()));
+                     .template k<Error_, std::tuple<>>(std::declval<K_>()));
 
     std::optional<Adapted_> adapted_;
   };
@@ -111,17 +79,28 @@ struct _Catch final {
   // try and use 'Undefined' as 'K_' for things like 'Adapted_' above
   // which will cause compilation errors because 'Undefined' is not a
   // valid continuation!
-  template <typename Error_, typename F_, typename Errors_>
-  struct Handler<Undefined, Error_, F_, Errors_> final {
+  template <typename Error_, typename F_>
+  struct Handler<Undefined, Error_, F_> final {
     using Error = Error_;
+    using F = F_;
 
     Handler(F_ f)
       : f_(std::move(f)) {}
 
-    // Helper to convert a catch handler to a new 'K' with proper 'Errors'.
-    template <typename K, typename Errors>
+    // Helper to convert a catch handler to a new 'K'.
+    template <typename K, typename Errors, typename Catches>
     auto Convert() && {
-      return Handler<K, Error_, F_, Errors>{std::move(f_)};
+      using AllHandlerArgument = apply_tuple_types_t<
+          std::variant,
+          tuple_types_subtract_t<Errors, Catches>>;
+
+      return Handler<
+          K,
+          std::conditional_t<
+              std::is_same_v<Error_, std::monostate>,
+              AllHandlerArgument,
+              Error>,
+          F_>{std::move(f_)};
     }
 
     F_ f_;
@@ -129,7 +108,7 @@ struct _Catch final {
 
   ////////////////////////////////////////////////////////////////////////
 
-  template <typename K_, typename Errors_, typename... CatchHandlers_>
+  template <typename K_, typename... CatchHandlers_>
   struct Continuation final {
     Continuation(K_ k, std::tuple<CatchHandlers_...>&& catch_handlers)
       : catch_handlers_(std::move(catch_handlers)),
@@ -147,12 +126,8 @@ struct _Catch final {
     template <typename Error>
     void Fail(Error&& error) {
       static_assert(
-          std::disjunction_v<
-              std::is_base_of<std::exception, std::decay_t<Error>>,
-              std::is_same<std::exception_ptr, std::decay_t<Error>>,
-              check_variant_errors<std::decay_t<Error>>>,
-          "'Catch' expects a type derived from "
-          "std::exception or a std::exception_ptr");
+          check_errors_v<std::decay_t<Error>>,
+          "'Catch' expects a type derived from std::exception");
 
       // NOTE: we need to put 'handled' on the stack because if 'this'
       // was constructed on the heap it's possible that 'TryHandle()'
@@ -166,21 +141,10 @@ struct _Catch final {
             // Using a fold expression to simplify the iteration.
             ([&](auto& catch_handler) {
               if (!handled) {
-                if constexpr (is_variant_v<std::decay_t<Error>>) {
-                  std::visit(
-                      [&](auto&& e) {
-                        handled = catch_handler.TryHandle(
-                            std::move(k_),
-                            interrupt_,
-                            std::forward<decltype(e)>(e));
-                      },
-                      std::forward<Error>(error));
-                } else {
-                  handled = catch_handler.TryHandle(
-                      std::move(k_),
-                      interrupt_,
-                      std::forward<Error>(error));
-                }
+                handled = catch_handler.TryHandle(
+                    std::move(k_),
+                    interrupt_,
+                    std::forward<Error>(error));
               }
             }(catch_handler),
              ...);
@@ -224,29 +188,27 @@ struct _Catch final {
     K_ k_;
   };
 
-  static constexpr int AllHandlerNotSpecified = 0;
-  static constexpr int AllHandlerDefault = 1;
-  static constexpr int AllHandlerGeneric = 2;
-
-  template <typename Value_, int AllHandler_, typename... CatchHandlers_>
+  template <typename Value_, bool has_all_, typename... CatchHandlers_>
   struct Builder final {
     // NOTE: we ensure 'Arg' and 'Value_' are the same in 'k()'.
     template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
-    using CatchErrors_ = std::tuple<typename CatchHandlers_::Error...>;
+    using Catches_ = tuple_types_subtract_t<
+        std::tuple<typename CatchHandlers_::Error...>,
+        std::tuple<std::monostate>>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = std::conditional_t<
         std::disjunction_v<
             // If 'std::exception' is caught
             // then all exceptions will be caught.
-            tuple_types_contains<std::exception, CatchErrors_>,
-            // A 'std::monostate' implies we have a '.all(...)'
-            // and all exceptions are caught.
-            tuple_types_contains<std::monostate, CatchErrors_>>,
+            tuple_types_contains<std::exception, Catches_>,
+            // If we have a '.all(...)' handler then
+            // all exceptions are caught.
+            std::conditional_t<has_all_, std::true_type, std::false_type>>,
         std::tuple<>,
-        tuple_types_subtract_t<Errors, CatchErrors_>>;
+        tuple_types_subtract_t<Errors, Catches_>>;
 
     template <typename Left, typename Right>
     using Unify_ = typename std::conditional_t<
@@ -262,9 +224,9 @@ struct _Catch final {
 
     using Expects = SingleValue;
 
-    template <typename Value, int AllHandler, typename... CatchHandlers>
+    template <typename Value, bool has_all, typename... CatchHandlers>
     static auto create(std::tuple<CatchHandlers...>&& catch_handlers) {
-      return Builder<Value, AllHandler, CatchHandlers...>{
+      return Builder<Value, has_all, CatchHandlers...>{
           std::move(catch_handlers)};
     }
 
@@ -274,10 +236,29 @@ struct _Catch final {
           sizeof...(CatchHandlers_) > 0,
           "No handlers were specified for 'Catch'");
 
-      if constexpr (AllHandler_ != AllHandlerGeneric) {
+      if constexpr (has_all_) {
+        using AllHandler =
+            std::decay_t<
+                decltype(std::get<
+                         std::tuple_size_v<
+                             decltype(catch_handlers_)> - 1>(
+                    catch_handlers_))>;
+
+        using AllHandlerArgument =
+            apply_tuple_types_t<
+                std::variant,
+                tuple_types_subtract_t<Errors, Catches_>>;
+
+        using Value = ValueFromMaybeComposable<
+            std::invoke_result_t<
+                typename AllHandler::F,
+                AllHandlerArgument>,
+            void,
+            std::tuple<>>;
+
         static_assert(
-            std::is_same_v<Arg, Value_>,
-            "Catch handlers must return an eventual value of the same "
+            std::is_same_v<Arg, Value>,
+            "Catch().all() handler must return an eventual value of the same "
             "type as passed from upstream");
       }
 
@@ -287,28 +268,20 @@ struct _Catch final {
           [&](auto&&... catch_handler) {
             return Continuation<
                 K,
-                std::conditional_t<
-                    std::disjunction_v<
-                        tuple_types_contains<std::exception, CatchErrors_>,
-                        tuple_types_contains<
-                            std::monostate,
-                            CatchErrors_>>,
-                    std::tuple<>,
-                    tuple_types_subtract_t<Errors, CatchErrors_>>,
                 decltype(std::move(
                              catch_handler)
-                             .template Convert<K, Errors>())...>(
+                             .template Convert<K, Errors, Catches_>())...>(
                 std::move(k),
                 std::tuple{std::move(
                                catch_handler)
-                               .template Convert<K, Errors>()...});
+                               .template Convert<K, Errors, Catches_>()...});
           },
           std::move(catch_handlers_));
     }
 
     template <typename Error, typename F>
     auto raised(F f) {
-      static_assert(AllHandler_ == AllHandlerNotSpecified, "'all' handler must be installed last");
+      static_assert(!has_all_, "'all' handler must be installed last");
 
       static_assert(
           std::is_invocable_v<F, Error>,
@@ -316,7 +289,8 @@ struct _Catch final {
 
       using Value = ValueFromMaybeComposable<
           std::invoke_result_t<F, Error>,
-          void>;
+          void,
+          std::tuple<>>;
 
       static_assert(
           std::disjunction_v<
@@ -325,56 +299,27 @@ struct _Catch final {
               std::is_void<Value_>>,
           "Catch handlers do not return an eventual value of the same type");
 
-      return create<Unify_<Value_, Value>, AllHandler_>(
+      return create<Unify_<Value_, Value>, has_all_>(
           std::tuple_cat(
               std::move(catch_handlers_),
               std::tuple{
-                  Handler<Undefined, Error, F, std::tuple<>>{std::move(f)}}));
+                  Handler<Undefined, Error, F>{std::move(f)}}));
     }
 
     template <typename F>
     auto all(F f) {
-      static_assert(AllHandler_ == AllHandlerNotSpecified, "Duplicate 'all'");
+      static_assert(!has_all_, "Duplicate 'all'");
 
-      // Using only for non-generic lambdas.
-      if constexpr (is_default_lambda<F>::value) {
-        using Value = ValueFromMaybeComposable<
-            typename LambdaType<F>::result_type,
-            void>;
+      static_assert(
+          !tuple_types_contains_v<std::exception, Catches_>,
+          "You already have a handler that catches 'std::exception' "
+          "so your '.all()' handler is redundant");
 
-        static_assert(
-            std::disjunction_v<
-                std::is_same<Value, Value_>,
-                std::is_void<Value>,
-                std::is_void<Value_>>,
-            "Catch handlers do not return an eventual value of the same type");
-
-        return create<
-            Unify_<
-                Value_,
-                ValueFromMaybeComposable<typename LambdaType<F>::result_type, void>>,
-            AllHandlerDefault>(
-            std::tuple_cat(
-                std::move(catch_handlers_),
-                std::tuple{
-                    Handler<
-                        Undefined,
-                        std::monostate,
-                        F,
-                        std::tuple<>>{std::move(f)}}));
-      } else {
-        // We can't get 'Value' from 'F' for generic types, so we do not check the
-        // correctness and can't provide clear error message.
-        return create<Value_, AllHandlerGeneric>(
-            std::tuple_cat(
-                std::move(catch_handlers_),
-                std::tuple{
-                    Handler<
-                        Undefined,
-                        std::monostate,
-                        F,
-                        std::tuple<>>{std::move(f)}}));
-      }
+      return create<Value_, true>(
+          std::tuple_cat(
+              std::move(catch_handlers_),
+              std::tuple{
+                  Handler<Undefined, std::monostate, F>{std::move(f)}}));
     }
 
     std::tuple<CatchHandlers_...> catch_handlers_;
@@ -384,7 +329,7 @@ struct _Catch final {
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto Catch() {
-  return _Catch::Builder<void, _Catch::AllHandlerNotSpecified>{};
+  return _Catch::Builder<void, false>{};
 }
 
 template <typename F>

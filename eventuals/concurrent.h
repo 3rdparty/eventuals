@@ -459,10 +459,10 @@ struct _Concurrent final {
 
     Adaptor(
         F_ f,
-        stout::borrowed_ref<
-            std::optional<
-                typename VariantOfStoppedAndErrors<
-                    UpstreamErrorsAndErrorsFromE_>::type>>&& stopped_or_error)
+        stout::borrowed_ref<std::optional<
+            variant_of_type_and_tuple_t<
+                Stopped,
+                UpstreamErrorsAndErrorsFromE_>>>&& stopped_or_error)
       : f_(std::move(f)),
         stopped_or_error_(std::move(stopped_or_error)) {}
 
@@ -590,7 +590,7 @@ struct _Concurrent final {
                                              stopped_or_error));
                                    }
                                  },
-                                 stopped_or_error_->value());
+                                 std::move(stopped_or_error_->value()));
                            } else if (!values_.empty()) {
                              auto value = std::move(values_.front());
                              values_.pop_front();
@@ -613,7 +613,10 @@ struct _Concurrent final {
     F_ f_;
 
     stout::borrowed_ref<
-        std::optional<typename VariantOfStoppedAndErrors<UpstreamErrorsAndErrorsFromE_>::type>>
+        std::optional<
+            variant_of_type_and_tuple_t<
+                Stopped,
+                UpstreamErrorsAndErrorsFromE_>>>
         stopped_or_error_;
 
     using Value_ = typename decltype(f_())::template ValueFrom<Arg_, std::tuple<>>;
@@ -744,19 +747,17 @@ struct _Concurrent final {
       });
     }
 
-    // Indicates whether the continuation was stopped or we received
-    // a failure and we should stop requesting the next upstream value.
-
     using E_ = typename std::invoke_result_t<F_>;
 
     using UpstreamErrorsAndErrorsFromE_ = tuple_types_union_t<
         typename E_::template ErrorsFrom<Arg_, std::tuple<>>,
         Errors_>;
 
+    // Indicates whether the continuation was stopped or we received
+    // a failure and we should stop requesting the next upstream value.
     stout::Borrowable<
         std::optional<
-            typename VariantOfStoppedAndErrors<
-                UpstreamErrorsAndErrorsFromE_>::type>>
+            variant_of_type_and_tuple_t<Stopped, UpstreamErrorsAndErrorsFromE_>>>
         stopped_or_error_;
 
     Adaptor<F_, Arg_, Errors_> adaptor_;

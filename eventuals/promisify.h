@@ -74,6 +74,12 @@ template <typename E>
                }
              })
              .fail([loop](auto& promise, auto&& error) {
+               static_assert(
+                   !std::is_same_v<
+                       std::decay_t<decltype(error)>,
+                       std::exception_ptr>,
+                   "Not expecting a 'std::exception_ptr' to "
+                   "propagate through an eventual");
                // NOTE: we need to _copy_ 'loop' before it possibly
                // gets freed due to a __different__ thread completing
                // the promise here via 'promise.set_value()' which may

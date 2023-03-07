@@ -18,7 +18,7 @@ namespace eventuals {
 struct _Eventual {
   // Helper struct for enforcing that values and errors are only
   // propagated of the correct type.
-  template <typename K_, typename Value_, typename Raises_, typename Errors_>
+  template <typename K_, typename Value_, typename Raises_, typename ReschedulableErrors_>
   struct Adaptor final {
     template <typename... Args>
     void Start(Args&&... args) {
@@ -47,7 +47,7 @@ struct _Eventual {
       (*k_)().Register(interrupt);
     }
 
-    Reschedulable<K_, Value_, Errors_>* k_ = nullptr;
+    Reschedulable<K_, Value_, ReschedulableErrors_>* k_ = nullptr;
   };
 
   template <
@@ -59,10 +59,10 @@ struct _Eventual {
       bool Interruptible_,
       typename Value_,
       typename Raises_,
-      typename Errors_>
+      typename ReschedulableErrors_>
   struct Continuation final {
     Continuation(
-        Reschedulable<K_, Value_, Errors_> k,
+        Reschedulable<K_, Value_, ReschedulableErrors_> k,
         Context_ context,
         Start_ start,
         Fail_ fail,
@@ -152,7 +152,7 @@ struct _Eventual {
       }
     }
 
-    Adaptor<K_, Value_, Raises_, Errors_>& adaptor() {
+    Adaptor<K_, Value_, Raises_, ReschedulableErrors_>& adaptor() {
       // Note: needed to delay doing this until now because this
       // eventual might have been moved before being started.
       adaptor_.k_ = &k_;
@@ -170,13 +170,13 @@ struct _Eventual {
 
     std::optional<Interrupt::Handler> handler_;
 
-    Adaptor<K_, Value_, Raises_, Errors_> adaptor_;
+    Adaptor<K_, Value_, Raises_, ReschedulableErrors_> adaptor_;
 
     // NOTE: we store 'k_' as the _last_ member so it will be
     // destructed _first_ and thus we won't have any use-after-delete
     // issues during destruction of 'k_' if it holds any references or
     // pointers to any (or within any) of the above members.
-    Reschedulable<K_, Value_, Errors_> k_;
+    Reschedulable<K_, Value_, ReschedulableErrors_> k_;
   };
 
   template <
@@ -186,13 +186,13 @@ struct _Eventual {
       typename Stop_,
       bool Interruptible_,
       typename Value_,
-      typename Errors_ = std::tuple<>>
+      typename Raises_ = std::tuple<>>
   struct Builder final {
     template <typename Arg, typename Errors>
     using ValueFrom = Value_;
 
     template <typename Arg, typename Errors>
-    using ErrorsFrom = tuple_types_union_t<Errors_, Errors>;
+    using ErrorsFrom = tuple_types_union_t<Raises_, Errors>;
 
     template <typename Downstream>
     static constexpr bool CanCompose = Downstream::ExpectsValue;
@@ -202,7 +202,7 @@ struct _Eventual {
     template <
         bool Interruptible,
         typename Value,
-        typename Errors,
+        typename Raises,
         typename Context,
         typename Start,
         typename Fail,
@@ -219,7 +219,7 @@ struct _Eventual {
           Stop,
           Interruptible,
           Value,
-          Errors>{
+          Raises>{
           std::move(context),
           std::move(start),
           std::move(fail),
@@ -228,6 +228,12 @@ struct _Eventual {
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
+      using ReschedulableErrors =
+          std::conditional_t<
+              IsUndefined<Fail_>::value,
+              tuple_types_union_t<Raises_, Errors>,
+              Raises_>;
+
       return Continuation<
           K,
           Context_,
@@ -236,9 +242,9 @@ struct _Eventual {
           Stop_,
           Interruptible_,
           Value_,
-          Errors_,
-          tuple_types_union_t<Errors_, Errors>>(
-          Reschedulable<K, Value_, tuple_types_union_t<Errors_, Errors>>{std::move(k)},
+          Raises_,
+          ReschedulableErrors>(
+          std::move(k),
           std::move(context_),
           std::move(start_),
           std::move(fail_),
@@ -248,7 +254,7 @@ struct _Eventual {
     template <typename Context>
     auto context(Context context) && {
       static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context),
           std::move(start_),
           std::move(fail_),
@@ -258,7 +264,7 @@ struct _Eventual {
     template <typename Start>
     auto start(Start start) && {
       static_assert(IsUndefined<Start_>::value, "Duplicate 'start'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(start),
           std::move(fail_),
@@ -268,7 +274,7 @@ struct _Eventual {
     template <typename Fail>
     auto fail(Fail fail) && {
       static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(start_),
           std::move(fail),
@@ -278,7 +284,7 @@ struct _Eventual {
     template <typename Stop>
     auto stop(Stop stop) && {
       static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(start_),
           std::move(fail_),
@@ -287,26 +293,26 @@ struct _Eventual {
 
     auto interruptible() && {
       static_assert(!Interruptible_, "Already 'interruptible'");
-      return create<true, Value_, Errors_>(
+      return create<true, Value_, Raises_>(
           std::move(context_),
           std::move(start_),
           std::move(fail_),
           std::move(stop_));
     }
 
-    template <typename Error = std::exception, typename... Errors>
+    template <typename... Errors>
     auto raises() && {
-      static_assert(std::tuple_size_v<Errors_> == 0, "Duplicate 'raises'");
+      static_assert(std::tuple_size_v<Raises_> == 0, "Duplicate 'raises'");
 
-      if constexpr (is_tuple_v<Error>) {
-        static_assert(sizeof...(Errors) == 0, "'raises' with tuple doesn't support other types");
-        return create<Interruptible_, Value_, Error>(
+      if constexpr (is_tuple_v<Errors...>) {
+        static_assert(sizeof...(Errors) == 1, "'raises' with tuple doesn't support other types");
+        return create<Interruptible_, Value_, Errors...>(
             std::move(context_),
             std::move(start_),
             std::move(fail_),
             std::move(stop_));
       } else {
-        return create<Interruptible_, Value_, std::tuple<Error, Errors...>>(
+        return create<Interruptible_, Value_, std::tuple<Errors...>>(
             std::move(context_),
             std::move(start_),
             std::move(fail_),

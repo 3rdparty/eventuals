@@ -474,7 +474,7 @@ TEST(StreamTest, ThrowGeneralError) {
   auto e = []() {
     return Raise(std::bad_alloc())
         >> Stream<int>()
-               .raises() // Same as 'raises<std::exception>'.
+               .raises<std::exception>()
                .fail([](auto& k, auto&& error) {
                  static_assert(
                      std::is_same_v<

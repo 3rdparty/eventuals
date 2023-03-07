@@ -495,7 +495,7 @@ TEST(Generator, FromTo) {
                    });
                  })
               >> Closure([&]() {
-                   return Iterate(std::move(data));
+                   return Iterate(data);
                  });
         });
   };

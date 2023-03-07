@@ -11,11 +11,22 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 template <typename...>
-struct VariantOfStoppedAndErrors {};
+struct VariantOfStoppedAndErrors;
 
 template <typename... Errors>
 struct VariantOfStoppedAndErrors<std::tuple<Errors...>> {
   using type = std::variant<Stopped, Errors...>;
+};
+
+template <typename>
+struct FinallyErrorType;
+
+template <typename... Errors>
+struct FinallyErrorType<std::tuple<Errors...>> {
+  using type = std::conditional_t<
+      sizeof...(Errors),
+      std::variant<Stopped, Errors...>,
+      Stopped>;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -26,21 +37,21 @@ struct _Finally final {
     template <typename... Args>
     void Start(Args&&... args) {
       k_.Start(
-          expected<Arg_, typename VariantOfStoppedAndErrors<Errors_>::type>(
+          expected<Arg_, typename FinallyErrorType<Errors_>::type>(
               std::forward<Args>(args)...));
     }
 
     template <typename Error>
     void Fail(Error&& error) {
       k_.Start(
-          expected<Arg_, typename VariantOfStoppedAndErrors<Errors_>::type>(
+          expected<Arg_, typename FinallyErrorType<Errors_>::type>(
               make_unexpected(
                   std::forward<Error>(error))));
     }
 
     void Stop() {
       k_.Start(
-          expected<Arg_, typename VariantOfStoppedAndErrors<Errors_>::type>(
+          expected<Arg_, typename FinallyErrorType<Errors_>::type>(
               make_unexpected(
                   Stopped())));
     }
@@ -55,7 +66,7 @@ struct _Finally final {
   struct Composable final {
     template <typename Arg, typename Errors>
     using ValueFrom =
-        expected<Arg, typename VariantOfStoppedAndErrors<Errors>::type>;
+        expected<Arg, typename FinallyErrorType<Errors>::type>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = std::tuple<>;

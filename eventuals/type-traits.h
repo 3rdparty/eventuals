@@ -375,31 +375,26 @@ inline constexpr bool check_variant_errors_v = check_variant_errors<Variant>::va
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename Type, typename Tuple>
+using variant_of_type_and_tuple_t = apply_tuple_types_t<
+    std::variant,
+    tuple_types_concatenate_t<std::tuple<Type>, Tuple>>;
+
+////////////////////////////////////////////////////////////////////////
+
 template <typename T>
-struct LambdaType : public LambdaType<decltype(&T::operator())> {};
-
-template <typename ClassType, typename ReturnType, typename... Args>
-struct LambdaType<ReturnType (ClassType::*)(Args...) const> {
-  static constexpr int size = sizeof...(Args);
-
-  template <size_t i>
-  struct arg {
-    typedef typename std::tuple_element<i, std::tuple<Args...>>::type type;
-  };
-
-  typedef ReturnType result_type;
+struct get_rvalue_type_or_void {
+  using type = T&&;
 };
 
-////////////////////////////////////////////////////////////////////////
+// Need to overload explicitly, because 'void' can't have reference.
+template <>
+struct get_rvalue_type_or_void<void> {
+  using type = void;
+};
 
 template <typename T>
-using has_operator = decltype(&T::operator());
-
-template <typename T>
-using is_default_lambda =
-    std::experimental::is_detected<has_operator, T>;
-
-////////////////////////////////////////////////////////////////////////
+using get_rvalue_type_or_void_t = typename get_rvalue_type_or_void<T>::type;
 
 } // namespace eventuals
 

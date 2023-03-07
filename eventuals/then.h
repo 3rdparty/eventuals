@@ -10,29 +10,30 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename T, typename Arg>
+template <typename T, typename Arg, typename Errors>
 using ValueFromMaybeComposable = typename std::conditional_t<
     !HasValueFrom<T>::value,
     decltype(Eventual<T>()),
-    T>::template ValueFrom<Arg, std::tuple<>>;
+    T>::template ValueFrom<Arg, Errors>;
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename Arg_, typename Left_, typename Right_>
+template <typename Arg_, typename Left_, typename Right_, typename Errors_>
 struct ErrorsFromComposed {
   using Errors = typename Right_::template ErrorsFrom<
-      typename Left_::template ValueFrom<Arg_, std::tuple<>>,
-      typename Left_::template ErrorsFrom<Arg_, std::tuple<>>>;
+      typename Left_::template ValueFrom<Arg_, Errors_>,
+      typename Left_::template ErrorsFrom<Arg_, Errors_>>;
 };
 
-template <typename T, typename Arg>
+template <typename T, typename Arg, typename Errors>
 using ErrorsFromMaybeComposable = typename ErrorsFromComposed<
     Arg,
     std::conditional_t<
         !HasValueFrom<T>::value,
         decltype(Just()),
         T>,
-    decltype(Just())>::Errors;
+    decltype(Just()),
+    Errors>::Errors;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -79,7 +80,8 @@ struct _Then final {
             std::is_void_v<Arg>,
             std::invoke_result<F_>,
             std::invoke_result<F_, Arg>>::type,
-        void>;
+        void,
+        std::tuple<>>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom =
@@ -90,7 +92,8 @@ struct _Then final {
                     std::is_void_v<Arg>,
                     std::invoke_result<F_>,
                     std::invoke_result<F_, Arg>>::type,
-                void>>;
+                void,
+                std::tuple<>>>;
 
     template <typename Downstream>
     static constexpr bool CanCompose = Downstream::ExpectsValue;

@@ -43,11 +43,7 @@ struct HeapTransformer final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      // Using to avoid compile error when we do both 'Raise' and 'Catch'
-      // inside a task.
-      if constexpr (std::tuple_size_v<Catches_> != 0) {
-        (*fail_)(std::move(error));
-      }
+      (*fail_)(std::move(error));
     }
 
     void Stop() {
@@ -110,11 +106,7 @@ struct HeapTransformer final {
 
     adapted_.Register(interrupt);
 
-    // Using to avoid compile error when we do both 'Raise' and 'Catch'
-    // inside a task.
-    if constexpr (std::tuple_size_v<Catches_> != 0) {
-      adapted_.Fail(std::move(error));
-    }
+    adapted_.Fail(std::move(error));
   }
 
   void Stop(

@@ -103,6 +103,37 @@ TEST(CatchTest, All) {
   EXPECT_EQ(*e(), 100);
 }
 
+TEST(CatchTest, AllRaisedOneException) {
+  auto e = []() {
+    return Just(500)
+        >> Raise(std::runtime_error("runtime_error"))
+        >> Raise(std::underflow_error("underflow_error"))
+        >> Catch()
+               .raised<std::overflow_error>([](std::overflow_error&& error) {
+                 ADD_FAILURE() << "Encountered unexpected matched raised";
+                 return 10;
+               })
+               .raised<std::underflow_error>([](std::underflow_error&& error) {
+                 ADD_FAILURE() << "Encountered unexpected matched raised";
+                 return 10;
+               })
+               .all([](std::variant<std::runtime_error>&& error) {
+                 EXPECT_STREQ(std::get<std::runtime_error>(error).what(), "runtime_error");
+                 return 100;
+               })
+        >> Then([](int value) {
+             return value;
+           });
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
+  EXPECT_EQ(*e(), 100);
+}
+
 TEST(CatchTest, UnexpectedRaise) {
   struct Error : public std::exception {
     const char* what() const noexcept override {
@@ -157,8 +188,8 @@ TEST(CatchTest, UnexpectedAll) {
                  ADD_FAILURE() << "Encountered unexpected matched raised";
                  return 1;
                })
-               .all([](auto&& error) {
-                 EXPECT_STREQ(std::get<0>(error).what(), "child exception");
+               .all([](std::variant<Error>&& error) {
+                 EXPECT_STREQ(std::get<Error>(error).what(), "child exception");
 
                  return 100;
                });
@@ -203,10 +234,6 @@ TEST(CatchTest, ReRaise) {
                .raised<std::runtime_error>([](std::runtime_error&& error) {
                  EXPECT_STREQ(error.what(), "10");
                  return Raise("1");
-               })
-               .all([](std::variant<std::runtime_error>&& error) {
-                 ADD_FAILURE() << "Encountered an unexpected all";
-                 return Just(100);
                })
         >> Then([](int) {
              return 200;

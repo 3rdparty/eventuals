@@ -1316,7 +1316,7 @@ struct _EventLoopSchedule final {
             new Adapted_(
                 std::move(e_).template k<Arg_, Errors_>(
                     Reschedule(std::move(previous))
-                        .template k<Value_, ErrorsE>(_Then::Adaptor<K_>{k_}))));
+                        .template k<Value_, ErrorsE_>(_Then::Adaptor<K_>{k_}))));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
@@ -1340,11 +1340,11 @@ struct _EventLoopSchedule final {
     Interrupt* interrupt_ = nullptr;
 
     using Value_ = typename E_::template ValueFrom<Arg_, Errors_>;
-    using ErrorsE = typename E_::template ErrorsFrom<Arg_, Errors_>;
+    using ErrorsE_ = typename E_::template ErrorsFrom<Arg_, Errors_>;
 
     using Adapted_ = decltype(std::declval<E_>().template k<Arg_, Errors_>(
         std::declval<_Reschedule::Composable>()
-            .template k<Value_, ErrorsE>(std::declval<_Then::Adaptor<K_>>())));
+            .template k<Value_, ErrorsE_>(std::declval<_Then::Adaptor<K_>>())));
 
     std::unique_ptr<Adapted_> adapted_;
 

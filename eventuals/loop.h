@@ -16,7 +16,7 @@ namespace eventuals {
 struct _Loop final {
   // Helper struct for enforcing that values and errors are only
   // propagated of the correct type.
-  template <typename K_, typename Value_, typename Raises_, typename Errors_>
+  template <typename K_, typename Value_, typename Raises_, typename ReschedulableErrors_>
   struct Adaptor final {
     template <typename... Args>
     void Start(Args&&... args) {
@@ -26,20 +26,12 @@ struct _Loop final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      // TODO(benh): revisit whether or not we want to always allow
-      // 'std::exception_ptr' to be an escape hatch for arbitrary
-      // exceptions or if we should have our own type to ensure that
-      // only types derived from 'std::exception' are used.
       static_assert(
-          std::disjunction_v<
-              std::is_same<std::exception_ptr, std::decay_t<Error>>,
-              std::is_base_of<std::exception, std::decay_t<Error>>>,
+          check_errors_v<Error>,
           "Expecting a type derived from std::exception");
 
       static_assert(
-          std::disjunction_v<
-              std::is_same<std::exception_ptr, std::decay_t<Error>>,
-              tuple_types_contains_subtype<std::decay_t<Error>, Raises_>>,
+          tuple_types_contains_subtype_v<std::decay_t<Error>, Raises_>,
           "Error is not specified in 'raises<...>()'");
 
       (*k_)().Fail(std::forward<Error>(error));
@@ -53,7 +45,7 @@ struct _Loop final {
       (*k_)().Register(interrupt);
     }
 
-    Reschedulable<K_, Value_, Errors_>* k_ = nullptr;
+    Reschedulable<K_, Value_, ReschedulableErrors_>* k_ = nullptr;
   };
 
   template <
@@ -67,10 +59,10 @@ struct _Loop final {
       bool Interruptible_,
       typename Value_,
       typename Raises_,
-      typename Errors_>
+      typename ReschedulableErrors_>
   struct Continuation final {
     Continuation(
-        Reschedulable<K_, Value_, Errors_> k,
+        Reschedulable<K_, Value_, ReschedulableErrors_> k,
         Context_ context,
         Begin_ begin,
         Body_ body,
@@ -206,7 +198,7 @@ struct _Loop final {
       }
     }
 
-    Adaptor<K_, Value_, Raises_, Errors_>& adaptor() {
+    Adaptor<K_, Value_, Raises_, ReschedulableErrors_>& adaptor() {
       // Note: needed to delay doing this until now because this
       // eventual might have been moved before being started.
       adaptor_.k_ = &k_;
@@ -226,7 +218,7 @@ struct _Loop final {
 
     TypeErasedStream* stream_ = nullptr;
 
-    Adaptor<K_, Value_, Raises_, Errors_> adaptor_;
+    Adaptor<K_, Value_, Raises_, ReschedulableErrors_> adaptor_;
 
     std::optional<Interrupt::Handler> handler_;
 
@@ -234,7 +226,7 @@ struct _Loop final {
     // destructed _first_ and thus we won't have any use-after-delete
     // issues during destruction of 'k_' if it holds any references or
     // pointers to any (or within any) of the above members.
-    Reschedulable<K_, Value_, Errors_> k_;
+    Reschedulable<K_, Value_, ReschedulableErrors_> k_;
   };
 
   template <
@@ -246,13 +238,13 @@ struct _Loop final {
       typename Stop_,
       bool Interruptible_,
       typename Value_,
-      typename Errors_>
+      typename Raises_>
   struct Builder final {
     template <typename Arg, typename Errors>
     using ValueFrom = Value_;
 
     template <typename Arg, typename Errors>
-    using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
+    using ErrorsFrom = tuple_types_union_t<Errors, Raises_>;
 
     template <typename Downstream>
     static constexpr bool CanCompose = Downstream::ExpectsValue;
@@ -262,7 +254,7 @@ struct _Loop final {
     template <
         bool Interruptible,
         typename Value,
-        typename Errors,
+        typename Raises,
         typename Context,
         typename Begin,
         typename Body,
@@ -285,7 +277,7 @@ struct _Loop final {
           Stop,
           Interruptible,
           Value,
-          Errors>{
+          Raises>{
           std::move(context),
           std::move(begin),
           std::move(body),
@@ -296,6 +288,12 @@ struct _Loop final {
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
+      using ReschedulableErrors =
+          std::conditional_t<
+              IsUndefined<Fail_>::value,
+              tuple_types_union_t<Raises_, Errors>,
+              Raises_>;
+
       return Continuation<
           K,
           Context_,
@@ -306,9 +304,9 @@ struct _Loop final {
           Stop_,
           Interruptible_,
           Value_,
-          Errors_,
-          tuple_types_union_t<Errors, Errors_>>(
-          Reschedulable<K, Value_, tuple_types_union_t<Errors_, Errors>>{std::move(k)},
+          Raises_,
+          ReschedulableErrors>(
+          std::move(k),
           std::move(context_),
           std::move(begin_),
           std::move(body_),
@@ -320,7 +318,7 @@ struct _Loop final {
     template <typename Context>
     auto context(Context context) && {
       static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context),
           std::move(begin_),
           std::move(body_),
@@ -332,7 +330,7 @@ struct _Loop final {
     template <typename Begin>
     auto begin(Begin begin) && {
       static_assert(IsUndefined<Begin_>::value, "Duplicate 'begin'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(begin),
           std::move(body_),
@@ -344,7 +342,7 @@ struct _Loop final {
     template <typename Body>
     auto body(Body body) && {
       static_assert(IsUndefined<Body_>::value, "Duplicate 'body'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(begin_),
           std::move(body),
@@ -356,7 +354,7 @@ struct _Loop final {
     template <typename Ended>
     auto ended(Ended ended) && {
       static_assert(IsUndefined<Ended_>::value, "Duplicate 'ended'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(begin_),
           std::move(body_),
@@ -368,7 +366,7 @@ struct _Loop final {
     template <typename Fail>
     auto fail(Fail fail) && {
       static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(begin_),
           std::move(body_),
@@ -380,7 +378,7 @@ struct _Loop final {
     template <typename Stop>
     auto stop(Stop stop) && {
       static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(begin_),
           std::move(body_),
@@ -391,7 +389,7 @@ struct _Loop final {
 
     auto interruptible() && {
       static_assert(!Interruptible_, "Already 'interruptible'");
-      return create<true, Value_, Errors_>(
+      return create<true, Value_, Raises_>(
           std::move(context_),
           std::move(begin_),
           std::move(body_),
@@ -400,10 +398,10 @@ struct _Loop final {
           std::move(stop_));
     }
 
-    template <typename Error = std::exception, typename... Errors>
+    template <typename... Errors>
     auto raises() && {
-      static_assert(std::tuple_size_v<Errors_> == 0, "Duplicate 'raises'");
-      return create<Interruptible_, Value_, std::tuple<Error, Errors...>>(
+      static_assert(std::tuple_size_v<Raises_> == 0, "Duplicate 'raises'");
+      return create<Interruptible_, Value_, std::tuple<Errors...>>(
           std::move(context_),
           std::move(begin_),
           std::move(body_),

@@ -523,7 +523,7 @@ struct _Preempt final {
           K,
           E_,
           Arg,
-          typename E_::template ErrorsFrom<Arg, Errors>>(
+          Errors>(
           std::move(k),
           std::move(e_),
           std::move(name_));
