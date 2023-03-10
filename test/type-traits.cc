@@ -213,6 +213,11 @@ static_assert(
 
 static_assert(
     tuple_types_contains_subtype_v<
+        A,
+        std::tuple<A>>);
+
+static_assert(
+    tuple_types_contains_subtype_v<
         B,
         std::tuple<D, A>>);
 

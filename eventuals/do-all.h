@@ -62,17 +62,18 @@ struct _DoAll final {
     stout::borrowed_ref<Scheduler::Context> previous_;
     Callback<void()>& interrupter_;
 
-    std::tuple<std::variant<
-        // NOTE: we use a dummy 'Undefined' in order to default
-        // initialize the tuple. We don't use 'std::monostate'
-        // because that's what we use for 'void' return types.
-        Undefined,
-        std::conditional_t<
-            std::is_void_v<
+    std::tuple<
+        std::variant<
+            // NOTE: we use a dummy 'Undefined' in order to default
+            // initialize the tuple. We don't use 'std::monostate'
+            // because that's what we use for 'void' return types.
+            Undefined,
+            std::conditional_t<
+                std::is_void_v<
+                    typename Eventuals_::template ValueFrom<void, std::tuple<>>>,
+                std::monostate,
                 typename Eventuals_::template ValueFrom<void, std::tuple<>>>,
-            std::monostate,
-            typename Eventuals_::template ValueFrom<void, std::tuple<>>>,
-        StoppedOrError>...>
+            StoppedOrError>...>
         values_;
 
     static constexpr int UNDEFINED_INDEX = 0;
@@ -109,15 +110,15 @@ struct _DoAll final {
                          GetStoppedOrErrorIfExists();
 
                      if (stopped_or_error) {
-                       if constexpr (std::is_same_v<StoppedOrError, Stopped>) {
-                         k_.Stop();
-                       } else {
-                         std::visit(
-                             [this](auto&& error) {
+                       std::visit(
+                           [this](auto&& error) {
+                             if constexpr (std::is_same_v<decltype(error), Stopped>) {
+                               k_.Stop();
+                             } else {
                                k_.Fail(std::forward<decltype(error)>(error));
-                             },
-                             std::move(stopped_or_error.value()));
-                       }
+                             }
+                           },
+                           std::move(stopped_or_error.value()));
                      } else {
                        k_.Start(GetTupleOfValues());
                      }
@@ -132,15 +133,15 @@ struct _DoAll final {
                          GetStoppedOrErrorIfExists();
 
                      CHECK(stopped_or_error);
-                     if constexpr (std::is_same_v<StoppedOrError, Stopped>) {
-                       k_.Stop();
-                     } else {
-                       std::visit(
-                           [this](auto&& error) {
+                     std::visit(
+                         [this](auto&& error) {
+                           if constexpr (std::is_same_v<decltype(error), Stopped>) {
+                             k_.Stop();
+                           } else {
                              k_.Fail(std::forward<decltype(error)>(error));
-                           },
-                           std::move(stopped_or_error.value()));
-                     }
+                           }
+                         },
+                         std::move(stopped_or_error.value()));
                    } else {
                      // Interrupt the remaining eventuals so we can
                      // propagate the failure.
@@ -155,15 +156,15 @@ struct _DoAll final {
                          GetStoppedOrErrorIfExists();
 
                      CHECK(stopped_or_error);
-                     if constexpr (std::is_same_v<StoppedOrError, Stopped>) {
-                       k_.Stop();
-                     } else {
-                       std::visit(
-                           [this](auto&& error) {
+                     std::visit(
+                         [this](auto&& error) {
+                           if constexpr (std::is_same_v<decltype(error), Stopped>) {
+                             k_.Stop();
+                           } else {
                              k_.Fail(std::forward<decltype(error)>(error));
-                           },
-                           std::move(stopped_or_error.value()));
-                     }
+                           }
+                         },
+                         std::move(stopped_or_error.value()));
                    } else {
                      // Interrupt the remaining eventuals so we can
                      // propagate the stop.

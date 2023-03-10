@@ -108,7 +108,7 @@ struct _Catch final {
 
   ////////////////////////////////////////////////////////////////////////
 
-  template <typename K_, typename... CatchHandlers_>
+  template <typename K_, bool has_all_, typename... CatchHandlers_>
   struct Continuation final {
     Continuation(K_ k, std::tuple<CatchHandlers_...>&& catch_handlers)
       : catch_handlers_(std::move(catch_handlers)),
@@ -151,12 +151,30 @@ struct _Catch final {
           },
           catch_handlers_);
 
-      if (!handled) {
-        if (interrupt_ != nullptr) {
-          k_.Register(*interrupt_);
-        }
+      using Catches =
+          std::tuple<typename CatchHandlers_::Error...>;
 
-        k_.Fail(std::forward<Error>(error));
+      // If 'Error' is part of 'Catches_' or 'all' handler is specified,
+      // then we will never propagate fail with 'k_.Fail()' even if handled
+      // is false, but since 'handled' is a runtime value the compiler will
+      // assume that it's possible that we can call 'k_.Fail()', with what ever
+      // 'Error' type so to keep the compiler from trying to compile that
+      // code path we need to add the following 'if constexpr'.
+      if constexpr (!std::disjunction_v<
+                        tuple_types_contains_subtype<
+                            std::decay_t<Error>,
+                            Catches>,
+                        std::conditional_t<
+                            has_all_,
+                            std::true_type,
+                            std::false_type>>) {
+        if (!handled) {
+          if (interrupt_ != nullptr) {
+            k_.Register(*interrupt_);
+          }
+
+          k_.Fail(std::forward<Error>(error));
+        }
       }
     }
 
@@ -268,6 +286,7 @@ struct _Catch final {
           [&](auto&&... catch_handler) {
             return Continuation<
                 K,
+                has_all_,
                 decltype(std::move(
                              catch_handler)
                              .template Convert<K, Errors, Catches_>())...>(

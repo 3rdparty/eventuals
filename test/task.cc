@@ -390,25 +390,28 @@ TEST(Task, StartFuture) {
 }
 
 TEST(Task, FailContinuation) {
-  auto e = []() -> Task::Of<int>::Raises<std::runtime_error> {
-    return [x = 42]() {
-      return Just(x);
+  auto e = []() -> Task::Of<int>::Catches<std::runtime_error> {
+    return []() {
+      return Finally([](expected<void, std::variant<Stopped, std::runtime_error>>&& expected) {
+        CHECK(std::holds_alternative<std::runtime_error>(expected.error()));
+        EXPECT_STREQ(std::get<std::runtime_error>(expected.error()).what(), "error");
+        return 42;
+      });
     };
   };
 
-  std::optional<Task::Of<int>::Raises<std::runtime_error>> task;
+  std::optional<Task::Of<int>::Catches<std::runtime_error>> task;
 
   task.emplace(e());
 
   task->Fail(
       GenerateTestTaskName(),
       std::runtime_error("error"),
-      [](int) {
-        FAIL() << "test should not have succeeded";
+      [](int x) {
+        EXPECT_EQ(x, 42);
       },
-      [](std::variant<std::runtime_error>&& error) {
-        CHECK(std::holds_alternative<std::runtime_error>(error));
-        EXPECT_STREQ(std::get<std::runtime_error>(error).what(), "error");
+      []() {
+        FAIL() << "test should not have failed";
       },
       []() {
         FAIL() << "test should not have stopped";
@@ -419,7 +422,7 @@ TEST(Task, FailContinuation) {
           std::decay_t<decltype(task.value())>::ErrorsFrom<
               void,
               std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<>>);
 }
 
 TEST(Task, StopContinuation) {
@@ -520,15 +523,11 @@ TEST(Task, FromToFail) {
 TEST(Task, FromToFailCatch) {
   auto task = []() -> Task::From<int>::To<std::string>::Catches<std::runtime_error> {
     return []() {
-      // return Catch()
-      //            .raised<std::runtime_error>([](std::runtime_error&& error) {
-      //              EXPECT_STREQ(error.what(), "error");
-      //              return 10;
-      //            })
-      return Finally([](expected<int, std::variant<Stopped, std::runtime_error>>&& e) {
-               EXPECT_STREQ(std::get<std::runtime_error>(e.error()).what(), "error");
-               return 10;
-             })
+      return Catch()
+                 .raised<std::runtime_error>([](std::runtime_error&& error) {
+                   EXPECT_STREQ(error.what(), "error");
+                   return 10;
+                 })
           >> Then([](int x) {
                return std::to_string(x);
              });

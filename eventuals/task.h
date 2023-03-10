@@ -33,19 +33,29 @@ struct VariantErrorsHelper<std::variant<std::monostate, Errors...>> {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E_, typename From_, typename To_, typename Catches_, typename Raises_>
+template <
+    typename E_,
+    typename From_,
+    typename To_,
+    typename Catches_,
+    typename Raises_>
 struct HeapTask final {
-  using FailArgument_ = variant_of_type_and_tuple_t<std::monostate, Raises_>;
-  using FailCallback_ = function_type_t<
-      void,
-      get_rvalue_type_or_void_t<
-          typename VariantErrorsHelper<FailArgument_>::type>>;
+  using StartCallback_ = Callback<function_type_t<void, To_>>;
+  using FailCallback_ =
+      Callback<function_type_t<
+          void,
+          get_rvalue_type_or_void_t<
+              typename VariantErrorsHelper<
+                  variant_of_type_and_tuple_t<
+                      std::monostate,
+                      Raises_>>::type>>>;
+  using StopCallback_ = Callback<void()>;
 
   struct Adaptor final {
     Adaptor(
-        Callback<function_type_t<void, To_>>* start,
-        Callback<FailCallback_>* fail,
-        Callback<void()>* stop)
+        StartCallback_* start,
+        FailCallback_* fail,
+        StopCallback_* stop)
       : start_(start),
         fail_(fail),
         stop_(stop) {}
@@ -66,9 +76,9 @@ struct HeapTask final {
 
     void Register(Interrupt&) {}
 
-    Callback<function_type_t<void, To_>>* start_;
-    Callback<FailCallback_>* fail_;
-    Callback<void()>* stop_;
+    StartCallback_* start_;
+    FailCallback_* fail_;
+    StopCallback_* stop_;
   };
 
   HeapTask(E_ e)
@@ -82,9 +92,9 @@ struct HeapTask final {
           std::monostate,
           From_>&& arg,
       Interrupt& interrupt,
-      Callback<function_type_t<void, To_>>&& start,
-      Callback<FailCallback_>&& fail,
-      Callback<void()>&& stop) {
+      StartCallback_&& start,
+      FailCallback_&& fail,
+      StopCallback_&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -102,10 +112,13 @@ struct HeapTask final {
 
   void Fail(
       Interrupt& interrupt,
-      variant_of_type_and_tuple_t<Stopped, Catches_>&& error,
-      Callback<function_type_t<void, To_>>&& start,
-      Callback<FailCallback_>&& fail,
-      Callback<void()>&& stop) {
+      std::conditional_t<
+          std::tuple_size_v<Catches_>,
+          apply_tuple_types_t<std::variant, Catches_>,
+          std::monostate>&& error,
+      StartCallback_&& start,
+      FailCallback_&& fail,
+      StopCallback_&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -114,14 +127,22 @@ struct HeapTask final {
     // 'Register()' more than once is well-defined.
     adapted_.Register(interrupt);
 
-    adapted_.Fail(std::move(error));
+    std::visit(
+        [this](auto&& error) {
+          if constexpr (!std::is_same_v<
+                            std::decay_t<decltype(error)>,
+                            std::monostate>) {
+            adapted_.Fail(std::move(error));
+          }
+        },
+        std::move(error));
   }
 
   void Stop(
       Interrupt& interrupt,
-      Callback<function_type_t<void, To_>>&& start,
-      Callback<FailCallback_>&& fail,
-      Callback<void()>&& stop) {
+      StartCallback_&& start,
+      FailCallback_&& fail,
+      StopCallback_&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -133,9 +154,9 @@ struct HeapTask final {
     adapted_.Stop();
   }
 
-  Callback<function_type_t<void, To_>> start_;
-  Callback<FailCallback_> fail_;
-  Callback<void()> stop_;
+  StartCallback_ start_;
+  FailCallback_ fail_;
+  StopCallback_ stop_;
 
   using Adapted_ = decltype(std::declval<E_>().template k<From_, Catches_>(
       std::declval<Adaptor>()));
@@ -194,7 +215,11 @@ struct _TaskFromToWith final {
   using DispatchCallback =
       Callback<void(
           Action,
-          std::optional<variant_of_type_and_tuple_t<Stopped, Catches>>&&,
+          std::optional<
+              std::conditional_t<
+                  std::tuple_size_v<Catches>,
+                  apply_tuple_types_t<std::variant, Catches>,
+                  std::monostate>>&&,
           Args...,
           // Can't have a 'void' argument type
           // so we are using 'std::monostate'.
@@ -290,9 +315,10 @@ struct _TaskFromToWith final {
         Action action,
         std::optional<MonostateIfVoidOr<From_>>&& from = std::nullopt,
         std::optional<
-            variant_of_type_and_tuple_t<
-                Stopped,
-                Catches_>>&& error = std::nullopt) {
+            std::conditional_t<
+                std::tuple_size_v<Catches_>,
+                apply_tuple_types_t<std::variant, Catches_>,
+                std::monostate>>&& error = std::nullopt) {
       CHECK_EQ(value_or_dispatch_.index(), 1u);
 
       std::apply(
@@ -364,11 +390,15 @@ struct _TaskFromToWith final {
 
     using Expects = SingleValue;
 
-    using FailArgument_ = variant_of_type_and_tuple_t<std::monostate, Raises_>;
-    using FailCallback_ = function_type_t<
+    using StartCallback_ = Callback<function_type_t<void, To_>>;
+    using FailCallback_ = Callback<function_type_t<
         void,
         get_rvalue_type_or_void_t<
-            typename VariantErrorsHelper<FailArgument_>::type>>;
+            typename VariantErrorsHelper<
+                variant_of_type_and_tuple_t<
+                    std::monostate,
+                    Raises_>>::type>>>;
+    using StopCallback_ = Callback<void()>;
 
     Composable(MonostateIfVoidOrReferenceWrapperOr<To_> value)
       : value_or_dispatch_(std::move(value)) {}
@@ -434,20 +464,19 @@ struct _TaskFromToWith final {
       value_or_dispatch_ = [f = std::move(f)](
                                Action action,
                                std::optional<
-                                   variant_of_type_and_tuple_t<
-                                       Stopped,
-                                       Catches_>>&& error,
+                                   std::conditional_t<
+                                       std::tuple_size_v<Catches_>,
+                                       apply_tuple_types_t<std::variant, Catches_>,
+                                       std::monostate>>&& error,
                                Args_... args,
                                std::optional<MonostateIfVoidOr<From_>>&& arg,
                                std::unique_ptr<
                                    void,
                                    Callback<void(void*)>>& e_,
                                Interrupt& interrupt,
-                               Callback<
-                                   function_type_t<
-                                       void, To_>>&& start,
-                               Callback<FailCallback_>&& fail,
-                               Callback<void()>&& stop) mutable {
+                               StartCallback_&& start,
+                               FailCallback_&& fail,
+                               StopCallback_&& stop) mutable {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void(void*)>>(
               new HeapTask<
@@ -477,6 +506,7 @@ struct _TaskFromToWith final {
 
         switch (action) {
           case Action::Start:
+            CHECK(arg);
             e->Start(
                 std::move(arg.value()),
                 interrupt,
@@ -492,6 +522,7 @@ struct _TaskFromToWith final {
             // keep the compiler from trying to compile that code path we need
             // to add the following 'if constexpr'.
             if constexpr (std::tuple_size_v<Catches_> != 0) {
+              CHECK(error);
               e->Fail(
                   interrupt,
                   std::move(error.value()),
@@ -606,11 +637,27 @@ class _Task final {
       std::conjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
       _Task<void, T, Catches_, Raises_, Args_...>>;
 
-  using FailArgument_ = variant_of_type_and_tuple_t<std::monostate, Raises_>;
-  using FailCallback_ = function_type_t<
+  using StartCallback_ = Callback<function_type_t<void, To_>>;
+  using FailCallback_ = Callback<function_type_t<
       void,
       get_rvalue_type_or_void_t<
-          typename VariantErrorsHelper<FailArgument_>::type>>;
+          typename VariantErrorsHelper<
+              variant_of_type_and_tuple_t<
+                  std::monostate,
+                  Raises_>>::type>>>;
+  using StopCallback_ = Callback<void()>;
+
+  template <typename>
+  struct tuple_first_error_type;
+
+  template <typename... Errors>
+  struct tuple_first_error_type<std::tuple<Errors...>> {
+    using type = std::tuple<>;
+  };
+  template <typename Error>
+  struct tuple_first_error_type<std::tuple<Error>> {
+    using type = Error;
+  };
 
   template <typename F>
   _Task(Args_... args, F f)
@@ -646,14 +693,14 @@ class _Task final {
   // used to call 'Start()'.
   void Start(
       std::string&& name,
-      Callback<function_type_t<void, To_>>&& start,
-      Callback<FailCallback_>&& fail,
-      Callback<void()>&& stop) {
+      StartCallback_&& start,
+      FailCallback_&& fail,
+      StopCallback_&& stop) {
     CHECK(!context_.has_value()) << "Task already started";
 
     context_.emplace(Scheduler::Default(), std::move(name));
 
-    k_.emplace(Build(
+    k_.emplace(Build<void, typename tuple_first_error_type<Catches_>::type>(
         Reschedule(context_->Borrow())
         >> std::move(e_)
         >> Terminal()
@@ -733,22 +780,22 @@ class _Task final {
   void Fail(
       std::string&& name,
       Error&& error,
-      Callback<function_type_t<void, To_>>&& start,
-      Callback<FailCallback_>&& fail,
-      Callback<void()>&& stop) {
+      StartCallback_&& start,
+      FailCallback_&& fail,
+      StopCallback_&& stop) {
     static_assert(
         std::is_base_of_v<std::exception, std::decay_t<Error>>,
         "Expecting a type derived from std::exception");
 
     static_assert(
-        tuple_types_contains_subtype_v<std::decay_t<Error>, Raises_>,
-        "Error is not specified in 'Raises'");
+        std::tuple_size_v<Catches_>,
+        "You can't 'Fail' a task without specifying 'Catches'");
 
     CHECK(!context_.has_value()) << "Task already started";
 
     context_.emplace(Scheduler::Default(), std::move(name));
 
-    k_.emplace(Build(
+    k_.emplace(Build<void, typename tuple_first_error_type<Catches_>::type>(
         Reschedule(context_->Borrow())
         >> std::move(e_)
         >> Terminal()
@@ -774,14 +821,14 @@ class _Task final {
   // 'Start()' that return 'std::future'.
   void Stop(
       std::string&& name,
-      Callback<function_type_t<void, To_>>&& start,
-      Callback<FailCallback_>&& fail,
-      Callback<void()>&& stop) {
+      StartCallback_&& start,
+      FailCallback_&& fail,
+      StopCallback_&& stop) {
     CHECK(!context_.has_value()) << "Task already started";
 
     context_.emplace(Scheduler::Default(), std::move(name));
 
-    k_.emplace(Build(
+    k_.emplace(Build<void, typename tuple_first_error_type<Catches_>::type>(
         Reschedule(context_->Borrow())
         >> std::move(e_)
         >> Terminal()
@@ -909,17 +956,17 @@ class _Task final {
   // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
   // a composable but also a continuation which has a terminal made up
   // of the callbacks passed to 'Task::Start()'.
+
   using K_ = std::conditional_t<
       std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
       Undefined,
-      decltype(Build(
+      decltype(Build<void, typename tuple_first_error_type<Catches_>::type>(
           Reschedule(context_->Borrow())
           >> std::move(e_)
           >> Terminal()
-                 .start(std::declval<Callback<function_type_t<void, To_>>&&>())
-                 .fail(std::declval<
-                       Callback<FailCallback_>&&>())
-                 .stop(std::declval<Callback<void()>&&>())))>;
+                 .start(std::declval<StartCallback_&&>())
+                 .fail(std::declval<FailCallback_&&>())
+                 .stop(std::declval<StopCallback_>())))>;
 
   // NOTE: we store 'k_' as the _last_ member so it will be
   // destructed _first_ and thus we won't have any use-after-delete

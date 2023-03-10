@@ -362,19 +362,6 @@ inline constexpr bool tuple_contains_exact_type_v = tuple_contains_exact_type<V,
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename>
-struct check_variant_errors;
-
-template <typename... Errors>
-struct check_variant_errors<std::variant<Errors...>> {
-  static constexpr bool value = check_errors_v<Errors...>;
-};
-
-template <typename Variant>
-inline constexpr bool check_variant_errors_v = check_variant_errors<Variant>::value;
-
-////////////////////////////////////////////////////////////////////////
-
 template <typename Type, typename Tuple>
 using variant_of_type_and_tuple_t = apply_tuple_types_t<
     std::variant,
