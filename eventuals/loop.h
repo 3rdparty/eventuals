@@ -401,13 +401,25 @@ struct _Loop final {
     template <typename... Errors>
     auto raises() && {
       static_assert(std::tuple_size_v<Raises_> == 0, "Duplicate 'raises'");
-      return create<Interruptible_, Value_, std::tuple<Errors...>>(
-          std::move(context_),
-          std::move(begin_),
-          std::move(body_),
-          std::move(ended_),
-          std::move(fail_),
-          std::move(stop_));
+
+      if constexpr (is_tuple_v<Errors...>) {
+        static_assert(sizeof...(Errors) == 1, "'raises' with tuple doesn't support other types");
+        return create<Interruptible_, Value_, Errors...>(
+            std::move(context_),
+            std::move(begin_),
+            std::move(body_),
+            std::move(ended_),
+            std::move(fail_),
+            std::move(stop_));
+      } else {
+        return create<Interruptible_, Value_, std::tuple<Errors...>>(
+            std::move(context_),
+            std::move(begin_),
+            std::move(body_),
+            std::move(ended_),
+            std::move(fail_),
+            std::move(stop_));
+      }
     }
 
     Context_ context_;

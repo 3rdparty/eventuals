@@ -180,18 +180,17 @@ struct {{ service.name }} {
                 >> Finally(::eventuals::Let([&](auto& response) {
                     return call.Finish()
                         // TODO: Update the error in `expected` to be std::runtime_error.
-                        >> ::eventuals::Then([&](grpc::Status&& status) -> ::eventuals::expected<{{ output_type }}, std::exception_ptr>{
+                        >> ::eventuals::Then([&](grpc::Status&& status) -> ::eventuals::expected<{{ output_type }}, std::variant<::eventuals::Stopped, std::runtime_error>>{
                             if (status.ok()) {
                                 return std::move(response);
                             } else {
                                 return ::eventuals::make_unexpected(
-                                    std::make_exception_ptr(
                                         std::runtime_error(
                                             "Failed to '{{ service.name }}.{{ method.name}}', "
                                             "received gRPC status: "
                                             + std::to_string(status.error_code())
                                             + " and error message: "
-                                            + std::string(status.error_message()))));
+                                            + std::string(status.error_message())));
                             }
                         });
                     }));

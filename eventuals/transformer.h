@@ -16,6 +16,26 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
+using TransformerBeginCallback = Callback<void(TypeErasedStream&)>;
+
+template <typename Raises>
+using TransformerFailCallback = Callback<function_type_t<
+    void,
+    get_rvalue_type_or_void_t<
+        typename VariantErrorsHelper<
+            variant_of_type_and_tuple_t<
+                std::monostate,
+                Raises>>::type>>>;
+
+using TransformerStopCallback = Callback<void()>;
+
+template <typename To>
+using TransformerBodyCallback = Callback<void(To)>;
+
+using TransformerEndedCallback = Callback<void()>;
+
+////////////////////////////////////////////////////////////////////////
+
 template <
     typename E_,
     typename From_,
@@ -23,26 +43,13 @@ template <
     typename Catches_,
     typename Raises_>
 struct HeapTransformer final {
-  using BeginCallback_ = Callback<void(TypeErasedStream&)>;
-  using FailCallback_ = Callback<function_type_t<
-      void,
-      get_rvalue_type_or_void_t<
-          typename VariantErrorsHelper<
-              variant_of_type_and_tuple_t<
-                  std::monostate,
-                  Raises_>>::type>>>;
-  using StopCallback_ = Callback<void()>;
-  using BodyCallback_ = Callback<void(To_)>;
-  using EndedCallback_ = Callback<void()>;
-
-
   struct Adaptor final {
     Adaptor(
-        BeginCallback_* begin,
-        FailCallback_* fail,
-        StopCallback_* stop,
-        BodyCallback_* body,
-        EndedCallback_* ended)
+        TransformerBeginCallback* begin,
+        TransformerFailCallback<Raises_>* fail,
+        TransformerStopCallback* stop,
+        TransformerBodyCallback<To_>* body,
+        TransformerEndedCallback* ended)
       : begin_(begin),
         fail_(fail),
         stop_(stop),
@@ -75,11 +82,11 @@ struct HeapTransformer final {
     // Already registered in 'adapted_'
     void Register(Interrupt&) {}
 
-    BeginCallback_* begin_;
-    FailCallback_* fail_;
-    StopCallback_* stop_;
-    BodyCallback_* body_;
-    EndedCallback_* ended_;
+    TransformerBeginCallback* begin_;
+    TransformerFailCallback<Raises_>* fail_;
+    TransformerStopCallback* stop_;
+    TransformerBodyCallback<To_>* body_;
+    TransformerEndedCallback* ended_;
   };
 
   HeapTransformer(E_ e)
@@ -90,11 +97,11 @@ struct HeapTransformer final {
   void Body(
       From_&& arg,
       Interrupt& interrupt,
-      BeginCallback_&& begin,
-      FailCallback_&& fail,
-      StopCallback_&& stop,
-      BodyCallback_&& body,
-      EndedCallback_&& ended) {
+      TransformerBeginCallback&& begin,
+      TransformerFailCallback<Raises_>&& fail,
+      TransformerStopCallback&& stop,
+      TransformerBodyCallback<To_>&& body,
+      TransformerEndedCallback&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -112,11 +119,11 @@ struct HeapTransformer final {
           std::tuple_size_v<Catches_>,
           apply_tuple_types_t<std::variant, Catches_>,
           std::monostate>&& error,
-      BeginCallback_&& begin,
-      FailCallback_&& fail,
-      StopCallback_&& stop,
-      BodyCallback_&& body,
-      EndedCallback_&& ended) {
+      TransformerBeginCallback&& begin,
+      TransformerFailCallback<Raises_>&& fail,
+      TransformerStopCallback&& stop,
+      TransformerBodyCallback<To_>&& body,
+      TransformerEndedCallback&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -138,11 +145,11 @@ struct HeapTransformer final {
 
   void Stop(
       Interrupt& interrupt,
-      BeginCallback_&& begin,
-      FailCallback_&& fail,
-      StopCallback_&& stop,
-      BodyCallback_&& body,
-      EndedCallback_&& ended) {
+      TransformerBeginCallback&& begin,
+      TransformerFailCallback<Raises_>&& fail,
+      TransformerStopCallback&& stop,
+      TransformerBodyCallback<To_>&& body,
+      TransformerEndedCallback&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -154,11 +161,11 @@ struct HeapTransformer final {
     adapted_.Stop();
   }
 
-  BeginCallback_ begin_;
-  FailCallback_ fail_;
-  StopCallback_ stop_;
-  BodyCallback_ body_;
-  EndedCallback_ ended_;
+  TransformerBeginCallback begin_;
+  TransformerFailCallback<Raises_> fail_;
+  TransformerStopCallback stop_;
+  TransformerBodyCallback<To_> body_;
+  TransformerEndedCallback ended_;
 
   using Adapted_ = decltype(std::declval<E_>().template k<From_, Catches_>(
       std::declval<Adaptor>()));
@@ -193,6 +200,9 @@ struct _Transformer final {
 
     template <typename Error>
     void Fail(Error&& error) {
+      // NOTE: we only propagate an upstream error into our type-erased
+      // eventual if the eventual catches the error, otherwise we skip it
+      // all together.
       if constexpr (tuple_contains_exact_type_v<Error, Catches_>) {
         Dispatch(Action::Fail, std::nullopt, std::forward<Error>(error));
       } else {
@@ -243,6 +253,11 @@ struct _Transformer final {
                   },
                   std::forward<
                       decltype(void_or_errors)>(void_or_errors)...);
+            } else {
+              CHECK(std::tuple_size_v<Raises_> == 0)
+                  << "Unreachable at runtime, but compiler tries to "
+                     "compile this lambda as a 'Callback' with some "
+                     "arguments even if 'Raises_' is empty";
             }
           },
           [this]() {
@@ -256,18 +271,6 @@ struct _Transformer final {
           });
     }
 
-    using BeginCallback_ = Callback<void(TypeErasedStream&)>;
-    using FailCallback_ = Callback<function_type_t<
-        void,
-        get_rvalue_type_or_void_t<
-            typename VariantErrorsHelper<
-                variant_of_type_and_tuple_t<
-                    std::monostate,
-                    Raises_>>::type>>>;
-    using StopCallback_ = Callback<void()>;
-    using BodyCallback_ = Callback<void(To_)>;
-    using EndedCallback_ = Callback<void()>;
-
     Callback<void(
         Action,
         std::optional<
@@ -278,11 +281,11 @@ struct _Transformer final {
         std::optional<From_>&&,
         std::unique_ptr<void, Callback<void(void*)>>&,
         Interrupt&,
-        BeginCallback_&&,
-        FailCallback_&&,
-        StopCallback_&&,
-        BodyCallback_&&,
-        EndedCallback_&&)>
+        TransformerBeginCallback&&,
+        TransformerFailCallback<Raises_>&&,
+        TransformerStopCallback&&,
+        TransformerBodyCallback<To_>&&,
+        TransformerEndedCallback&&)>
         dispatch_;
 
     std::unique_ptr<void, Callback<void(void*)>> e_;
@@ -334,18 +337,6 @@ struct _Transformer final {
         std::tuple_size_v<Raises_> == 0,
         Composable<From_, To_, Catches_, std::tuple<Errors...>>>;
 
-    using BeginCallback_ = Callback<void(TypeErasedStream&)>;
-    using FailCallback_ = Callback<function_type_t<
-        void,
-        get_rvalue_type_or_void_t<
-            typename VariantErrorsHelper<
-                variant_of_type_and_tuple_t<
-                    std::monostate,
-                    Raises_>>::type>>>;
-    using StopCallback_ = Callback<void()>;
-    using BodyCallback_ = Callback<void(To_)>;
-    using EndedCallback_ = Callback<void()>;
-
     template <typename F>
     Composable(F f) {
       static_assert(
@@ -393,11 +384,11 @@ struct _Transformer final {
                       std::optional<From_>&& from,
                       std::unique_ptr<void, Callback<void(void*)>>& e_,
                       Interrupt& interrupt,
-                      BeginCallback_&& begin,
-                      FailCallback_&& fail,
-                      StopCallback_&& stop,
-                      BodyCallback_&& body,
-                      EndedCallback_&& ended) {
+                      TransformerBeginCallback&& begin,
+                      TransformerFailCallback<Raises_>&& fail,
+                      TransformerStopCallback&& stop,
+                      TransformerBodyCallback<To_>&& body,
+                      TransformerEndedCallback&& ended) {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void(void*)>>(
               new HeapTransformer<E, From_, To_, Catches_, Raises_>(f()),
@@ -478,11 +469,11 @@ struct _Transformer final {
         std::optional<From_>&&,
         std::unique_ptr<void, Callback<void(void*)>>&,
         Interrupt&,
-        BeginCallback_&&,
-        FailCallback_&&,
-        StopCallback_&&,
-        BodyCallback_&&,
-        EndedCallback_&&)>
+        TransformerBeginCallback&&,
+        TransformerFailCallback<Raises_>&&,
+        TransformerStopCallback&&,
+        TransformerBodyCallback<To_>&&,
+        TransformerEndedCallback&&)>
         dispatch_;
   };
 };

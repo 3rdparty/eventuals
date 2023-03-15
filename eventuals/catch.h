@@ -151,8 +151,10 @@ struct _Catch final {
           },
           catch_handlers_);
 
-      using Catches =
-          std::tuple<typename CatchHandlers_::Error...>;
+      using Catches_ =
+          tuple_types_subtract_t<
+              std::tuple<typename CatchHandlers_::Error...>,
+              std::tuple<std::monostate>>;
 
       // If 'Error' is part of 'Catches_' or 'all' handler is specified,
       // then we will never propagate fail with 'k_.Fail()' even if handled
@@ -163,11 +165,8 @@ struct _Catch final {
       if constexpr (!std::disjunction_v<
                         tuple_types_contains_subtype<
                             std::decay_t<Error>,
-                            Catches>,
-                        std::conditional_t<
-                            has_all_,
-                            std::true_type,
-                            std::false_type>>) {
+                            Catches_>,
+                        std::integral_constant<bool, has_all_>>) {
         if (!handled) {
           if (interrupt_ != nullptr) {
             k_.Register(*interrupt_);
@@ -224,7 +223,7 @@ struct _Catch final {
             tuple_types_contains<std::exception, Catches_>,
             // If we have a '.all(...)' handler then
             // all exceptions are caught.
-            std::conditional_t<has_all_, std::true_type, std::false_type>>,
+            std::integral_constant<bool, has_all_>>,
         std::tuple<>,
         tuple_types_subtract_t<Errors, Catches_>>;
 

@@ -36,6 +36,29 @@ TEST(Expected, Compose) {
   EXPECT_EQ(42, *e());
 }
 
+TEST(Expected, ComposeStopped) {
+  auto f = []() {
+    return expected<int, Stopped>(make_unexpected(Stopped()));
+  };
+
+  auto e = [&]() {
+    return f()
+        >> Eventual<int>()
+               .start([](auto& k, expected<int, Stopped>&& e) {
+                 EXPECT_FALSE(e.has_value());
+                 k.Stop();
+               });
+  };
+
+  try {
+    *e();
+  } catch (Stopped& stopped) {
+    EXPECT_STREQ(stopped.what(), "Eventual computation stopped (cancelled)");
+  } catch (...) {
+    FAIL() << "Unreachable";
+  }
+}
+
 TEST(Expected, NoRaisesDeclarationUnexpected) {
   auto f = []() -> expected<int> {
     return make_unexpected("unexpected");

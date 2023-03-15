@@ -135,11 +135,17 @@ Server::Server(
               << " completed serving";
           serve->done.store(true);
         },
-        [&serve](auto&&) {
-          EVENTUALS_GRPC_LOG(1)
-              << serve->service->name()
-              << " failed serving";
+        [&serve](std::variant<std::exception>&& error) {
           serve->done.store(true);
+
+          std::visit(
+              [&serve](auto&& error) {
+                EVENTUALS_GRPC_LOG(1)
+                    << serve->service->name()
+                    << " failed serving with the error: "
+                    << error.what();
+              },
+              std::move(error));
         },
         [&serve]() {
           EVENTUALS_GRPC_LOG(1)
@@ -207,7 +213,7 @@ Server::Server(
         [&worker]() {
           worker->done.store(true);
         },
-        [](std::variant<Stopped>) {
+        []() {
           LOG(FATAL) << "Unreachable";
         },
         []() {

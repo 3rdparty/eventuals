@@ -3,6 +3,7 @@
 #include <string>
 
 #include "eventuals/catch.h"
+#include "eventuals/do-all.h"
 #include "eventuals/eventual.h"
 #include "eventuals/just.h"
 #include "eventuals/map.h"
@@ -267,12 +268,14 @@ TEST(Task, FailTerminatedCatch) {
 
   auto e = [&]() -> Task::Of<int>::Raises<std::runtime_error>::Catches<std::runtime_error> {
     return [&]() {
-      return Eventual<int>()
+      return Raise("error")
+          >> Eventual<int>()
                  .raises<std::runtime_error>()
                  .start([](auto& k) {
                    k.Fail(std::runtime_error("error from start"));
                  })
                  .fail([&](auto& k, auto&& error) {
+                   EXPECT_STREQ(error.what(), "error");
                    fail.Call();
                    k.Fail(std::runtime_error("error from fail"));
                  })
@@ -285,16 +288,13 @@ TEST(Task, FailTerminatedCatch) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<std::runtime_error>>);
 
-  auto [future, k] = PromisifyForTest(e());
-  k.Fail(std::runtime_error("error"));
-
   EXPECT_THAT(
       // NOTE: capturing 'future' as a pointer because until C++20 we
       // can't capture a "local binding" by reference and there is a
       // bug with 'EXPECT_THAT' that forces our lambda to be const so
       // if we capture it by copy we can't call 'get()' because that
       // is a non-const function.
-      [future = &future]() { future->get(); },
+      [&]() { *e(); },
       ThrowsMessage<std::runtime_error>(StrEq("error from fail")));
 }
 
@@ -678,7 +678,35 @@ TEST(Task, Inheritance) {
   EXPECT_EQ(*async(), 20);
 
   EXPECT_THAT(
-      [&]() { *failure(); },
+      [&]() { 
+        //
+        *failure(); },
+      ThrowsMessage<std::runtime_error>(StrEq("error")));
+}
+
+TEST(Task, RaisesOut) {
+  auto task = []() -> Task::Of<int>::Raises<std::runtime_error> {
+    return []() {
+      return Eventual<int>()
+          .raises<std::runtime_error>()
+          .start([](auto& k) {
+            k.Fail(std::runtime_error("error"));
+          });
+    };
+  };
+
+  auto e = [&]() {
+    return task()
+        >> Eventual<int>()
+               .raises<std::runtime_error>()
+               .start([](auto&, auto&&) {})
+               .fail([](auto& k, auto&& error) {
+                 k.Fail(std::move(error));
+               });
+  };
+
+  EXPECT_THAT(
+      [&e]() { *e(); },
       ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
@@ -777,8 +805,8 @@ TEST(Task, RaisesWith) {
           EXPECT_EQ(s, "hello world");
           return Eventual<int>()
               .raises<std::runtime_error>()
-              .start([i = std::move(i)](auto& k) {
-                return k.Start(std::move(i));
+              .start([i = i](auto& k) {
+                return k.Start(i);
               });
         });
   };

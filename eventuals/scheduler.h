@@ -398,7 +398,7 @@ struct Reschedulable final {
 
   using Continuation_ =
       decltype(std::declval<_Reschedule::Composable>()
-                   .template k<Arg_, std::tuple<>>(std::declval<K_>()));
+                   .template k<Arg_, Errors_>(std::declval<K_>()));
 
   std::optional<Continuation_> continuation_;
 

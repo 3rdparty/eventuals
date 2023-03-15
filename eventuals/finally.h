@@ -10,14 +10,6 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename...>
-struct VariantOfStoppedAndErrors;
-
-template <typename... Errors>
-struct VariantOfStoppedAndErrors<std::tuple<Errors...>> {
-  using type = std::variant<Stopped, Errors...>;
-};
-
 template <typename>
 struct FinallyErrorType;
 

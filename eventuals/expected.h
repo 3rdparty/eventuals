@@ -54,7 +54,7 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
 // Helper for creating an eventual from an 'expected' with 'std::variant'
 // errors.
 template <typename T, typename... Errors>
-auto ExpectedToEventual(tl::expected<T, std::variant<Errors...>>&& expected) {
+auto ExpectedToEventual(tl::expected<T, std::variant<Stopped, Errors...>>&& expected) {
   // TODO(benh): support any error type that can be "stringified".
   static_assert(
       check_errors_v<Errors...>,
@@ -80,12 +80,39 @@ auto ExpectedToEventual(tl::expected<T, std::variant<Errors...>>&& expected) {
           if constexpr (check_errors_v<Errors...>) {
             std::visit(
                 [&k](auto&& error) {
-                  return k.Fail(std::forward<decltype(error)>(error));
+                  if constexpr (std::is_same_v<
+                                    std::decay_t<decltype(error)>,
+                                    Stopped>) {
+                    return k.Stop();
+                  } else {
+                    return k.Fail(std::forward<decltype(error)>(error));
+                  }
                 },
                 std::move(expected.error()));
           } else {
             return k.Fail(std::runtime_error(std::move(expected.error())));
           }
+        }
+      });
+}
+
+template <typename T>
+auto ExpectedToEventual(tl::expected<T, Stopped>&& expected) {
+  return Eventual<T>()
+      // NOTE: we only care about "start" here because on "stop"
+      // or "fail" we want to propagate that. We don't want to
+      // override a "stop" with our failure because then
+      // downstream eventuals might not stop but instead try and
+      // recover from the error.
+      .start([expected = std::move(expected)](auto& k) mutable {
+        if (expected.has_value()) {
+          if constexpr (std::is_void_v<T>) {
+            return k.Start();
+          } else {
+            return k.Start(std::move(expected.value()));
+          }
+        } else {
+          return k.Stop();
         }
       });
 }

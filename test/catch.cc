@@ -37,35 +37,31 @@ TEST(CatchTest, RaisedRuntimeError) {
   EXPECT_EQ(*e(), 100);
 }
 
-// TEST(CatchTest, ChildException) {
-//   struct Error : public std::exception {
-//     const char* what() const noexcept override {
-//       return "child exception";
-//     }
-//   };
+TEST(CatchTest, ChildException) {
+  struct Error : public std::exception {
+    const char* what() const noexcept override {
+      return "child exception";
+    }
+  };
 
-//   auto e = []() {
-//     return Just(1)
-//         >> Raise(Error{})
-//         >> Catch()
-//                //  .raised<std::overflow_error>([](std::overflow_error&& error) {
-//                //    ADD_FAILURE() << "Encountered unexpected matched raised";
-//                //    return Just(10);
-//                //  })
-//                .raised<std::exception>(
-//                    [](std::exception&& error) {
-//                      EXPECT_STREQ("child exception", error.what());
-//                      return Just(100);
-//                    });
-//   };
+  auto e = []() {
+    return Just(1)
+        >> Raise(Error{})
+        >> Catch()
+               .raised<std::exception>(
+                   [](std::exception&& error) {
+                     EXPECT_STREQ("child exception", error.what());
+                     return Just(100);
+                   });
+  };
 
-//   static_assert(
-//       eventuals::tuple_types_unordered_equals_v<
-//           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-//           std::tuple<>>);
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
 
-//   EXPECT_EQ(*e(), 100);
-// }
+  EXPECT_EQ(*e(), 100);
+}
 
 TEST(CatchTest, All) {
   auto e = []() {
@@ -89,32 +85,32 @@ TEST(CatchTest, All) {
   EXPECT_EQ(*e(), 100);
 }
 
-// TEST(CatchTest, AllRaisedOneException) {
-//   auto e = []() {
-//     return Just(500)
-//         >> Raise(std::runtime_error("runtime_error"))
-//         >> Raise(std::underflow_error("underflow_error"))
-//         >> Catch()
-//                .raised<std::underflow_error>([](std::underflow_error&& error) {
-//                  ADD_FAILURE() << "Encountered unexpected matched raised";
-//                  return 10;
-//                })
-//                .all([](std::variant<std::runtime_error>&& error) {
-//                  EXPECT_STREQ(std::get<std::runtime_error>(error).what(), "runtime_error");
-//                  return 100;
-//                })
-//         >> Then([](int value) {
-//              return value;
-//            });
-//   };
+TEST(CatchTest, AllRaisedOneException) {
+  auto e = []() {
+    return Just(500)
+        >> Raise(std::runtime_error("runtime_error"))
+        >> Raise(std::underflow_error("underflow_error"))
+        >> Catch()
+               .raised<std::underflow_error>([](std::underflow_error&& error) {
+                 ADD_FAILURE() << "Encountered unexpected matched raised";
+                 return 10;
+               })
+               .all([](std::variant<std::runtime_error>&& error) {
+                 EXPECT_STREQ(std::get<std::runtime_error>(error).what(), "runtime_error");
+                 return 100;
+               })
+        >> Then([](int value) {
+             return value;
+           });
+  };
 
-//   static_assert(
-//       eventuals::tuple_types_unordered_equals_v<
-//           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-//           std::tuple<>>);
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
 
-//   EXPECT_EQ(*e(), 100);
-// }
+  EXPECT_EQ(*e(), 100);
+}
 
 TEST(CatchTest, UnexpectedRaise) {
   struct Error : public std::exception {
@@ -173,83 +169,83 @@ TEST(CatchTest, UnexpectedAll) {
   EXPECT_EQ(*e(), 100);
 }
 
-// TEST(CatchTest, NoExactHandler) {
-//   auto e = []() {
-//     return Just(1)
-//         >> Raise(std::string("error"))
-//         >> Catch()
-//                .raised<std::overflow_error>([](std::overflow_error&& error) {
-//                  ADD_FAILURE() << "Encountered unexpected matched raised";
-//                  return 1;
-//                })
-//                .raised<std::underflow_error>([](std::underflow_error&& error) {
-//                  ADD_FAILURE() << "Encountered unexpected matched raised";
-//                  return 1;
-//                });
-//   };
+TEST(CatchTest, NoExactHandler) {
+  auto e = []() {
+    return Just(1)
+        >> Raise(std::string("error"))
+        >> Catch()
+               .raised<std::overflow_error>([](std::overflow_error&& error) {
+                 ADD_FAILURE() << "Encountered unexpected matched raised";
+                 return 1;
+               })
+               .raised<std::underflow_error>([](std::underflow_error&& error) {
+                 ADD_FAILURE() << "Encountered unexpected matched raised";
+                 return 1;
+               });
+  };
 
-//   static_assert(
-//       eventuals::tuple_types_unordered_equals_v<
-//           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-//           std::tuple<std::runtime_error>>);
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
 
-//   EXPECT_THROW(*e(), std::runtime_error);
-// }
+  EXPECT_THROW(*e(), std::runtime_error);
+}
 
-// TEST(CatchTest, ReRaise) {
-//   auto e = []() {
-//     return Just(1)
-//         >> Raise("10")
-//         >> Catch()
-//                .raised<std::runtime_error>([](std::runtime_error&& error) {
-//                  EXPECT_STREQ(error.what(), "10");
-//                  return Raise("1");
-//                })
-//         >> Then([](int) {
-//              return 200;
-//            })
-//         >> Catch()
-//                .raised<std::runtime_error>([](std::runtime_error&& error) {
-//                  EXPECT_STREQ(error.what(), "1");
-//                  return Just(10);
-//                })
-//         >> Then([](int value) {
-//              return value;
-//            });
-//   };
+TEST(CatchTest, ReRaise) {
+  auto e = []() {
+    return Just(1)
+        >> Raise("10")
+        >> Catch()
+               .raised<std::runtime_error>([](std::runtime_error&& error) {
+                 EXPECT_STREQ(error.what(), "10");
+                 return Raise("1");
+               })
+        >> Then([](int) {
+             return 200;
+           })
+        >> Catch()
+               .raised<std::runtime_error>([](std::runtime_error&& error) {
+                 EXPECT_STREQ(error.what(), "1");
+                 return Just(10);
+               })
+        >> Then([](int value) {
+             return value;
+           });
+  };
 
-//   static_assert(
-//       eventuals::tuple_types_unordered_equals_v<
-//           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-//           std::tuple<>>);
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
 
-//   EXPECT_EQ(10, *e());
-// }
+  EXPECT_EQ(10, *e());
+}
 
-// TEST(CatchTest, VoidPropagate) {
-//   auto e = []() {
-//     return Just("some string")
-//         >> Then([](const char* i) {
-//              return;
-//            })
-//         >> Raise("error")
-//         >> Catch()
-//                .raised<std::exception>([](std::exception&& error) {
-//                  EXPECT_STREQ(error.what(), "error");
-//                  // MUST RETURN VOID HERE!
-//                })
-//         >> Then([](/* MUST TAKE VOID HERE! */) {
-//              return 100;
-//            });
-//   };
+TEST(CatchTest, VoidPropagate) {
+  auto e = []() {
+    return Just("some string")
+        >> Then([](const char* i) {
+             return;
+           })
+        >> Raise("error")
+        >> Catch()
+               .raised<std::exception>([](std::exception&& error) {
+                 EXPECT_STREQ(error.what(), "error");
+                 // MUST RETURN VOID HERE!
+               })
+        >> Then([](/* MUST TAKE VOID HERE! */) {
+             return 100;
+           });
+  };
 
-//   static_assert(
-//       eventuals::tuple_types_unordered_equals_v<
-//           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-//           std::tuple<>>);
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
 
-//   EXPECT_EQ(100, *e());
-// }
+  EXPECT_EQ(100, *e());
+}
 
 TEST(CatchTest, Interrupt) {
   auto e = []() {

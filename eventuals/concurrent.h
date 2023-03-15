@@ -161,7 +161,7 @@ struct _Concurrent final {
     template <typename... Errors>
     [[nodiscard]] auto CreateOrReuseFiber(
         stout::borrowed_ref<
-            std::optional<std::variant<Errors...>>>&& stopped_or_error) {
+            std::optional<std::variant<Stopped, Errors...>>>&& stopped_or_error) {
       return Synchronized(Then(
           [this, stopped_or_error = std::move(stopped_or_error)]() {
             // As long as downstream isn't done, or we've been interrupted,
@@ -221,7 +221,7 @@ struct _Concurrent final {
     template <typename... Errors>
     [[nodiscard]] auto IngressEpilogue(
         stout::borrowed_ref<
-            std::optional<std::variant<Errors...>>>&& stopped_or_error) {
+            std::optional<std::variant<Stopped, Errors...>>>&& stopped_or_error) {
       return Synchronized(
           Eventual<void>()
               .context(std::move(stopped_or_error))
@@ -281,7 +281,7 @@ struct _Concurrent final {
     [[nodiscard]] auto FiberEpilogue(
         TypeErasedFiber* fiber,
         stout::borrowed_ref<
-            std::optional<std::variant<Errors...>>>&& stopped_or_error) {
+            std::optional<std::variant<Stopped, Errors...>>>&& stopped_or_error) {
       return Synchronized(
           Eventual<void>()
               .context(std::move(stopped_or_error))
@@ -449,14 +449,8 @@ struct _Concurrent final {
 
   // 'Adaptor' is our typeful adaptor that the concurrent continuation
   // uses in order to implement the semantics of 'Concurrent()'.
-  template <typename F_, typename Arg_, typename Errors_>
+  template <typename F_, typename Arg_, typename UpstreamErrorsAndErrorsFromE_>
   struct Adaptor final : TypeErasedAdaptor {
-    using E_ = typename std::invoke_result_t<F_>;
-
-    using UpstreamErrorsAndErrorsFromE_ = tuple_types_union_t<
-        typename E_::template ErrorsFrom<Arg_, std::tuple<>>,
-        Errors_>;
-
     Adaptor(
         F_ f,
         stout::borrowed_ref<std::optional<
@@ -760,7 +754,7 @@ struct _Concurrent final {
             variant_of_type_and_tuple_t<Stopped, UpstreamErrorsAndErrorsFromE_>>>
         stopped_or_error_;
 
-    Adaptor<F_, Arg_, Errors_> adaptor_;
+    Adaptor<F_, Arg_, UpstreamErrorsAndErrorsFromE_> adaptor_;
 
     TypeErasedStream* stream_ = nullptr;
 

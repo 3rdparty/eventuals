@@ -42,7 +42,9 @@ struct _DoAll final {
     using UnionOfErrorsTuple = tuple_types_union_all_t<
         typename Eventuals_::template ErrorsFrom<void, std::tuple<>>...>;
 
-    using StoppedOrError = variant_of_type_and_tuple_t<Stopped, UnionOfErrorsTuple>;
+    using StoppedOrError = variant_of_type_and_tuple_t<
+        Stopped,
+        UnionOfErrorsTuple>;
 
     Adaptor(
         K_& k,
@@ -70,7 +72,9 @@ struct _DoAll final {
             Undefined,
             std::conditional_t<
                 std::is_void_v<
-                    typename Eventuals_::template ValueFrom<void, std::tuple<>>>,
+                    typename Eventuals_::template ValueFrom<
+                        void,
+                        std::tuple<>>>,
                 std::monostate,
                 typename Eventuals_::template ValueFrom<void, std::tuple<>>>,
             StoppedOrError>...>
@@ -111,11 +115,17 @@ struct _DoAll final {
 
                      if (stopped_or_error) {
                        std::visit(
-                           [this](auto&& error) {
-                             if constexpr (std::is_same_v<decltype(error), Stopped>) {
+                           [this](auto&& stopped_or_error) {
+                             if constexpr (
+                                 std::is_same_v<
+                                     std::decay_t<decltype(stopped_or_error)>,
+                                     Stopped>) {
                                k_.Stop();
                              } else {
-                               k_.Fail(std::forward<decltype(error)>(error));
+                               k_.Fail(
+                                   std::forward<
+                                       decltype(stopped_or_error)>(
+                                       stopped_or_error));
                              }
                            },
                            std::move(stopped_or_error.value()));
@@ -126,7 +136,9 @@ struct _DoAll final {
                  })
                  .fail([this](auto&&... errors) {
                    std::get<index>(values_)
-                       .template emplace<STOPPED_OR_ERROR_INDEX>(std::forward<decltype(errors)>(errors)...);
+                       .template emplace<
+                           STOPPED_OR_ERROR_INDEX>(
+                           std::forward<decltype(errors)>(errors)...);
                    if (counter_.fetch_sub(1) == 1) {
                      // You're the last eventual so call the continuation.
                      std::optional<StoppedOrError> stopped_or_error =
@@ -134,11 +146,18 @@ struct _DoAll final {
 
                      CHECK(stopped_or_error);
                      std::visit(
-                         [this](auto&& error) {
-                           if constexpr (std::is_same_v<decltype(error), Stopped>) {
+                         [this](auto&& stopped_or_error) {
+                           if constexpr (
+                               std::is_same_v<
+                                   std::decay_t<
+                                       decltype(stopped_or_error)>,
+                                   Stopped>) {
                              k_.Stop();
                            } else {
-                             k_.Fail(std::forward<decltype(error)>(error));
+                             k_.Fail(
+                                 std::forward<
+                                     decltype(stopped_or_error)>(
+                                     stopped_or_error));
                            }
                          },
                          std::move(stopped_or_error.value()));
@@ -149,7 +168,9 @@ struct _DoAll final {
                    }
                  })
                  .stop([this]() {
-                   std::get<index>(values_).template emplace<STOPPED_OR_ERROR_INDEX>(Stopped());
+                   std::get<
+                       index>(values_)
+                       .template emplace<STOPPED_OR_ERROR_INDEX>(Stopped());
                    if (counter_.fetch_sub(1) == 1) {
                      // You're the last eventual so call the continuation.
                      std::optional<StoppedOrError> stopped_or_error =
@@ -157,11 +178,18 @@ struct _DoAll final {
 
                      CHECK(stopped_or_error);
                      std::visit(
-                         [this](auto&& error) {
-                           if constexpr (std::is_same_v<decltype(error), Stopped>) {
+                         [this](auto&& stopped_or_error) {
+                           if constexpr (
+                               std::is_same_v<
+                                   std::decay_t<
+                                       decltype(stopped_or_error)>,
+                                   Stopped>) {
                              k_.Stop();
                            } else {
-                             k_.Fail(std::forward<decltype(error)>(error));
+                             k_.Fail(
+                                 std::forward<
+                                     decltype(stopped_or_error)>(
+                                     stopped_or_error));
                            }
                          },
                          std::move(stopped_or_error.value()));
@@ -199,10 +227,11 @@ struct _DoAll final {
 
       auto extract_stopped_or_error = [&stopped_or_error](auto& value) {
         if (value.index() == STOPPED_OR_ERROR_INDEX) {
-          // NOTE: we'll arbitrarily propagate the last error that gets folded over
-          // by just overwriting 'stopped_or_error' unless we've observed a 'Stopped'
-          // because we always want to propagate 'Stopped'.
-          if (!stopped_or_error.has_value() || !std::holds_alternative<Stopped>(stopped_or_error.value())) {
+          // NOTE: we'll arbitrarily propagate the last error that gets folded
+          // over by just overwriting 'stopped_or_error' unless we've observed
+          // a 'Stopped' because we always want to propagate 'Stopped'.
+          if (!stopped_or_error.has_value()
+              || !std::holds_alternative<Stopped>(stopped_or_error.value())) {
             stopped_or_error.emplace(std::get<STOPPED_OR_ERROR_INDEX>(value));
           }
         }

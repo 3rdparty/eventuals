@@ -66,13 +66,15 @@ Task::Of<void> Greeter::TypeErasedService::Serve() {
                    }));
                  })
                >> Loop())
-        >> Finally([&](expected<std::tuple<std::monostate>, std::variant<Stopped, std::runtime_error>> expected) {
+        >> Finally([&](expected<
+                       std::tuple<std::monostate>,
+                       std::variant<Stopped, std::runtime_error>>&& expected) {
              if (!expected.has_value()) {
                std::visit(
-                   [](auto& error) {
+                   [](auto&& error) {
                      LOG(WARNING) << "Failed to serve: " << error.what();
                    },
-                   expected.error());
+                   std::move(expected.error()));
              }
            });
   };

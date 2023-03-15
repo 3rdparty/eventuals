@@ -10,8 +10,6 @@
 
 namespace eventuals {
 
-struct Stopped;
-
 ////////////////////////////////////////////////////////////////////////
 
 // Helper for checking if a template type exists. Can be used with

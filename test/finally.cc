@@ -21,7 +21,7 @@ using testing::ThrowsMessage;
 TEST(Finally, Succeed) {
   auto e = []() {
     return Just(42)
-        >> Finally([](expected<int, std::variant<Stopped>>&& expected) {
+        >> Finally([](expected<int, Stopped>&& expected) {
              return Just(std::move(expected));
            });
   };
@@ -31,7 +31,7 @@ TEST(Finally, Succeed) {
           decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<>>);
 
-  expected<int, std::variant<Stopped>> result = *e();
+  expected<int, Stopped> result = *e();
 
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(42, result);
