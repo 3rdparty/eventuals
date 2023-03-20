@@ -35,7 +35,7 @@ class Pipe final : public Synchronizable {
     return Synchronized(Then([this, value = std::move(value)]() mutable {
       if (!is_closed_) {
         values_.emplace_back(std::move(value));
-        has_values_or_closed_.NotifyAll();
+        has_values_or_closed_.Notify();
       }
     }));
   }
