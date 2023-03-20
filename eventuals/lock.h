@@ -909,40 +909,45 @@ class ConditionVariable final {
     return eventuals::Wait(
         lock_,
         [this, f = std::move(f), waiter = Waiter()](auto notify) mutable {
+          // Assign `notify` callback to `waiter` for later use.
+          waiter.notify = std::move(notify);
+
           // Check if template `F` is for `EmptyCondition`.
           constexpr bool using_empty_condition =
               std::is_same_v<F, EmptyCondition>;
 
-          // Helper to determine if we need to wait or not.
-          auto should_wait = [&]() {
+          // Helper that wraps 'f' and adds ourselves to the list of
+          // waiters so that we can be notified if we need to wait.
+          return [&]() {
+            CHECK(lock_->OwnedByCurrentSchedulerContext());
+            bool wait = false;
             if constexpr (using_empty_condition) {
-              return f(waiter);
+              wait = f(waiter);
             } else {
-              return f();
+              wait = f();
             }
-          };
 
-          // If we should wait, the `waiter` need to be
-          // enqueued with other waiters so it can later be notified.
-          if (should_wait()) {
-            // Assign `nofify` callback to `waiter` for later use.
-            waiter.notify = std::move(notify);
-
-            // Add `waiter` to list of waiters. The below might look convoluted
-            // at first but is a text book "append" to a linked list.
-            if (head_ == nullptr) {
-              head_ = &waiter;
-            } else if (head_->next == nullptr) {
-              head_->next = &waiter;
-            } else {
-              auto* next = head_->next;
-              while (next->next != nullptr) {
-                next = next->next;
+            // If we need to wait, the `waiter` needs to be enqueued
+            // with other waiters so it can later be notified.
+            if (wait) {
+              // Add `waiter` to list of waiters. The below might look
+              // convoluted at first but is a text book "append" to a
+              // linked list.
+              if (head_ == nullptr) {
+                head_ = &waiter;
+              } else if (head_->next == nullptr) {
+                head_->next = &waiter;
+              } else {
+                auto* next = head_->next;
+                while (next->next != nullptr) {
+                  next = next->next;
+                }
+                next->next = &waiter;
               }
-              next->next = &waiter;
             }
-          }
-          return should_wait;
+
+            return wait;
+          };
         });
   }
 
