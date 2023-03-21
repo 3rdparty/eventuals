@@ -161,7 +161,8 @@ struct _Concurrent final {
     template <typename... Errors>
     [[nodiscard]] auto CreateOrReuseFiber(
         stout::borrowed_ref<
-            std::optional<std::variant<Stopped, Errors...>>>&& stopped_or_error) {
+            std::optional<
+                std::variant<Stopped, Errors...>>>&& stopped_or_error) {
       return Synchronized(Then(
           [this, stopped_or_error = std::move(stopped_or_error)]() {
             // As long as downstream isn't done, or we've been interrupted,
@@ -221,7 +222,8 @@ struct _Concurrent final {
     template <typename... Errors>
     [[nodiscard]] auto IngressEpilogue(
         stout::borrowed_ref<
-            std::optional<std::variant<Stopped, Errors...>>>&& stopped_or_error) {
+            std::optional<
+                std::variant<Stopped, Errors...>>>&& stopped_or_error) {
       return Synchronized(
           Eventual<void>()
               .context(std::move(stopped_or_error))
@@ -241,7 +243,8 @@ struct _Concurrent final {
                 upstream_done_ = true;
 
                 if (!stopped_or_error->has_value()) {
-                  stopped_or_error->emplace(std::forward<decltype(error)>(error));
+                  stopped_or_error->emplace(
+                      std::forward<decltype(error)>(error));
                 }
 
                 fibers_done_ = FibersDone();
@@ -281,7 +284,8 @@ struct _Concurrent final {
     [[nodiscard]] auto FiberEpilogue(
         TypeErasedFiber* fiber,
         stout::borrowed_ref<
-            std::optional<std::variant<Stopped, Errors...>>>&& stopped_or_error) {
+            std::optional<
+                std::variant<Stopped, Errors...>>>&& stopped_or_error) {
       return Synchronized(
           Eventual<void>()
               .context(std::move(stopped_or_error))
@@ -297,11 +301,15 @@ struct _Concurrent final {
 
                 k.Start(); // Exits the synchronized block!
               })
-              .fail([this, fiber](auto& stopped_or_error, auto& k, auto&& error) {
+              .fail([this, fiber](
+                        auto& stopped_or_error,
+                        auto& k,
+                        auto&& error) {
                 fiber->done = true;
 
                 if (!stopped_or_error->has_value()) {
-                  stopped_or_error->emplace(std::forward<decltype(error)>(error));
+                  stopped_or_error->emplace(
+                      std::forward<decltype(error)>(error));
                 }
 
                 fibers_done_ = !InterruptFibers();
@@ -613,7 +621,8 @@ struct _Concurrent final {
                 UpstreamErrorsAndErrorsFromE_>>>
         stopped_or_error_;
 
-    using Value_ = typename decltype(f_())::template ValueFrom<Arg_, std::tuple<>>;
+    using Value_ =
+        typename decltype(f_())::template ValueFrom<Arg_, std::tuple<>>;
 
     std::deque<Value_> values_;
   };
@@ -751,7 +760,9 @@ struct _Concurrent final {
     // a failure and we should stop requesting the next upstream value.
     stout::Borrowable<
         std::optional<
-            variant_of_type_and_tuple_t<Stopped, UpstreamErrorsAndErrorsFromE_>>>
+            variant_of_type_and_tuple_t<
+                Stopped,
+                UpstreamErrorsAndErrorsFromE_>>>
         stopped_or_error_;
 
     Adaptor<F_, Arg_, UpstreamErrorsAndErrorsFromE_> adaptor_;

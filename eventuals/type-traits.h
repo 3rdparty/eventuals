@@ -342,7 +342,8 @@ struct tuple_contains_exact_type;
 
 template <typename V, typename T0, typename... T>
 struct tuple_contains_exact_type<V, std::tuple<T0, T...>> {
-  static constexpr bool value = tuple_contains_exact_type<V, std::tuple<T...>>::value;
+  static constexpr bool value =
+      tuple_contains_exact_type<V, std::tuple<T...>>::value;
 };
 
 template <typename V, typename... T>
@@ -356,7 +357,8 @@ struct tuple_contains_exact_type<V, std::tuple<>> {
 };
 
 template <typename V, typename T>
-inline constexpr bool tuple_contains_exact_type_v = tuple_contains_exact_type<V, T>::value;
+inline constexpr bool tuple_contains_exact_type_v =
+    tuple_contains_exact_type<V, T>::value;
 
 ////////////////////////////////////////////////////////////////////////
 

@@ -94,7 +94,9 @@ struct _Reduce final {
     using E_ = std::invoke_result_t<F_, std::add_lvalue_reference_t<T_>>;
 
     static_assert(
-        std::is_same_v<bool, typename E_::template ValueFrom<Arg_, std::tuple<>>>,
+        std::is_same_v<
+            bool,
+            typename E_::template ValueFrom<Arg_, std::tuple<>>>,
         "expecting an eventually returned bool for 'Reduce'");
 
     using Adapted_ = decltype(std::declval<E_>().template k<Arg_, std::tuple<>>(

@@ -490,7 +490,9 @@ struct _Stream final {
       static_assert(std::tuple_size_v<Raises_> == 0, "Duplicate 'raises'");
 
       if constexpr (is_tuple_v<Errors...>) {
-        static_assert(sizeof...(Errors) == 1, "'raises' with tuple doesn't support other types");
+        static_assert(
+            sizeof...(Errors) == 1,
+            "'raises' with tuple doesn't support other types");
         return create<Interruptible_, Value_, Errors...>(
             std::move(context_),
             std::move(begin_),

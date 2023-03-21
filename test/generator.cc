@@ -254,7 +254,8 @@ TEST(Generator, FailStream) {
             functions.done.Call();
           })
           .fail([&](auto& k, auto&& error) {
-            FAIL() << "Should not get called because we did not specify any 'Catches'";
+            FAIL() << "Should not get called because "
+                      "we did not specify any 'Catches'";
           })
           .stop([&](auto& k) {
             functions.stop.Call();

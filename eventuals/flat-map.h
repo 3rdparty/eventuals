@@ -160,13 +160,17 @@ struct _FlatMap final {
     using ValueFrom = typename std::conditional_t<
         std::is_void_v<Arg>,
         std::invoke_result<F_>,
-        std::invoke_result<F_, Arg>>::type::template ValueFrom<void, std::tuple<>>;
+        std::invoke_result<
+            F_,
+            Arg>>::type::template ValueFrom<void, std::tuple<>>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename std::conditional_t<
         std::is_void_v<Arg>,
         std::invoke_result<F_>,
-        std::invoke_result<F_, Arg>>::type::template ErrorsFrom<void, std::tuple<>>;
+        std::invoke_result<
+            F_,
+            Arg>>::type::template ErrorsFrom<void, std::tuple<>>;
 
     template <typename Arg, typename Errors, typename K>
     auto k(K k) && {

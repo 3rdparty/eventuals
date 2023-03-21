@@ -54,7 +54,8 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
 // Helper for creating an eventual from an 'expected' with 'std::variant'
 // errors.
 template <typename T, typename... Errors>
-auto ExpectedToEventual(tl::expected<T, std::variant<Stopped, Errors...>>&& expected) {
+auto ExpectedToEventual(
+    tl::expected<T, std::variant<Stopped, Errors...>>&& expected) {
   // TODO(benh): support any error type that can be "stringified".
   static_assert(
       check_errors_v<Errors...>,

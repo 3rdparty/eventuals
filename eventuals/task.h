@@ -455,7 +455,9 @@ struct _TaskFromToWith final {
                                std::optional<
                                    std::conditional_t<
                                        std::tuple_size_v<Catches_>,
-                                       apply_tuple_types_t<std::variant, Catches_>,
+                                       apply_tuple_types_t<
+                                           std::variant,
+                                           Catches_>,
                                        std::monostate>>&& error,
                                Args_&... args,
                                std::optional<MonostateIfVoidOr<From_>>&& arg,

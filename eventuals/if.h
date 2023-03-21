@@ -23,7 +23,8 @@ struct _If final {
     void Start(Args&&...) {
       if (condition_) {
         yes_adapted_.emplace(
-            std::move(yes_).template k<void, std::tuple<>>(_Then::Adaptor<K_>{k_}));
+            std::move(yes_).template k<void, std::tuple<>>(
+                _Then::Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
           yes_adapted_->Register(*interrupt_);
@@ -32,7 +33,8 @@ struct _If final {
         yes_adapted_->Start();
       } else {
         no_adapted_.emplace(
-            std::move(no_).template k<void, std::tuple<>>(_Then::Adaptor<K_>{k_}));
+            std::move(no_).template k<void, std::tuple<>>(
+                _Then::Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
           no_adapted_->Register(*interrupt_);

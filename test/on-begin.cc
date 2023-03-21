@@ -32,7 +32,11 @@ TEST_F(OnBeginTest, OnlyOnceAndAsynchronous) {
         >> OnBegin([&]() {
              begin.Call();
              return Timer(std::chrono::milliseconds(10))
-                 >> Finally([&](expected<void, std::variant<Stopped, std::runtime_error>>&& e) {
+                 >> Finally([&](expected<
+                                void,
+                                std::variant<
+                                    Stopped,
+                                    std::runtime_error>>&& e) {
                       EXPECT_TRUE(e);
                     });
            })

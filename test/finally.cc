@@ -157,8 +157,10 @@ TEST(Finally, FinallyInsideThen) {
                             return Raise("another error");
                           })
                           .no([e = std::move(e)]() {
-                            CHECK(std::holds_alternative<std::runtime_error>(e.error()));
-                            return Raise(std::get<std::runtime_error>(std::move(e.error())))
+                            CHECK(std::holds_alternative<std::runtime_error>(
+                                e.error()));
+                            return Raise(std::get<std::runtime_error>(
+                                       std::move(e.error())))
                                 >> Catch()
                                        .raised<std::runtime_error>(
                                            [](std::runtime_error&& error) {

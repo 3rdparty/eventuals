@@ -146,8 +146,12 @@ struct _Conditional {
 
     template <typename Arg, typename Errors>
     using ValueFrom = Unify_<
-        typename EventualFrom<Then_, Arg>::template ValueFrom<void, std::tuple<>>,
-        typename EventualFrom<Else_, Arg>::template ValueFrom<void, std::tuple<>>>;
+        typename EventualFrom<Then_, Arg>::template ValueFrom<
+            void,
+            std::tuple<>>,
+        typename EventualFrom<Else_, Arg>::template ValueFrom<
+            void,
+            std::tuple<>>>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<

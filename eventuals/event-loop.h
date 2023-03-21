@@ -1316,7 +1316,8 @@ struct _EventLoopSchedule final {
             new Adapted_(
                 std::move(e_).template k<Arg_, Errors_>(
                     Reschedule(std::move(previous))
-                        .template k<Value_, ErrorsE_>(_Then::Adaptor<K_>{k_}))));
+                        .template k<Value_, ErrorsE_>(
+                            _Then::Adaptor<K_>{k_}))));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);

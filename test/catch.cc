@@ -96,7 +96,9 @@ TEST(CatchTest, AllRaisedOneException) {
                  return 10;
                })
                .all([](std::variant<std::runtime_error>&& error) {
-                 EXPECT_STREQ(std::get<std::runtime_error>(error).what(), "runtime_error");
+                 EXPECT_STREQ(
+                     std::get<std::runtime_error>(error).what(),
+                     "runtime_error");
                  return 100;
                })
         >> Then([](int value) {

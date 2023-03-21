@@ -269,7 +269,9 @@ TEST(EventualTest, CatchVoid) {
         >> Raise("error")
         >> Catch(Let([](std::variant<std::runtime_error>& error) {
              return Then([&]() {
-               EXPECT_STREQ(std::get<std::runtime_error>(error).what(), "error");
+               EXPECT_STREQ(
+                   std::get<std::runtime_error>(error).what(),
+                   "error");
              });
            }))
         >> Then([]() {

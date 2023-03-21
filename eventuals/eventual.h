@@ -18,7 +18,11 @@ namespace eventuals {
 struct _Eventual {
   // Helper struct for enforcing that values and errors are only
   // propagated of the correct type.
-  template <typename K_, typename Value_, typename Raises_, typename ReschedulableErrors_>
+  template <
+      typename K_,
+      typename Value_,
+      typename Raises_,
+      typename ReschedulableErrors_>
   struct Adaptor final {
     template <typename... Args>
     void Start(Args&&... args) {
@@ -305,7 +309,9 @@ struct _Eventual {
       static_assert(std::tuple_size_v<Raises_> == 0, "Duplicate 'raises'");
 
       if constexpr (is_tuple_v<Errors...>) {
-        static_assert(sizeof...(Errors) == 1, "'raises' with tuple doesn't support other types");
+        static_assert(
+            sizeof...(Errors) == 1,
+            "'raises' with tuple doesn't support other types");
         return create<Interruptible_, Value_, Errors...>(
             std::move(context_),
             std::move(start_),

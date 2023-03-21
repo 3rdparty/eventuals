@@ -266,7 +266,8 @@ TEST(Task, FailTerminatedCatch) {
   EXPECT_CALL(fail, Call())
       .Times(1);
 
-  auto e = [&]() -> Task::Of<int>::Raises<std::runtime_error>::Catches<std::runtime_error> {
+  auto e = [&]() -> Task::Of<int>::Raises<
+                     std::runtime_error>::Catches<std::runtime_error> {
     return [&]() {
       return Raise("error")
           >> Eventual<int>()
@@ -392,9 +393,16 @@ TEST(Task, StartFuture) {
 TEST(Task, FailContinuation) {
   auto e = []() -> Task::Of<int>::Catches<std::runtime_error> {
     return []() {
-      return Finally([](expected<void, std::variant<Stopped, std::runtime_error>>&& expected) {
+      return Finally([](
+                         expected<
+                             void,
+                             std::variant<
+                                 Stopped,
+                                 std::runtime_error>>&& expected) {
         CHECK(std::holds_alternative<std::runtime_error>(expected.error()));
-        EXPECT_STREQ(std::get<std::runtime_error>(expected.error()).what(), "error");
+        EXPECT_STREQ(
+            std::get<std::runtime_error>(expected.error()).what(),
+            "error");
         return 42;
       });
     };
@@ -521,7 +529,8 @@ TEST(Task, FromToFail) {
 }
 
 TEST(Task, FromToFailCatch) {
-  auto task = []() -> Task::From<int>::To<std::string>::Catches<std::runtime_error> {
+  auto task = []() -> Task::From<int>::To<
+                       std::string>::Catches<std::runtime_error> {
     return []() {
       return Catch()
                  .raised<std::runtime_error>([](std::runtime_error&& error) {

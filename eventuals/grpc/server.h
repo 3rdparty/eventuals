@@ -817,7 +817,9 @@ template <typename Request, typename Response>
            return call.Finish(status)
                >> Finally([&](expected<
                               void,
-                              std::variant<eventuals::Stopped, std::runtime_error>>&& e) {
+                              std::variant<
+                                  eventuals::Stopped,
+                                  std::runtime_error>>&& e) {
                     return If(e.has_value())
                                .no([e = std::move(e), &call]() {
                                  EVENTUALS_GRPC_LOG(1)
@@ -863,7 +865,9 @@ template <typename Request, typename Response>
            return call.Finish(status)
                >> Finally([&](expected<
                               void,
-                              std::variant<eventuals::Stopped, std::runtime_error>>&& e) {
+                              std::variant<
+                                  eventuals::Stopped,
+                                  std::runtime_error>>&& e) {
                     return If(e.has_value())
                                .no([e = std::move(e), &call]() {
                                  EVENTUALS_GRPC_LOG(1)
