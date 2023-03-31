@@ -20,6 +20,14 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
+template <typename Tuple>
+struct MonostateIfEmptyOrVariantOf {
+  using type = std::conditional_t<
+      std::tuple_size_v<Tuple>,
+      apply_tuple_types_t<std::variant, Tuple>,
+      std::monostate>;
+};
+
 template <typename>
 struct VariantErrorsHelper;
 
@@ -117,10 +125,7 @@ struct HeapTask final {
 
   void Fail(
       Interrupt& interrupt,
-      std::conditional_t<
-          std::tuple_size_v<Catches_>,
-          apply_tuple_types_t<std::variant, Catches_>,
-          std::monostate>&& error,
+      typename MonostateIfEmptyOrVariantOf<Catches_>::type&& error,
       TaskStartCallback<To_>&& start,
       TaskFailCallback<Raises_>&& fail,
       TaskStopCallback&& stop) {
@@ -217,10 +222,7 @@ struct _TaskFromToWith final {
       Callback<void(
           Action,
           std::optional<
-              std::conditional_t<
-                  std::tuple_size_v<Catches>,
-                  apply_tuple_types_t<std::variant, Catches>,
-                  std::monostate>>&&,
+              typename MonostateIfEmptyOrVariantOf<Catches>::type>&&,
           Args&...,
           // Can't have a 'void' argument type
           // so we are using 'std::monostate'.
@@ -309,10 +311,8 @@ struct _TaskFromToWith final {
         Action action,
         std::optional<MonostateIfVoidOr<From_>>&& from = std::nullopt,
         std::optional<
-            std::conditional_t<
-                std::tuple_size_v<Catches_>,
-                apply_tuple_types_t<std::variant, Catches_>,
-                std::monostate>>&& error = std::nullopt) {
+            typename MonostateIfEmptyOrVariantOf<
+                Catches_>::type>&& error = std::nullopt) {
       CHECK_EQ(value_or_dispatch_.index(), 1u);
 
       std::apply(
@@ -328,7 +328,6 @@ struct _TaskFromToWith final {
                   k_.Start(std::forward<decltype(args)>(args)...);
                 },
                 [this](auto&&... void_or_errors) {
-                  // k_.Fail(std::forward<decltype(error)>(error));
                   if constexpr (sizeof...(void_or_errors)) {
                     std::visit(
                         [this](auto&& error) {
@@ -453,12 +452,8 @@ struct _TaskFromToWith final {
       value_or_dispatch_ = [f = std::move(f)](
                                Action action,
                                std::optional<
-                                   std::conditional_t<
-                                       std::tuple_size_v<Catches_>,
-                                       apply_tuple_types_t<
-                                           std::variant,
-                                           Catches_>,
-                                       std::monostate>>&& error,
+                                   typename MonostateIfEmptyOrVariantOf<
+                                       Catches_>::type>&& error,
                                Args_&... args,
                                std::optional<MonostateIfVoidOr<From_>>&& arg,
                                std::unique_ptr<void, Callback<void(void*)>>& e_,

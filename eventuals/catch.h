@@ -15,6 +15,19 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 struct _Catch final {
+  template <typename E, typename Error>
+  struct HandlerRaisesHelper {
+    using type = typename E::template ErrorsFrom<Error, std::tuple<>>;
+  };
+
+  template <typename E>
+  struct HandlerRaisesHelper<E, std::monostate> {
+    // We know exact argument type passed to 'all' handler only
+    // after we create 'K', so that means that we can't get 'Raises'
+    // from 'all' handler. Be careful while using it.
+    using type = std::tuple<>;
+  };
+
   template <typename K_, typename Error_, typename F_>
   struct Handler final {
     using Error = Error_;
@@ -68,6 +81,9 @@ struct _Catch final {
 
     F_ f_;
 
+
+    using Raises = typename HandlerRaisesHelper<decltype(Then(std::move(f_))), Error_>::type;
+
     using Adapted_ =
         decltype(Then(std::move(f_))
                      .template k<Error_, std::tuple<>>(std::declval<K_>()));
@@ -104,6 +120,8 @@ struct _Catch final {
     }
 
     F_ f_;
+
+    using Raises = typename HandlerRaisesHelper<decltype(Then(std::move(f_))), Error_>::type;
   };
 
   ////////////////////////////////////////////////////////////////////////
@@ -215,17 +233,21 @@ struct _Catch final {
         std::tuple<typename CatchHandlers_::Error...>,
         std::tuple<std::monostate>>;
 
+    using Raises_ = tuple_types_union_all_t<typename CatchHandlers_::Raises...>;
+
     template <typename Arg, typename Errors>
-    using ErrorsFrom = std::conditional_t<
-        std::disjunction_v<
-            // If 'std::exception' is caught
-            // then all exceptions will be caught.
-            tuple_types_contains<std::exception, Catches_>,
-            // If we have a '.all(...)' handler then
-            // all exceptions are caught.
-            std::integral_constant<bool, has_all_>>,
-        std::tuple<>,
-        tuple_types_subtract_t<Errors, Catches_>>;
+    using ErrorsFrom = tuple_types_union_t<
+        std::conditional_t<
+            std::disjunction_v<
+                // If 'std::exception' is caught
+                // then all exceptions will be caught.
+                tuple_types_contains<std::exception, Catches_>,
+                // If we have a '.all(...)' handler then
+                // all exceptions are caught.
+                std::integral_constant<bool, has_all_>>,
+            std::tuple<>,
+            tuple_types_subtract_t<Errors, Catches_>>,
+        Raises_>;
 
     template <typename Left, typename Right>
     using Unify_ = typename std::conditional_t<

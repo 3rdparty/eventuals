@@ -50,13 +50,7 @@ TEST(Expected, ComposeStopped) {
                });
   };
 
-  try {
-    *e();
-  } catch (Stopped& stopped) {
-    EXPECT_STREQ(stopped.what(), "Eventual computation stopped (cancelled)");
-  } catch (...) {
-    FAIL() << "Unreachable";
-  }
+  EXPECT_THROW(*e(), eventuals::Stopped);
 }
 
 TEST(Expected, NoRaisesDeclarationUnexpected) {

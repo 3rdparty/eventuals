@@ -115,10 +115,7 @@ struct HeapTransformer final {
 
   void Fail(
       Interrupt& interrupt,
-      std::conditional_t<
-          std::tuple_size_v<Catches_>,
-          apply_tuple_types_t<std::variant, Catches_>,
-          std::monostate>&& error,
+      typename MonostateIfEmptyOrVariantOf<Catches_>::type&& error,
       TransformerBeginCallback&& begin,
       TransformerFailCallback<Raises_>&& fail,
       TransformerStopCallback&& stop,
@@ -232,10 +229,8 @@ struct _Transformer final {
         Action action,
         std::optional<From_>&& from = std::nullopt,
         std::optional<
-            std::conditional_t<
-                std::tuple_size_v<Catches_>,
-                apply_tuple_types_t<std::variant, Catches_>,
-                std::monostate>>&& error = std::nullopt) {
+            typename MonostateIfEmptyOrVariantOf<
+                Catches_>::type>&& error = std::nullopt) {
       dispatch_(
           action,
           std::move(error),
@@ -274,10 +269,7 @@ struct _Transformer final {
     Callback<void(
         Action,
         std::optional<
-            std::conditional_t<
-                std::tuple_size_v<Catches_>,
-                apply_tuple_types_t<std::variant, Catches_>,
-                std::monostate>>&&,
+            typename MonostateIfEmptyOrVariantOf<Catches_>::type>&&,
         std::optional<From_>&&,
         std::unique_ptr<void, Callback<void(void*)>>&,
         Interrupt&,
@@ -377,10 +369,8 @@ struct _Transformer final {
       dispatch_ = [f = std::move(f)](
                       Action action,
                       std::optional<
-                          std::conditional_t<
-                              std::tuple_size_v<Catches_>,
-                              apply_tuple_types_t<std::variant, Catches_>,
-                              std::monostate>>&& error,
+                          typename MonostateIfEmptyOrVariantOf<
+                              Catches_>::type>&& error,
                       std::optional<From_>&& from,
                       std::unique_ptr<void, Callback<void(void*)>>& e_,
                       Interrupt& interrupt,
@@ -462,10 +452,8 @@ struct _Transformer final {
     Callback<void(
         Action,
         std::optional<
-            std::conditional_t<
-                std::tuple_size_v<Catches_>,
-                apply_tuple_types_t<std::variant, Catches_>,
-                std::monostate>>&&,
+            typename MonostateIfEmptyOrVariantOf<
+                Catches_>::type>&&,
         std::optional<From_>&&,
         std::unique_ptr<void, Callback<void(void*)>>&,
         Interrupt&,

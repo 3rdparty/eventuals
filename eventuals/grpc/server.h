@@ -828,16 +828,14 @@ template <typename Request, typename Response>
                                      << " for host = "
                                      << call.context()->host()
                                      << " and path = "
-                                     << call.context()
-                                            ->method()
-                                     << " failed: ";
+                                     << call.context()->method()
+                                     << " failed: "
+                                     << std::visit(
+                                            [](auto&& error) {
+                                              return error.what();
+                                            },
+                                            e.error());
 
-                                 std::visit(
-                                     [](auto&& error) {
-                                       EVENTUALS_GRPC_LOG(1)
-                                           << error.what();
-                                     },
-                                     e.error());
                                  return Just();
                                })
                                .yes([]() { return Just(); })
@@ -878,14 +876,13 @@ template <typename Request, typename Response>
                                      << " and path = "
                                      << call.context()
                                             ->method()
-                                     << " failed: ";
+                                     << " failed: "
+                                     << std::visit(
+                                            [](auto&& error) {
+                                              return error.what();
+                                            },
+                                            e.error());
 
-                                 std::visit(
-                                     [](auto&& error) {
-                                       EVENTUALS_GRPC_LOG(1)
-                                           << error.what();
-                                     },
-                                     e.error());
                                  return Just();
                                })
                                .yes([]() { return Just(); })

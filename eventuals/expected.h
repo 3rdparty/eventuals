@@ -21,7 +21,7 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
           std::is_same<char*, std::decay_t<E>>>,
       "To use an 'expected' as an eventual it must have "
       "an error type derived from 'std::exception', "
-      "or be a 'std::exception_ptr', or be string-like");
+      "or be string-like");
 
   return Eventual<T>()
       .template raises<
@@ -214,18 +214,6 @@ template <
 [[nodiscard]] auto operator>>(tl::expected<T, E>&& expected, Right right) {
   return ExpectedToEventual(std::move(expected))
       >> std::move(right);
-}
-
-////////////////////////////////////////////////////////////////////////
-
-inline std::string What(const std::exception_ptr& e) {
-  try {
-    std::rethrow_exception(e);
-  } catch (const std::exception& e) {
-    return e.what();
-  } catch (...) {
-    return "unknown exception";
-  }
 }
 
 ////////////////////////////////////////////////////////////////////////

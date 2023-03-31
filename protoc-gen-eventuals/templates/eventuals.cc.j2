@@ -137,7 +137,7 @@ Task::Of<void> {{ service.name }}::TypeErasedService::Serve{{ method.name }}() {
                     [](auto&& error){
                         LOG(WARNING) << "Failed to serve: " << error.what();
                     },
-                    std::move(expected.error())
+                    expected.error()
                 );
                }
             });

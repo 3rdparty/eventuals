@@ -136,16 +136,16 @@ Server::Server(
           serve->done.store(true);
         },
         [&serve](std::variant<std::exception>&& error) {
-          serve->done.store(true);
+          EVENTUALS_GRPC_LOG(1)
+              << serve->service->name()
+              << " failed serving with the error: "
+              << std::visit(
+                     [](std::exception error) {
+                       return error.what();
+                     },
+                     error);
 
-          std::visit(
-              [&serve](auto&& error) {
-                EVENTUALS_GRPC_LOG(1)
-                    << serve->service->name()
-                    << " failed serving with the error: "
-                    << error.what();
-              },
-              std::move(error));
+          serve->done.store(true);
         },
         [&serve]() {
           EVENTUALS_GRPC_LOG(1)

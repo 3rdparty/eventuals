@@ -126,10 +126,7 @@ struct HeapGenerator final {
 
   void Fail(
       Interrupt& interrupt,
-      std::conditional_t<
-          std::tuple_size_v<Catches_>,
-          apply_tuple_types_t<std::variant, Catches_>,
-          std::monostate>&& error,
+      typename MonostateIfEmptyOrVariantOf<Catches_>::type&& error,
       GeneratorBeginCallback&& begin,
       GeneratorFailCallback<Raises_>&& fail,
       GeneratorStopCallback&& stop,
@@ -208,10 +205,7 @@ struct _Generator final {
       Callback<void(
           Action,
           std::optional<
-              std::conditional_t<
-                  std::tuple_size_v<Catches>,
-                  apply_tuple_types_t<std::variant, Catches>,
-                  std::monostate>>&&,
+              typename MonostateIfEmptyOrVariantOf<Catches>::type>&&,
           Args&...,
           // Can't have a 'void' argument type
           // so we are using 'std::monostate'.
@@ -290,10 +284,8 @@ struct _Generator final {
                 std::monostate,
                 From_>>&& from = std::nullopt,
         std::optional<
-            std::conditional_t<
-                std::tuple_size_v<Catches_>,
-                apply_tuple_types_t<std::variant, Catches_>,
-                std::monostate>>&& error = std::nullopt) {
+            typename MonostateIfEmptyOrVariantOf<
+                Catches_>::type>&& error = std::nullopt) {
       std::apply(
           [&](auto&... args) {
             dispatch_(
@@ -458,10 +450,8 @@ struct _Generator final {
       dispatch_ = [f = std::move(f)](
                       Action action,
                       std::optional<
-                          std::conditional_t<
-                              std::tuple_size_v<Catches_>,
-                              apply_tuple_types_t<std::variant, Catches_>,
-                              std::monostate>>&& error,
+                          typename MonostateIfEmptyOrVariantOf<
+                              Catches_>::type>&& error,
                       Args_&... args,
                       std::optional<
                           std::conditional_t<

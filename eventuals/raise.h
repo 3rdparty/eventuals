@@ -48,9 +48,7 @@ struct _Raise final {
   template <typename T_>
   struct Composable final {
     static_assert(
-        std::disjunction_v<
-            std::is_same<std::exception_ptr, std::decay_t<T_>>,
-            std::is_base_of<std::exception, std::decay_t<T_>>>,
+        std::is_base_of_v<std::exception, std::decay_t<T_>>,
         "Expecting a type derived from std::exception");
 
     template <typename Arg, typename Errors>

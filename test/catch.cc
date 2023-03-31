@@ -279,5 +279,37 @@ TEST(CatchTest, Interrupt) {
   EXPECT_EQ(future.get(), "100");
 }
 
+TEST(CatchTest, RaiseFromCatch) {
+  auto all = []() {
+    return Just(1)
+        >> Raise("10")
+        >> Catch()
+               .all([](auto&& error) {
+                 return Just(10) >> Raise("1");
+               });
+  };
+
+  auto raised = []() {
+    return Just(1)
+        >> Raise("10")
+        >> Catch()
+               .raised<std::runtime_error>([](auto&& error) {
+                 return Just(10) >> Raise("1");
+               });
+  };
+
+  // Be careful there!
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(all())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(raised())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<std::runtime_error>>);
+}
+
+
 } // namespace
 } // namespace eventuals::test

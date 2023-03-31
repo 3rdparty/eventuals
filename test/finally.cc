@@ -34,8 +34,6 @@ TEST(Finally, Succeed) {
   expected<int, Stopped> result = *e();
 
   ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(42, result);
-
   EXPECT_EQ(42, *result);
 }
 

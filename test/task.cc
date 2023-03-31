@@ -169,21 +169,6 @@ TEST(Task, TaskWithPtr) {
 }
 
 TEST(Task, FailOnCallback) {
-  struct Functions {
-    MockFunction<void()> fail, stop, start;
-  };
-
-  Functions functions;
-
-  EXPECT_CALL(functions.fail, Call())
-      .Times(1);
-
-  EXPECT_CALL(functions.stop, Call())
-      .Times(0);
-
-  EXPECT_CALL(functions.start, Call())
-      .Times(0);
-
   auto e = [&]() -> Task::Of<int>::Raises<std::runtime_error> {
     return [&]() {
       return Eventual<int>()
@@ -192,20 +177,18 @@ TEST(Task, FailOnCallback) {
                    k.Fail(std::runtime_error("error from start"));
                  })
                  .fail([&](auto& k, auto&& error) {
-                   functions.fail.Call();
-                   k.Fail(std::runtime_error("error from fail"));
+                   FAIL() << "test should not have failed";
                  })
           >> Then([](int) { return 1; })
           >> Eventual<int>()
                  .raises<std::runtime_error>()
                  .start([&](auto& k, auto&& value) {
-                   functions.start.Call();
+                   FAIL() << "test should not have started";
                  })
                  .stop([&](auto&) {
-                   functions.stop.Call();
+                   FAIL() << "test should not have stopped";
                  })
                  .fail([&](auto& k, auto&& error) {
-                   functions.fail.Call();
                    k.Fail(std::forward<decltype(error)>(error));
                  });
     };
@@ -222,11 +205,6 @@ TEST(Task, FailOnCallback) {
 }
 
 TEST(Task, FailTerminatedPropagate) {
-  MockFunction<void()> fail;
-
-  EXPECT_CALL(fail, Call())
-      .Times(0);
-
   auto e = [&]() -> Task::Of<int>::Raises<std::runtime_error> {
     return [&]() {
       return Eventual<int>()
@@ -235,8 +213,7 @@ TEST(Task, FailTerminatedPropagate) {
                    k.Fail(std::runtime_error("error from start"));
                  })
                  .fail([&](auto& k, auto&& error) {
-                   fail.Call();
-                   k.Fail(std::runtime_error("error from fail"));
+                   FAIL() << "test should not have failed";
                  })
           >> Then([](int x) { return x + 1; });
     };
@@ -261,23 +238,17 @@ TEST(Task, FailTerminatedPropagate) {
 }
 
 TEST(Task, FailTerminatedCatch) {
-  MockFunction<void()> fail;
-
-  EXPECT_CALL(fail, Call())
-      .Times(1);
-
   auto e = [&]() -> Task::Of<int>::Raises<
-                     std::runtime_error>::Catches<std::runtime_error> {
+                     std::runtime_error> {
     return [&]() {
       return Raise("error")
           >> Eventual<int>()
                  .raises<std::runtime_error>()
                  .start([](auto& k) {
-                   k.Fail(std::runtime_error("error from start"));
+                   FAIL() << "test should not have started";
                  })
                  .fail([&](auto& k, auto&& error) {
                    EXPECT_STREQ(error.what(), "error");
-                   fail.Call();
                    k.Fail(std::runtime_error("error from fail"));
                  })
           >> Then([](int x) { return x + 1; });
@@ -300,11 +271,6 @@ TEST(Task, FailTerminatedCatch) {
 }
 
 TEST(Task, StopOnCallback) {
-  MockFunction<void()> stop;
-
-  EXPECT_CALL(stop, Call())
-      .Times(0);
-
   auto e = [&]() -> Task::Of<int> {
     return [&]() {
       return Eventual<int>()
@@ -312,8 +278,7 @@ TEST(Task, StopOnCallback) {
             k.Stop();
           })
           .stop([&](auto& k) {
-            stop.Call();
-            k.Stop();
+            FAIL() << "test should not have stopped";
           });
     };
   };
@@ -322,19 +287,13 @@ TEST(Task, StopOnCallback) {
 }
 
 TEST(Task, StopTerminated) {
-  MockFunction<void()> stop;
-
-  EXPECT_CALL(stop, Call())
-      .Times(1);
-
   auto e = [&]() -> Task::Of<int> {
     return [&]() {
       return Eventual<int>()
           .start([](auto& k) {
-            k.Stop();
+            FAIL() << "test should not have started";
           })
           .stop([&](auto& k) {
-            stop.Call();
             k.Stop();
           });
     };
@@ -393,12 +352,11 @@ TEST(Task, StartFuture) {
 TEST(Task, FailContinuation) {
   auto e = []() -> Task::Of<int>::Catches<std::runtime_error> {
     return []() {
-      return Finally([](
-                         expected<
-                             void,
-                             std::variant<
-                                 Stopped,
-                                 std::runtime_error>>&& expected) {
+      return Finally([](expected<
+                         void,
+                         std::variant<
+                             Stopped,
+                             std::runtime_error>>&& expected) {
         CHECK(std::holds_alternative<std::runtime_error>(expected.error()));
         EXPECT_STREQ(
             std::get<std::runtime_error>(expected.error()).what(),
@@ -687,9 +645,7 @@ TEST(Task, Inheritance) {
   EXPECT_EQ(*async(), 20);
 
   EXPECT_THAT(
-      [&]() { 
-        //
-        *failure(); },
+      [&]() { *failure(); },
       ThrowsMessage<std::runtime_error>(StrEq("error")));
 }
 
