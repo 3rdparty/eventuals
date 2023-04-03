@@ -56,11 +56,13 @@ struct _Stream final {
     template <typename Error>
     void Fail(Error&& error) {
       static_assert(
-          std::is_base_of_v<std::exception, std::decay_t<Error>>,
-          "Expecting a type derived from std::exception");
+          check_errors_v<std::decay_t<Error>>,
+          "Expecting a type derived from eventuals::Error");
 
       static_assert(
-          tuple_types_contains_subtype_v<std::decay_t<Error>, Errors_>,
+          std::disjunction_v<
+              tuple_types_contains_subtype<std::decay_t<Error>, Errors_>,
+              tuple_types_contains_subtype<TypeErasedError, Errors_>>,
           "Error is not specified in 'raises<...>()'");
 
       stream_->previous_->Continue(

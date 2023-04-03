@@ -71,7 +71,7 @@ TEST(ServerDeathTest, ClientReceivesUnavailable) {
                  >> Finally(
                         [&](expected<
                             void,
-                            std::variant<Stopped, std::runtime_error>>&&) {
+                            std::variant<Stopped, RuntimeError>>&&) {
                           return call.Finish();
                         });
            }));

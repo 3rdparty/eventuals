@@ -89,7 +89,7 @@ TEST_F(ClientInterruptibleTest, Interrupt) {
 
   // Trigger the interrupt, cancelling the grpc call.
   interrupt.Trigger();
-  EXPECT_THROW(future.get(), std::runtime_error);
+  EXPECT_THROW(future.get(), RuntimeError);
 }
 
 } // namespace

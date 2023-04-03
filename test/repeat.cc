@@ -14,7 +14,6 @@ namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(RepeatTest, Succeed) {
@@ -51,9 +50,9 @@ TEST(RepeatTest, Succeed) {
 TEST(RepeatTest, Fail) {
   auto e = [](auto) {
     return Eventual<int>()
-        .raises<std::runtime_error>()
+        .raises<RuntimeError>()
         .start([](auto& k) {
-          k.Fail(std::runtime_error("error"));
+          k.Fail(RuntimeError("error"));
         });
   };
 
@@ -75,9 +74,11 @@ TEST(RepeatTest, Fail) {
                });
   };
 
-  EXPECT_THAT(
-      [&]() { *r(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *r();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 

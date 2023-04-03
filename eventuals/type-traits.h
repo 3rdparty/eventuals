@@ -1,10 +1,11 @@
 #pragma once
 
 #include <exception>
-#include <experimental/type_traits>
 #include <tuple>
 #include <type_traits>
 #include <variant>
+
+#include "eventuals/errors.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -304,7 +305,7 @@ using apply_tuple_types_t = typename apply_tuple_types<T, Tuple>::type;
 template <typename... Errors>
 inline constexpr bool check_errors_v =
     std::conjunction_v<
-        std::is_base_of<std::exception, std::decay_t<Errors>>...>;
+        std::is_base_of<Error, std::decay_t<Errors>>...>;
 
 template <typename... Errors>
 using check_errors_t =

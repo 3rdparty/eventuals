@@ -15,7 +15,6 @@
 namespace eventuals::test {
 namespace {
 
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(Finally, Succeed) {
@@ -43,21 +42,21 @@ TEST(Finally, Fail) {
         >> Raise("error")
         >> Finally([](expected<
                        int,
-                       std::variant<Stopped, std::runtime_error>>&& expected) {
+                       std::variant<Stopped, RuntimeError>>&& expected) {
              return Just(std::move(expected));
            });
   };
 
   expected<
       int,
-      std::variant<Stopped, std::runtime_error>>
+      std::variant<Stopped, RuntimeError>>
       result = *e();
 
   ASSERT_FALSE(result.has_value());
 
-  CHECK(std::holds_alternative<std::runtime_error>(result.error()));
+  CHECK(std::holds_alternative<RuntimeError>(result.error()));
 
-  EXPECT_STREQ(std::get<std::runtime_error>(result.error()).what(), "error");
+  EXPECT_EQ(std::get<RuntimeError>(result.error()).what(), "error");
 }
 
 TEST(Finally, Stop) {
@@ -77,7 +76,7 @@ TEST(Finally, Stop) {
 
   ASSERT_FALSE(result.has_value());
 
-  EXPECT_STREQ(
+  EXPECT_EQ(
       result.error().what(),
       "Eventual computation stopped (cancelled)");
 }
@@ -103,18 +102,18 @@ TEST(Finally, VoidFail) {
                        void,
                        std::variant<
                            Stopped,
-                           std::runtime_error>>&& expected) {
+                           RuntimeError>>&& expected) {
              return Just(std::move(expected));
            });
   };
 
-  expected<void, std::variant<Stopped, std::runtime_error>> result = *e();
+  expected<void, std::variant<Stopped, RuntimeError>> result = *e();
 
   ASSERT_FALSE(result.has_value());
 
-  CHECK(std::holds_alternative<std::runtime_error>(result.error()));
+  CHECK(std::holds_alternative<RuntimeError>(result.error()));
 
-  EXPECT_STREQ(std::get<std::runtime_error>(result.error()).what(), "error");
+  EXPECT_EQ(std::get<RuntimeError>(result.error()).what(), "error");
 }
 
 TEST(Finally, VoidStop) {
@@ -131,7 +130,7 @@ TEST(Finally, VoidStop) {
 
   ASSERT_FALSE(result.has_value());
 
-  EXPECT_STREQ(
+  EXPECT_EQ(
       result.error().what(),
       "Eventual computation stopped (cancelled)");
 }
@@ -141,28 +140,28 @@ TEST(Finally, FinallyInsideThen) {
     return Just(1)
         >> Then([](int status) {
              return Eventual<void>()
-                        .raises<std::runtime_error>()
+                        .raises<RuntimeError>()
                         .start([](auto& k) {
-                          k.Fail(std::runtime_error("error"));
+                          k.Fail(RuntimeError("error"));
                         })
                  >> Finally([](expected<
                                 void,
                                 std::variant<
                                     Stopped,
-                                    std::runtime_error>>&& e) {
+                                    RuntimeError>>&& e) {
                       return If(e.has_value())
                           .yes([]() {
                             return Raise("another error");
                           })
                           .no([e = std::move(e)]() {
-                            CHECK(std::holds_alternative<std::runtime_error>(
+                            CHECK(std::holds_alternative<RuntimeError>(
                                 e.error()));
-                            return Raise(std::get<std::runtime_error>(
+                            return Raise(std::get<RuntimeError>(
                                        std::move(e.error())))
                                 >> Catch()
-                                       .raised<std::runtime_error>(
-                                           [](std::runtime_error&& error) {
-                                             EXPECT_STREQ(
+                                       .raised<RuntimeError>(
+                                           [](RuntimeError&& error) {
+                                             EXPECT_EQ(
                                                  error.what(),
                                                  "error");
                                            });

@@ -14,7 +14,6 @@ namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 class DomainNameResolveTest : public EventLoopTest {};
@@ -27,7 +26,7 @@ TEST_F(DomainNameResolveTest, Succeed) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   EXPECT_TRUE(
       std::regex_match(
@@ -44,11 +43,13 @@ TEST_F(DomainNameResolveTest, Fail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *std::move(e); },
-      ThrowsMessage<std::runtime_error>(StrEq("EAI_NONAME")));
+  try {
+    *e;
+  } catch (const RuntimeError& error) {
+    EXPECT_THAT(error.what(), "EAI_NONAME");
+  }
 }
 
 
@@ -74,17 +75,23 @@ TEST_F(DomainNameResolveTest, Stop) {
 }
 
 TEST_F(DomainNameResolveTest, Raises) {
+  struct MyError : public Error {
+    std::string what() const noexcept override {
+      return "child exception";
+    }
+  };
+
   std::string address = "localhost", port = "6667";
   auto e = DomainNameResolve(address, port)
       >> Eventual<int>()
-             .raises<std::overflow_error>()
+             .raises<MyError>()
              .start([](auto& k, std::string&& ip) {
                // Imagine that we got ip, and we try to connect
                // in order to get some data (int) from db for example,
                // but there was an error and we stop our continuation.
                bool error = true;
                if (error) {
-                 k.Fail(std::overflow_error("error"));
+                 k.Fail(MyError{});
                } else
                  k.Start(13);
              })
@@ -95,11 +102,13 @@ TEST_F(DomainNameResolveTest, Raises) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error, std::overflow_error>>);
+          std::tuple<RuntimeError, MyError>>);
 
-  EXPECT_THAT(
-      [&]() { *std::move(e); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e;
+  } catch (const MyError& error) {
+    EXPECT_EQ(error.what(), "child exception");
+  }
 }
 
 } // namespace

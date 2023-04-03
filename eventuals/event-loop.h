@@ -289,7 +289,7 @@ class EventLoop final : public Scheduler {
                                               continuation.k_.Start();
                                             } else {
                                               continuation.k_.Fail(
-                                                  std::runtime_error(
+                                                  RuntimeError(
                                                       uv_strerror(
                                                           continuation
                                                               .error_)));
@@ -339,7 +339,7 @@ class EventLoop final : public Scheduler {
                                               continuation.k_.Start();
                                             } else {
                                               continuation.k_.Fail(
-                                                  std::runtime_error(
+                                                  RuntimeError(
                                                       uv_strerror(
                                                           continuation
                                                               .error_)));
@@ -357,7 +357,7 @@ class EventLoop final : public Scheduler {
                                       *(Continuation*) handle->data;
                                   continuation.closed_ = true;
                                   CHECK(continuation.error_);
-                                  continuation.k_.Fail(std::runtime_error(
+                                  continuation.k_.Fail(RuntimeError(
                                       uv_strerror(continuation.error_)));
                                 });
                               }
@@ -436,7 +436,7 @@ class EventLoop final : public Scheduler {
                       if (!continuation.error_) {
                         continuation.k_.Stop();
                       } else {
-                        continuation.k_.Fail(std::runtime_error(
+                        continuation.k_.Fail(RuntimeError(
                             uv_strerror(continuation.error_)));
                       }
                     });
@@ -492,7 +492,7 @@ class EventLoop final : public Scheduler {
         template <typename Arg, typename Errors>
         using ErrorsFrom = tuple_types_union_t<
             Errors,
-            std::tuple<std::runtime_error>>;
+            std::tuple<RuntimeError>>;
 
         template <typename Downstream>
         static constexpr bool CanCompose = Downstream::ExpectsValue;
@@ -711,7 +711,7 @@ class EventLoop final : public Scheduler {
                       auto& continuation = *(Continuation*) handle->data;
                       continuation.closed_ = true;
                       CHECK(continuation.error_);
-                      continuation.k_.Fail(std::runtime_error(
+                      continuation.k_.Fail(RuntimeError(
                           uv_strerror(continuation.error_)));
                     });
                   }
@@ -784,7 +784,7 @@ class EventLoop final : public Scheduler {
                     if (!continuation.error_) {
                       continuation.k_.Stop();
                     } else {
-                      continuation.k_.Fail(std::runtime_error(
+                      continuation.k_.Fail(RuntimeError(
                           uv_strerror(continuation.error_)));
                     }
                   });
@@ -836,7 +836,7 @@ class EventLoop final : public Scheduler {
       template <typename Arg, typename Errors>
       using ErrorsFrom = tuple_types_union_t<
           Errors,
-          std::tuple<std::runtime_error>>;
+          std::tuple<RuntimeError>>;
 
       template <typename Downstream>
       static constexpr bool CanCompose = Downstream::ExpectsValue;
@@ -936,7 +936,7 @@ class EventLoop final : public Scheduler {
                   } else {
                     completed_ = true;
                     closed_ = true;
-                    k_.Fail(std::runtime_error(uv_strerror(error_)));
+                    k_.Fail(RuntimeError(uv_strerror(error_)));
                   }
                 }
               }),
@@ -982,7 +982,7 @@ class EventLoop final : public Scheduler {
                                     *(Continuation*) handle->data;
                                 continuation.closed_ = true;
                                 CHECK(continuation.error_);
-                                continuation.k_.Fail(std::runtime_error(
+                                continuation.k_.Fail(RuntimeError(
                                     uv_strerror(continuation.error_)));
                               });
                         }
@@ -996,7 +996,7 @@ class EventLoop final : public Scheduler {
                     auto& continuation = *(Continuation*) handle->data;
                     continuation.closed_ = true;
                     CHECK(continuation.error_);
-                    continuation.k_.Fail(std::runtime_error(
+                    continuation.k_.Fail(RuntimeError(
                         uv_strerror(continuation.error_)));
                   });
                 }
@@ -1021,7 +1021,7 @@ class EventLoop final : public Scheduler {
                   if (!continuation.error_) {
                     continuation.k_.Ended();
                   } else {
-                    continuation.k_.Fail(std::runtime_error(
+                    continuation.k_.Fail(RuntimeError(
                         uv_strerror(continuation.error_)));
                   }
                 });
@@ -1093,7 +1093,7 @@ class EventLoop final : public Scheduler {
                     if (!continuation.error_) {
                       continuation.k_.Stop();
                     } else {
-                      continuation.k_.Fail(std::runtime_error(
+                      continuation.k_.Fail(RuntimeError(
                           uv_strerror(continuation.error_)));
                     }
                   });
@@ -1146,7 +1146,7 @@ class EventLoop final : public Scheduler {
       template <typename Arg, typename Errors>
       using ErrorsFrom = tuple_types_union_t<
           Errors,
-          std::tuple<std::runtime_error>>;
+          std::tuple<RuntimeError>>;
 
       template <typename Downstream>
       static constexpr bool CanCompose = Downstream::ExpectsStream;

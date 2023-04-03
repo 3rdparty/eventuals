@@ -11,16 +11,15 @@
 namespace eventuals::test {
 namespace {
 
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 // Tests when when upstream fails the result will be fail.
 TYPED_TEST(ConcurrentTypedTest, StreamFail) {
   auto e = [&]() {
     return Stream<int>()
-               .template raises<std::runtime_error>()
+               .template raises<RuntimeError>()
                .next([](auto& k) {
-                 k.Fail(std::runtime_error("error"));
+                 k.Fail(RuntimeError("error"));
                })
         >> this->ConcurrentOrConcurrentOrdered([]() {
             return Map([](int i) {
@@ -33,11 +32,13 @@ TYPED_TEST(ConcurrentTypedTest, StreamFail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 } // namespace

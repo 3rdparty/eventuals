@@ -178,13 +178,7 @@ struct _Terminal final {
 ////////////////////////////////////////////////////////////////////////
 
 struct Stopped final {
-  Stopped() = default;
-  Stopped(const Stopped& that) = default;
-  Stopped(Stopped&& that) = default;
-
-  ~Stopped() = default;
-
-  const char* what() const throw() {
+  std::string what() const noexcept {
     return "Eventual computation stopped (cancelled)";
   }
 };

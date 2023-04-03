@@ -11,7 +11,6 @@ namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(DoAllTest, Succeed) {
@@ -73,8 +72,8 @@ TEST(DoAllTest, Fail) {
   auto e = []() {
     return DoAll(
         Eventual<void>()
-            .raises<std::runtime_error>()
-            .start([](auto& k) { k.Fail(std::runtime_error("error")); }),
+            .raises<RuntimeError>()
+            .start([](auto& k) { k.Fail(RuntimeError("error")); }),
         Eventual<int>([](auto& k) { k.Start(42); }),
         Eventual<std::string>([](auto& k) { k.Start(std::string("hello")); }),
         Eventual<void>([](auto& k) { k.Start(); }));
@@ -83,11 +82,13 @@ TEST(DoAllTest, Fail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 

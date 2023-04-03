@@ -3,6 +3,7 @@
 #include "eventuals/catch.h"
 #include "eventuals/concurrent.h"
 #include "eventuals/control-loop.h"
+#include "eventuals/errors.h"
 #include "eventuals/eventual.h"
 #include "eventuals/just.h"
 #include "eventuals/lock.h"
@@ -50,8 +51,8 @@ class Executor final : public Synchronizable {
                            // 'Concurrent' does not yet support 'void'.
                            >> Just(std::monostate{})
                            >> Catch()
-                                  .raised<std::exception>(
-                                      [this](std::exception&& e) {
+                                  .raised<TypeErasedError>(
+                                      [this](TypeErasedError&& e) {
                                         EVENTUALS_LOG(1)
                                             << "Executor '" << name_
                                             << "' caught: " << e.what();

@@ -4,6 +4,7 @@
 #include <optional>
 #include <tuple>
 
+#include "eventuals/errors.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
@@ -69,6 +70,7 @@ struct _Catch final {
         return true;
       } else if constexpr (std::disjunction_v<
                                std::is_same<Error_, E>,
+                               std::is_same<Error_, TypeErasedError>,
                                std::is_base_of<Error_, E>>) {
         Handle(std::move(k), interrupt, std::forward<E>(e));
         return true;
@@ -82,7 +84,10 @@ struct _Catch final {
     F_ f_;
 
 
-    using Raises = typename HandlerRaisesHelper<decltype(Then(std::move(f_))), Error_>::type;
+    using Raises =
+        typename HandlerRaisesHelper<
+            decltype(Then(std::move(f_))),
+            Error_>::type;
 
     using Adapted_ =
         decltype(Then(std::move(f_))
@@ -121,7 +126,10 @@ struct _Catch final {
 
     F_ f_;
 
-    using Raises = typename HandlerRaisesHelper<decltype(Then(std::move(f_))), Error_>::type;
+    using Raises =
+        typename HandlerRaisesHelper<
+            decltype(Then(std::move(f_))),
+            Error_>::type;
   };
 
   ////////////////////////////////////////////////////////////////////////
@@ -145,7 +153,7 @@ struct _Catch final {
     void Fail(Error&& error) {
       static_assert(
           check_errors_v<std::decay_t<Error>>,
-          "'Catch' expects a type derived from std::exception");
+          "'Catch' expects a type derived from eventuals::Error");
 
       // NOTE: we need to put 'handled' on the stack because if 'this'
       // was constructed on the heap it's possible that 'TryHandle()'
@@ -181,6 +189,7 @@ struct _Catch final {
       // 'Error' type so to keep the compiler from trying to compile that
       // code path we need to add the following 'if constexpr'.
       if constexpr (!std::disjunction_v<
+                        tuple_contains_exact_type<TypeErasedError, Catches_>,
                         tuple_types_contains_subtype<
                             std::decay_t<Error>,
                             Catches_>,
@@ -239,9 +248,9 @@ struct _Catch final {
     using ErrorsFrom = tuple_types_union_t<
         std::conditional_t<
             std::disjunction_v<
-                // If 'std::exception' is caught
+                // If 'TypeErasedError' is caught
                 // then all exceptions will be caught.
-                tuple_types_contains<std::exception, Catches_>,
+                tuple_types_contains<TypeErasedError, Catches_>,
                 // If we have a '.all(...)' handler then
                 // all exceptions are caught.
                 std::integral_constant<bool, has_all_>>,
@@ -351,9 +360,9 @@ struct _Catch final {
       static_assert(!has_all_, "Duplicate 'all'");
 
       static_assert(
-          !tuple_types_contains_v<std::exception, Catches_>,
-          "You already have a handler that catches 'std::exception' "
-          "so your '.all()' handler is redundant");
+          !tuple_types_contains_v<TypeErasedError, Catches_>,
+          "You already have a handler that catches "
+          "'eventuals::TypeErasedError' so your '.all()' handler is redundant");
 
       return create<Value_, true>(
           std::tuple_cat(

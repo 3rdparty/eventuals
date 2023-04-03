@@ -19,6 +19,7 @@ cc_library(
         "conditional.h",
         "control-loop.h",
         "do-all.h",
+        "errors.h",
         "eventual.h",
         "executor.h",
         "expected.h",

@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 #include "test/grpc/streaming/streaming.h"
-=======
-#include "streaming.h"
->>>>>>> c06c03f (Split streaming.cc into separate files)
 
 namespace eventuals::grpc::test {
 namespace {

@@ -15,7 +15,6 @@ using helloworld::HelloRequest;
 
 using stout::Borrowable;
 
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(ServerUnavailableTest, NonexistantServer) {
@@ -35,9 +34,13 @@ TEST(ServerUnavailableTest, NonexistantServer) {
            }));
   };
 
-  EXPECT_THAT(
-      [&]() { *call(); },
-      ThrowsMessage<std::runtime_error>(StrEq("Failed to start call")));
+  try {
+    *call();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(
+        error.what(),
+        "Failed to start call");
+  }
 }
 
 } // namespace

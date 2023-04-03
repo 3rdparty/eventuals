@@ -10,7 +10,6 @@
 namespace eventuals::test {
 namespace {
 
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(Expected, Compose) {
@@ -68,22 +67,24 @@ TEST(Expected, NoRaisesDeclarationUnexpected) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("unexpected")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "unexpected");
+  }
 }
 
 TEST(Expected, NoRaisesDeclarationUnexpectedFromDerivedException) {
-  struct MyException final : public std::exception {
-    const char* what() const noexcept override {
+  struct MyError final : public Error {
+    std::string what() const noexcept override {
       return "woah";
     }
   };
 
-  auto f = []() -> expected<int, MyException> {
-    return make_unexpected(MyException());
+  auto f = []() -> expected<int, MyError> {
+    return make_unexpected(MyError());
   };
 
   auto e = [&]() {
@@ -96,22 +97,24 @@ TEST(Expected, NoRaisesDeclarationUnexpectedFromDerivedException) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<MyException>>);
+          std::tuple<MyError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<MyException>(StrEq("woah")));
+  try {
+    *e();
+  } catch (const MyError& error) {
+    EXPECT_EQ(error.what(), "woah");
+  }
 }
 
 TEST(Expected, RaisesDeclarationUnexpectedFromDerivedException) {
-  struct MyException final : public std::exception {
-    const char* what() const noexcept override {
+  struct MyError final : public Error {
+    std::string what() const noexcept override {
       return "woah";
     }
   };
 
-  auto f = []() -> expected<int, MyException> {
-    return make_unexpected(MyException());
+  auto f = []() -> expected<int, MyError> {
+    return make_unexpected(MyError());
   };
 
   auto e = [&]() {
@@ -124,11 +127,13 @@ TEST(Expected, RaisesDeclarationUnexpectedFromDerivedException) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<MyException>>);
+          std::tuple<MyError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<MyException>(StrEq("woah")));
+  try {
+    *e();
+  } catch (const MyError& error) {
+    EXPECT_EQ(error.what(), "woah");
+  }
 }
 
 } // namespace

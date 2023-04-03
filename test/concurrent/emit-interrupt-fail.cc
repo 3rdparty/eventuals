@@ -12,7 +12,6 @@
 namespace eventuals::test {
 namespace {
 
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 // Tests when when upstream fails after an interrupt the result will
@@ -20,7 +19,7 @@ using testing::ThrowsMessage;
 TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
   auto e = [&]() {
     return Stream<int>()
-               .raises<std::runtime_error>()
+               .raises<RuntimeError>()
                .interruptible()
                .begin([](auto& k, auto& handler) {
                  CHECK(handler) << "Test expects interrupt to be registered";
@@ -34,7 +33,7 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
                    k.Emit(i);
                  } else {
                    EXPECT_TRUE(handler->Install([&k]() {
-                     k.Fail(std::runtime_error("error"));
+                     k.Fail(RuntimeError("error"));
                    }));
                  }
                })
@@ -49,7 +48,7 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   auto [future, k] = PromisifyForTest(e());
 
@@ -65,14 +64,11 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
 
   interrupt.Trigger();
 
-  EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    future.get();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 } // namespace

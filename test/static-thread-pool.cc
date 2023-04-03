@@ -164,13 +164,13 @@ TEST(StaticThreadPoolTest, SpawnFail) {
           EXPECT_NE(id, std::this_thread::get_id());
           id = std::this_thread::get_id();
           return Eventual<void>()
-                     .raises<std::runtime_error>()
+                     .raises<RuntimeError>()
                      .start([&id](auto& k) {
                        EXPECT_EQ(id, std::this_thread::get_id());
                        std::thread thread(
                            [&id, &k]() {
                              EXPECT_NE(id, std::this_thread::get_id());
-                             k.Fail(std::runtime_error("error"));
+                             k.Fail(RuntimeError("error"));
                            });
                        thread.detach();
                      })
@@ -185,9 +185,9 @@ TEST(StaticThreadPoolTest, SpawnFail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THROW(*e(), std::runtime_error);
+  EXPECT_THROW(*e(), RuntimeError);
 }
 
 TEST(StaticThreadPoolTest, Concurrent) {

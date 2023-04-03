@@ -20,7 +20,7 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
           std::is_same<std::string, std::decay_t<E>>,
           std::is_same<char*, std::decay_t<E>>>,
       "To use an 'expected' as an eventual it must have "
-      "an error type derived from 'std::exception', "
+      "an error type derived from 'eventuals::Error', "
       "or be string-like");
 
   return Eventual<T>()
@@ -28,7 +28,7 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
           std::conditional_t<
               check_errors_v<E>,
               E,
-              std::runtime_error>>()
+              RuntimeError>>()
       // NOTE: we only care about "start" here because on "stop"
       // or "fail" we want to propagate that. We don't want to
       // override a "stop" with our failure because then
@@ -45,7 +45,7 @@ auto ExpectedToEventual(tl::expected<T, E>&& expected) {
           if constexpr (check_errors_v<E>) {
             return k.Fail(std::move(expected.error()));
           } else {
-            return k.Fail(std::runtime_error(std::move(expected.error())));
+            return k.Fail(RuntimeError(std::move(expected.error())));
           }
         }
       });
@@ -60,7 +60,7 @@ auto ExpectedToEventual(
   static_assert(
       check_errors_v<Errors...>,
       "To use an 'expected' with 'std::variant' errors as an eventual "
-      "it must have all error types derived from 'std::exception' "
+      "it must have all error types derived from 'eventuals::Error' "
       "or be string-like");
 
   return Eventual<T>()
@@ -91,7 +91,7 @@ auto ExpectedToEventual(
                 },
                 std::move(expected.error()));
           } else {
-            return k.Fail(std::runtime_error(std::move(expected.error())));
+            return k.Fail(RuntimeError(std::move(expected.error())));
           }
         }
       });
@@ -152,9 +152,9 @@ class expected : public tl::expected<Value_, Error_> {
   using ErrorsFrom = tuple_types_union_t<
       std::tuple<
           std::conditional_t<
-              std::is_base_of_v<std::exception, std::decay_t<Error_>>,
+              std::is_base_of_v<Error, std::decay_t<Error_>>,
               Error_,
-              std::runtime_error>>,
+              RuntimeError>>,
       Errors>;
 
   template <typename Arg, typename Errors, typename K>
@@ -167,7 +167,7 @@ class expected : public tl::expected<Value_, Error_> {
                     std::conditional_t<
                         check_errors_v<Error_>,
                         Error_,
-                        std::runtime_error>>,
+                        RuntimeError>>,
                 Errors>>(std::move(k));
   }
 

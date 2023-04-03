@@ -356,7 +356,9 @@ struct _Transformer final {
       using ErrorsFromE = typename E::template ErrorsFrom<From_, Catches_>;
 
       static_assert(
-          eventuals::tuple_types_subset_subtype_v<ErrorsFromE, Raises_>,
+          std::disjunction_v<
+              eventuals::tuple_types_subset_subtype<ErrorsFromE, Raises_>,
+              tuple_contains_exact_type<TypeErasedError, Raises_>>,
           "Specified errors can't be thrown from 'Transformer'");
 
       using Value = typename E::template ValueFrom<From_, Catches_>;

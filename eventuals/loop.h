@@ -32,7 +32,7 @@ struct _Loop final {
     void Fail(Error&& error) {
       static_assert(
           check_errors_v<Error>,
-          "Expecting a type derived from std::exception");
+          "Expecting a type derived from eventuals::Error");
 
       static_assert(
           tuple_types_contains_subtype_v<std::decay_t<Error>, Raises_>,

@@ -438,7 +438,9 @@ struct _TaskFromToWith final {
       using ErrorsFromE = typename E::template ErrorsFrom<From_, Catches_>;
 
       static_assert(
-          tuple_types_subset_subtype_v<ErrorsFromE, Raises_>,
+          std::disjunction_v<
+              tuple_types_subset_subtype<ErrorsFromE, Raises_>,
+              tuple_contains_exact_type<TypeErasedError, Raises_>>,
           "Specified errors can't be raised within 'Task'");
 
       using Value = typename E::template ValueFrom<From_, Catches_>;
@@ -746,8 +748,8 @@ class _Task final {
       TaskFailCallback<Raises_>&& fail,
       TaskStopCallback&& stop) {
     static_assert(
-        std::is_base_of_v<std::exception, std::decay_t<Error>>,
-        "Expecting a type derived from std::exception");
+        check_errors_v<std::decay_t<Error>>,
+        "Expecting a type derived from eventuals::Error");
 
     static_assert(
         std::tuple_size_v<Catches_>,
@@ -819,7 +821,7 @@ class _Task final {
           + " blocking on dereference]");
 
       return future.get();
-    } catch (const std::exception& e) {
+    } catch (const TypeErasedError& e) {
       LOG(WARNING)
           << "WARNING: exception thrown while dereferencing eventual: "
           << e.what();
@@ -862,8 +864,8 @@ class _Task final {
   template <typename Error>
   [[nodiscard]] static auto Failure(Error error) {
     static_assert(
-        std::is_base_of_v<std::exception, std::decay_t<Error>>,
-        "Expecting a type derived from std::exception");
+        check_errors_v<std::decay_t<Error>>,
+        "Expecting a type derived from eventuals::Error");
 
     // TODO(benh): optimize away heap allocation.
     // If we store an error using 'std::exception_ptr' it is also a memory
@@ -879,15 +881,15 @@ class _Task final {
   }
 
   [[nodiscard]] static auto Failure(const std::string& s) {
-    return Failure(std::runtime_error(s));
+    return Failure(RuntimeError(s));
   }
 
   [[nodiscard]] static auto Failure(char* s) {
-    return Failure(std::runtime_error(s));
+    return Failure(RuntimeError(s));
   }
 
   [[nodiscard]] static auto Failure(const char* s) {
-    return Failure(std::runtime_error(s));
+    return Failure(RuntimeError(s));
   }
 
  private:

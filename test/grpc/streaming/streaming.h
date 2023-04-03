@@ -15,10 +15,6 @@
 #include "test/promisify-for-test.h"
 
 namespace eventuals::grpc::test {
-<<<<<<< HEAD
-=======
-namespace {
->>>>>>> c06c03f (Split streaming.cc into separate files)
 
 using keyvaluestore::Request;
 using keyvaluestore::Response;
@@ -117,8 +113,4 @@ void test_client_behavior(Handler handler) {
   EXPECT_FALSE(cancelled.get());
 }
 
-<<<<<<< HEAD
-=======
-} // namespace
->>>>>>> c06c03f (Split streaming.cc into separate files)
 } // namespace eventuals::grpc::test

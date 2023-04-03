@@ -121,7 +121,7 @@ class ClientWriter {
       RequestType_ request,
       ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
     return Eventual<void>()
-        .raises<std::runtime_error>()
+        .raises<RuntimeError>()
         .start(
             [this,
              callback = Callback<void(bool)>(),
@@ -131,7 +131,7 @@ class ClientWriter {
                 if (ok) {
                   k.Start();
                 } else {
-                  k.Fail(std::runtime_error("Failed to write"));
+                  k.Fail(RuntimeError("Failed to write"));
                 }
               };
 
@@ -217,14 +217,14 @@ class ClientCall {
   // '::grpc::ClientAsyncReaderWriter'.
   [[nodiscard]] auto WritesDone() {
     return Eventual<void>()
-        .raises<std::runtime_error>()
+        .raises<RuntimeError>()
         .start(
             [this, callback = Callback<void(bool)>()](auto& k) mutable {
               callback = [&k](bool ok) mutable {
                 if (ok) {
                   k.Start();
                 } else {
-                  k.Fail(std::runtime_error("Failed to do 'WritesDone()'"));
+                  k.Fail(RuntimeError("Failed to do 'WritesDone()'"));
                 }
               };
 
@@ -244,7 +244,7 @@ class ClientCall {
     };
 
     return Eventual<::grpc::Status>()
-        .raises<std::runtime_error>()
+        .raises<RuntimeError>()
         .start(
             [this,
              data = Data{},
@@ -256,7 +256,7 @@ class ClientCall {
                 if (ok) {
                   k.Start(std::move(data.status));
                 } else {
-                  k.Fail(std::runtime_error("Failed to finish"));
+                  k.Fail(RuntimeError("Failed to finish"));
                 }
               };
 
@@ -371,7 +371,7 @@ class Client {
 
     return Eventual<ClientCall<Request, Response>>()
         .interruptible()
-        .template raises<std::runtime_error>()
+        .template raises<RuntimeError>()
         .start(
             [data = Data{
                  context,
@@ -408,12 +408,12 @@ class Client {
                       ->FindMethodByName(data.name);
 
               if (method == nullptr) {
-                k.Fail(std::runtime_error(
+                k.Fail(RuntimeError(
                     "Method " + data.name + " not found"));
               } else {
                 auto error = Traits::Validate<Request, Response>(method);
                 if (error) {
-                  k.Fail(std::runtime_error(error->message));
+                  k.Fail(RuntimeError(error->message));
                 } else {
                   if (data.host) {
                     data.context->set_authority(data.host.value());
@@ -443,7 +443,7 @@ class Client {
                     // redundant check because 'PrepareCall' also does
                     // this?  At the very least we'll probably give a
                     // better error message by checking.
-                    k.Fail(std::runtime_error("Failed to prepare call"));
+                    k.Fail(RuntimeError("Failed to prepare call"));
                   } else {
                     using K = std::decay_t<decltype(k)>;
                     data.k = &k;
@@ -477,7 +477,7 @@ class Client {
                             << " with host = " << data.host.value_or("*")
                             << " with path = " << data.path;
 
-                        k.Fail(std::runtime_error("Failed to start call"));
+                        k.Fail(RuntimeError("Failed to start call"));
                       }
                     };
 

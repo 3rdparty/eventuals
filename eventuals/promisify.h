@@ -162,7 +162,7 @@ auto Run(E e) {
     }
 
     return future.get();
-  } catch (const std::exception& e) {
+  } catch (const Error& e) {
     LOG(WARNING)
         << "WARNING: exception thrown while dereferencing eventual: "
         << e.what();

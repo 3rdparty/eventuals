@@ -37,7 +37,7 @@ struct _Head final {
       if (arg_) {
         k_.Start(std::move(*arg_));
       } else {
-        k_.Fail(std::runtime_error("empty stream"));
+        k_.Fail(RuntimeError("empty stream"));
       }
     }
 
@@ -62,7 +62,7 @@ struct _Head final {
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<
-        std::tuple<std::runtime_error>,
+        std::tuple<RuntimeError>,
         Errors>;
 
     template <typename Arg, typename Errors, typename K>

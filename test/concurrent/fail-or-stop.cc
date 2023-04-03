@@ -27,7 +27,7 @@ TYPED_TEST(ConcurrentTypedTest, FailOrStop) {
             };
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
-                  .raises<std::runtime_error>()
+                  .raises<RuntimeError>()
                   .start([&, data = Data()](auto& k) mutable {
                     using K = std::decay_t<decltype(k)>;
                     data.k = &k;
@@ -37,7 +37,7 @@ TYPED_TEST(ConcurrentTypedTest, FailOrStop) {
                         static_cast<K*>(data.k)->Stop();
                       } else {
                         static_cast<K*>(data.k)->Fail(
-                            std::runtime_error("error"));
+                            RuntimeError("error"));
                       }
                     });
                   });
@@ -49,7 +49,7 @@ TYPED_TEST(ConcurrentTypedTest, FailOrStop) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
 
   auto [future, k] = PromisifyForTest(e());

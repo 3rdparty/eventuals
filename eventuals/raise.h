@@ -2,6 +2,7 @@
 
 #include <optional>
 
+#include "eventuals/errors.h"
 #include "eventuals/interrupt.h"
 #include "eventuals/type-traits.h"
 
@@ -48,8 +49,8 @@ struct _Raise final {
   template <typename T_>
   struct Composable final {
     static_assert(
-        std::is_base_of_v<std::exception, std::decay_t<T_>>,
-        "Expecting a type derived from std::exception");
+        std::is_base_of_v<Error, std::decay_t<T_>>,
+        "Expecting a type derived from eventuals::Error");
 
     template <typename Arg, typename Errors>
     using ValueFrom = Arg;
@@ -81,19 +82,19 @@ template <typename T>
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto Raise(const std::string& s) {
-  return Raise(std::runtime_error(s));
+  return Raise(RuntimeError(s));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto Raise(char* s) {
-  return Raise(std::runtime_error(s));
+  return Raise(RuntimeError(s));
 }
 
 ////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] inline auto Raise(const char* s) {
-  return Raise(std::runtime_error(s));
+  return Raise(RuntimeError(s));
 }
 
 ////////////////////////////////////////////////////////////////////////

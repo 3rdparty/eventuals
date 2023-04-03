@@ -167,7 +167,7 @@ class File final {
   return loop.Schedule(
       "OpenFile",
       Eventual<File>()
-          .raises<std::runtime_error>()
+          .raises<RuntimeError>()
           .context(Data{loop, flags, mode, path})
           .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -187,13 +187,13 @@ class File final {
                   if (request->result >= 0) {
                     k.Start(File(request->result));
                   } else {
-                    k.Fail(std::runtime_error(uv_strerror(request->result)));
+                    k.Fail(RuntimeError(uv_strerror(request->result)));
                   }
                 });
 
             if (error) {
               static_cast<K*>(data.k)->Fail(
-                  std::runtime_error(uv_strerror(error)));
+                  RuntimeError(uv_strerror(error)));
             }
           }));
 }
@@ -214,7 +214,7 @@ class File final {
   return loop.Schedule(
       "CloseFile",
       Eventual<void>()
-          .raises<std::runtime_error>()
+          .raises<RuntimeError>()
           .context(Data{loop, std::move(file)})
           .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -233,13 +233,13 @@ class File final {
                     data.file.MarkAsClosed();
                     k.Start();
                   } else {
-                    k.Fail(std::runtime_error(uv_strerror(request->result)));
+                    k.Fail(RuntimeError(uv_strerror(request->result)));
                   };
                 });
 
             if (error) {
               static_cast<K*>(data.k)->Fail(
-                  std::runtime_error(uv_strerror(error)));
+                  RuntimeError(uv_strerror(error)));
             }
           }));
 }
@@ -265,7 +265,7 @@ class File final {
   return loop.Schedule(
       "ReadFile",
       Eventual<std::string>()
-          .raises<std::runtime_error>()
+          .raises<RuntimeError>()
           .context(Data{loop, file, bytes_to_read, offset, bytes_to_read})
           .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -286,13 +286,13 @@ class File final {
                   if (request->result >= 0) {
                     k.Start(data.buffer.Extract());
                   } else {
-                    k.Fail(std::runtime_error(uv_strerror(request->result)));
+                    k.Fail(RuntimeError(uv_strerror(request->result)));
                   };
                 });
 
             if (error) {
               static_cast<K*>(data.k)->Fail(
-                  std::runtime_error(uv_strerror(error)));
+                  RuntimeError(uv_strerror(error)));
             }
           }));
 }
@@ -317,7 +317,7 @@ class File final {
   return loop.Schedule(
       "WriteFile",
       Eventual<void>()
-          .raises<std::runtime_error>()
+          .raises<RuntimeError>()
           .context(Data{loop, file, data, offset})
           .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -338,13 +338,13 @@ class File final {
                   if (request->result >= 0) {
                     k.Start();
                   } else {
-                    k.Fail(std::runtime_error(uv_strerror(request->result)));
+                    k.Fail(RuntimeError(uv_strerror(request->result)));
                   };
                 });
 
             if (error) {
               static_cast<K*>(data.k)->Fail(
-                  std::runtime_error(uv_strerror(error)));
+                  RuntimeError(uv_strerror(error)));
             }
           }));
 }
@@ -365,7 +365,7 @@ class File final {
   return loop.Schedule(
       "UnlinkFile",
       Eventual<void>()
-          .raises<std::runtime_error>()
+          .raises<RuntimeError>()
           .context(Data{loop, path})
           .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -383,13 +383,13 @@ class File final {
                   if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(std::runtime_error(uv_strerror(request->result)));
+                    k.Fail(RuntimeError(uv_strerror(request->result)));
                   }
                 });
 
             if (error) {
               static_cast<K*>(data.k)->Fail(
-                  std::runtime_error(uv_strerror(error)));
+                  RuntimeError(uv_strerror(error)));
             }
           }));
 }
@@ -412,7 +412,7 @@ class File final {
   return loop.Schedule(
       "MakeDirectory",
       Eventual<void>()
-          .raises<std::runtime_error>()
+          .raises<RuntimeError>()
           .context(Data{loop, path, mode})
           .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -431,13 +431,13 @@ class File final {
                   if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(std::runtime_error(uv_strerror(request->result)));
+                    k.Fail(RuntimeError(uv_strerror(request->result)));
                   }
                 });
 
             if (error) {
               static_cast<K*>(data.k)->Fail(
-                  std::runtime_error(uv_strerror(error)));
+                  RuntimeError(uv_strerror(error)));
             }
           }));
 }
@@ -458,7 +458,7 @@ class File final {
   return loop.Schedule(
       "RemoveDirectory",
       Eventual<void>()
-          .raises<std::runtime_error>()
+          .raises<RuntimeError>()
           .context(Data{loop, path})
           .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -476,13 +476,13 @@ class File final {
                   if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(std::runtime_error(uv_strerror(request->result)));
+                    k.Fail(RuntimeError(uv_strerror(request->result)));
                   }
                 });
 
             if (error) {
               static_cast<K*>(data.k)->Fail(
-                  std::runtime_error(uv_strerror(error)));
+                  RuntimeError(uv_strerror(error)));
             }
           }));
 }
@@ -507,7 +507,7 @@ class File final {
   return loop.Schedule(
       "CopyFile",
       Eventual<void>()
-          .raises<std::runtime_error>()
+          .raises<RuntimeError>()
           .context(Data{loop, src, dst, flags})
           .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -527,13 +527,13 @@ class File final {
                   if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(std::runtime_error(uv_strerror(request->result)));
+                    k.Fail(RuntimeError(uv_strerror(request->result)));
                   }
                 });
 
             if (error) {
               static_cast<K*>(data.k)->Fail(
-                  std::runtime_error(uv_strerror(error)));
+                  RuntimeError(uv_strerror(error)));
             }
           }));
 }
@@ -556,7 +556,7 @@ class File final {
   return loop.Schedule(
       "RenameFile",
       Eventual<void>()
-          .raises<std::runtime_error>()
+          .raises<RuntimeError>()
           .context(Data{loop, src, dst})
           .start([](Data& data, auto& k) mutable {
             using K = std::decay_t<decltype(k)>;
@@ -575,13 +575,13 @@ class File final {
                   if (request->result == 0) {
                     k.Start();
                   } else {
-                    k.Fail(std::runtime_error(uv_strerror(request->result)));
+                    k.Fail(RuntimeError(uv_strerror(request->result)));
                   }
                 });
 
             if (error) {
               static_cast<K*>(data.k)->Fail(
-                  std::runtime_error(uv_strerror(error)));
+                  RuntimeError(uv_strerror(error)));
             }
           }));
 }

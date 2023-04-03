@@ -20,7 +20,6 @@ namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(EventualTest, Succeed) {
@@ -77,12 +76,12 @@ TEST(EventualTest, Fail) {
 
   auto e = [&]() {
     return Eventual<int>()
-               .raises<std::runtime_error>()
+               .raises<RuntimeError>()
                .context("error")
                .start([](const char*& error, auto& k) {
                  std::thread thread(
                      [&error, &k]() mutable {
-                       k.Fail(std::runtime_error(error));
+                       k.Fail(RuntimeError(error));
                      });
                  thread.detach();
                })
@@ -96,9 +95,11 @@ TEST(EventualTest, Fail) {
                });
   };
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 
@@ -234,11 +235,13 @@ TEST(EventualTest, Raise) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 
@@ -246,7 +249,7 @@ TEST(EventualTest, Catch) {
   auto e = []() {
     return Just(41)
         >> Raise("error")
-        >> Catch([](std::variant<std::runtime_error>&& error) {
+        >> Catch([](std::variant<RuntimeError>&& error) {
              return 42;
            })
         >> Then([](int value) {
@@ -267,10 +270,10 @@ TEST(EventualTest, CatchVoid) {
   auto e = []() {
     return Just()
         >> Raise("error")
-        >> Catch(Let([](std::variant<std::runtime_error>& error) {
+        >> Catch(Let([](std::variant<RuntimeError>& error) {
              return Then([&]() {
-               EXPECT_STREQ(
-                   std::get<std::runtime_error>(error).what(),
+               EXPECT_EQ(
+                   std::get<RuntimeError>(error).what(),
                    "error");
              });
            }))

@@ -25,7 +25,7 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualFail) {
         >> this->ConcurrentOrConcurrentOrdered([&]() {
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
-                  .raises<std::runtime_error>()
+                  .raises<RuntimeError>()
                   .interruptible()
                   .start([&](auto& k, auto& handler) mutable {
                     CHECK(handler) << "Test expects interrupt to be registered";
@@ -35,7 +35,7 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualFail) {
                       });
                     } else {
                       EXPECT_TRUE(handler->Install([&k]() {
-                        k.Fail(std::runtime_error("error"));
+                        k.Fail(RuntimeError("error"));
                       }));
                       callbacks.emplace_back([]() {});
                     }
@@ -55,7 +55,7 @@ TYPED_TEST(ConcurrentTypedTest, DownstreamDoneOneEventualFail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   auto [future, k] = PromisifyForTest(e());
 

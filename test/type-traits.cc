@@ -306,9 +306,9 @@ static_assert(!check_errors_v<int>);
 
 static_assert(!check_errors_v<int, std::string>);
 
-static_assert(!check_errors_v<std::string, std::runtime_error>);
+static_assert(!check_errors_v<std::string, RuntimeError>);
 
-static_assert(check_errors_v<std::overflow_error, std::runtime_error>);
+static_assert(check_errors_v<TypeErasedError, RuntimeError>);
 
 ////////////////////////////////////////////////////////////////////////
 

@@ -16,7 +16,6 @@
 namespace eventuals::test {
 namespace {
 
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 // Tests that 'Concurrent()' and 'ConcurrentOrdered()' defers to the
@@ -30,12 +29,12 @@ TYPED_TEST(ConcurrentTypedTest, InterruptFail) {
         >> this->ConcurrentOrConcurrentOrdered([&]() {
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
-                  .raises<std::runtime_error>()
+                  .raises<RuntimeError>()
                   .interruptible()
                   .start([&](auto& k, auto& handler) mutable {
                     CHECK(handler) << "Test expects interrupt to be registered";
                     EXPECT_TRUE(handler->Install([&k]() {
-                      k.Fail(std::runtime_error("error"));
+                      k.Fail(RuntimeError("error"));
                     }));
                     callbacks.emplace_back([]() {});
                   });
@@ -47,7 +46,7 @@ TYPED_TEST(ConcurrentTypedTest, InterruptFail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
 
   auto [future, k] = PromisifyForTest(e());
@@ -66,14 +65,11 @@ TYPED_TEST(ConcurrentTypedTest, InterruptFail) {
 
   interrupt.Trigger();
 
-  EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    future.get();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 } // namespace

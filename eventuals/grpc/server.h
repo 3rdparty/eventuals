@@ -178,7 +178,7 @@ class ServerReader {
       void* k = nullptr;
     };
     return eventuals::Stream<RequestType_>()
-        .template raises<std::runtime_error>()
+        .template raises<RuntimeError>()
         .next([this,
                data = Data{},
                callback = Callback<void(bool)>()](auto& k) mutable {
@@ -202,7 +202,7 @@ class ServerReader {
 
                   k.Emit(std::move(request));
                 } else {
-                  k.Fail(std::runtime_error("Failed to deserialize request"));
+                  k.Fail(RuntimeError("Failed to deserialize request"));
                 }
               } else {
                 EVENTUALS_GRPC_LOG(1)
@@ -261,7 +261,7 @@ class ServerWriter {
       ResponseType_ response,
       ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
     return Eventual<void>()
-        .raises<std::runtime_error>()
+        .raises<RuntimeError>()
         .start(
             [this,
              callback = Callback<void(bool)>(),
@@ -273,7 +273,7 @@ class ServerWriter {
                   if (ok) {
                     k.Start();
                   } else {
-                    k.Fail(std::runtime_error("Failed to write"));
+                    k.Fail(RuntimeError("Failed to write"));
                   }
                 };
 
@@ -286,7 +286,7 @@ class ServerWriter {
 
                 context_->stream()->Write(buffer, options, &callback);
               } else {
-                k.Fail(std::runtime_error("Failed to serialize response"));
+                k.Fail(RuntimeError("Failed to serialize response"));
               }
             });
   }
@@ -295,7 +295,7 @@ class ServerWriter {
       ResponseType_ response,
       ::grpc::WriteOptions options = ::grpc::WriteOptions()) {
     return Eventual<void>()
-        .raises<std::runtime_error>()
+        .raises<RuntimeError>()
         .start(
             [this,
              callback = Callback<void(bool)>(),
@@ -317,7 +317,7 @@ class ServerWriter {
                 context_->stream()->WriteLast(buffer, options, &callback);
                 k.Start();
               } else {
-                k.Fail(std::runtime_error("Failed to serialize response"));
+                k.Fail(RuntimeError("Failed to serialize response"));
               }
             });
   }
@@ -397,7 +397,7 @@ class ServerCall {
 
   [[nodiscard]] auto Finish(const ::grpc::Status& status) {
     return Eventual<void>()
-        .raises<std::runtime_error>()
+        .raises<RuntimeError>()
         .start(
             [this,
              callback = Callback<void(bool)>(),
@@ -406,7 +406,7 @@ class ServerCall {
                 if (ok) {
                   k.Start();
                 } else {
-                  k.Fail(std::runtime_error("failed to finish"));
+                  k.Fail(RuntimeError("failed to finish"));
                 }
               };
 
@@ -601,7 +601,7 @@ class Server : public Synchronizable {
 
   struct Serve {
     Service* service;
-    std::optional<Task::Of<void>::Raises<std::exception>> task;
+    std::optional<Task::Of<void>::Raises<TypeErasedError>> task;
     std::atomic<bool> done = false;
   };
 
@@ -682,15 +682,15 @@ auto Server::Validate(const std::string& name) {
           ->FindMethodByName(name);
 
   return Eventual<void>()
-      .raises<std::runtime_error>()
+      .raises<RuntimeError>()
       .start([method](auto& k) {
         if (method == nullptr) {
-          k.Fail(std::runtime_error("Method not found"));
+          k.Fail(RuntimeError("Method not found"));
         } else {
           using Traits = RequestResponseTraits;
           auto error = Traits::Validate<Request, Response>(method);
           if (error) {
-            k.Fail(std::runtime_error(error->message));
+            k.Fail(RuntimeError(error->message));
           } else {
             k.Start();
           }
@@ -703,7 +703,7 @@ auto Server::Validate(const std::string& name) {
 inline auto Server::Insert(std::unique_ptr<Endpoint>&& endpoint) {
   return Synchronized(
       Eventual<void>()
-          .raises<std::runtime_error>()
+          .raises<RuntimeError>()
           .start([this, endpoint = std::move(endpoint)](auto& k) mutable {
             auto key = std::make_pair(endpoint->path(), endpoint->host());
 
@@ -711,7 +711,7 @@ inline auto Server::Insert(std::unique_ptr<Endpoint>&& endpoint) {
                 endpoints_.try_emplace(key, std::move(endpoint));
 
             if (!inserted) {
-              k.Fail(std::runtime_error(
+              k.Fail(RuntimeError(
                   "Already serving " + endpoint->path()
                   + " for host " + endpoint->host()));
             } else {
@@ -810,7 +810,7 @@ template <typename Request, typename Response>
          })
       >> Just(::grpc::Status::OK)
       >> Catch()
-             .raised<std::exception>([](std::exception&& e) {
+             .raised<TypeErasedError>([](TypeErasedError&& e) {
                return ::grpc::Status(::grpc::UNKNOWN, e.what());
              })
       >> Then([&](::grpc::Status status) {
@@ -819,7 +819,7 @@ template <typename Request, typename Response>
                               void,
                               std::variant<
                                   eventuals::Stopped,
-                                  std::runtime_error>>&& e) {
+                                  RuntimeError>>&& e) {
                     return If(e.has_value())
                                .no([e = std::move(e), &call]() {
                                  EVENTUALS_GRPC_LOG(1)
@@ -831,7 +831,7 @@ template <typename Request, typename Response>
                                      << call.context()->method()
                                      << " failed: "
                                      << std::visit(
-                                            [](auto&& error) {
+                                            [](auto& error) {
                                               return error.what();
                                             },
                                             e.error());
@@ -856,7 +856,7 @@ template <typename Request, typename Response>
       >> Loop()
       >> Just(::grpc::Status::OK)
       >> Catch()
-             .raised<std::exception>([](std::exception&& e) {
+             .raised<TypeErasedError>([](TypeErasedError&& e) {
                return ::grpc::Status(::grpc::UNKNOWN, e.what());
              })
       >> Then([&](::grpc::Status status) {
@@ -865,7 +865,7 @@ template <typename Request, typename Response>
                               void,
                               std::variant<
                                   eventuals::Stopped,
-                                  std::runtime_error>>&& e) {
+                                  RuntimeError>>&& e) {
                     return If(e.has_value())
                                .no([e = std::move(e), &call]() {
                                  EVENTUALS_GRPC_LOG(1)
@@ -878,7 +878,7 @@ template <typename Request, typename Response>
                                             ->method()
                                      << " failed: "
                                      << std::visit(
-                                            [](auto&& error) {
+                                            [](auto& error) {
                                               return error.what();
                                             },
                                             e.error());

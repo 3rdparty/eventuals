@@ -36,7 +36,7 @@ TEST_F(OnEndedTest, OnlyOnceAndAsynchronous) {
                                 void,
                                 std::variant<
                                     Stopped,
-                                    std::runtime_error>>&& e) {
+                                    RuntimeError>>&& e) {
                       EXPECT_TRUE(e);
                     });
            })
