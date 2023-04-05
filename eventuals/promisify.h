@@ -49,34 +49,80 @@ template <typename E>
                static_assert(
                    sizeof...(values) == 0 || sizeof...(values) == 1,
                    "'Promisify()' only supports 0 or 1 value, but found > 1");
+
+               // NOTE: we need to _copy_ 'loop' before it possibly
+               // gets freed due to a __different__ thread completing
+               // the promise here via 'promise.set_value()' which may
+               // cause the entire continuation 'k' to get freed.
+               //
+               // We use 'volatile' so that the compiler won't
+               // optimize away this copy.
+               volatile EventLoop* volatile_loop = loop;
+
                promise.set_value(std::forward<decltype(values)>(values)...);
 
+               ////////////////////////////////////////////////////
+               // NOTE: can't use any variables like 'loop' at   //
+               // this point in time because they might have     //
+               // been deallocated!                              //
+               ////////////////////////////////////////////////////
+
                // Interrupt the event loop if provided in case it is
-               // blocked on 'RunOnce()' in 'operator()*'.
-               if (loop != nullptr) {
-                 loop->Interrupt();
+               // blocked on 'RunOnce()' in 'operator()*' below.
+               if (volatile_loop != nullptr) {
+                 const_cast<EventLoop*>(volatile_loop)->Interrupt();
                }
              })
              .fail([loop](auto& promise, auto&& error) {
+               // NOTE: we need to _copy_ 'loop' before it possibly
+               // gets freed due to a __different__ thread completing
+               // the promise here via 'promise.set_value()' which may
+               // cause the entire continuation 'k' to get freed.
+               //
+               // We use 'volatile' so that the compiler won't
+               // optimize away this copy.
+               volatile EventLoop* volatile_loop = loop;
+
                promise.set_exception(
                    make_exception_ptr_or_forward(
                        std::forward<decltype(error)>(error)));
 
+               ////////////////////////////////////////////////////
+               // NOTE: can't use any variables like 'loop' at   //
+               // this point in time because they might have     //
+               // been deallocated!                              //
+               ////////////////////////////////////////////////////
+
                // Interrupt the event loop if provided in case it is
-               // blocked on 'RunOnce()' in 'operator()*'.
-               if (loop != nullptr) {
-                 loop->Interrupt();
+               // blocked on 'RunOnce()' in 'operator()*' below.
+               if (volatile_loop != nullptr) {
+                 const_cast<EventLoop*>(volatile_loop)->Interrupt();
                }
              })
              .stop([loop](auto& promise) {
+               // NOTE: we need to _copy_ 'loop' before it possibly
+               // gets freed due to a __different__ thread completing
+               // the promise here via 'promise.set_value()' which may
+               // cause the entire continuation 'k' to get freed.
+               //
+               // We use 'volatile' so that the compiler won't
+               // optimize away this copy.
+               volatile EventLoop* volatile_loop = loop;
+
                promise.set_exception(
                    std::make_exception_ptr(
                        StoppedException()));
 
+               ////////////////////////////////////////////////////
+               // NOTE: can't use any variables like 'loop' at   //
+               // this point in time because they might have     //
+               // been deallocated!                              //
+               ////////////////////////////////////////////////////
+
                // Interrupt the event loop if provided in case it is
-               // blocked on 'RunOnce()' in 'operator()*'.
-               if (loop != nullptr) {
-                 loop->Interrupt();
+               // blocked on 'RunOnce()' in 'operator()*' below.
+               if (volatile_loop != nullptr) {
+                 const_cast<EventLoop*>(volatile_loop)->Interrupt();
                }
              }));
 
