@@ -223,5 +223,32 @@ TEST(StaticThreadPoolTest, Concurrent) {
   EXPECT_THAT(*e(), UnorderedElementsAre(1, 2, 3));
 }
 
+
+TEST(StaticThreadPoolTest, ForkJoin) {
+  ASSERT_GE(std::thread::hardware_concurrency(), 2);
+
+  auto e = []() {
+    return StaticThreadPool::Scheduler().ForkJoin(
+        "StaticThreadPoolTest",
+        2,
+        [](size_t index) {
+          // Each eventual will run in a separate thread!
+          return Then([]() {
+            return std::this_thread::get_id();
+          });
+        });
+  };
+
+  auto ids = *e();
+
+  for (size_t i = 0; i < ids.size(); ++i) {
+    for (size_t j = i + 1; j < ids.size(); ++j) {
+      if (ids[i] == ids[j]) {
+        FAIL() << "Found two thread ids that are the same";
+      }
+    }
+  }
+}
+
 } // namespace
 } // namespace eventuals::test
