@@ -49,6 +49,11 @@ RUN wget -O /tmp/llvm.sh "https://apt.llvm.org/llvm.sh" \
     && /tmp/llvm.sh ${CLANG_VERSION} \
     && rm /tmp/llvm.sh
 
+# As of ~2023 we also need to explicitly include
+# 'libclang-rt-${CLANG_VERSION}-dev' so that we can
+# build with '--config=asan'.
+RUN apt-get install -y libclang-rt-${CLANG_VERSION}-dev
+
 # Make clang mean clang-xx.
 RUN ln -s /usr/bin/clang-${CLANG_VERSION} /usr/bin/clang
 
