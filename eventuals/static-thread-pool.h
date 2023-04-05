@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "eventuals/compose.h"
+#include "eventuals/fork-join.h"
 #include "eventuals/lazy.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/semaphore.h"
@@ -34,6 +35,29 @@ struct Pinned {
   static Pinned ExactCPU(unsigned int cpu) {
     CHECK(cpu < std::thread::hardware_concurrency())
         << "specified CPU is not valid";
+    return Pinned(cpu);
+  }
+
+  template <typename Iterable = std::vector<unsigned int>>
+  static Pinned RandomCPU(
+      const Iterable& cpu_mask = std::vector<unsigned int>()) {
+    static std::random_device* device = new std::random_device();
+    static std::mt19937* engine = new std::mt19937((*device)());
+    static std::uniform_int_distribution<>* distribution =
+        new std::uniform_int_distribution<>(
+            0,
+            std::thread::hardware_concurrency() - 1);
+
+    unsigned int cpu = 0;
+    do {
+      cpu = (*distribution)(*engine);
+    } while (std::find(
+                 cpu_mask.begin(),
+                 cpu_mask.end(),
+                 cpu)
+             != cpu_mask.end());
+
+    CHECK_LT(cpu, std::thread::hardware_concurrency());
     return Pinned(cpu);
   }
 
@@ -125,6 +149,21 @@ class StaticThreadPool final : public Scheduler {
       Requirements* requirements,
       E e);
 
+  template <typename F, typename InsertableContainer>
+  [[nodiscard]] auto ForkJoin(
+      const std::string& name,
+      unsigned int forks,
+      InsertableContainer cpu_mask,
+      F f);
+
+  template <typename F>
+  [[nodiscard]] auto ForkJoin(
+      const std::string& name,
+      unsigned int forks,
+      F f) {
+    return ForkJoin(name, forks, std::vector<unsigned int>(), std::move(f));
+  }
+
   template <typename E>
   [[nodiscard]] static auto Spawn(Requirements&& requirements, E e);
 
@@ -156,13 +195,11 @@ struct _StaticThreadPoolSchedule final {
             CHECK_NOTNULL(pool),
             std::move(name),
             CHECK_NOTNULL(requirements)),
-        engine_(device_()),
         k_(std::move(k)) {}
 
     Continuation(Continuation&& that)
       : e_(std::move(that.e_)),
         context_(std::move(that.context_)),
-        engine_(device_()),
         k_(std::move(that.k_)) {}
 
     ~Continuation() override {
@@ -197,7 +234,7 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(GetRandomCPU());
+        pinned = Pinned::RandomCPU();
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
@@ -245,7 +282,7 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(GetRandomCPU());
+        pinned = Pinned::RandomCPU();
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
@@ -296,7 +333,7 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(GetRandomCPU());
+        pinned = Pinned::RandomCPU();
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
@@ -333,7 +370,7 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(GetRandomCPU());
+        pinned = Pinned::RandomCPU();
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
@@ -372,7 +409,7 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(GetRandomCPU());
+        pinned = Pinned::RandomCPU();
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
@@ -419,7 +456,7 @@ struct _StaticThreadPoolSchedule final {
         // iterating through and checking the sizes of all the "queues"
         // and then atomically incrementing which ever queue we pick
         // since we don't want to hold a lock here.
-        pinned = Pinned::ExactCPU(GetRandomCPU());
+        pinned = Pinned::RandomCPU();
       }
 
       CHECK(pinned.cpu() <= pool()->concurrency);
@@ -476,14 +513,6 @@ struct _StaticThreadPoolSchedule final {
       }
     }
 
-    // Helper for getting a random CPU.
-    unsigned int GetRandomCPU() {
-      std::uniform_int_distribution<> distribution(0, pool()->concurrency - 1);
-      unsigned int cpu = distribution(engine_);
-      CHECK_LT(cpu, pool()->concurrency);
-      return cpu;
-    }
-
     E_ e_;
 
     std::optional<
@@ -501,9 +530,6 @@ struct _StaticThreadPoolSchedule final {
         std::string,
         StaticThreadPool::Requirements*>
         context_;
-
-    std::random_device device_;
-    std::mt19937 engine_;
 
     using Value_ = typename E_::template ValueFrom<Arg_>;
 
@@ -589,6 +615,56 @@ template <typename E>
       std::move(name),
       &requirements_,
       std::move(e));
+}
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename F, typename InsertableContainer>
+[[nodiscard]] auto StaticThreadPool::ForkJoin(
+    const std::string& name,
+    unsigned int forks,
+    InsertableContainer cpu_mask,
+    F f) {
+  // TODO(benh): static_assert can insert an 'unsigned int' into 'cpu_mask'.
+
+  static unsigned int hardware_concurrency =
+      std::thread::hardware_concurrency();
+
+  // TODO(benh): propagate errors instead of using 'CHECK'?
+  for (unsigned int cpu : cpu_mask) {
+    CHECK(cpu <= hardware_concurrency) << "CPU mask includes invalid CPUs";
+  }
+
+  CHECK(forks <= (hardware_concurrency - cpu_mask.size()))
+      << "Insufficient hardware concurrency (" << hardware_concurrency
+      << ") given CPU mask (" << cpu_mask.size()
+      << ") and forks (" << forks << ")";
+
+  return eventuals::ForkJoin(
+      "StaticThreadPool - " + name,
+      forks,
+      [this, name, f = std::move(f), cpu_mask = std::move(cpu_mask)](
+          size_t index,
+          auto&&... arg) mutable {
+        Pinned pinned = Pinned::RandomCPU(cpu_mask);
+
+        // Add selected CPU to our mask so we won't use again.
+        CHECK(pinned.cpu().has_value());
+        cpu_mask.insert(cpu_mask.end(), pinned.cpu().value());
+
+        Requirements requirements(
+            name + "/" + std::to_string(index) + " Requirements",
+            std::move(pinned));
+
+        auto e = f(index, std::forward<decltype(arg)>(arg)...);
+
+        return Closure(
+            [this,
+             requirements = std::move(requirements),
+             e = std::move(e)]() mutable {
+              return Schedule(&requirements, std::move(e));
+            });
+      });
 }
 
 ////////////////////////////////////////////////////////////////////////

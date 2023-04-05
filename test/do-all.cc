@@ -106,8 +106,10 @@ TEST(DoAllTest, Interrupt) {
                      .start([&start](auto& k, auto& handler) {
                        CHECK(handler)
                            << "Test expects interrupt to be registered";
+                       EXPECT_TRUE(handler->Install([&k]() {
+                         k.Stop();
+                       }));
                        start.Call();
-                       k.Stop();
                      })
                      .fail([&fail](auto& k) {
                        fail.Call();

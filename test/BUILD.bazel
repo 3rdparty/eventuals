@@ -61,6 +61,7 @@ cc_test(
         "finally.cc",
         "flat-map.cc",
         "foreach.cc",
+        "fork-join.cc",
         "generator.cc",
         "http.cc",
         "if.cc",

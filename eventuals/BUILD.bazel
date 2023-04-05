@@ -26,6 +26,7 @@ cc_library(
         "finally.h",
         "flat-map.h",
         "foreach.h",
+        "fork-join.h",
         "generator.h",
         "head.h",
         "if.h",
