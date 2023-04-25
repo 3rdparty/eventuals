@@ -15,8 +15,8 @@ jobs:
   Update-Eventuals:
     runs-on: ubuntu-latest
     steps:
-      - name: Install buildifier for .bzl files
-        run: brew install buildifier
+      - name: Install buildifier for .bzl files (ubuntu)
+        run: /home/linuxbrew/.linuxbrew/bin/brew install buildifier
         shell: bash
 
       - uses: actions/checkout@v3
