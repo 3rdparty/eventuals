@@ -39,6 +39,11 @@ jobs:
         run: |
           commit="${{ steps.current_info.outputs.latest_commit }}"
           shallow_since="${{ steps.current_info.outputs.latest_shallow_since }}"
+          # Since the `buildifier` binary used by `update-eventuals-git-repository.sh`
+          # is installed by `brew`, and since `brew`'s binaries are not placed on the
+          # `$PATH` on GitHub's machines, we must manually put it on the path by `eval`ing
+          # `brew shellenv`.
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           chmod +x scripts/update-eventuals-git-repository.sh
           ./scripts/update-eventuals-git-repository.sh eventuals-tutorial/WORKSPACE.bazel $commit "$shallow_since"
         shell: bash
