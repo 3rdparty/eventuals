@@ -14,6 +14,7 @@ namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 class DomainNameResolveTest : public EventLoopTest {};
@@ -45,11 +46,9 @@ TEST_F(DomainNameResolveTest, Fail) {
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e;
-  } catch (const RuntimeError& error) {
-    EXPECT_THAT(error.what(), "EAI_NONAME");
-  }
+  EXPECT_THAT(
+      [&]() { *std::move(e); },
+      ThrowsMessage<RuntimeError>(StrEq("EAI_NONAME")));
 }
 
 
@@ -76,8 +75,8 @@ TEST_F(DomainNameResolveTest, Stop) {
 
 TEST_F(DomainNameResolveTest, Raises) {
   struct MyError : public Error {
-    std::string what() const noexcept override {
-      return "child exception";
+    const char* what() const noexcept override {
+      return "child error";
     }
   };
 
@@ -104,11 +103,9 @@ TEST_F(DomainNameResolveTest, Raises) {
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError, MyError>>);
 
-  try {
-    *e;
-  } catch (const MyError& error) {
-    EXPECT_EQ(error.what(), "child exception");
-  }
+  EXPECT_THAT(
+      [&]() { *std::move(e); },
+      ThrowsMessage<MyError>(StrEq("child error")));
 }
 
 } // namespace

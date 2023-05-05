@@ -27,6 +27,7 @@ namespace {
 
 using testing::ElementsAre;
 using testing::MockFunction;
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(Generator, Succeed) {
@@ -295,11 +296,14 @@ TEST(Generator, FailStream) {
 
   k.Start();
 
-  try {
-    future.get();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      // NOTE: capturing 'future' as a pointer because until C++20 we
+      // can't capture a "local binding" by reference and there is a
+      // bug with 'EXPECT_THAT' that forces our lambda to be const so
+      // if we capture it by copy we can't call 'get()' because that
+      // is a non-const function.
+      [future = &future]() { future->get(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 TEST(Generator, StopStream) {
@@ -575,13 +579,9 @@ TEST(Task, RaisesGeneralError) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<TypeErasedError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    FAIL() << "error of 'RuntimeError' type shouldn't be thrown";
-  } catch (const TypeErasedError& error) {
-    EXPECT_EQ(error.what(), "runtime error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<TypeErasedError>(StrEq("runtime error")));
 }
 
 } // namespace

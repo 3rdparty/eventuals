@@ -310,6 +310,16 @@ static_assert(!check_errors_v<std::string, RuntimeError>);
 
 static_assert(check_errors_v<TypeErasedError, RuntimeError>);
 
+struct SomeException : public std::exception {
+  const char* what() const noexcept override {
+    return "exception";
+  }
+};
+
+static_assert(!check_errors_v<SomeException>);
+
+static_assert(!check_errors_v<SomeException, RuntimeError>);
+
 ////////////////////////////////////////////////////////////////////////
 
 } // namespace

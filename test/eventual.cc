@@ -20,6 +20,7 @@ namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(EventualTest, Succeed) {
@@ -95,11 +96,9 @@ TEST(EventualTest, Fail) {
                });
   };
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 
@@ -237,11 +236,9 @@ TEST(EventualTest, Raise) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 
@@ -272,7 +269,7 @@ TEST(EventualTest, CatchVoid) {
         >> Raise("error")
         >> Catch(Let([](std::variant<RuntimeError>& error) {
              return Then([&]() {
-               EXPECT_EQ(
+               EXPECT_STREQ(
                    std::get<RuntimeError>(error).what(),
                    "error");
              });

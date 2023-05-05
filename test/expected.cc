@@ -10,6 +10,7 @@
 namespace eventuals::test {
 namespace {
 
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(Expected, Compose) {
@@ -69,16 +70,14 @@ TEST(Expected, NoRaisesDeclarationUnexpected) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "unexpected");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("unexpected")));
 }
 
 TEST(Expected, NoRaisesDeclarationUnexpectedFromDerivedException) {
   struct MyError final : public Error {
-    std::string what() const noexcept override {
+    const char* what() const noexcept override {
       return "woah";
     }
   };
@@ -99,16 +98,14 @@ TEST(Expected, NoRaisesDeclarationUnexpectedFromDerivedException) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<MyError>>);
 
-  try {
-    *e();
-  } catch (const MyError& error) {
-    EXPECT_EQ(error.what(), "woah");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<MyError>(StrEq("woah")));
 }
 
 TEST(Expected, RaisesDeclarationUnexpectedFromDerivedException) {
   struct MyError final : public Error {
-    std::string what() const noexcept override {
+    const char* what() const noexcept override {
       return "woah";
     }
   };
@@ -129,11 +126,9 @@ TEST(Expected, RaisesDeclarationUnexpectedFromDerivedException) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<MyError>>);
 
-  try {
-    *e();
-  } catch (const MyError& error) {
-    EXPECT_EQ(error.what(), "woah");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<MyError>(StrEq("woah")));
 }
 
 } // namespace

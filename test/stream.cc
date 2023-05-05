@@ -18,6 +18,7 @@ namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(StreamTest, Succeed) {
@@ -158,11 +159,9 @@ TEST(StreamTest, Fail) {
           decltype(s())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *s();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *s(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 
@@ -417,11 +416,9 @@ TEST(StreamTest, Head) {
         >> Head();
   };
 
-  try {
-    *s2();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "empty stream");
-  }
+  EXPECT_THAT(
+      [&]() { *s2(); },
+      ThrowsMessage<RuntimeError>(StrEq("empty stream")));
 }
 
 TEST(StreamTest, PropagateError) {
@@ -439,16 +436,14 @@ TEST(StreamTest, PropagateError) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 TEST(StreamTest, ThrowSpecificError) {
   struct MyError : public Error {
-    std::string what() const noexcept override {
+    const char* what() const noexcept override {
       return "my error";
     }
   };
@@ -462,7 +457,7 @@ TEST(StreamTest, ThrowSpecificError) {
                      std::is_same_v<
                          std::decay_t<decltype(error)>,
                          MyError>);
-
+                 EXPECT_STREQ(error.what(), "my error");
                  k.Fail(RuntimeError("error"));
                })
                .next([](auto& k) {
@@ -476,16 +471,14 @@ TEST(StreamTest, ThrowSpecificError) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError, MyError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 TEST(StreamTest, ThrowGeneralError) {
   struct MyError : public Error {
-    std::string what() const noexcept override {
+    const char* what() const noexcept override {
       return "my error";
     }
   };
@@ -513,11 +506,9 @@ TEST(StreamTest, ThrowGeneralError) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError, MyError, TypeErasedError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 } // namespace

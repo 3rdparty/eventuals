@@ -95,11 +95,9 @@ TEST(LockTest, Fail) {
         >> Then([]() { return "t2"; });
   };
 
-  try {
-    *e1();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e1(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 
   EXPECT_STREQ("t2", *e2());
 }
