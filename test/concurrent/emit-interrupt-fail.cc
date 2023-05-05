@@ -12,6 +12,7 @@
 namespace eventuals::test {
 namespace {
 
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 // Tests when when upstream fails after an interrupt the result will
@@ -64,11 +65,14 @@ TYPED_TEST(ConcurrentTypedTest, EmitInterruptFail) {
 
   interrupt.Trigger();
 
-  try {
-    future.get();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      // NOTE: capturing 'future' as a pointer because until C++20 we
+      // can't capture a "local binding" by reference and there is a
+      // bug with 'EXPECT_THAT' that forces our lambda to be const so
+      // if we capture it by copy we can't call 'get()' because that
+      // is a non-const function.
+      [future = &future]() { future->get(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 } // namespace

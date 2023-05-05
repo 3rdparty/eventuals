@@ -18,6 +18,7 @@ namespace {
 
 using testing::ElementsAre;
 using testing::MockFunction;
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(Transformer, Succeed) {
@@ -109,11 +110,9 @@ TEST(Transformer, Fail) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 TEST(Transformer, Interrupt) {
@@ -238,11 +237,9 @@ TEST(Transformer, PropagateFail) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 TEST(Transformer, RaisesGeneralError) {
@@ -279,13 +276,9 @@ TEST(Transformer, RaisesGeneralError) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<TypeErasedError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    FAIL() << "error of 'RuntimeError' type shouldn't be thrown";
-  } catch (const TypeErasedError& error) {
-    EXPECT_EQ(error.what(), "runtime error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<TypeErasedError>(StrEq("runtime error")));
 }
 
 } // namespace

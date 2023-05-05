@@ -12,11 +12,9 @@ namespace eventuals {
 // All errors should derive from 'Error' and be copyable
 // since 'std::make_exception_ptr' works with a copy argument
 // and there is no way to move error in it.
-class Error {
+class Error : public std::exception {
  public:
   virtual ~Error() = default;
-
-  virtual std::string what() const noexcept = 0;
 
  protected:
   Error() = default;
@@ -55,8 +53,8 @@ class RuntimeError final : public Error {
 
   ~RuntimeError() override = default;
 
-  std::string what() const noexcept override {
-    return what_arg_;
+  const char* what() const noexcept override {
+    return what_arg_.c_str();
   }
 
  private:
@@ -85,7 +83,7 @@ class TypeErasedError final : public Error {
 
   ~TypeErasedError() = default;
 
-  std::string what() const noexcept override {
+  const char* what() const noexcept override {
     return e_->what();
   }
 

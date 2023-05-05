@@ -11,6 +11,7 @@
 namespace eventuals::test {
 namespace {
 
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 // Tests when when upstream fails the result will be fail.
@@ -34,11 +35,9 @@ TYPED_TEST(ConcurrentTypedTest, StreamFail) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 } // namespace

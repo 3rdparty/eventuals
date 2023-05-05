@@ -18,6 +18,7 @@ namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(Task, Succeed) {
@@ -198,11 +199,9 @@ TEST(Task, FailOnCallback) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error from start");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error from start")));
 }
 
 TEST(Task, FailTerminatedPropagate) {
@@ -228,11 +227,9 @@ TEST(Task, FailTerminatedPropagate) {
   auto [future, k] = PromisifyForTest(e());
   k.Fail(RuntimeError("error"));
 
-  try {
-    future.get();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error from start")));
 }
 
 TEST(Task, FailTerminatedCatch) {
@@ -246,7 +243,7 @@ TEST(Task, FailTerminatedCatch) {
                    FAIL() << "test should not have started";
                  })
                  .fail([&](auto& k, auto&& error) {
-                   EXPECT_EQ(error.what(), "error");
+                   EXPECT_STREQ(error.what(), "error");
                    k.Fail(RuntimeError("error from fail"));
                  })
           >> Then([](int x) { return x + 1; });
@@ -258,11 +255,9 @@ TEST(Task, FailTerminatedCatch) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error from fail");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error from fail")));
 }
 
 TEST(Task, StopOnCallback) {
@@ -353,7 +348,7 @@ TEST(Task, FailContinuation) {
                              Stopped,
                              RuntimeError>>&& expected) {
         CHECK(std::holds_alternative<RuntimeError>(expected.error()));
-        EXPECT_EQ(
+        EXPECT_STREQ(
             std::get<RuntimeError>(expected.error()).what(),
             "error");
         return 42;
@@ -476,11 +471,9 @@ TEST(Task, FromToFail) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 TEST(Task, FromToFailCatch) {
@@ -489,7 +482,7 @@ TEST(Task, FromToFailCatch) {
     return []() {
       return Catch()
                  .raised<RuntimeError>([](RuntimeError&& error) {
-                   EXPECT_EQ(error.what(), "error");
+                   EXPECT_STREQ(error.what(), "error");
                    return 10;
                  })
           >> Then([](int x) {
@@ -572,11 +565,9 @@ TEST(Task, Failure) {
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 TEST(Task, Inheritance) {
@@ -643,11 +634,9 @@ TEST(Task, Inheritance) {
   EXPECT_EQ(*sync(), 10);
   EXPECT_EQ(*async(), 20);
 
-  try {
-    *failure();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *failure(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 TEST(Task, RaisesOut) {
@@ -671,11 +660,9 @@ TEST(Task, RaisesOut) {
                });
   };
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 TEST(Task, MoveableSuccess) {
@@ -803,13 +790,9 @@ TEST(Task, RaisesGeneralError) {
           decltype(task())::ErrorsFrom<void, std::tuple<>>,
           std::tuple<TypeErasedError>>);
 
-  try {
-    *task();
-  } catch (const RuntimeError& error) {
-    FAIL() << "error of 'RuntimeError' type shouldn't be thrown";
-  } catch (const TypeErasedError& error) {
-    EXPECT_EQ(error.what(), "runtime error");
-  }
+  EXPECT_THAT(
+      [&]() { *task(); },
+      ThrowsMessage<TypeErasedError>(StrEq("runtime error")));
 }
 
 } // namespace

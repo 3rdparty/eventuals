@@ -24,7 +24,7 @@ TEST(CatchTest, RaisedRuntimeError) {
         >> Raise(RuntimeError("message"))
         >> Catch()
                .raised<RuntimeError>([](RuntimeError&& error) {
-                 EXPECT_EQ(error.what(), "message");
+                 EXPECT_STREQ(error.what(), "message");
                  return Just(100);
                });
   };
@@ -39,7 +39,7 @@ TEST(CatchTest, RaisedRuntimeError) {
 
 TEST(CatchTest, ChildException) {
   struct MyError : public Error {
-    std::string what() const noexcept override {
+    const char* what() const noexcept override {
       return "child exception";
     }
   };
@@ -61,7 +61,7 @@ TEST(CatchTest, ChildException) {
           std::tuple<>>);
 
   EXPECT_EQ(*e(), 100);
-}
+} // namespace
 
 TEST(CatchTest, All) {
   auto e = []() {
@@ -69,7 +69,7 @@ TEST(CatchTest, All) {
         >> Raise(RuntimeError("10"))
         >> Catch()
                .all([](std::variant<RuntimeError>&& error) {
-                 EXPECT_EQ(std::get<RuntimeError>(error).what(), "10");
+                 EXPECT_STREQ(std::get<RuntimeError>(error).what(), "10");
                  return 100;
                })
         >> Then([](int value) {
@@ -87,7 +87,7 @@ TEST(CatchTest, All) {
 
 TEST(CatchTest, AllRaisedOneException) {
   struct MyError : public Error {
-    std::string what() const noexcept override {
+    const char* what() const noexcept override {
       return "child exception";
     }
   };
@@ -101,7 +101,7 @@ TEST(CatchTest, AllRaisedOneException) {
                  FAIL() << "Encountered unexpected matched raised";
                })
                .all([](std::variant<RuntimeError>&& error) {
-                 EXPECT_EQ(
+                 EXPECT_STREQ(
                      std::get<RuntimeError>(error).what(),
                      "runtime_error");
                  return 100;
@@ -117,11 +117,11 @@ TEST(CatchTest, AllRaisedOneException) {
           std::tuple<>>);
 
   EXPECT_EQ(*e(), 100);
-}
+} // namespace eventuals::test
 
 TEST(CatchTest, UnexpectedRaise) {
   struct MyError : public Error {
-    std::string what() const noexcept override {
+    const char* what() const noexcept override {
       return "child exception";
     }
   };
@@ -150,7 +150,7 @@ TEST(CatchTest, UnexpectedRaise) {
 
 TEST(CatchTest, UnexpectedAll) {
   struct MyError : public Error {
-    std::string what() const noexcept override {
+    const char* what() const noexcept override {
       return "child exception";
     }
   };
@@ -179,7 +179,7 @@ TEST(CatchTest, UnexpectedAll) {
 
 TEST(CatchTest, NoExactHandler) {
   struct MyError : public Error {
-    std::string what() const noexcept override {
+    const char* what() const noexcept override {
       return "child exception";
     }
   };
@@ -207,7 +207,7 @@ TEST(CatchTest, ReRaise) {
         >> Raise("10")
         >> Catch()
                .raised<RuntimeError>([](RuntimeError&& error) {
-                 EXPECT_EQ(error.what(), "10");
+                 EXPECT_STREQ(error.what(), "10");
                  return Raise("1");
                })
         >> Then([](int) {
@@ -215,7 +215,7 @@ TEST(CatchTest, ReRaise) {
            })
         >> Catch()
                .raised<RuntimeError>([](RuntimeError&& error) {
-                 EXPECT_EQ(error.what(), "1");
+                 EXPECT_STREQ(error.what(), "1");
                  return Just(10);
                })
         >> Then([](int value) {
@@ -240,7 +240,7 @@ TEST(CatchTest, VoidPropagate) {
         >> Raise("error")
         >> Catch()
                .raised<TypeErasedError>([](TypeErasedError&& error) {
-                 EXPECT_EQ(error.what(), "error");
+                 EXPECT_STREQ(error.what(), "error");
                  // MUST RETURN VOID HERE!
                })
         >> Then([](/* MUST TAKE VOID HERE! */) {
@@ -262,7 +262,7 @@ TEST(CatchTest, Interrupt) {
         >> Raise(RuntimeError("message"))
         >> Catch()
                .raised<RuntimeError>([](RuntimeError&& error) {
-                 EXPECT_EQ(error.what(), "message");
+                 EXPECT_STREQ(error.what(), "message");
                  return Just(100);
                })
         >> Then([](int i) {

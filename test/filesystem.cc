@@ -13,6 +13,7 @@
 namespace eventuals::filesystem::test {
 namespace {
 
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 class FilesystemTest : public ::eventuals::test::EventLoopTest {};
@@ -52,11 +53,9 @@ TEST_F(FilesystemTest, OpenFileFail) {
 
   auto e = [&path]() { return OpenFile(path, UV_FS_O_RDONLY, 0); };
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "no such file or directory");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("no such file or directory")));
 
   EXPECT_FALSE(std::filesystem::exists(path));
 }
@@ -228,11 +227,11 @@ TEST_F(FilesystemTest, UnlinkFileFail) {
 
   auto e = [&path]() { return UnlinkFile(path); };
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "no such file or directory");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("no such file or directory")));
+
+  EXPECT_FALSE(std::filesystem::exists(path));
 }
 
 
@@ -260,11 +259,9 @@ TEST_F(FilesystemTest, MakeDirectoryFail) {
 
   auto e = [&]() { return MakeDirectory(path, 0); };
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "file already exists");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("file already exists")));
 
   std::filesystem::remove(path);
   EXPECT_FALSE(std::filesystem::exists(path));
@@ -295,11 +292,9 @@ TEST_F(FilesystemTest, RemoveDirectoryFail) {
 
   auto e = [&]() { return RemoveDirectory(path); };
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "no such file or directory");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("no such file or directory")));
 }
 
 
@@ -338,11 +333,9 @@ TEST_F(FilesystemTest, CopyFileFail) {
 
   auto e = [&]() { return CopyFile(src, dst, 0); };
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "no such file or directory");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("no such file or directory")));
 
   EXPECT_FALSE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));
@@ -384,11 +377,9 @@ TEST_F(FilesystemTest, RenameFileFail) {
 
   auto e = [&]() { return RenameFile(src, dst); };
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "no such file or directory");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("no such file or directory")));
 
   EXPECT_FALSE(std::filesystem::exists(src));
   EXPECT_FALSE(std::filesystem::exists(dst));

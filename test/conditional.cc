@@ -15,6 +15,7 @@ namespace {
 using std::string;
 
 using testing::MockFunction;
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(ConditionalTest, Then) {
@@ -110,11 +111,9 @@ TEST(ConditionalTest, Fail) {
           typename decltype(c())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *c();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *c(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 

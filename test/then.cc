@@ -11,6 +11,7 @@ namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(ThenTest, Succeed) {
@@ -82,11 +83,9 @@ TEST(ThenTest, Fail) {
            });
   };
 
-  try {
-    *c();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *c(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 

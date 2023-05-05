@@ -177,8 +177,8 @@ struct _Terminal final {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct Stopped final {
-  std::string what() const noexcept {
+struct Stopped final : public Error {
+  const char* what() const noexcept override {
     return "Eventual computation stopped (cancelled)";
   }
 };

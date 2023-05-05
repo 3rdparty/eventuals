@@ -821,7 +821,7 @@ class _Task final {
           + " blocking on dereference]");
 
       return future.get();
-    } catch (const TypeErasedError& e) {
+    } catch (const Error& e) {
       LOG(WARNING)
           << "WARNING: exception thrown while dereferencing eventual: "
           << e.what();

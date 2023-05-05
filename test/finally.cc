@@ -15,6 +15,7 @@
 namespace eventuals::test {
 namespace {
 
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(Finally, Succeed) {
@@ -56,7 +57,7 @@ TEST(Finally, Fail) {
 
   CHECK(std::holds_alternative<RuntimeError>(result.error()));
 
-  EXPECT_EQ(std::get<RuntimeError>(result.error()).what(), "error");
+  EXPECT_STREQ(std::get<RuntimeError>(result.error()).what(), "error");
 }
 
 TEST(Finally, Stop) {
@@ -113,7 +114,7 @@ TEST(Finally, VoidFail) {
 
   CHECK(std::holds_alternative<RuntimeError>(result.error()));
 
-  EXPECT_EQ(std::get<RuntimeError>(result.error()).what(), "error");
+  EXPECT_STREQ(std::get<RuntimeError>(result.error()).what(), "error");
 }
 
 TEST(Finally, VoidStop) {
@@ -161,7 +162,7 @@ TEST(Finally, FinallyInsideThen) {
                                 >> Catch()
                                        .raised<RuntimeError>(
                                            [](RuntimeError&& error) {
-                                             EXPECT_EQ(
+                                             EXPECT_STREQ(
                                                  error.what(),
                                                  "error");
                                            });

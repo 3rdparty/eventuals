@@ -24,6 +24,7 @@ using std::string;
 
 using testing::ElementsAre;
 using testing::MockFunction;
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(ClosureTest, Then) {
@@ -117,11 +118,9 @@ TEST(ClosureTest, Fail) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error")));
 }
 
 

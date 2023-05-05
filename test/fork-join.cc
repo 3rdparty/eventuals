@@ -9,6 +9,7 @@ namespace eventuals::test {
 namespace {
 
 using testing::ElementsAre;
+using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(ForkJoinTest, UpstreamValue) {
@@ -72,11 +73,9 @@ TEST(ForkJoinTest, Fail) {
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
           std::tuple<RuntimeError>>);
 
-  try {
-    *e();
-  } catch (const RuntimeError& error) {
-    EXPECT_EQ(error.what(), "error from 3");
-  }
+  EXPECT_THAT(
+      [&]() { *e(); },
+      ThrowsMessage<RuntimeError>(StrEq("error from 3")));
 }
 
 
