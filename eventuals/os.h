@@ -3,6 +3,7 @@
 #include <thread>
 
 #include "glog/logging.h" // NOTE: must be included before <windows.h>.
+#include "stout/bytes.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -13,7 +14,6 @@
 #include <functional>
 #include <limits>
 
-#include "stout/bytes.h"
 #endif
 
 ////////////////////////////////////////////////////////////////////////
@@ -71,6 +71,7 @@ namespace os {
 ////////////////////////////////////////////////////////////////////////
 
 #ifndef _WIN32
+
 struct StackInfo {
   void* start = nullptr;
   void* end = nullptr;
@@ -328,6 +329,10 @@ class Thread {
         << "Failed to detach thread via 'pthread_detach(...)'";
   }
 
+  bool is_current_thread() {
+    return pthread_equal(pthread_self(), thread_handle_);
+  }
+
  private:
   // For Linux `pthread_t` is unsigned long, for
   // macOS this is an `_opaque_pthread_t` struct.
@@ -338,8 +343,73 @@ class Thread {
 
 ////////////////////////////////////////////////////////////////////////
 
-#else // If Windows.
+#else // Windows.
+
+////////////////////////////////////////////////////////////////////////
+
 inline void CheckSufficientStackSpace(const size_t size) {}
+
+////////////////////////////////////////////////////////////////////////
+
+// We are using 'pthread' for Linux and MacOS, which is not supported by
+// Windows, so we instead use 'std::thread'.
+class Thread {
+ public:
+  Thread() = default;
+
+  template <typename Callable>
+  Thread(
+      Callable&& callable,
+      const std::string& name,
+      const Bytes& stack_size = Megabytes(8))
+    : thread_(std::move(callable)) {
+    // Stack managment for Windows is not supported yet.
+  }
+
+  Thread(const Thread& other) = delete;
+
+  Thread& operator=(Thread&& that) noexcept {
+    if (this == &that) {
+      return *this;
+    }
+
+    CHECK(!thread_.joinable()) << "Thread not joined nor detached";
+
+    thread_ = std::move(that.thread_);
+
+    return *this;
+  }
+
+  ~Thread() noexcept {
+    CHECK(!thread_.joinable()) << "A thread was left not joined/not detached";
+  }
+
+  bool is_joinable() const {
+    return thread_.joinable();
+  }
+
+  void join() {
+    CHECK(thread_.joinable())
+        << "Trying to join already joined/detached thread";
+    thread_.join();
+  }
+
+  void detach() {
+    CHECK(thread_.joinable())
+        << "Trying to detach already joined/detached thread";
+    thread_.detach();
+  }
+
+  bool is_current_thread() {
+    return thread_.get_id() == std::this_thread::get_id();
+  }
+
+ private:
+  std::thread thread_;
+};
+
+////////////////////////////////////////////////////////////////////////
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////

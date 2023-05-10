@@ -6,6 +6,7 @@
 #include <thread>
 
 #include "eventuals/callback.h"
+#include "eventuals/os.h"
 #include "eventuals/semaphore.h"
 #include "grpcpp/completion_queue.h"
 #include "stout/borrowable.h"
@@ -78,7 +79,7 @@ class StaticCompletionThreadPool
 
   void Wait() {
     while (!threads_.empty()) {
-      std::thread& thread = threads_.back();
+      os::Thread& thread = threads_.back();
 
       thread.join();
 
@@ -115,7 +116,8 @@ class StaticCompletionThreadPool
             while (cq->Next(&tag, &ok)) {
               (*static_cast<Callback<void(bool)>*>(tag))(ok);
             }
-          });
+          },
+          "grpc comp. q.");
     }
   }
 
@@ -148,7 +150,7 @@ class StaticCompletionThreadPool
 
   size_t number_of_threads_per_completion_queue_ = 1;
 
-  std::vector<std::thread> threads_;
+  std::vector<os::Thread> threads_;
 
   bool scheduling_ = false;
   bool shutdown_ = false;
@@ -314,7 +316,7 @@ class TestingCompletionThreadPool {
   std::atomic<bool> pause_ = false;
   std::atomic<bool> paused_ = false;
   std::atomic<bool> shutdown_ = false;
-  std::thread thread_;
+  os::Thread thread_;
 };
 
 ////////////////////////////////////////////////////////////////////////
