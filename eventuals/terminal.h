@@ -96,7 +96,7 @@ struct _Terminal final {
           std::move(stop)};
     }
 
-    template <typename Arg, typename... K>
+    template <typename Arg, typename Errors, typename... K>
     auto k(K...) && {
       static_assert(
           sizeof...(K) == 0,
@@ -177,14 +177,8 @@ struct _Terminal final {
 
 ////////////////////////////////////////////////////////////////////////
 
-struct StoppedException final : public std::exception {
-  StoppedException() = default;
-  StoppedException(const StoppedException& that) = default;
-  StoppedException(StoppedException&& that) = default;
-
-  ~StoppedException() override = default;
-
-  const char* what() const throw() override {
+struct Stopped final {
+  std::string what() const noexcept {
     return "Eventual computation stopped (cancelled)";
   }
 };

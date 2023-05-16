@@ -56,15 +56,13 @@ struct _Stream final {
     template <typename Error>
     void Fail(Error&& error) {
       static_assert(
-          std::disjunction_v<
-              std::is_same<std::exception_ptr, std::decay_t<Error>>,
-              std::is_base_of<std::exception, std::decay_t<Error>>>,
-          "Expecting a type derived from std::exception");
+          check_errors_v<std::decay_t<Error>>,
+          "Expecting a type derived from eventuals::Error");
 
       static_assert(
           std::disjunction_v<
-              std::is_same<std::exception_ptr, std::decay_t<Error>>,
-              tuple_types_contains_subtype<std::decay_t<Error>, Errors_>>,
+              tuple_types_contains_subtype<std::decay_t<Error>, Errors_>,
+              tuple_types_contains_subtype<TypeErasedError, Errors_>>,
           "Error is not specified in 'raises<...>()'");
 
       stream_->previous_->Continue(
@@ -332,13 +330,13 @@ struct _Stream final {
       typename Stop_,
       bool Interruptible_,
       typename Value_,
-      typename Errors_>
+      typename Raises_>
   struct Builder final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Value_;
 
     template <typename Arg, typename Errors>
-    using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
+    using ErrorsFrom = tuple_types_union_t<Errors, Raises_>;
 
     template <typename Downstream>
     static constexpr bool CanCompose = Downstream::ExpectsStream;
@@ -380,7 +378,7 @@ struct _Stream final {
           std::move(stop)};
     }
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<
           K,
@@ -392,7 +390,7 @@ struct _Stream final {
           Stop_,
           Interruptible_,
           Value_,
-          Errors_>(
+          Raises_>(
           std::move(k),
           std::move(context_),
           std::move(begin_),
@@ -405,7 +403,7 @@ struct _Stream final {
     template <typename Context>
     auto context(Context context) && {
       static_assert(IsUndefined<Context_>::value, "Duplicate 'context'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context),
           std::move(begin_),
           std::move(next_),
@@ -417,7 +415,7 @@ struct _Stream final {
     template <typename Begin>
     auto begin(Begin begin) && {
       static_assert(IsUndefined<Begin_>::value, "Duplicate 'begin'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(begin),
           std::move(next_),
@@ -429,7 +427,7 @@ struct _Stream final {
     template <typename Next>
     auto next(Next next) && {
       static_assert(IsUndefined<Next_>::value, "Duplicate 'next'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(begin_),
           std::move(next),
@@ -441,7 +439,7 @@ struct _Stream final {
     template <typename Done>
     auto done(Done done) && {
       static_assert(IsUndefined<Done_>::value, "Duplicate 'done'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(begin_),
           std::move(next_),
@@ -453,7 +451,7 @@ struct _Stream final {
     template <typename Fail>
     auto fail(Fail fail) && {
       static_assert(IsUndefined<Fail_>::value, "Duplicate 'fail'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(begin_),
           std::move(next_),
@@ -465,7 +463,7 @@ struct _Stream final {
     template <typename Stop>
     auto stop(Stop stop) && {
       static_assert(IsUndefined<Stop_>::value, "Duplicate 'stop'");
-      return create<Interruptible_, Value_, Errors_>(
+      return create<Interruptible_, Value_, Raises_>(
           std::move(context_),
           std::move(begin_),
           std::move(next_),
@@ -476,7 +474,7 @@ struct _Stream final {
 
     auto interruptible() && {
       static_assert(!Interruptible_, "Already 'interruptible'");
-      return create<true, Value_, Errors_>(
+      return create<true, Value_, Raises_>(
           std::move(context_),
           std::move(begin_),
           std::move(next_),
@@ -485,16 +483,30 @@ struct _Stream final {
           std::move(stop_));
     }
 
-    template <typename Error = std::exception, typename... Errors>
+    template <typename... Errors>
     auto raises() && {
-      static_assert(std::tuple_size_v<Errors_> == 0, "Duplicate 'raises'");
-      return create<Interruptible_, Value_, std::tuple<Error, Errors...>>(
-          std::move(context_),
-          std::move(begin_),
-          std::move(next_),
-          std::move(done_),
-          std::move(fail_),
-          std::move(stop_));
+      static_assert(std::tuple_size_v<Raises_> == 0, "Duplicate 'raises'");
+
+      if constexpr (is_tuple_v<Errors...>) {
+        static_assert(
+            sizeof...(Errors) == 1,
+            "'raises' with tuple doesn't support other types");
+        return create<Interruptible_, Value_, Errors...>(
+            std::move(context_),
+            std::move(begin_),
+            std::move(next_),
+            std::move(done_),
+            std::move(fail_),
+            std::move(stop_));
+      } else {
+        return create<Interruptible_, Value_, std::tuple<Errors...>>(
+            std::move(context_),
+            std::move(begin_),
+            std::move(next_),
+            std::move(done_),
+            std::move(fail_),
+            std::move(stop_));
+      }
     }
 
     Context_ context_;

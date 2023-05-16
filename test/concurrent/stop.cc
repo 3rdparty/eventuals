@@ -63,7 +63,7 @@ TYPED_TEST(ConcurrentTypedTest, Stop) {
     callback();
   }
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 } // namespace

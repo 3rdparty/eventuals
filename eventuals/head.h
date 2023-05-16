@@ -37,7 +37,7 @@ struct _Head final {
       if (arg_) {
         k_.Start(std::move(*arg_));
       } else {
-        k_.Fail(std::runtime_error("empty stream"));
+        k_.Fail(RuntimeError("empty stream"));
       }
     }
 
@@ -57,15 +57,15 @@ struct _Head final {
   };
 
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<
-        std::tuple<std::runtime_error>,
+        std::tuple<RuntimeError>,
         Errors>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, Arg>(std::move(k));
     }

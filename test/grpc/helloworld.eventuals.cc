@@ -14,14 +14,16 @@
 
 using eventuals::Concurrent;
 using eventuals::DoAll;
+using eventuals::expected;
 using eventuals::Finally;
 using eventuals::Just;
 using eventuals::Let;
 using eventuals::Loop;
 using eventuals::Map;
+using eventuals::RuntimeError;
+using eventuals::Stopped;
 using eventuals::Task;
 using eventuals::Then;
-using eventuals::What;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -64,9 +66,16 @@ Task::Of<void> Greeter::TypeErasedService::Serve() {
                    }));
                  })
                >> Loop())
-        >> Finally([&](auto&& expected) {
+        >> Finally([&](expected<
+                       std::tuple<std::monostate>,
+                       std::variant<Stopped, RuntimeError>>&& expected) {
              if (!expected.has_value()) {
-               LOG(WARNING) << "Failed to serve: " << What(expected.error());
+               LOG(WARNING) << "Failed to serve: "
+                            << std::visit(
+                                   [](auto& error) {
+                                     return error.what();
+                                   },
+                                   expected.error());
              }
            });
   };

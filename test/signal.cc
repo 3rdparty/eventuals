@@ -36,7 +36,7 @@ TEST_F(SignalTest, SignalComposition) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e)::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   auto [future, k] = PromisifyForTest(std::move(e));
 
@@ -101,7 +101,7 @@ TEST_F(SignalTest, SignalInterrupt) {
 
   RunUntil(future);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 } // namespace

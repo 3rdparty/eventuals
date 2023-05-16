@@ -16,7 +16,6 @@ struct _Conditional {
       typename Then_,
       typename Else_,
       typename Arg_>
-
   struct Continuation final {
     Continuation(
         K_ k,
@@ -43,7 +42,7 @@ struct _Conditional {
       if (condition_(std::forward<Args>(args)...)) {
         then_adapted_.emplace(
             then_(std::forward<Args>(args)...)
-                .template k<void>(_Then::Adaptor<K_>{k_}));
+                .template k<void, std::tuple<>>(_Then::Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
           then_adapted_->Register(*interrupt_);
@@ -53,7 +52,7 @@ struct _Conditional {
       } else {
         else_adapted_.emplace(
             else_(std::forward<Args>(args)...)
-                .template k<void>(_Then::Adaptor<K_>{k_}));
+                .template k<void, std::tuple<>>(_Then::Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
           else_adapted_->Register(*interrupt_);
@@ -94,8 +93,8 @@ struct _Conditional {
         std::invoke_result<Else_>,
         std::invoke_result<Else_, Arg_>>::type;
 
-    using ThenValue_ = typename ThenE_::template ValueFrom<void>;
-    using ElseValue_ = typename ElseE_::template ValueFrom<void>;
+    using ThenValue_ = typename ThenE_::template ValueFrom<void, std::tuple<>>;
+    using ElseValue_ = typename ElseE_::template ValueFrom<void, std::tuple<>>;
 
     static_assert(
         std::disjunction_v<
@@ -105,11 +104,17 @@ struct _Conditional {
         "\"then\" and \"else\" branch of 'Conditional' *DO NOT* return "
         "an eventual value of the same type");
 
-    using ThenAdapted_ = decltype(std::declval<ThenE_>().template k<void>(
-        std::declval<_Then::Adaptor<K_>>()));
+    using ThenAdapted_ =
+        decltype(std::declval<ThenE_>()
+                     .template k<void, std::tuple<>>(
+                         std::declval<
+                             _Then::Adaptor<K_>>()));
 
-    using ElseAdapted_ = decltype(std::declval<ElseE_>().template k<void>(
-        std::declval<_Then::Adaptor<K_>>()));
+    using ElseAdapted_ =
+        decltype(std::declval<ElseE_>()
+                     .template k<void, std::tuple<>>(
+                         std::declval<
+                             _Then::Adaptor<K_>>()));
 
     std::optional<ThenAdapted_> then_adapted_;
     std::optional<ElseAdapted_> else_adapted_;
@@ -139,10 +144,14 @@ struct _Conditional {
             std::invoke_result<F>,
             std::invoke_result<F, Arg>>::type;
 
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Unify_<
-        typename EventualFrom<Then_, Arg>::template ValueFrom<void>,
-        typename EventualFrom<Else_, Arg>::template ValueFrom<void>>;
+        typename EventualFrom<Then_, Arg>::template ValueFrom<
+            void,
+            std::tuple<>>,
+        typename EventualFrom<Else_, Arg>::template ValueFrom<
+            void,
+            std::tuple<>>>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<
@@ -155,7 +164,7 @@ struct _Conditional {
                 Else_,
                 Arg>::template ErrorsFrom<void, std::tuple<>>>>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, Condition_, Then_, Else_, Arg>(
           std::move(k),

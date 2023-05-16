@@ -9,7 +9,6 @@ namespace eventuals::test {
 namespace {
 
 using testing::ElementsAre;
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(ForkJoinTest, UpstreamValue) {
@@ -57,10 +56,10 @@ TEST(ForkJoinTest, Fail) {
         4,
         [](size_t index) {
           return Eventual<std::string>()
-              .raises<std::runtime_error>()
+              .raises<RuntimeError>()
               .start([index](auto& k) {
                 if (index == 3) {
-                  k.Fail(std::runtime_error("error from 3"));
+                  k.Fail(RuntimeError("error from 3"));
                 } else {
                   k.Start(std::to_string(index));
                 }
@@ -71,11 +70,13 @@ TEST(ForkJoinTest, Fail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error from 3")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error from 3");
+  }
 }
 
 
@@ -110,7 +111,7 @@ TEST(ForkJoinTest, Interrupt) {
 
   interrupt.Trigger();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 } // namespace

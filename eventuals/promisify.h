@@ -26,7 +26,7 @@ template <typename E>
     std::string&& name,
     E e,
     EventLoop* loop = nullptr) {
-  using Value = typename E::template ValueFrom<void>;
+  using Value = typename E::template ValueFrom<void, std::tuple<>>;
 
   std::promise<
       typename ReferenceWrapperTypeExtractor<Value>::type>
@@ -74,6 +74,12 @@ template <typename E>
                }
              })
              .fail([loop](auto& promise, auto&& error) {
+               static_assert(
+                   !std::is_same_v<
+                       std::decay_t<decltype(error)>,
+                       std::exception_ptr>,
+                   "Not expecting a 'std::exception_ptr' to "
+                   "propagate through an eventual");
                // NOTE: we need to _copy_ 'loop' before it possibly
                // gets freed due to a __different__ thread completing
                // the promise here via 'promise.set_value()' which may
@@ -84,7 +90,7 @@ template <typename E>
                volatile EventLoop* volatile_loop = loop;
 
                promise.set_exception(
-                   make_exception_ptr_or_forward(
+                   std::make_exception_ptr(
                        std::forward<decltype(error)>(error)));
 
                ////////////////////////////////////////////////////
@@ -111,7 +117,7 @@ template <typename E>
 
                promise.set_exception(
                    std::make_exception_ptr(
-                       StoppedException()));
+                       Stopped()));
 
                ////////////////////////////////////////////////////
                // NOTE: can't use any variables like 'loop' at   //
@@ -156,7 +162,7 @@ auto Run(E e) {
     }
 
     return future.get();
-  } catch (const std::exception& e) {
+  } catch (const Error& e) {
     LOG(WARNING)
         << "WARNING: exception thrown while dereferencing eventual: "
         << e.what();

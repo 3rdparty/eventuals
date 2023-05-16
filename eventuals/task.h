@@ -7,6 +7,7 @@
 #include <variant>
 
 #include "eventuals/eventual.h"
+#include "eventuals/finally.h"
 #include "eventuals/just.h"
 #include "eventuals/raise.h"
 #include "eventuals/terminal.h"
@@ -19,13 +20,55 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E_, typename From_, typename To_>
+template <typename Tuple>
+struct MonostateIfEmptyOrVariantOf {
+  using type = std::conditional_t<
+      std::tuple_size_v<Tuple>,
+      apply_tuple_types_t<std::variant, Tuple>,
+      std::monostate>;
+};
+
+template <typename>
+struct VariantErrorsHelper;
+
+template <typename... Errors>
+struct VariantErrorsHelper<std::variant<std::monostate, Errors...>> {
+  using type = std::conditional_t<
+      sizeof...(Errors) == 0,
+      void,
+      std::variant<Errors...>>;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename To>
+using TaskStartCallback = Callback<function_type_t<void, To>>;
+
+template <typename Raises>
+using TaskFailCallback = Callback<function_type_t<
+    void,
+    get_rvalue_type_or_void_t<
+        typename VariantErrorsHelper<
+            variant_of_type_and_tuple_t<
+                std::monostate,
+                Raises>>::type>>>;
+
+using TaskStopCallback = Callback<void()>;
+
+////////////////////////////////////////////////////////////////////////
+
+template <
+    typename E_,
+    typename From_,
+    typename To_,
+    typename Catches_,
+    typename Raises_>
 struct HeapTask final {
   struct Adaptor final {
     Adaptor(
-        Callback<function_type_t<void, To_>>* start,
-        Callback<void(std::exception_ptr)>* fail,
-        Callback<void()>* stop)
+        TaskStartCallback<To_>* start,
+        TaskFailCallback<Raises_>* fail,
+        TaskStopCallback* stop)
       : start_(start),
         fail_(fail),
         stop_(stop) {}
@@ -37,14 +80,7 @@ struct HeapTask final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      (*fail_)(
-          make_exception_ptr_or_forward(
-              std::forward<Error>(error)));
-    }
-
-    // NOTE: overload so we don't create nested std::exception_ptr.
-    void Fail(std::exception_ptr exception) {
-      (*fail_)(std::move(exception));
+      (*fail_)(std::move(error));
     }
 
     void Stop() {
@@ -53,14 +89,14 @@ struct HeapTask final {
 
     void Register(Interrupt&) {}
 
-    Callback<function_type_t<void, To_>>* start_;
-    Callback<void(std::exception_ptr)>* fail_;
-    Callback<void()>* stop_;
+    TaskStartCallback<To_>* start_;
+    TaskFailCallback<Raises_>* fail_;
+    TaskStopCallback* stop_;
   };
 
   HeapTask(E_ e)
     : adapted_(
-        std::move(e).template k<From_>(
+        std::move(e).template k<From_, Catches_>(
             Adaptor{&start_, &fail_, &stop_})) {}
 
   void Start(
@@ -69,9 +105,9 @@ struct HeapTask final {
           std::monostate,
           From_>&& arg,
       Interrupt& interrupt,
-      Callback<function_type_t<void, To_>>&& start,
-      Callback<void(std::exception_ptr)>&& fail,
-      Callback<void()>&& stop) {
+      TaskStartCallback<To_>&& start,
+      TaskFailCallback<Raises_>&& fail,
+      TaskStopCallback&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -89,10 +125,10 @@ struct HeapTask final {
 
   void Fail(
       Interrupt& interrupt,
-      std::exception_ptr&& exception,
-      Callback<function_type_t<void, To_>>&& start,
-      Callback<void(std::exception_ptr)>&& fail,
-      Callback<void()>&& stop) {
+      typename MonostateIfEmptyOrVariantOf<Catches_>::type&& error,
+      TaskStartCallback<To_>&& start,
+      TaskFailCallback<Raises_>&& fail,
+      TaskStopCallback&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -101,14 +137,18 @@ struct HeapTask final {
     // 'Register()' more than once is well-defined.
     adapted_.Register(interrupt);
 
-    adapted_.Fail(std::move(exception));
+    std::visit(
+        [this](auto&& error) {
+          adapted_.Fail(std::move(error));
+        },
+        std::move(error));
   }
 
   void Stop(
       Interrupt& interrupt,
-      Callback<function_type_t<void, To_>>&& start,
-      Callback<void(std::exception_ptr)>&& fail,
-      Callback<void()>&& stop) {
+      TaskStartCallback<To_>&& start,
+      TaskFailCallback<Raises_>&& fail,
+      TaskStopCallback&& stop) {
     start_ = std::move(start);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -120,11 +160,11 @@ struct HeapTask final {
     adapted_.Stop();
   }
 
-  Callback<function_type_t<void, To_>> start_;
-  Callback<void(std::exception_ptr)> fail_;
-  Callback<void()> stop_;
+  TaskStartCallback<To_> start_;
+  TaskFailCallback<Raises_> fail_;
+  TaskStopCallback stop_;
 
-  using Adapted_ = decltype(std::declval<E_>().template k<From_>(
+  using Adapted_ = decltype(std::declval<E_>().template k<From_, Catches_>(
       std::declval<Adaptor>()));
 
   Adapted_ adapted_;
@@ -172,11 +212,17 @@ struct _TaskFromToWith final {
 
   // Using templated type name to allow using both
   // in 'Composable' and 'Continuation'.
-  template <typename From, typename To, typename... Args>
+  template <
+      typename From,
+      typename To,
+      typename Catches,
+      typename Raises,
+      typename... Args>
   using DispatchCallback =
       Callback<void(
           Action,
-          std::optional<std::exception_ptr>&&,
+          std::optional<
+              typename MonostateIfEmptyOrVariantOf<Catches>::type>&&,
           Args&...,
           // Can't have a 'void' argument type
           // so we are using 'std::monostate'.
@@ -187,15 +233,16 @@ struct _TaskFromToWith final {
                   From>>&&,
           std::unique_ptr<void, Callback<void(void*)>>&,
           Interrupt&,
-          Callback<function_type_t<void, To>>&&,
-          Callback<void(std::exception_ptr)>&&,
-          Callback<void()>&&)>;
+          TaskStartCallback<To>&&,
+          TaskFailCallback<Raises>&&,
+          TaskStopCallback&&)>;
 
   template <
       typename K_,
       typename From_,
       typename To_,
-      typename Errors_,
+      typename Catches_,
+      typename Raises_,
       typename... Args_>
   struct Continuation final {
     Continuation(
@@ -203,7 +250,7 @@ struct _TaskFromToWith final {
         std::tuple<Args_...>&& args,
         std::variant<
             MonostateIfVoidOrReferenceWrapperOr<To_>,
-            DispatchCallback<From_, To_, Args_...>>&&
+            DispatchCallback<From_, To_, Catches_, Raises_, Args_...>>&&
             value_or_dispatch)
       : args_(std::move(args)),
         value_or_dispatch_(std::move(value_or_dispatch)),
@@ -241,12 +288,14 @@ struct _TaskFromToWith final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      std::exception_ptr exception;
-
-      exception = make_exception_ptr_or_forward(
-          std::forward<Error>(error));
-
-      Dispatch(Action::Fail, std::nullopt, std::move(exception));
+      // NOTE: we only propagate an upstream error into our type-erased
+      // eventual if the eventual catches the error, otherwise we skip it
+      // all together.
+      if constexpr (tuple_contains_exact_type_v<Error, Catches_>) {
+        Dispatch(Action::Fail, std::nullopt, std::forward<Error>(error));
+      } else {
+        k_.Fail(std::forward<Error>(error));
+      }
     }
 
     void Stop() {
@@ -261,14 +310,16 @@ struct _TaskFromToWith final {
     void Dispatch(
         Action action,
         std::optional<MonostateIfVoidOr<From_>>&& from = std::nullopt,
-        std::optional<std::exception_ptr>&& exception = std::nullopt) {
+        std::optional<
+            typename MonostateIfEmptyOrVariantOf<
+                Catches_>::type>&& error = std::nullopt) {
       CHECK_EQ(value_or_dispatch_.index(), 1u);
 
       std::apply(
           [&](auto&... args) {
             std::get<1>(value_or_dispatch_)(
                 action,
-                std::move(exception),
+                std::move(error),
                 args...,
                 std::forward<decltype(from)>(from),
                 e_,
@@ -276,8 +327,20 @@ struct _TaskFromToWith final {
                 [this](auto&&... args) {
                   k_.Start(std::forward<decltype(args)>(args)...);
                 },
-                [this](std::exception_ptr error) {
-                  k_.Fail(std::move(error));
+                [this](auto&&... void_or_errors) {
+                  if constexpr (sizeof...(void_or_errors)) {
+                    std::visit(
+                        [this](auto&& error) {
+                          k_.Fail(std::forward<decltype(error)>(error));
+                        },
+                        std::forward<
+                            decltype(void_or_errors)>(void_or_errors)...);
+                  } else {
+                    CHECK(std::tuple_size_v<Raises_> == 0)
+                        << "Unreachable at runtime, but compiler tries to "
+                           "compile this lambda as a 'Callback' with some "
+                           "arguments even if 'Raises_' is empty";
+                  }
                 },
                 [this]() {
                   k_.Stop();
@@ -293,7 +356,7 @@ struct _TaskFromToWith final {
     // passed on to the continuation.
     std::variant<
         MonostateIfVoidOrReferenceWrapperOr<To_>,
-        DispatchCallback<From_, To_, Args_...>>
+        DispatchCallback<From_, To_, Catches_, Raises_, Args_...>>
         value_or_dispatch_;
 
     std::unique_ptr<void, Callback<void(void*)>> e_;
@@ -309,14 +372,17 @@ struct _TaskFromToWith final {
   template <
       typename From_,
       typename To_,
-      typename Errors_,
+      typename Catches_,
+      typename Raises_,
       typename... Args_>
   struct Composable final {
-    template <typename>
+    template <typename Arg, typename Errors>
     using ValueFrom = To_;
 
     template <typename Arg, typename Errors>
-    using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
+    using ErrorsFrom = tuple_types_union_t<
+        Raises_,
+        tuple_types_subtract_t<Errors, Catches_>>;
 
     template <typename Downstream>
     static constexpr bool CanCompose = Downstream::ExpectsValue;
@@ -369,13 +435,15 @@ struct _TaskFromToWith final {
           "'Task' expects a callable (e.g., a lambda) that "
           "returns an eventual but you're not returning anything");
 
-      using Value = typename E::template ValueFrom<From_>;
-
-      using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
+      using ErrorsFromE = typename E::template ErrorsFrom<From_, Catches_>;
 
       static_assert(
-          tuple_types_subset_subtype_v<ErrorsFromE, Errors_>,
+          std::disjunction_v<
+              tuple_types_subset_subtype<ErrorsFromE, Raises_>,
+              tuple_contains_exact_type<TypeErasedError, Raises_>>,
           "Specified errors can't be raised within 'Task'");
+
+      using Value = typename E::template ValueFrom<From_, Catches_>;
 
       static_assert(
           std::disjunction_v<
@@ -385,26 +453,46 @@ struct _TaskFromToWith final {
 
       value_or_dispatch_ = [f = std::move(f)](
                                Action action,
-                               std::optional<std::exception_ptr>&& exception,
+                               std::optional<
+                                   typename MonostateIfEmptyOrVariantOf<
+                                       Catches_>::type>&& error,
                                Args_&... args,
                                std::optional<MonostateIfVoidOr<From_>>&& arg,
                                std::unique_ptr<void, Callback<void(void*)>>& e_,
                                Interrupt& interrupt,
-                               Callback<function_type_t<void, To_>>&& start,
-                               Callback<void(std::exception_ptr)>&& fail,
-                               Callback<void()>&& stop) mutable {
+                               TaskStartCallback<To_>&& start,
+                               TaskFailCallback<Raises_>&& fail,
+                               TaskStopCallback&& stop) mutable {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapTask<E, From_, To_>(f(args...)),
+              new HeapTask<
+                  E,
+                  From_,
+                  To_,
+                  Catches_,
+                  Raises_>(f(args...)),
               [](void* e) {
-                delete static_cast<HeapTask<E, From_, To_>*>(e);
+                delete static_cast<
+                    HeapTask<
+                        E,
+                        From_,
+                        To_,
+                        Catches_,
+                        Raises_>*>(e);
               });
         }
 
-        auto* e = static_cast<HeapTask<E, From_, To_>*>(e_.get());
+        auto* e = static_cast<
+            HeapTask<
+                E,
+                From_,
+                To_,
+                Catches_,
+                Raises_>*>(e_.get());
 
         switch (action) {
           case Action::Start:
+            CHECK(arg);
             e->Start(
                 std::move(arg.value()),
                 interrupt,
@@ -412,14 +500,24 @@ struct _TaskFromToWith final {
                 std::move(fail),
                 std::move(stop));
             break;
-          case Action::Fail:
-            e->Fail(
-                interrupt,
-                std::move(exception.value()),
-                std::move(start),
-                std::move(fail),
-                std::move(stop));
+          case Action::Fail: {
+            // If 'Catches_' is empty then we will never dispatch
+            // with an action of 'Action::Fail' but since 'action' is a runtime
+            // value the compiler will assume that it's possible that we can
+            // call 'e->Fail()', with what ever type we have for 'error' so to
+            // keep the compiler from trying to compile that code path we need
+            // to add the following 'if constexpr'.
+            if constexpr (std::tuple_size_v<Catches_> != 0) {
+              CHECK(error);
+              e->Fail(
+                  interrupt,
+                  std::move(error.value()),
+                  std::move(start),
+                  std::move(fail),
+                  std::move(stop));
+            }
             break;
+          }
           case Action::Stop:
             e->Stop(
                 interrupt,
@@ -437,18 +535,19 @@ struct _TaskFromToWith final {
         std::optional<
             std::variant<
                 MonostateIfVoidOrReferenceWrapperOr<To_>,
-                DispatchCallback<From_, To_, Args_...>>>&& value_or_dispatch,
+                DispatchCallback<From_, To_, Catches_, Raises_, Args_...>>>&&
+            value_or_dispatch,
         std::tuple<Args_...>&& args)
       : value_or_dispatch_(std::move(value_or_dispatch)),
         args_(std::move(args)) {}
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       static_assert(
           !std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
           "'Task' 'From' or 'To' type is not specified");
 
-      return Continuation<K, From_, To_, Errors_, Args_...>(
+      return Continuation<K, From_, To_, Catches_, Raises_, Args_...>(
           std::move(k),
           std::move(args_),
           std::move(value_or_dispatch_.value()));
@@ -460,7 +559,7 @@ struct _TaskFromToWith final {
     std::optional<
         std::variant<
             MonostateIfVoidOrReferenceWrapperOr<To_>,
-            DispatchCallback<From_, To_, Args_...>>>
+            DispatchCallback<From_, To_, Catches_, Raises_, Args_...>>>
         value_or_dispatch_;
 
     std::tuple<Args_...> args_;
@@ -476,15 +575,18 @@ struct _TaskFromToWith final {
 template <
     typename From_,
     typename To_,
-    typename Errors_,
+    typename Catches_,
+    typename Raises_,
     typename... Args_>
 class _Task final {
  public:
-  template <typename Arg>
+  template <typename Arg, typename Errors>
   using ValueFrom = To_;
 
   template <typename Arg, typename Errors>
-  using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
+  using ErrorsFrom = tuple_types_union_t<
+      Raises_,
+      tuple_types_subtract_t<Errors, Catches_>>;
 
   template <typename Downstream>
   static constexpr bool CanCompose = Downstream::ExpectsValue;
@@ -494,27 +596,32 @@ class _Task final {
   template <typename T>
   using From = std::enable_if_t<
       IsUndefined<From_>::value,
-      _Task<T, To_, Errors_, Args_...>>;
+      _Task<T, To_, Catches_, Raises_, Args_...>>;
 
   template <typename T>
   using To = std::enable_if_t<
       IsUndefined<To_>::value,
-      _Task<From_, T, Errors_, Args_...>>;
+      _Task<From_, T, Catches_, Raises_, Args_...>>;
+
+  template <typename... Errors>
+  using Catches = std::enable_if_t<
+      std::tuple_size_v<Catches_> == 0,
+      _Task<From_, To_, std::tuple<Errors...>, Raises_, Args_...>>;
 
   template <typename... Errors>
   using Raises = std::enable_if_t<
-      std::tuple_size_v<Errors_> == 0,
-      _Task<From_, To_, std::tuple<Errors...>, Args_...>>;
+      std::tuple_size_v<Raises_> == 0,
+      _Task<From_, To_, Catches_, std::tuple<Errors...>, Args_...>>;
 
   template <typename... Args>
   using With = std::enable_if_t<
       sizeof...(Args_) == 0,
-      _Task<From_, To_, Errors_, Args...>>;
+      _Task<From_, To_, Catches_, Raises_, Args...>>;
 
   template <typename T>
   using Of = std::enable_if_t<
       std::conjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
-      _Task<void, T, Errors_, Args_...>>;
+      _Task<void, T, Catches_, Raises_, Args_...>>;
 
   template <typename F>
   _Task(Args_... args, F f)
@@ -523,14 +630,6 @@ class _Task final {
   _Task(MonostateIfVoidOrReferenceWrapperOr<To_> value)
     : e_(std::move(value)) {}
 
-  template <
-      typename E,
-      std::enable_if_t<tuple_types_subset_subtype_v<E, Errors_>, int> = 0>
-  _Task(_Task<From_, To_, E, Args_...>&& that)
-    : e_(std::move(that.e_.value_or_dispatch_), std::move(that.e_.args_)) {
-    CHECK(!that.k_.has_value()) << "moving after starting";
-  }
-
   _Task(_Task&& that) noexcept
     : e_(std::move(that.e_)) {
     CHECK(!that.k_.has_value()) << "moving after starting";
@@ -538,13 +637,14 @@ class _Task final {
 
   ~_Task() = default;
 
-  template <typename Arg, typename K>
+  template <typename Arg, typename Errors, typename K>
   auto k(K k) && {
     static_assert(
         !std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
         "'Task' 'From' or 'To' type is not specified");
 
-    return std::move(e_).template k<Arg>(std::move(k));
+    return std::move(e_).template k<Arg, Errors>(
+        std::move(k));
   }
 
   // Treat this task as a continuation and "start" it. Every task gets
@@ -557,14 +657,14 @@ class _Task final {
   // used to call 'Start()'.
   void Start(
       std::string&& name,
-      Callback<function_type_t<void, To_>>&& start,
-      Callback<void(std::exception_ptr)>&& fail,
-      Callback<void()>&& stop) {
+      TaskStartCallback<To_>&& start,
+      TaskFailCallback<Raises_>&& fail,
+      TaskStopCallback&& stop) {
     CHECK(!context_.has_value()) << "Task already started";
 
     context_.emplace(Scheduler::Default(), std::move(name));
 
-    k_.emplace(Build(
+    k_.emplace(Build<void, Catches_>(
         Reschedule(context_->Borrow())
         >> std::move(e_)
         >> Terminal()
@@ -598,11 +698,24 @@ class _Task final {
         },
         // NOTE: not borrowing 'this' because callback is stored/used
         // from within 'this' and borrowing could create a cycle.
-        [this](auto&& error) {
-          CHECK(promise_.has_value());
-          promise_->set_exception(
-              make_exception_ptr_or_forward(
-                  std::forward<decltype(error)>(error)));
+        [this](auto&&... void_or_errors) {
+          if constexpr (sizeof...(void_or_errors)) {
+            CHECK(promise_.has_value());
+            std::visit(
+                [this](auto&& error) {
+                  static_assert(
+                      !std::is_same_v<
+                          std::decay_t<decltype(error)>,
+                          std::exception_ptr>,
+                      "Not expecting a 'std::exception_ptr' to "
+                      "propagate through a task");
+
+                  promise_->set_exception(
+                      std::make_exception_ptr(
+                          std::forward<decltype(error)>(error)));
+                },
+                std::forward<decltype(void_or_errors)>(void_or_errors)...);
+          }
         },
         // NOTE: not borrowing 'this' because callback is stored/used
         // from within 'this' and borrowing could create a cycle.
@@ -610,7 +723,7 @@ class _Task final {
           CHECK(promise_.has_value());
           promise_->set_exception(
               std::make_exception_ptr(
-                  StoppedException()));
+                  Stopped()));
         });
 
     return future;
@@ -631,26 +744,22 @@ class _Task final {
   void Fail(
       std::string&& name,
       Error&& error,
-      Callback<function_type_t<void, To_>>&& start,
-      Callback<void(std::exception_ptr)>&& fail,
-      Callback<void()>&& stop) {
+      TaskStartCallback<To_>&& start,
+      TaskFailCallback<Raises_>&& fail,
+      TaskStopCallback&& stop) {
     static_assert(
-        std::disjunction_v<
-            std::is_same<std::exception_ptr, std::decay_t<Error>>,
-            std::is_base_of<std::exception, std::decay_t<Error>>>,
-        "Expecting a type derived from std::exception");
+        check_errors_v<std::decay_t<Error>>,
+        "Expecting a type derived from eventuals::Error");
 
     static_assert(
-        std::disjunction_v<
-            std::is_same<std::exception_ptr, std::decay_t<Error>>,
-            tuple_types_contains_subtype<std::decay_t<Error>, Errors_>>,
-        "Error is not specified in 'Raises'");
+        std::tuple_size_v<Catches_>,
+        "You can't 'Fail' a task without specifying 'Catches'");
 
     CHECK(!context_.has_value()) << "Task already started";
 
     context_.emplace(Scheduler::Default(), std::move(name));
 
-    k_.emplace(Build(
+    k_.emplace(Build<void, Catches_>(
         Reschedule(context_->Borrow())
         >> std::move(e_)
         >> Terminal()
@@ -676,14 +785,14 @@ class _Task final {
   // 'Start()' that return 'std::future'.
   void Stop(
       std::string&& name,
-      Callback<function_type_t<void, To_>>&& start,
-      Callback<void(std::exception_ptr)>&& fail,
-      Callback<void()>&& stop) {
+      TaskStartCallback<To_>&& start,
+      TaskFailCallback<Raises_>&& fail,
+      TaskStopCallback&& stop) {
     CHECK(!context_.has_value()) << "Task already started";
 
     context_.emplace(Scheduler::Default(), std::move(name));
 
-    k_.emplace(Build(
+    k_.emplace(Build<void, Catches_>(
         Reschedule(context_->Borrow())
         >> std::move(e_)
         >> Terminal()
@@ -712,7 +821,7 @@ class _Task final {
           + " blocking on dereference]");
 
       return future.get();
-    } catch (const std::exception& e) {
+    } catch (const TypeErasedError& e) {
       LOG(WARNING)
           << "WARNING: exception thrown while dereferencing eventual: "
           << e.what();
@@ -731,7 +840,8 @@ class _Task final {
     return _Task<
         void,
         Value,
-        std::tuple<>>(std::move(value));
+        Catches_,
+        Raises_>(std::move(value));
   }
 
   template <typename Value>
@@ -739,21 +849,23 @@ class _Task final {
     return _Task<
         void,
         Value&,
-        std::tuple<>>(std::move(value));
+        Catches_,
+        Raises_>(std::move(value));
   }
 
   [[nodiscard]] static auto Success() {
     return _Task<
         void,
         void,
-        std::tuple<>>(std::monostate{});
+        Catches_,
+        Raises_>(std::monostate{});
   }
 
   template <typename Error>
   [[nodiscard]] static auto Failure(Error error) {
     static_assert(
-        std::is_base_of_v<std::exception, std::decay_t<Error>>,
-        "Expecting a type derived from std::exception");
+        check_errors_v<std::decay_t<Error>>,
+        "Expecting a type derived from eventuals::Error");
 
     // TODO(benh): optimize away heap allocation.
     // If we store an error using 'std::exception_ptr' it is also a memory
@@ -769,27 +881,27 @@ class _Task final {
   }
 
   [[nodiscard]] static auto Failure(const std::string& s) {
-    return Failure(std::runtime_error(s));
+    return Failure(RuntimeError(s));
   }
 
   [[nodiscard]] static auto Failure(char* s) {
-    return Failure(std::runtime_error(s));
+    return Failure(RuntimeError(s));
   }
 
   [[nodiscard]] static auto Failure(const char* s) {
-    return Failure(std::runtime_error(s));
+    return Failure(RuntimeError(s));
   }
 
  private:
   // To make possible constructing from another '_Task' with
   // the different 'std::tuple' of error types.
-  template <typename, typename, typename, typename...>
+  template <typename, typename, typename, typename, typename...>
   friend class _Task;
 
   std::conditional_t<
       std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
       decltype(Eventual<Undefined>()),
-      _TaskFromToWith::Composable<From_, To_, Errors_, Args_...>>
+      _TaskFromToWith::Composable<From_, To_, Catches_, Raises_, Args_...>>
       e_;
 
   // Optional promise if we are invoked as a continuation without any
@@ -808,16 +920,17 @@ class _Task final {
   // NOTE: if 'Task::Start()' is invoked then 'Task' becomes not just
   // a composable but also a continuation which has a terminal made up
   // of the callbacks passed to 'Task::Start()'.
+
   using K_ = std::conditional_t<
       std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
       Undefined,
-      decltype(Build(
+      decltype(Build<void, Catches_>(
           Reschedule(context_->Borrow())
           >> std::move(e_)
           >> Terminal()
-                 .start(std::declval<Callback<function_type_t<void, To_>>&&>())
-                 .fail(std::declval<Callback<void(std::exception_ptr)>&&>())
-                 .stop(std::declval<Callback<void()>&&>())))>;
+                 .start(std::declval<TaskStartCallback<To_>&&>())
+                 .fail(std::declval<TaskFailCallback<Raises_>&&>())
+                 .stop(std::declval<TaskStopCallback&&>())))>;
 
   // NOTE: we store 'k_' as the _last_ member so it will be
   // destructed _first_ and thus we won't have any use-after-delete
@@ -826,7 +939,7 @@ class _Task final {
   std::optional<K_> k_;
 };
 
-using Task = _Task<Undefined, Undefined, std::tuple<>>;
+using Task = _Task<Undefined, Undefined, std::tuple<>, std::tuple<>>;
 
 ////////////////////////////////////////////////////////////////////////
 

@@ -36,8 +36,15 @@ struct _ForkJoin final {
     K_ k;
   };
 
-  template <typename K_, typename F_, typename Value_>
+  template <typename K_, typename F_, typename Value_, typename... Arg_>
   struct Adaptor final {
+    using StoppedOrError = variant_of_type_and_tuple_t<
+        Stopped,
+        typename std::invoke_result_t<
+            F_,
+            size_t,
+            Arg_&...>::template ErrorsFrom<void, std::tuple<>>>;
+
     Adaptor(
         K_& k,
         unsigned int forks,
@@ -77,8 +84,12 @@ struct _ForkJoin final {
                 std::is_void_v<Value_>,
                 std::monostate,
                 Value_>,
-            std::exception_ptr>>
+            StoppedOrError>>
         values_;
+
+    static constexpr int UNDEFINED_INDEX = 0;
+    static constexpr int VALUE_OR_VOID_INDEX = 1;
+    static constexpr int STOPPED_OR_ERROR_INDEX = 2;
 
     std::atomic<size_t> counter_ = forks_;
 
@@ -103,17 +114,25 @@ struct _ForkJoin final {
                    }
                    if (counter_.fetch_sub(1) == 1) {
                      // You're the last eventual so call the continuation.
-                     std::optional<std::exception_ptr> exception =
-                         GetExceptionIfExists();
+                     std::optional<StoppedOrError> stopped_or_error =
+                         GetStoppedOrErrorIfExists();
 
-                     if (exception) {
-                       try {
-                         std::rethrow_exception(*exception);
-                       } catch (const StoppedException&) {
-                         k_.Stop();
-                       } catch (...) {
-                         k_.Fail(std::current_exception());
-                       }
+                     if (stopped_or_error) {
+                       std::visit(
+                           [this](auto&& stopped_or_error) {
+                             if constexpr (
+                                 std::is_same_v<
+                                     std::decay_t<decltype(stopped_or_error)>,
+                                     Stopped>) {
+                               k_.Stop();
+                             } else {
+                               k_.Fail(
+                                   std::forward<
+                                       decltype(stopped_or_error)>(
+                                       stopped_or_error));
+                             }
+                           },
+                           std::move(stopped_or_error.value()));
                      } else {
                        k_.Start(GetVectorOfValues());
                      }
@@ -121,22 +140,30 @@ struct _ForkJoin final {
                  })
                  .fail([this, index](auto&&... errors) {
                    values_[index]
-                       .template emplace<std::exception_ptr>(
-                           make_exception_ptr_or_forward(
-                               std::forward<decltype(errors)>(errors)...));
+                       .template emplace<STOPPED_OR_ERROR_INDEX>(
+                           std::forward<decltype(errors)>(errors)...);
+
                    if (counter_.fetch_sub(1) == 1) {
                      // You're the last eventual so call the continuation.
-                     std::optional<std::exception_ptr> exception =
-                         GetExceptionIfExists();
+                     std::optional<StoppedOrError> stopped_or_error =
+                         GetStoppedOrErrorIfExists();
 
-                     CHECK(exception);
-                     try {
-                       std::rethrow_exception(*exception);
-                     } catch (const StoppedException&) {
-                       k_.Stop();
-                     } catch (...) {
-                       k_.Fail(std::current_exception());
-                     }
+                     CHECK(stopped_or_error);
+                     std::visit(
+                         [this](auto&& stopped_or_error) {
+                           if constexpr (
+                               std::is_same_v<
+                                   std::decay_t<decltype(stopped_or_error)>,
+                                   Stopped>) {
+                             k_.Stop();
+                           } else {
+                             k_.Fail(
+                                 std::forward<
+                                     decltype(stopped_or_error)>(
+                                     stopped_or_error));
+                           }
+                         },
+                         std::move(stopped_or_error.value()));
                    } else {
                      // Interrupt the remaining eventuals so we can
                      // propagate the failure.
@@ -145,22 +172,29 @@ struct _ForkJoin final {
                  })
                  .stop([this, index]() {
                    values_[index]
-                       .template emplace<std::exception_ptr>(
-                           std::make_exception_ptr(
-                               StoppedException()));
+                       .template emplace<STOPPED_OR_ERROR_INDEX>(Stopped());
+
                    if (counter_.fetch_sub(1) == 1) {
                      // You're the last eventual so call the continuation.
-                     std::optional<std::exception_ptr> exception =
-                         GetExceptionIfExists();
+                     std::optional<StoppedOrError> stopped_or_error =
+                         GetStoppedOrErrorIfExists();
 
-                     CHECK(exception);
-                     try {
-                       std::rethrow_exception(*exception);
-                     } catch (const StoppedException&) {
-                       k_.Stop();
-                     } catch (...) {
-                       k_.Fail(std::current_exception());
-                     }
+                     CHECK(stopped_or_error);
+                     std::visit(
+                         [this](auto&& stopped_or_error) {
+                           if constexpr (
+                               std::is_same_v<
+                                   std::decay_t<decltype(stopped_or_error)>,
+                                   Stopped>) {
+                             k_.Stop();
+                           } else {
+                             k_.Fail(
+                                 std::forward<
+                                     decltype(stopped_or_error)>(
+                                     stopped_or_error));
+                           }
+                         },
+                         std::move(stopped_or_error.value()));
                    } else {
                      // Interrupt the remaining eventuals so we can
                      // propagate the stop.
@@ -190,28 +224,24 @@ struct _ForkJoin final {
       return values;
     }
 
-    std::optional<std::exception_ptr> GetExceptionIfExists() {
-      std::optional<std::exception_ptr> exception;
+    std::optional<StoppedOrError> GetStoppedOrErrorIfExists() {
+      std::optional<StoppedOrError> stopped_or_error;
 
       for (auto& value : values_) {
-        if (std::holds_alternative<std::exception_ptr>(value)) {
-          try {
-            std::rethrow_exception(std::get<std::exception_ptr>(value));
-          } catch (const StoppedException&) {
-            exception.emplace(std::current_exception());
+        if (value.index() == STOPPED_OR_ERROR_INDEX) {
+          if (!stopped_or_error.has_value()
+              || !std::holds_alternative<Stopped>(stopped_or_error.value())) {
+            stopped_or_error.emplace(std::get<STOPPED_OR_ERROR_INDEX>(value));
+          } else if (
+              stopped_or_error.has_value()
+              && std::holds_alternative<Stopped>(stopped_or_error.value())) {
+            // NOTE: we prefer propagate 'Stopped' to any of errors.
             break;
-          } catch (...) {
-            // NOTE: we arbitrarily take the "last" exception because
-            // we want to loop through all of the possible exceptions
-            // and prefer to propagate a 'Stopped' in the event that
-            // there is one (which is why we 'break' above if we find
-            // a 'Stopped').
-            exception.emplace(std::current_exception());
           }
         }
       }
 
-      return exception;
+      return stopped_or_error;
     }
   };
 
@@ -294,11 +324,11 @@ struct _ForkJoin final {
     // Scheduler::Context which may get borrowed in 'adaptor_' and
     // it's continuations so those need to be destructed first.
     std::vector<
-        decltype(std::declval<Adaptor<K_, F_, Value_>>()
+        decltype(std::declval<Adaptor<K_, F_, Value_, Arg_...>>()
                      .BuildFiber(0, std::declval<Arg_&>()...))>
         fibers_;
 
-    std::optional<Adaptor<K_, F_, Value_>> adaptor_;
+    std::optional<Adaptor<K_, F_, Value_, Arg_...>> adaptor_;
 
     Callback<void()> interrupter_ = [this]() {
       // Trigger inner interrupt for each eventual.
@@ -328,9 +358,9 @@ struct _ForkJoin final {
     using E_ = typename F_invoke_result_<Arg>::type;
 
     template <typename Arg>
-    using Value_ = typename E_<Arg>::template ValueFrom<void>;
+    using Value_ = typename E_<Arg>::template ValueFrom<void, std::tuple<>>;
 
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = std::vector<
         std::conditional_t<
             std::is_void_v<Value_<Arg>>,
@@ -342,7 +372,7 @@ struct _ForkJoin final {
         Errors,
         typename E_<Arg>::template ErrorsFrom<void, std::tuple<>>>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       if constexpr (std::is_void_v<Arg>) {
         static_assert(

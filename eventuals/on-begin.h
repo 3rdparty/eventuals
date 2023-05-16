@@ -56,7 +56,8 @@ struct _OnBegin final {
 
     void Begin(TypeErasedStream& stream) {
       adapted_.emplace(
-          std::move(e_).template k<void>(Adaptor<K_>{k_, stream}));
+          std::move(e_).template k<void, std::tuple<>>(
+              Adaptor<K_>{k_, stream}));
 
       if (interrupt_ != nullptr) {
         adapted_->Register(*interrupt_);
@@ -93,7 +94,7 @@ struct _OnBegin final {
 
     Interrupt* interrupt_ = nullptr;
 
-    using Adapted_ = decltype(std::declval<E_>().template k<void>(
+    using Adapted_ = decltype(std::declval<E_>().template k<void, std::tuple<>>(
         std::declval<Adaptor<K_>>()));
 
     std::optional<Adapted_> adapted_;
@@ -107,7 +108,7 @@ struct _OnBegin final {
 
   template <typename E_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>
@@ -115,7 +116,7 @@ struct _OnBegin final {
         Errors,
         typename E_::template ErrorsFrom<void, std::tuple<>>>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, E_>(std::move(k), std::move(e_));
     }
@@ -147,7 +148,7 @@ template <typename F>
 
   using E = decltype(e);
 
-  using Value = typename E::template ValueFrom<void>;
+  using Value = typename E::template ValueFrom<void, std::tuple<>>;
 
   static_assert(
       std::is_void_v<Value>,

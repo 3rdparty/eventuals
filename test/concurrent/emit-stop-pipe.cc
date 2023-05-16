@@ -46,7 +46,7 @@ TYPED_TEST(ConcurrentTypedTest, EmitStopInterrupt) {
 
   *pipe.Close();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 } // namespace

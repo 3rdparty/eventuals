@@ -2,6 +2,8 @@
 
 #include <string>
 
+#include "eventuals/catch.h"
+#include "eventuals/do-all.h"
 #include "eventuals/eventual.h"
 #include "eventuals/just.h"
 #include "eventuals/map.h"
@@ -16,7 +18,6 @@ namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(Task, Succeed) {
@@ -76,6 +77,57 @@ TEST(Task, Void) {
   EXPECT_EQ(100, x);
 }
 
+TEST(Task, CatchesFinally) {
+  auto f = []() -> Task::Of<int>::Catches<RuntimeError> {
+    return []() {
+      return Finally([](expected<
+                         void,
+                         std::variant<
+                             Stopped,
+                             RuntimeError>>&& expected) {
+        return Just(100);
+      });
+    };
+  };
+
+  auto e = [&f]() {
+    return Raise(RuntimeError("error"))
+        >> f();
+  };
+
+  static_assert(eventuals::tuple_types_unordered_equals_v<
+                decltype(e())::ErrorsFrom<void, std::tuple<>>,
+                std::tuple<>>);
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<std::overflow_error>>,
+          std::tuple<std::overflow_error>>);
+
+  EXPECT_EQ(*e(), 100);
+}
+
+TEST(Task, CatchesRaiseFinallyInside) {
+  auto f = []() -> Task::Of<int> {
+    return []() {
+      return Raise("error")
+          >> Finally([](auto&& expected) {
+               return Just(100);
+             });
+    };
+  };
+
+  auto e = [&f]() {
+    return f();
+  };
+
+  static_assert(eventuals::tuple_types_unordered_equals_v<
+                decltype(e())::ErrorsFrom<void, std::tuple<>>,
+                std::tuple<>>);
+
+  EXPECT_EQ(*e(), 100);
+}
+
 TEST(Task, TaskWithNonCopyable) {
   struct NonCopyable {
     NonCopyable(NonCopyable&&) = default;
@@ -116,44 +168,27 @@ TEST(Task, TaskWithPtr) {
 }
 
 TEST(Task, FailOnCallback) {
-  struct Functions {
-    MockFunction<void()> fail, stop, start;
-  };
-
-  Functions functions;
-
-  EXPECT_CALL(functions.fail, Call())
-      .Times(1);
-
-  EXPECT_CALL(functions.stop, Call())
-      .Times(0);
-
-  EXPECT_CALL(functions.start, Call())
-      .Times(0);
-
-  auto e = [&]() -> Task::Of<int>::Raises<std::runtime_error> {
+  auto e = [&]() -> Task::Of<int>::Raises<RuntimeError> {
     return [&]() {
       return Eventual<int>()
-                 .raises<std::runtime_error>()
+                 .raises<RuntimeError>()
                  .start([](auto& k) {
-                   k.Fail(std::runtime_error("error from start"));
+                   k.Fail(RuntimeError("error from start"));
                  })
                  .fail([&](auto& k, auto&& error) {
-                   functions.fail.Call();
-                   k.Fail(std::runtime_error("error from fail"));
+                   FAIL() << "test should not have failed";
                  })
           >> Then([](int) { return 1; })
           >> Eventual<int>()
+                 .raises<RuntimeError>()
                  .start([&](auto& k, auto&& value) {
-                   functions.start.Call();
+                   FAIL() << "test should not have started";
                  })
                  .stop([&](auto&) {
-                   functions.stop.Call();
+                   FAIL() << "test should not have stopped";
                  })
                  .fail([&](auto& k, auto&& error) {
-                   functions.fail.Call();
-                   k.Fail(eventuals::make_exception_ptr_or_forward(
-                       std::forward<decltype(error)>(error)));
+                   k.Fail(std::forward<decltype(error)>(error));
                  });
     };
   };
@@ -161,29 +196,25 @@ TEST(Task, FailOnCallback) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error from start")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error from start");
+  }
 }
 
-TEST(Task, FailTerminated) {
-  MockFunction<void()> fail;
-
-  EXPECT_CALL(fail, Call())
-      .Times(1);
-
-  auto e = [&]() -> Task::Of<int>::Raises<std::runtime_error> {
+TEST(Task, FailTerminatedPropagate) {
+  auto e = [&]() -> Task::Of<int>::Raises<RuntimeError> {
     return [&]() {
       return Eventual<int>()
-                 .raises<std::runtime_error>()
+                 .raises<RuntimeError>()
                  .start([](auto& k) {
-                   k.Fail(std::runtime_error("error from start"));
+                   k.Fail(RuntimeError("error from start"));
                  })
                  .fail([&](auto& k, auto&& error) {
-                   fail.Call();
-                   k.Fail(std::runtime_error("error from fail"));
+                   FAIL() << "test should not have failed";
                  })
           >> Then([](int x) { return x + 1; });
     };
@@ -192,27 +223,49 @@ TEST(Task, FailTerminated) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   auto [future, k] = PromisifyForTest(e());
-  k.Fail(std::runtime_error("error"));
+  k.Fail(RuntimeError("error"));
 
-  EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error from fail")));
+  try {
+    future.get();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
+}
+
+TEST(Task, FailTerminatedCatch) {
+  auto e = [&]() -> Task::Of<int>::Raises<
+                     RuntimeError> {
+    return [&]() {
+      return Raise("error")
+          >> Eventual<int>()
+                 .raises<RuntimeError>()
+                 .start([](auto& k) {
+                   FAIL() << "test should not have started";
+                 })
+                 .fail([&](auto& k, auto&& error) {
+                   EXPECT_EQ(error.what(), "error");
+                   k.Fail(RuntimeError("error from fail"));
+                 })
+          >> Then([](int x) { return x + 1; });
+    };
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<RuntimeError>>);
+
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error from fail");
+  }
 }
 
 TEST(Task, StopOnCallback) {
-  MockFunction<void()> stop;
-
-  EXPECT_CALL(stop, Call())
-      .Times(0);
-
   auto e = [&]() -> Task::Of<int> {
     return [&]() {
       return Eventual<int>()
@@ -220,29 +273,22 @@ TEST(Task, StopOnCallback) {
             k.Stop();
           })
           .stop([&](auto& k) {
-            stop.Call();
-            k.Stop();
+            FAIL() << "test should not have stopped";
           });
     };
   };
 
-  EXPECT_THROW(*e(), eventuals::StoppedException);
+  EXPECT_THROW(*e(), eventuals::Stopped);
 }
 
 TEST(Task, StopTerminated) {
-  MockFunction<void()> stop;
-
-  EXPECT_CALL(stop, Call())
-      .Times(1);
-
   auto e = [&]() -> Task::Of<int> {
     return [&]() {
       return Eventual<int>()
           .start([](auto& k) {
-            k.Stop();
+            FAIL() << "test should not have started";
           })
           .stop([&](auto& k) {
-            stop.Call();
             k.Stop();
           });
     };
@@ -251,7 +297,7 @@ TEST(Task, StopTerminated) {
   auto [future, k] = PromisifyForTest(e());
   k.Stop();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 TEST(Task, Start) {
@@ -272,7 +318,7 @@ TEST(Task, Start) {
       [&](int x) {
         result = x;
       },
-      [](std::exception_ptr) {
+      []() {
         FAIL() << "test should not have failed";
       },
       []() {
@@ -299,31 +345,34 @@ TEST(Task, StartFuture) {
 }
 
 TEST(Task, FailContinuation) {
-  auto e = []() -> Task::Of<int> {
-    return [x = 42]() {
-      return Just(x);
+  auto e = []() -> Task::Of<int>::Catches<RuntimeError> {
+    return []() {
+      return Finally([](expected<
+                         void,
+                         std::variant<
+                             Stopped,
+                             RuntimeError>>&& expected) {
+        CHECK(std::holds_alternative<RuntimeError>(expected.error()));
+        EXPECT_EQ(
+            std::get<RuntimeError>(expected.error()).what(),
+            "error");
+        return 42;
+      });
     };
   };
 
-  static_assert(
-      eventuals::tuple_types_unordered_equals_v<
-          decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<>>);
-
-  std::optional<Task::Of<int>::Raises<std::runtime_error>> task;
+  std::optional<Task::Of<int>::Catches<RuntimeError>> task;
 
   task.emplace(e());
 
-  std::exception_ptr result;
-
   task->Fail(
       GenerateTestTaskName(),
-      std::runtime_error("error"),
-      [](int) {
-        FAIL() << "test should not have succeeded";
+      RuntimeError("error"),
+      [](int x) {
+        EXPECT_EQ(x, 42);
       },
-      [&](std::exception_ptr exception) {
-        result = std::move(exception);
+      []() {
+        FAIL() << "test should not have failed";
       },
       []() {
         FAIL() << "test should not have stopped";
@@ -334,11 +383,7 @@ TEST(Task, FailContinuation) {
           std::decay_t<decltype(task.value())>::ErrorsFrom<
               void,
               std::tuple<>>,
-          std::tuple<std::runtime_error>>);
-
-  EXPECT_THAT(
-      [&]() { std::rethrow_exception(result); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+          std::tuple<>>);
 }
 
 TEST(Task, StopContinuation) {
@@ -359,7 +404,7 @@ TEST(Task, StopContinuation) {
       [](int) {
         FAIL() << "test should not have succeeded";
       },
-      [](std::exception_ptr) {
+      []() {
         FAIL() << "test should not have failed";
       },
       [&]() {
@@ -412,11 +457,11 @@ TEST(Task, FromToFail) {
     };
   };
 
-  auto e = [&]() {
+  auto e = [&task]() {
     return Eventual<int>()
-               .raises<std::runtime_error>()
+               .raises<RuntimeError>()
                .start([](auto& k) {
-                 k.Fail(std::runtime_error("error"));
+                 k.Fail(RuntimeError("error"));
                })
         >> Just(10)
         >> task()
@@ -429,11 +474,50 @@ TEST(Task, FromToFail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
+}
+
+TEST(Task, FromToFailCatch) {
+  auto task = []() -> Task::From<int>::To<
+                       std::string>::Catches<RuntimeError> {
+    return []() {
+      return Catch()
+                 .raised<RuntimeError>([](RuntimeError&& error) {
+                   EXPECT_EQ(error.what(), "error");
+                   return 10;
+                 })
+          >> Then([](int x) {
+               return std::to_string(x);
+             });
+    };
+  };
+
+  auto e = [&task]() {
+    return Eventual<int>()
+               .raises<RuntimeError>()
+               .start([](auto& k) {
+                 k.Fail(RuntimeError("error"));
+               })
+        >> Just(10)
+        >> task()
+        >> Then([](std::string&& s) {
+             s += "1";
+             return std::move(s);
+           });
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
+  EXPECT_EQ(*e(), "101");
 }
 
 TEST(Task, FromToStop) {
@@ -458,7 +542,7 @@ TEST(Task, FromToStop) {
            });
   };
 
-  EXPECT_THROW(*e(), eventuals::StoppedException);
+  EXPECT_THROW(*e(), eventuals::Stopped);
 }
 
 TEST(Task, Success) {
@@ -479,33 +563,35 @@ TEST(Task, Success) {
 }
 
 TEST(Task, Failure) {
-  auto e = []() -> Task::Of<std::string>::Raises<std::runtime_error> {
+  auto e = []() -> Task::Of<std::string>::Raises<RuntimeError> {
     return Task::Failure("error");
   };
 
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 TEST(Task, Inheritance) {
   struct Base {
-    virtual Task::Of<int>::Raises<std::runtime_error> GetTask() = 0;
+    virtual Task::Of<int>::Raises<RuntimeError> GetTask() = 0;
   };
 
   struct Sync : public Base {
-    Task::Of<int>::Raises<std::runtime_error> GetTask() override {
-      return Task::Success<int>(10);
+    Task::Of<int>::Raises<RuntimeError> GetTask() override {
+      return Task::Of<int>::Raises<RuntimeError>::Success<int>(10);
     }
   };
 
   struct Async : public Base {
-    Task::Of<int>::Raises<std::runtime_error> GetTask() override {
+    Task::Of<int>::Raises<RuntimeError> GetTask() override {
       return []() {
         return Just(20);
       };
@@ -513,8 +599,8 @@ TEST(Task, Inheritance) {
   };
 
   struct Failure : public Base {
-    Task::Of<int>::Raises<std::runtime_error> GetTask() override {
-      return Task::Failure("error");
+    Task::Of<int>::Raises<RuntimeError> GetTask() override {
+      return Task::Of<int>::Raises<RuntimeError>::Failure("error");
     }
   };
 
@@ -542,24 +628,54 @@ TEST(Task, Inheritance) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(sync())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(async())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(failure())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   EXPECT_EQ(*sync(), 10);
   EXPECT_EQ(*async(), 20);
 
-  EXPECT_THAT(
-      [&]() { *failure(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *failure();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
+}
+
+TEST(Task, RaisesOut) {
+  auto task = []() -> Task::Of<int>::Raises<RuntimeError> {
+    return []() {
+      return Eventual<int>()
+          .raises<RuntimeError>()
+          .start([](auto& k) {
+            k.Fail(RuntimeError("error"));
+          });
+    };
+  };
+
+  auto e = [&]() {
+    return task()
+        >> Eventual<int>()
+               .raises<RuntimeError>()
+               .start([](auto&, auto&&) {})
+               .fail([](auto& k, auto&& error) {
+                 k.Fail(std::move(error));
+               });
+  };
+
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 TEST(Task, MoveableSuccess) {
@@ -650,13 +766,13 @@ TEST(Task, RefSuccess) {
 
 TEST(Task, RaisesWith) {
   auto e = []() {
-    return Task::Of<int>::Raises<std::runtime_error>::With<int, std::string>(
+    return Task::Of<int>::Raises<RuntimeError>::With<int, std::string>(
         42,
         "hello world",
         [](auto i, auto s) {
           EXPECT_EQ(s, "hello world");
           return Eventual<int>()
-              .raises<std::runtime_error>()
+              .raises<RuntimeError>()
               .start([i = i](auto& k) {
                 return k.Start(i);
               });
@@ -666,9 +782,34 @@ TEST(Task, RaisesWith) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   EXPECT_EQ(42, *e());
+}
+
+TEST(Task, RaisesGeneralError) {
+  auto task = []() -> Task::Of<int>::Raises<TypeErasedError> {
+    return []() {
+      return Eventual<int>()
+          .raises<RuntimeError>()
+          .start([](auto& k) {
+            k.Fail(RuntimeError("runtime error"));
+          });
+    };
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(task())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<TypeErasedError>>);
+
+  try {
+    *task();
+  } catch (const RuntimeError& error) {
+    FAIL() << "error of 'RuntimeError' type shouldn't be thrown";
+  } catch (const TypeErasedError& error) {
+    EXPECT_EQ(error.what(), "runtime error");
+  }
 }
 
 } // namespace

@@ -12,6 +12,7 @@ set namespaces = package_name.split('.')
 #include "eventuals/then.h"
 #include "eventuals/expected.h"
 #include "eventuals/let.h"
+#include "eventuals/errors.h"
 
 #include "grpcpp/completion_queue.h"
 
@@ -43,7 +44,7 @@ struct {{ service.name }} {
     {%- else -%}
         Task::Of
     {%- endif -%}
-    {#...#}<const {{ method.output_type.split('.') | join('::') }}&>::Raises<std::exception>
+    {#...#}<const {{ method.output_type.split('.') | join('::') }}&>::Raises<::eventuals::TypeErasedError>
 {%- endset %}
 {%- set input_type -%}
 {# Input type does not include pointer #}
@@ -77,7 +78,7 @@ struct {{ service.name }} {
     {%- else -%}
         Task::Of
     {%- endif -%}
-    {#...#}<const {{ method.output_type.split('.') | join('::') }}&>::Raises<std::exception>
+    {#...#}<const {{ method.output_type.split('.') | join('::') }}&>::Raises<::eventuals::TypeErasedError>
 {%- endset %}
 {%- set input_type -%}
 {# Input type does not include pointer #}
@@ -179,19 +180,18 @@ struct {{ service.name }} {
                 >> ::eventuals::Head()
                 >> Finally(::eventuals::Let([&](auto& response) {
                     return call.Finish()
-                        // TODO: Update the error in `expected` to be std::runtime_error.
-                        >> ::eventuals::Then([&](grpc::Status&& status) -> ::eventuals::expected<{{ output_type }}, std::exception_ptr>{
+                        // TODO: Update the error in `expected` to be eventuals::RuntimeError.
+                        >> ::eventuals::Then([&](grpc::Status&& status) -> ::eventuals::expected<{{ output_type }}, std::variant<::eventuals::Stopped, ::eventuals::RuntimeError>>{
                             if (status.ok()) {
                                 return std::move(response);
                             } else {
                                 return ::eventuals::make_unexpected(
-                                    std::make_exception_ptr(
-                                        std::runtime_error(
+                                        ::eventuals::RuntimeError(
                                             "Failed to '{{ service.name }}.{{ method.name}}', "
                                             "received gRPC status: "
                                             + std::to_string(status.error_code())
                                             + " and error message: "
-                                            + std::string(status.error_message()))));
+                                            + std::string(status.error_message())));
                             }
                         });
                     }));

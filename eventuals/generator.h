@@ -5,7 +5,9 @@
 #include <tuple>
 #include <variant>
 
+#include "eventuals/finally.h"
 #include "eventuals/stream.h"
+#include "eventuals/task.h"
 #include "eventuals/terminal.h"
 #include "eventuals/then.h"
 #include "eventuals/type-traits.h"
@@ -16,15 +18,40 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
-template <typename E_, typename From_, typename To_>
+using GeneratorBeginCallback = Callback<void(TypeErasedStream&)>;
+
+template <typename Raises>
+using GeneratorFailCallback = Callback<function_type_t<
+    void,
+    get_rvalue_type_or_void_t<
+        typename VariantErrorsHelper<
+            variant_of_type_and_tuple_t<
+                std::monostate,
+                Raises>>::type>>>;
+
+using GeneratorStopCallback = Callback<void()>;
+
+template <typename To>
+using GeneratorBodyCallback = Callback<function_type_t<void, To>>;
+
+using GeneratorEndedCallback = Callback<void()>;
+
+////////////////////////////////////////////////////////////////////////
+
+template <
+    typename E_,
+    typename From_,
+    typename To_,
+    typename Catches_,
+    typename Raises_>
 struct HeapGenerator final {
   struct Adaptor final {
     Adaptor(
-        Callback<void(TypeErasedStream&)>* begin,
-        Callback<void(std::exception_ptr)>* fail,
-        Callback<void()>* stop,
-        Callback<function_type_t<void, To_>>* body,
-        Callback<void()>* ended)
+        GeneratorBeginCallback* begin,
+        GeneratorFailCallback<Raises_>* fail,
+        GeneratorStopCallback* stop,
+        GeneratorBodyCallback<To_>* body,
+        GeneratorEndedCallback* ended)
       : begin_(begin),
         fail_(fail),
         stop_(stop),
@@ -38,14 +65,7 @@ struct HeapGenerator final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      (*fail_)(
-          make_exception_ptr_or_forward(
-              std::forward<Error>(error)));
-    }
-
-    // NOTE: overload so we don't create nested std::exception_ptr.
-    void Fail(std::exception_ptr exception) {
-      (*fail_)(std::move(exception));
+      (*fail_)(std::move(error));
     }
 
     void Stop() {
@@ -64,16 +84,16 @@ struct HeapGenerator final {
     // Already registered in 'adapted_'
     void Register(Interrupt&) {}
 
-    Callback<void(TypeErasedStream&)>* begin_;
-    Callback<void(std::exception_ptr)>* fail_;
-    Callback<void()>* stop_;
-    Callback<function_type_t<void, To_>>* body_;
-    Callback<void()>* ended_;
+    GeneratorBeginCallback* begin_;
+    GeneratorFailCallback<Raises_>* fail_;
+    GeneratorStopCallback* stop_;
+    GeneratorBodyCallback<To_>* body_;
+    GeneratorEndedCallback* ended_;
   };
 
   HeapGenerator(E_ e)
     : adapted_(
-        std::move(e).template k<From_>(
+        std::move(e).template k<From_, Catches_>(
             Adaptor{&begin_, &fail_, &stop_, &body_, &ended_})) {}
 
   void Start(
@@ -82,11 +102,11 @@ struct HeapGenerator final {
           std::is_void_v<From_>,
           std::monostate,
           From_>&& arg,
-      Callback<void(TypeErasedStream&)>&& begin,
-      Callback<void(std::exception_ptr)>&& fail,
-      Callback<void()>&& stop,
-      Callback<function_type_t<void, To_>>&& body,
-      Callback<void()>&& ended) {
+      GeneratorBeginCallback&& begin,
+      GeneratorFailCallback<Raises_>&& fail,
+      GeneratorStopCallback&& stop,
+      GeneratorBodyCallback<To_>&& body,
+      GeneratorEndedCallback&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -106,12 +126,12 @@ struct HeapGenerator final {
 
   void Fail(
       Interrupt& interrupt,
-      std::exception_ptr&& fail_exception,
-      Callback<void(TypeErasedStream&)>&& begin,
-      Callback<void(std::exception_ptr)>&& fail,
-      Callback<void()>&& stop,
-      Callback<function_type_t<void, To_>>&& body,
-      Callback<void()>&& ended) {
+      typename MonostateIfEmptyOrVariantOf<Catches_>::type&& error,
+      GeneratorBeginCallback&& begin,
+      GeneratorFailCallback<Raises_>&& fail,
+      GeneratorStopCallback&& stop,
+      GeneratorBodyCallback<To_>&& body,
+      GeneratorEndedCallback&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -122,16 +142,20 @@ struct HeapGenerator final {
     // 'Register()' more than once is well-defined.
     adapted_.Register(interrupt);
 
-    adapted_.Fail(std::move(fail_exception));
+    std::visit(
+        [this](auto&& error) {
+          adapted_.Fail(std::move(error));
+        },
+        std::move(error));
   }
 
   void Stop(
       Interrupt& interrupt,
-      Callback<void(TypeErasedStream&)>&& begin,
-      Callback<void(std::exception_ptr)>&& fail,
-      Callback<void()>&& stop,
-      Callback<function_type_t<void, To_>>&& body,
-      Callback<void()>&& ended) {
+      GeneratorBeginCallback&& begin,
+      GeneratorFailCallback<Raises_>&& fail,
+      GeneratorStopCallback&& stop,
+      GeneratorBodyCallback<To_>&& body,
+      GeneratorEndedCallback&& ended) {
     begin_ = std::move(begin);
     fail_ = std::move(fail);
     stop_ = std::move(stop);
@@ -145,13 +169,13 @@ struct HeapGenerator final {
     adapted_.Stop();
   }
 
-  Callback<void(TypeErasedStream&)> begin_;
-  Callback<void(std::exception_ptr)> fail_;
-  Callback<void()> stop_;
-  Callback<function_type_t<void, To_>> body_;
-  Callback<void()> ended_;
+  GeneratorBeginCallback begin_;
+  GeneratorFailCallback<Raises_> fail_;
+  GeneratorStopCallback stop_;
+  GeneratorBodyCallback<To_> body_;
+  GeneratorEndedCallback ended_;
 
-  using Adapted_ = decltype(std::declval<E_>().template k<From_>(
+  using Adapted_ = decltype(std::declval<E_>().template k<From_, Catches_>(
       std::declval<Adaptor>()));
 
   Adapted_ adapted_;
@@ -171,11 +195,17 @@ struct _Generator final {
 
   // Using templated type name to allow using both
   // in 'Composable' and 'Continuation'.
-  template <typename From, typename To, typename... Args>
+  template <
+      typename From,
+      typename To,
+      typename Catches,
+      typename Raises,
+      typename... Args>
   using DispatchCallback =
       Callback<void(
           Action,
-          std::optional<std::exception_ptr>&&,
+          std::optional<
+              typename MonostateIfEmptyOrVariantOf<Catches>::type>&&,
           Args&...,
           // Can't have a 'void' argument type
           // so we are using 'std::monostate'.
@@ -186,23 +216,24 @@ struct _Generator final {
                   From>>&&,
           std::unique_ptr<void, Callback<void(void*)>>&,
           Interrupt&,
-          Callback<void(TypeErasedStream&)>&&,
-          Callback<void(std::exception_ptr)>&&,
-          Callback<void()>&&,
-          Callback<function_type_t<void, To>>&&,
-          Callback<void()>&&)>;
+          GeneratorBeginCallback&&,
+          GeneratorFailCallback<Raises>&&,
+          GeneratorStopCallback&&,
+          GeneratorBodyCallback<To>&&,
+          GeneratorEndedCallback&&)>;
 
   template <
       typename K_,
       typename From_,
       typename To_,
-      typename Errors_,
+      typename Catches_,
+      typename Raises_,
       typename... Args_>
   struct Continuation final {
     Continuation(
         K_ k,
         std::tuple<Args_...>&& args,
-        DispatchCallback<From_, To_, Args_...>&& dispatch)
+        DispatchCallback<From_, To_, Catches_, Raises_, Args_...>&& dispatch)
       : args_(std::move(args)),
         dispatch_(std::move(dispatch)),
         k_(std::move(k)) {}
@@ -226,24 +257,14 @@ struct _Generator final {
 
     template <typename Error>
     void Fail(Error&& error) {
-      static_assert(
-          std::disjunction_v<
-              std::is_same<std::exception_ptr, std::decay_t<Error>>,
-              std::is_base_of<std::exception, std::decay_t<Error>>>,
-          "Expecting a type derived from std::exception");
-
-      static_assert(
-          std::disjunction_v<
-              std::is_same<std::exception_ptr, std::decay_t<Error>>,
-              tuple_types_contains_subtype<std::decay_t<Error>, Errors_>>,
-          "Error is not specified in 'Raises'");
-
-      std::exception_ptr exception;
-
-      exception = make_exception_ptr_or_forward(
-          std::forward<Error>(error));
-
-      Dispatch(Action::Fail, std::nullopt, std::move(exception));
+      // NOTE: we only propagate an upstream error into our type-erased
+      // eventual if the eventual catches the error, otherwise we skip it
+      // all together.
+      if constexpr (tuple_contains_exact_type_v<Error, Catches_>) {
+        Dispatch(Action::Fail, std::nullopt, std::forward<Error>(error));
+      } else {
+        k_.Fail(std::forward<Error>(error));
+      }
     }
 
     void Stop() {
@@ -262,12 +283,14 @@ struct _Generator final {
                 std::is_void_v<From_>,
                 std::monostate,
                 From_>>&& from = std::nullopt,
-        std::optional<std::exception_ptr>&& exception = std::nullopt) {
+        std::optional<
+            typename MonostateIfEmptyOrVariantOf<
+                Catches_>::type>&& error = std::nullopt) {
       std::apply(
           [&](auto&... args) {
             dispatch_(
                 action,
-                std::move(exception),
+                std::move(error),
                 args...,
                 std::forward<decltype(from)>(from),
                 e_,
@@ -275,8 +298,20 @@ struct _Generator final {
                 [this](TypeErasedStream& stream) {
                   k_.Begin(stream);
                 },
-                [this](std::exception_ptr e) {
-                  k_.Fail(std::move(e));
+                [this](auto&&... void_or_errors) {
+                  if constexpr (sizeof...(void_or_errors)) {
+                    std::visit(
+                        [this](auto&& error) {
+                          k_.Fail(std::forward<decltype(error)>(error));
+                        },
+                        std::forward<
+                            decltype(void_or_errors)>(void_or_errors)...);
+                  } else {
+                    CHECK(std::tuple_size_v<Raises_> == 0)
+                        << "Unreachable at runtime, but compiler tries to "
+                           "compile this lambda as a 'Callback' with some "
+                           "arguments even if 'Raises_' is empty";
+                  }
                 },
                 [this]() {
                   k_.Stop();
@@ -293,7 +328,7 @@ struct _Generator final {
 
     std::tuple<Args_...> args_;
 
-    DispatchCallback<From_, To_, Args_...> dispatch_;
+    DispatchCallback<From_, To_, Catches_, Raises_, Args_...> dispatch_;
 
     std::unique_ptr<void, Callback<void(void*)>> e_;
     Interrupt* interrupt_ = nullptr;
@@ -305,13 +340,20 @@ struct _Generator final {
     K_ k_;
   };
 
-  template <typename From_, typename To_, typename Errors_, typename... Args_>
+  template <
+      typename From_,
+      typename To_,
+      typename Catches_,
+      typename Raises_,
+      typename... Args_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = To_;
 
     template <typename Arg, typename Errors>
-    using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
+    using ErrorsFrom = tuple_types_union_t<
+        Raises_,
+        tuple_types_subtract_t<Errors, Catches_>>;
 
     template <typename Downstream>
     static constexpr bool CanCompose = Downstream::ExpectsStream;
@@ -321,27 +363,32 @@ struct _Generator final {
     template <typename T>
     using From = std::enable_if_t<
         IsUndefined<From_>::value,
-        Composable<T, To_, Errors_, Args_...>>;
+        Composable<T, To_, Catches_, Raises_, Args_...>>;
 
     template <typename T>
     using To = std::enable_if_t<
         IsUndefined<To_>::value,
-        Composable<From_, T, Errors_, Args_...>>;
+        Composable<From_, T, Catches_, Raises_, Args_...>>;
+
+    template <typename... Errors>
+    using Catches = std::enable_if_t<
+        std::tuple_size_v<Catches_> == 0,
+        Composable<From_, To_, std::tuple<Errors...>, Raises_, Args_...>>;
 
     template <typename... Errors>
     using Raises = std::enable_if_t<
-        std::tuple_size_v<Errors_> == 0,
-        Composable<From_, To_, std::tuple<Errors...>, Args_...>>;
+        std::tuple_size_v<Raises_> == 0,
+        Composable<From_, To_, Catches_, std::tuple<Errors...>, Args_...>>;
 
     template <typename... Args>
     using With = std::enable_if_t<
         sizeof...(Args_) == 0,
-        Composable<From_, To_, Errors_, Args...>>;
+        Composable<From_, To_, Catches_, Raises_, Args...>>;
 
     template <typename T>
     using Of = std::enable_if_t<
         std::conjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
-        Composable<void, T, Errors_, Args_...>>;
+        Composable<void, T, Catches_, Raises_, Args_...>>;
 
     template <typename F>
     Composable(Args_... args, F f)
@@ -387,21 +434,26 @@ struct _Generator final {
           "'Generator' expects a callable (e.g., a lambda) that "
           "returns an eventual but you're not returning anything");
 
-      using ErrorsFromE = typename E::template ErrorsFrom<From_, std::tuple<>>;
+      using ErrorsFromE = typename E::template ErrorsFrom<From_, Catches_>;
 
       static_assert(
-          tuple_types_subset_subtype_v<ErrorsFromE, Errors_>,
+          std::disjunction_v<
+              tuple_types_subset_subtype<ErrorsFromE, Raises_>,
+              tuple_contains_exact_type<TypeErasedError, Raises_>>,
           "Specified errors can't be thrown from 'Generator'");
 
-      using Value = typename E::template ValueFrom<From_>;
+      using Value = typename E::template ValueFrom<From_, Catches_>;
 
       static_assert(
           std::is_convertible_v<Value, To_>,
-          "eventual result type can not be converted into type of 'Generator'");
+          "eventual result type can not be converted "
+          "into type of 'Generator'");
 
       dispatch_ = [f = std::move(f)](
                       Action action,
-                      std::optional<std::exception_ptr>&& exception,
+                      std::optional<
+                          typename MonostateIfEmptyOrVariantOf<
+                              Catches_>::type>&& error,
                       Args_&... args,
                       std::optional<
                           std::conditional_t<
@@ -410,23 +462,40 @@ struct _Generator final {
                               From_>>&& arg,
                       std::unique_ptr<void, Callback<void(void*)>>& e_,
                       Interrupt& interrupt,
-                      Callback<void(TypeErasedStream&)>&& begin,
-                      Callback<void(std::exception_ptr)>&& fail,
-                      Callback<void()>&& stop,
-                      Callback<function_type_t<void, To_>>&& body,
-                      Callback<void()>&& ended) mutable {
+                      GeneratorBeginCallback&& begin,
+                      GeneratorFailCallback<Raises_>&& fail,
+                      GeneratorStopCallback&& stop,
+                      GeneratorBodyCallback<To_>&& body,
+                      GeneratorEndedCallback&& ended) mutable {
         if (!e_) {
           e_ = std::unique_ptr<void, Callback<void(void*)>>(
-              new HeapGenerator<E, From_, To_>(f(args...)),
+              new HeapGenerator<
+                  E,
+                  From_,
+                  To_,
+                  Catches_,
+                  Raises_>(f(args...)),
               [](void* e) {
-                delete static_cast<HeapGenerator<E, From_, To_>*>(e);
+                delete static_cast<HeapGenerator<
+                    E,
+                    From_,
+                    To_,
+                    Catches_,
+                    Raises_>*>(e);
               });
         }
 
-        auto* e = static_cast<HeapGenerator<E, From_, To_>*>(e_.get());
+        auto* e = static_cast<
+            HeapGenerator<
+                E,
+                From_,
+                To_,
+                Catches_,
+                Raises_>*>(e_.get());
 
         switch (action) {
           case Action::Start:
+            CHECK(arg);
             e->Start(
                 interrupt,
                 std::move(arg.value()),
@@ -436,16 +505,26 @@ struct _Generator final {
                 std::move(body),
                 std::move(ended));
             break;
-          case Action::Fail:
-            e->Fail(
-                interrupt,
-                std::move(exception.value()),
-                std::move(begin),
-                std::move(fail),
-                std::move(stop),
-                std::move(body),
-                std::move(ended));
-            break;
+          case Action::Fail: {
+            // If 'Catches_' is empty then we will never dispatch
+            // with an action of 'Action::Fail' but since 'action' is a runtime
+            // value the compiler will assume that it's possible that we can
+            // call 'e->Fail()', with what ever type we have for 'error' so to
+            // keep the compiler from trying to compile that code path we need
+            // to add the following 'if constexpr'.
+            if constexpr (std::tuple_size_v<Catches_> != 0) {
+              CHECK(error);
+              e->Fail(
+                  interrupt,
+                  std::move(error.value()),
+                  std::move(begin),
+                  std::move(fail),
+                  std::move(stop),
+                  std::move(body),
+                  std::move(ended));
+              break;
+            }
+          }
           case Action::Stop:
             e->Stop(
                 interrupt,
@@ -465,13 +544,13 @@ struct _Generator final {
 
     Composable(Composable&& that) noexcept = default;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       static_assert(
           !std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
           "'Task' 'From' or 'To' type is not specified");
 
-      return Continuation<K, From_, To_, Errors_, Args_...>(
+      return Continuation<K, From_, To_, Catches_, Raises_, Args_...>(
           std::move(k),
           std::move(args_),
           std::move(dispatch_));
@@ -480,7 +559,7 @@ struct _Generator final {
     std::conditional_t<
         std::disjunction_v<IsUndefined<From_>, IsUndefined<To_>>,
         Undefined,
-        DispatchCallback<From_, To_, Args_...>>
+        DispatchCallback<From_, To_, Catches_, Raises_, Args_...>>
         dispatch_;
 
     std::tuple<Args_...> args_;
@@ -493,6 +572,7 @@ struct _Generator final {
 using Generator = _Generator::Composable<
     Undefined,
     Undefined,
+    std::tuple<>,
     std::tuple<>>;
 
 ////////////////////////////////////////////////////////////////////////

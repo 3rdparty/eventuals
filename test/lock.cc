@@ -78,11 +78,11 @@ TEST(LockTest, Fail) {
   auto e1 = [&]() {
     return Acquire(&lock)
         >> Eventual<std::string>()
-               .raises<std::runtime_error>()
+               .raises<RuntimeError>()
                .start([](auto& k) {
                  std::thread thread(
                      [&k]() mutable {
-                       k.Fail(std::runtime_error("error"));
+                       k.Fail(RuntimeError("error"));
                      });
                  thread.detach();
                })
@@ -95,9 +95,11 @@ TEST(LockTest, Fail) {
         >> Then([]() { return "t2"; });
   };
 
-  EXPECT_THAT(
-      [&]() { *e1(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e1();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 
   EXPECT_STREQ("t2", *e2());
 }
@@ -141,7 +143,7 @@ TEST(LockTest, Stop) {
 
   interrupt.Trigger();
 
-  EXPECT_THROW(future1.get(), eventuals::StoppedException);
+  EXPECT_THROW(future1.get(), eventuals::Stopped);
 
   EXPECT_STREQ("t2", *e2());
 }

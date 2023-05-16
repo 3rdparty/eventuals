@@ -6,6 +6,7 @@
 #include <variant>
 
 #include "eventuals/compose.h"
+#include "eventuals/finally.h"
 #include "eventuals/scheduler.h"
 #include "eventuals/terminal.h"
 
@@ -38,6 +39,13 @@ struct _DoAll final {
 
   template <typename K_, typename... Eventuals_>
   struct Adaptor final {
+    using UnionOfErrorsTuple = tuple_types_union_all_t<
+        typename Eventuals_::template ErrorsFrom<void, std::tuple<>>...>;
+
+    using StoppedOrError = variant_of_type_and_tuple_t<
+        Stopped,
+        UnionOfErrorsTuple>;
+
     Adaptor(
         K_& k,
         stout::borrowed_ref<Scheduler::Context>&& previous,
@@ -63,11 +71,18 @@ struct _DoAll final {
             // because that's what we use for 'void' return types.
             Undefined,
             std::conditional_t<
-                std::is_void_v<typename Eventuals_::template ValueFrom<void>>,
+                std::is_void_v<
+                    typename Eventuals_::template ValueFrom<
+                        void,
+                        std::tuple<>>>,
                 std::monostate,
-                typename Eventuals_::template ValueFrom<void>>,
-            std::exception_ptr>...>
+                typename Eventuals_::template ValueFrom<void, std::tuple<>>>,
+            StoppedOrError>...>
         values_;
+
+    static constexpr int UNDEFINED_INDEX = 0;
+    static constexpr int VALUE_OR_VOID_INDEX = 1;
+    static constexpr int STOPPED_OR_ERROR_INDEX = 2;
 
     std::atomic<size_t> counter_ = sizeof...(Eventuals_);
 
@@ -80,7 +95,9 @@ struct _DoAll final {
           >> Reschedule(previous_.reborrow())
           >> Terminal()
                  .start([this](auto&&... value) {
-                   using Value = typename Eventual::template ValueFrom<void>;
+                   using Value = typename Eventual::template ValueFrom<
+                       void,
+                       std::tuple<>>;
                    static_assert(
                        std::is_void_v<Value> || sizeof...(value) == 1);
                    if constexpr (!std::is_void_v<Value>) {
@@ -93,17 +110,25 @@ struct _DoAll final {
                    }
                    if (counter_.fetch_sub(1) == 1) {
                      // You're the last eventual so call the continuation.
-                     std::optional<std::exception_ptr> exception =
-                         GetExceptionIfExists();
+                     std::optional<StoppedOrError> stopped_or_error =
+                         GetStoppedOrErrorIfExists();
 
-                     if (exception) {
-                       try {
-                         std::rethrow_exception(*exception);
-                       } catch (const StoppedException&) {
-                         k_.Stop();
-                       } catch (...) {
-                         k_.Fail(std::current_exception());
-                       }
+                     if (stopped_or_error) {
+                       std::visit(
+                           [this](auto&& stopped_or_error) {
+                             if constexpr (
+                                 std::is_same_v<
+                                     std::decay_t<decltype(stopped_or_error)>,
+                                     Stopped>) {
+                               k_.Stop();
+                             } else {
+                               k_.Fail(
+                                   std::forward<
+                                       decltype(stopped_or_error)>(
+                                       stopped_or_error));
+                             }
+                           },
+                           std::move(stopped_or_error.value()));
                      } else {
                        k_.Start(GetTupleOfValues());
                      }
@@ -111,22 +136,31 @@ struct _DoAll final {
                  })
                  .fail([this](auto&&... errors) {
                    std::get<index>(values_)
-                       .template emplace<std::exception_ptr>(
-                           make_exception_ptr_or_forward(
-                               std::forward<decltype(errors)>(errors)...));
+                       .template emplace<
+                           STOPPED_OR_ERROR_INDEX>(
+                           std::forward<decltype(errors)>(errors)...);
                    if (counter_.fetch_sub(1) == 1) {
                      // You're the last eventual so call the continuation.
-                     std::optional<std::exception_ptr> exception =
-                         GetExceptionIfExists();
+                     std::optional<StoppedOrError> stopped_or_error =
+                         GetStoppedOrErrorIfExists();
 
-                     CHECK(exception);
-                     try {
-                       std::rethrow_exception(*exception);
-                     } catch (const StoppedException&) {
-                       k_.Stop();
-                     } catch (...) {
-                       k_.Fail(std::current_exception());
-                     }
+                     CHECK(stopped_or_error);
+                     std::visit(
+                         [this](auto&& stopped_or_error) {
+                           if constexpr (
+                               std::is_same_v<
+                                   std::decay_t<
+                                       decltype(stopped_or_error)>,
+                                   Stopped>) {
+                             k_.Stop();
+                           } else {
+                             k_.Fail(
+                                 std::forward<
+                                     decltype(stopped_or_error)>(
+                                     stopped_or_error));
+                           }
+                         },
+                         std::move(stopped_or_error.value()));
                    } else {
                      // Interrupt the remaining eventuals so we can
                      // propagate the failure.
@@ -134,23 +168,31 @@ struct _DoAll final {
                    }
                  })
                  .stop([this]() {
-                   std::get<index>(values_)
-                       .template emplace<std::exception_ptr>(
-                           std::make_exception_ptr(
-                               StoppedException()));
+                   std::get<
+                       index>(values_)
+                       .template emplace<STOPPED_OR_ERROR_INDEX>(Stopped());
                    if (counter_.fetch_sub(1) == 1) {
                      // You're the last eventual so call the continuation.
-                     std::optional<std::exception_ptr> exception =
-                         GetExceptionIfExists();
+                     std::optional<StoppedOrError> stopped_or_error =
+                         GetStoppedOrErrorIfExists();
 
-                     CHECK(exception);
-                     try {
-                       std::rethrow_exception(*exception);
-                     } catch (const StoppedException&) {
-                       k_.Stop();
-                     } catch (...) {
-                       k_.Fail(std::current_exception());
-                     }
+                     CHECK(stopped_or_error);
+                     std::visit(
+                         [this](auto&& stopped_or_error) {
+                           if constexpr (
+                               std::is_same_v<
+                                   std::decay_t<
+                                       decltype(stopped_or_error)>,
+                                   Stopped>) {
+                             k_.Stop();
+                           } else {
+                             k_.Fail(
+                                 std::forward<
+                                     decltype(stopped_or_error)>(
+                                     stopped_or_error));
+                           }
+                         },
+                         std::move(stopped_or_error.value()));
                    } else {
                      // Interrupt the remaining eventuals so we can
                      // propagate the stop.
@@ -162,9 +204,10 @@ struct _DoAll final {
 
     std::tuple<
         std::conditional_t<
-            std::is_void_v<typename Eventuals_::template ValueFrom<void>>,
+            std::is_void_v<
+                typename Eventuals_::template ValueFrom<void, std::tuple<>>>,
             std::monostate,
-            typename Eventuals_::template ValueFrom<void>>...>
+            typename Eventuals_::template ValueFrom<void, std::tuple<>>>...>
     GetTupleOfValues() {
       return std::apply(
           [](auto&&... value) {
@@ -179,37 +222,28 @@ struct _DoAll final {
           std::move(values_));
     }
 
-    std::optional<std::exception_ptr> GetExceptionIfExists() {
-      std::optional<std::exception_ptr> exception;
+    std::optional<StoppedOrError> GetStoppedOrErrorIfExists() {
+      std::optional<StoppedOrError> stopped_or_error;
 
-      bool stopped = true;
-
-      auto check_value = [&stopped, &exception](auto& value) {
-        if (std::holds_alternative<std::exception_ptr>(value)) {
-          try {
-            std::rethrow_exception(std::get<std::exception_ptr>(value));
-          } catch (const StoppedException&) {
-          } catch (...) {
-            stopped = false;
-            exception.emplace(std::current_exception());
+      auto extract_stopped_or_error = [&stopped_or_error](auto& value) {
+        if (value.index() == STOPPED_OR_ERROR_INDEX) {
+          // NOTE: we'll arbitrarily propagate the last error that gets folded
+          // over by just overwriting 'stopped_or_error' unless we've observed
+          // a 'Stopped' because we always want to propagate 'Stopped'.
+          if (!stopped_or_error.has_value()
+              || !std::holds_alternative<Stopped>(stopped_or_error.value())) {
+            stopped_or_error.emplace(std::get<STOPPED_OR_ERROR_INDEX>(value));
           }
-        } else {
-          stopped = false;
         }
       };
 
       std::apply(
-          [&check_value](auto&... value) {
-            (check_value(value), ...);
+          [&extract_stopped_or_error](auto&... value) {
+            (extract_stopped_or_error(value), ...);
           },
           values_);
 
-      if (stopped) {
-        CHECK(!exception);
-        exception = std::make_exception_ptr(eventuals::StoppedException{});
-      }
-
-      return exception;
+      return stopped_or_error;
     }
 
     template <size_t... index>
@@ -295,9 +329,11 @@ struct _DoAll final {
     // Scheduler::Context which may get borrowed in 'adaptor_' and
     // it's continuations so those need to be destructed first.
     std::optional<
-        decltype(std::declval<Adaptor<K_, Eventuals_...>>().BuildFibers(
-            std::declval<std::tuple<Eventuals_...>>(),
-            std::make_index_sequence<sizeof...(Eventuals_)>{}))>
+        decltype(std::declval<
+                     Adaptor<K_, Eventuals_...>>()
+                     .BuildFibers(
+                         std::declval<std::tuple<Eventuals_...>>(),
+                         std::make_index_sequence<sizeof...(Eventuals_)>{}))>
         fibers_;
 
     std::tuple<Eventuals_...> eventuals_;
@@ -324,12 +360,13 @@ struct _DoAll final {
 
   template <typename... Eventuals_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = std::tuple<
         std::conditional_t<
-            std::is_void_v<typename Eventuals_::template ValueFrom<void>>,
+            std::is_void_v<
+                typename Eventuals_::template ValueFrom<void, std::tuple<>>>,
             std::monostate,
-            typename Eventuals_::template ValueFrom<void>>...>;
+            typename Eventuals_::template ValueFrom<void, std::tuple<>>>...>;
 
     using Errors_ = tuple_types_union_all_t<
         typename Eventuals_::template ErrorsFrom<void, std::tuple<>>...>;
@@ -337,7 +374,7 @@ struct _DoAll final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<Errors, Errors_>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, Eventuals_...>(
           std::move(k),

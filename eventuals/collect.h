@@ -76,7 +76,7 @@ template <typename Collection>
 struct _Collect final {
   template <template <typename...> class Collection_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Collection_<std::decay_t<Arg>>;
 
     template <typename Arg, typename Errors>
@@ -87,7 +87,7 @@ struct _Collect final {
 
     using Expects = StreamOfValues;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Build(Collect<Collection_<std::decay_t<Arg>>>(), std::move(k));
     }

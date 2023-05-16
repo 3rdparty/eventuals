@@ -115,13 +115,13 @@ struct _ReorderAdaptor final {
   // that equals to 'std::tuple<int, std::optional<Value>>' and we need to
   // extract `Value`.
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = typename std::tuple_element<1, Arg>::type::value_type;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<
           K,
@@ -222,7 +222,7 @@ struct _ConcurrentOrderedAdaptor final {
   };
 
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = std::tuple<
         int,
         std::optional<typename std::tuple_element<1, Arg>::type>>;
@@ -230,7 +230,7 @@ struct _ConcurrentOrderedAdaptor final {
     template <typename Arg, typename Errors>
     using ErrorsFrom = Errors;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K>(std::move(k));
     }

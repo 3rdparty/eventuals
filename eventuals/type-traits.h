@@ -1,7 +1,11 @@
 #pragma once
 
+#include <exception>
 #include <tuple>
 #include <type_traits>
+#include <variant>
+
+#include "eventuals/errors.h"
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -297,6 +301,88 @@ template <template <typename...> class T, typename Tuple>
 using apply_tuple_types_t = typename apply_tuple_types<T, Tuple>::type;
 
 ////////////////////////////////////////////////////////////////////////
+
+template <typename... Errors>
+inline constexpr bool check_errors_v =
+    std::conjunction_v<
+        std::is_base_of<Error, std::decay_t<Errors>>...>;
+
+template <typename... Errors>
+using check_errors_t =
+    std::conditional_t<
+        check_errors_v<Errors...>,
+        std::true_type,
+        std::false_type>;
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+struct is_variant : std::false_type {};
+
+template <typename... Args>
+struct is_variant<std::variant<Args...>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_variant_v = is_variant<T>::value;
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+struct is_tuple : std::false_type {};
+
+template <typename... Args>
+struct is_tuple<std::tuple<Args...>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_tuple_v = is_tuple<T>::value;
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename V, typename T>
+struct tuple_contains_exact_type;
+
+template <typename V, typename T0, typename... T>
+struct tuple_contains_exact_type<V, std::tuple<T0, T...>> {
+  static constexpr bool value =
+      tuple_contains_exact_type<V, std::tuple<T...>>::value;
+};
+
+template <typename V, typename... T>
+struct tuple_contains_exact_type<V, std::tuple<V, T...>> {
+  static constexpr bool value = true;
+};
+
+template <typename V>
+struct tuple_contains_exact_type<V, std::tuple<>> {
+  static constexpr bool value = false;
+};
+
+template <typename V, typename T>
+inline constexpr bool tuple_contains_exact_type_v =
+    tuple_contains_exact_type<V, T>::value;
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename Type, typename Tuple>
+using variant_of_type_and_tuple_t = apply_tuple_types_t<
+    std::variant,
+    tuple_types_concatenate_t<std::tuple<Type>, Tuple>>;
+
+////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+struct get_rvalue_type_or_void {
+  using type = T&&;
+};
+
+// Need to overload explicitly, because 'void' can't have reference.
+template <>
+struct get_rvalue_type_or_void<void> {
+  using type = void;
+};
+
+template <typename T>
+using get_rvalue_type_or_void_t = typename get_rvalue_type_or_void<T>::type;
 
 } // namespace eventuals
 

@@ -4,6 +4,7 @@
 #include <string>
 #include <thread>
 
+#include "eventuals/errors.h"
 #include "eventuals/just.h"
 #include "eventuals/map.h"
 #include "eventuals/raise.h"
@@ -23,7 +24,6 @@ using std::string;
 
 using testing::ElementsAre;
 using testing::MockFunction;
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(ClosureTest, Then) {
@@ -115,11 +115,13 @@ TEST(ClosureTest, Fail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 
@@ -155,7 +157,7 @@ TEST(ClosureTest, Interrupt) {
 
   k.Start();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 } // namespace

@@ -15,7 +15,6 @@
 namespace eventuals::test {
 namespace {
 
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 // Tests when at least one of the eventuals fails.
@@ -31,7 +30,7 @@ TYPED_TEST(ConcurrentTypedTest, Fail) {
             };
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
-                  .raises()
+                  .raises<RuntimeError>()
                   .start([&, data = Data()](auto& k) mutable {
                     using K = std::decay_t<decltype(k)>;
                     data.k = &k;
@@ -41,7 +40,7 @@ TYPED_TEST(ConcurrentTypedTest, Fail) {
                         static_cast<K*>(data.k)->Start(std::to_string(data.i));
                       } else {
                         static_cast<K*>(data.k)->Fail(
-                            std::runtime_error("error"));
+                            RuntimeError("error"));
                       }
                     });
                   });
@@ -53,7 +52,7 @@ TYPED_TEST(ConcurrentTypedTest, Fail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::exception>>);
+          std::tuple<RuntimeError>>);
 
   auto [future, k] = PromisifyForTest(e());
 
@@ -69,14 +68,11 @@ TYPED_TEST(ConcurrentTypedTest, Fail) {
     callback();
   }
 
-  EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    future.get();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 } // namespace

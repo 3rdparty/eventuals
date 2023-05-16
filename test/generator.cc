@@ -27,7 +27,6 @@ namespace {
 
 using testing::ElementsAre;
 using testing::MockFunction;
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(Generator, Succeed) {
@@ -215,7 +214,7 @@ TEST(Generator, InterruptStream) {
 
   k.Start();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 TEST(Generator, FailStream) {
@@ -235,7 +234,7 @@ TEST(Generator, FailStream) {
       .Times(0);
 
   EXPECT_CALL(functions.fail, Call())
-      .Times(2);
+      .Times(1);
 
   EXPECT_CALL(functions.stop, Call())
       .Times(0);
@@ -244,7 +243,7 @@ TEST(Generator, FailStream) {
       .Times(0);
 
   auto stream = [&functions]()
-      -> Generator::Of<int>::Raises<std::runtime_error> {
+      -> Generator::Of<int> {
     return [&]() {
       return Stream<int>()
           .next([&](auto& k) {
@@ -254,10 +253,8 @@ TEST(Generator, FailStream) {
             functions.done.Call();
           })
           .fail([&](auto& k, auto&& error) {
-            // No need to specify 'raises' because type of error is
-            // 'std::exception_ptr', that just propagates.
-            functions.fail.Call();
-            k.Fail(error);
+            FAIL() << "Should not get called because "
+                      "we did not specify any 'Catches'";
           })
           .stop([&](auto& k) {
             functions.stop.Call();
@@ -267,12 +264,13 @@ TEST(Generator, FailStream) {
 
   auto e = [&]() {
     return Eventual<int>()
-               .raises<std::runtime_error>()
+               .raises<RuntimeError>()
                .start([](auto& k) {
-                 k.Fail(std::runtime_error("error"));
+                 k.Fail(RuntimeError("error"));
                })
         >> stream()
         >> Loop<int>()
+               .raises<RuntimeError>()
                .body([&](auto& k, auto&&) {
                  functions.body.Call();
                })
@@ -280,8 +278,6 @@ TEST(Generator, FailStream) {
                  functions.ended.Call();
                })
                .fail([&](auto& k, auto&& error) {
-                 // No need to specify 'raises' because type of error is
-                 // 'std::exception_ptr', that just propagates.
                  functions.fail.Call();
                  k.Fail(std::forward<decltype(error)>(error));
                })
@@ -295,18 +291,15 @@ TEST(Generator, FailStream) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   k.Start();
 
-  EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    future.get();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 TEST(Generator, StopStream) {
@@ -379,7 +372,7 @@ TEST(Generator, StopStream) {
 
   k.Start();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 TEST(Generator, TaskWithGenerator) {
@@ -538,12 +531,12 @@ TEST(Generator, FromToLValue) {
 }
 
 TEST(Generator, Raises) {
-  auto stream = [&]() -> Generator::Of<int>::Raises<std::runtime_error> {
+  auto stream = [&]() -> Generator::Of<int>::Raises<RuntimeError> {
     return [&]() {
       return Stream<int>()
-          .raises<std::runtime_error>()
+          .raises<RuntimeError>()
           .next([&](auto& k) {
-            k.Fail(std::runtime_error("error"));
+            k.Fail(RuntimeError("error"));
           });
     };
   };
@@ -556,9 +549,39 @@ TEST(Generator, Raises) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THROW(*e(), std::runtime_error);
+  EXPECT_THROW(*e(), RuntimeError);
+}
+
+TEST(Task, RaisesGeneralError) {
+  auto stream = [&]() -> Generator::Of<int>::Raises<TypeErasedError> {
+    return [&]() {
+      return Stream<int>()
+          .raises<RuntimeError>()
+          .next([&](auto& k) {
+            k.Fail(RuntimeError("runtime error"));
+          });
+    };
+  };
+
+  auto e = [&]() {
+    return stream()
+        >> Collect<std::vector>();
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<TypeErasedError>>);
+
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    FAIL() << "error of 'RuntimeError' type shouldn't be thrown";
+  } catch (const TypeErasedError& error) {
+    EXPECT_EQ(error.what(), "runtime error");
+  }
 }
 
 } // namespace

@@ -4,8 +4,13 @@ namespace eventuals::grpc::test {
 namespace {
 
 TEST(StreamingTest, WriteLast_BeforeReply_TwoRequests) {
-  test_client_behavior(
-      Then(Let([](auto& call) {
+  auto task = []()
+      -> Task::From<
+          ClientCall<
+              Stream<Request>,
+              Stream<Response>>>::To<::grpc::Status>::Raises<RuntimeError> {
+    return []() {
+      return Then(Let([](auto& call) {
         Request request1;
         request1.set_key("1");
         return call.Writer().Write(request1)
@@ -40,7 +45,11 @@ TEST(StreamingTest, WriteLast_BeforeReply_TwoRequests) {
                  EXPECT_EQ("12", response.value());
                })
             >> call.Finish();
-      })));
+      }));
+    };
+  };
+
+  test_client_behavior(std::move(task));
 }
 
 } // namespace

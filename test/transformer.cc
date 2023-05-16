@@ -18,7 +18,6 @@ namespace {
 
 using testing::ElementsAre;
 using testing::MockFunction;
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(Transformer, Succeed) {
@@ -72,7 +71,7 @@ TEST(Transformer, Stop) {
         >> Collect<std::vector>();
   };
 
-  EXPECT_THROW(*e(), eventuals::StoppedException);
+  EXPECT_THROW(*e(), eventuals::Stopped);
 }
 
 TEST(Transformer, Fail) {
@@ -93,9 +92,9 @@ TEST(Transformer, Fail) {
 
   auto e = [&]() {
     return Stream<int>()
-               .raises<std::runtime_error>()
+               .raises<RuntimeError>()
                .next([](auto& k) {
-                 k.Fail(std::runtime_error("error"));
+                 k.Fail(RuntimeError("error"));
                })
         >> transformer()
         >> Map([&](std::string s) {
@@ -108,11 +107,13 @@ TEST(Transformer, Fail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 TEST(Transformer, Interrupt) {
@@ -171,7 +172,7 @@ TEST(Transformer, Interrupt) {
 
   interrupt.Trigger();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 TEST(Transformer, PropagateStop) {
@@ -200,7 +201,7 @@ TEST(Transformer, PropagateStop) {
         >> Collect<std::vector>();
   };
 
-  EXPECT_THROW(*e(), eventuals::StoppedException);
+  EXPECT_THROW(*e(), eventuals::Stopped);
 }
 
 TEST(Transformer, PropagateFail) {
@@ -210,13 +211,13 @@ TEST(Transformer, PropagateFail) {
       .Times(0);
 
   auto transformer = []() {
-    return Transformer::From<int>::To<std::string>::Raises<std::runtime_error>(
+    return Transformer::From<int>::To<std::string>::Raises<RuntimeError>(
         []() {
           return Map(Let([](int& i) {
             return Eventual<std::string>()
-                .raises<std::runtime_error>()
+                .raises<RuntimeError>()
                 .start([](auto& k) {
-                  k.Fail(std::runtime_error("error"));
+                  k.Fail(RuntimeError("error"));
                 });
           }));
         });
@@ -235,11 +236,56 @@ TEST(Transformer, PropagateFail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
+}
+
+TEST(Transformer, RaisesGeneralError) {
+  MockFunction<void()> map_start;
+
+  EXPECT_CALL(map_start, Call())
+      .Times(0);
+
+  auto transformer = []() {
+    return Transformer::From<int>::To<std::string>::Raises<TypeErasedError>(
+        []() {
+          return Map(Let([](int& i) {
+            return Eventual<std::string>()
+                .raises<RuntimeError>()
+                .start([](auto& k) {
+                  k.Fail(RuntimeError("runtime error"));
+                });
+          }));
+        });
+  };
+
+  auto e = [&]() {
+    return Iterate({100})
+        >> transformer()
+        >> Map([&](std::string s) {
+             map_start.Call();
+             return s;
+           })
+        >> Collect<std::vector>();
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
+          std::tuple<TypeErasedError>>);
+
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    FAIL() << "error of 'RuntimeError' type shouldn't be thrown";
+  } catch (const TypeErasedError& error) {
+    EXPECT_EQ(error.what(), "runtime error");
+  }
 }
 
 } // namespace

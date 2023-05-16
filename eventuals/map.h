@@ -58,7 +58,8 @@ struct _Map final {
     template <typename... Args>
     void Body(Args&&... args) {
       if (!adapted_) {
-        adapted_.emplace(std::move(e_).template k<Arg_>(Adaptor<K_>{k_}));
+        adapted_.emplace(
+            std::move(e_).template k<Arg_, std::tuple<>>(Adaptor<K_>{k_}));
 
         if (interrupt_ != nullptr) {
           adapted_->Register(*interrupt_);
@@ -80,7 +81,7 @@ struct _Map final {
 
     E_ e_;
 
-    using Adapted_ = decltype(std::declval<E_>().template k<Arg_>(
+    using Adapted_ = decltype(std::declval<E_>().template k<Arg_, std::tuple<>>(
         std::declval<Adaptor<K_>>()));
 
     std::optional<Adapted_> adapted_;
@@ -106,15 +107,15 @@ struct _Map final {
 
   template <typename E_>
   struct Composable final {
-    template <typename Arg>
-    using ValueFrom = typename E_::template ValueFrom<Arg>;
+    template <typename Arg, typename Errors>
+    using ValueFrom = typename E_::template ValueFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<
         Errors,
         typename E_::template ErrorsFrom<Arg, std::tuple<>>>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       // Optimize the case where we compose map on map to lessen the
       // template instantiation load on the compiler.

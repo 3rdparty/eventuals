@@ -25,7 +25,7 @@ namespace eventuals {
   return loop.Schedule(
       "DomainNameResolve",
       Eventual<std::string>()
-          .raises<std::runtime_error>()
+          .raises<RuntimeError>()
           .context(Data{loop, address, port})
           .start([](Data& data, auto& k) {
             using K = std::decay_t<decltype(k)>;
@@ -42,7 +42,7 @@ namespace eventuals {
                   Data& data = *static_cast<Data*>(request->data);
                   if (status < 0) {
                     static_cast<K*>(data.k)->Fail(
-                        std::runtime_error(uv_err_name(status)));
+                        RuntimeError(uv_err_name(status)));
                   } else {
                     // Array "ip" is resulting IPv4 for the specified address.
                     char ip[17] = {'\0'};
@@ -54,7 +54,7 @@ namespace eventuals {
 
                     if (error) {
                       static_cast<K*>(data.k)->Fail(
-                          std::runtime_error(uv_err_name(error)));
+                          RuntimeError(uv_err_name(error)));
                     } else {
                       uv_freeaddrinfo(result);
                       static_cast<K*>(data.k)->Start(std::string{ip});
@@ -67,7 +67,7 @@ namespace eventuals {
 
             if (error) {
               static_cast<K*>(data.k)->Fail(
-                  std::runtime_error(uv_err_name(error)));
+                  RuntimeError(uv_err_name(error)));
             }
           }));
   // TODO (Artur): think later about implementing

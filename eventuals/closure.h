@@ -13,7 +13,7 @@ namespace eventuals {
 ////////////////////////////////////////////////////////////////////////
 
 struct _Closure final {
-  template <typename K_, typename F_, typename Arg_>
+  template <typename K_, typename F_, typename Arg_, typename Errors_>
   struct Continuation final {
     Continuation(K_ k, F_ f)
       : f_(std::move(f)),
@@ -53,7 +53,7 @@ struct _Closure final {
 
     [[nodiscard]] auto& continuation() {
       if (!continuation_) {
-        continuation_.emplace(f_().template k<Arg_>(std::move(k_)));
+        continuation_.emplace(f_().template k<Arg_, Errors_>(std::move(k_)));
 
         if (interrupt_ != nullptr) {
           continuation_->Register(*interrupt_);
@@ -67,7 +67,9 @@ struct _Closure final {
 
     Interrupt* interrupt_ = nullptr;
 
-    using Continuation_ = decltype(f_().template k<Arg_>(std::declval<K_&&>()));
+    using Continuation_ = decltype(f_().template k<
+                                   Arg_,
+                                   Errors_>(std::declval<K_&&>()));
 
     std::optional<Continuation_> continuation_;
 
@@ -82,8 +84,8 @@ struct _Closure final {
   struct Composable final {
     using E_ = typename std::invoke_result_t<F_>;
 
-    template <typename Arg>
-    using ValueFrom = typename E_::template ValueFrom<Arg>;
+    template <typename Arg, typename Errors>
+    using ValueFrom = typename E_::template ValueFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename E_::template ErrorsFrom<Arg, Errors>;
@@ -93,9 +95,9 @@ struct _Closure final {
 
     using Expects = typename E_::Expects;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
+      return Continuation<K, F_, Arg, Errors>(std::move(k), std::move(f_));
     }
 
     F_ f_;

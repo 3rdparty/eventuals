@@ -497,7 +497,7 @@ struct _HTTP final {
                   if (!pem_certificate) {
                     completed_ = true;
 
-                    k_.Fail(std::runtime_error(
+                    k_.Fail(RuntimeError(
                         "Failed to PEM encode certificate"));
 
                     curl_easy_cleanup(easy_.get());
@@ -654,7 +654,7 @@ struct _HTTP final {
                               continuation.body_buffer_.Extract()});
                         } else {
                           continuation.k_.Fail(
-                              std::runtime_error(
+                              RuntimeError(
                                   curl_easy_strerror(
                                       (CURLcode) continuation.error_)));
                         }
@@ -1192,15 +1192,15 @@ struct _HTTP final {
   };
 
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Response;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = tuple_types_union_t<
         Errors,
-        std::tuple<std::runtime_error>>;
+        std::tuple<RuntimeError>>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K>(std::move(k), loop_, std::move(request_));
     }

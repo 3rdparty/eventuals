@@ -213,6 +213,11 @@ static_assert(
 
 static_assert(
     tuple_types_contains_subtype_v<
+        A,
+        std::tuple<A>>);
+
+static_assert(
+    tuple_types_contains_subtype_v<
         B,
         std::tuple<D, A>>);
 
@@ -233,6 +238,20 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////
 
+static_assert(tuple_contains_exact_type_v<
+              std::runtime_error,
+              std::tuple<int, std::runtime_error>>);
+
+static_assert(!tuple_contains_exact_type_v<
+              std::runtime_error,
+              std::tuple<>>);
+
+static_assert(!tuple_contains_exact_type_v<
+              std::runtime_error,
+              std::tuple<int, std::exception>>);
+
+////////////////////////////////////////////////////////////////////////
+
 static_assert(
     tuple_types_subset_subtype_v<
         std::tuple<B>,
@@ -247,6 +266,11 @@ static_assert(
     tuple_types_subset_subtype_v<
         std::tuple<B, C>,
         std::tuple<A, B, D>>);
+
+static_assert(
+    tuple_types_subset_subtype_v<
+        std::tuple<>,
+        std::tuple<std::runtime_error>>);
 
 static_assert(
     !tuple_types_subset_subtype_v<
@@ -275,6 +299,16 @@ static_assert(
             Task::Of<int>::Raises,
             std::tuple<std::overflow_error, std::underflow_error>>,
         Task::Of<int>::Raises<std::overflow_error, std::underflow_error>>);
+
+////////////////////////////////////////////////////////////////////////
+
+static_assert(!check_errors_v<int>);
+
+static_assert(!check_errors_v<int, std::string>);
+
+static_assert(!check_errors_v<std::string, RuntimeError>);
+
+static_assert(check_errors_v<TypeErasedError, RuntimeError>);
 
 ////////////////////////////////////////////////////////////////////////
 

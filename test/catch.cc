@@ -21,16 +21,10 @@ using testing::MockFunction;
 TEST(CatchTest, RaisedRuntimeError) {
   auto e = []() {
     return Just(1)
-        >> Raise(std::runtime_error("message"))
+        >> Raise(RuntimeError("message"))
         >> Catch()
-               .raised<std::overflow_error>([](std::overflow_error&& error) {
-                 ADD_FAILURE() << "Encountered unexpected matched raised";
-                 return Then([]() {
-                   return 100;
-                 });
-               })
-               .raised<std::runtime_error>([](std::runtime_error&& error) {
-                 EXPECT_STREQ(error.what(), "message");
+               .raised<RuntimeError>([](RuntimeError&& error) {
+                 EXPECT_EQ(error.what(), "message");
                  return Just(100);
                });
   };
@@ -44,23 +38,19 @@ TEST(CatchTest, RaisedRuntimeError) {
 }
 
 TEST(CatchTest, ChildException) {
-  struct Error : public std::exception {
-    const char* what() const noexcept override {
+  struct MyError : public Error {
+    std::string what() const noexcept override {
       return "child exception";
     }
   };
 
   auto e = []() {
     return Just(1)
-        >> Raise(Error{})
+        >> Raise(MyError{})
         >> Catch()
-               .raised<std::overflow_error>([](std::overflow_error&& error) {
-                 ADD_FAILURE() << "Encountered unexpected matched raised";
-                 return Just(10);
-               })
-               .raised<std::exception>(
-                   [](std::exception&& error) {
-                     EXPECT_STREQ("child exception", error.what());
+               .raised<TypeErasedError>(
+                   [](TypeErasedError&& error) {
+                     EXPECT_EQ("child exception", error.what());
                      return Just(100);
                    });
   };
@@ -76,22 +66,44 @@ TEST(CatchTest, ChildException) {
 TEST(CatchTest, All) {
   auto e = []() {
     return Just(500)
-        >> Raise(std::runtime_error("10"))
+        >> Raise(RuntimeError("10"))
         >> Catch()
-               .raised<std::overflow_error>([](std::overflow_error&& error) {
-                 ADD_FAILURE() << "Encountered unexpected matched raised";
-                 return 10;
+               .all([](std::variant<RuntimeError>&& error) {
+                 EXPECT_EQ(std::get<RuntimeError>(error).what(), "10");
+                 return 100;
                })
-               .raised<std::underflow_error>([](std::underflow_error&& error) {
-                 ADD_FAILURE() << "Encountered unexpected matched raised";
-                 return 10;
+        >> Then([](int value) {
+             return value;
+           });
+  };
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(e())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
+  EXPECT_EQ(*e(), 100);
+}
+
+TEST(CatchTest, AllRaisedOneException) {
+  struct MyError : public Error {
+    std::string what() const noexcept override {
+      return "child exception";
+    }
+  };
+
+  auto e = []() {
+    return Just(500)
+        >> Raise(RuntimeError("runtime_error"))
+        >> Raise(MyError{})
+        >> Catch()
+               .raised<MyError>([](MyError&& error) {
+                 FAIL() << "Encountered unexpected matched raised";
                })
-               .all([](std::exception_ptr&& error) {
-                 try {
-                   std::rethrow_exception(error);
-                 } catch (const std::runtime_error& error) {
-                   EXPECT_STREQ(error.what(), "10");
-                 }
+               .all([](std::variant<RuntimeError>&& error) {
+                 EXPECT_EQ(
+                     std::get<RuntimeError>(error).what(),
+                     "runtime_error");
                  return 100;
                })
         >> Then([](int value) {
@@ -108,27 +120,22 @@ TEST(CatchTest, All) {
 }
 
 TEST(CatchTest, UnexpectedRaise) {
-  struct Error : public std::exception {
-    const char* what() const noexcept override {
+  struct MyError : public Error {
+    std::string what() const noexcept override {
       return "child exception";
     }
   };
 
-  auto f = []() -> expected<int, Error> {
-    return make_unexpected(Error{});
+
+  auto f = []() -> expected<int, MyError> {
+    return make_unexpected(MyError{});
   };
 
   auto e = [&]() {
-    return f() // Throwing 'std::exception_ptr' there.
+    return f()
         >> Catch()
-               .raised<std::overflow_error>([](std::overflow_error&& error) {
-                 ADD_FAILURE() << "Encountered unexpected matched raised";
-                 return 1;
-               })
-               // Receive 'Error' type there, that had been rethrowed from
-               // 'std::exception_ptr'.
-               .raised<Error>([](Error&& error) {
-                 EXPECT_STREQ("child exception", error.what());
+               .raised<MyError>([](MyError&& error) {
+                 EXPECT_EQ("child exception", error.what());
                  return 100;
                });
   };
@@ -142,35 +149,21 @@ TEST(CatchTest, UnexpectedRaise) {
 }
 
 TEST(CatchTest, UnexpectedAll) {
-  struct Error : public std::exception {
-    const char* what() const noexcept override {
+  struct MyError : public Error {
+    std::string what() const noexcept override {
       return "child exception";
     }
   };
 
-  auto f = []() -> expected<int, Error> {
-    return make_unexpected(Error{});
+  auto f = []() -> expected<int, MyError> {
+    return make_unexpected(MyError{});
   };
 
   auto e = [&]() {
-    return f() // Throwing 'std::exception_ptr' there.
+    return f()
         >> Catch()
-               .raised<std::overflow_error>([](std::overflow_error&& error) {
-                 ADD_FAILURE() << "Encountered unexpected matched raised";
-                 return 1;
-               })
-               .raised<std::underflow_error>([](std::underflow_error&& error) {
-                 ADD_FAILURE() << "Encountered unexpected matched raised";
-                 return 1;
-               })
-               .all([](std::exception_ptr&& error) {
-                 try {
-                   std::rethrow_exception(error);
-                 } catch (const Error& e) {
-                   EXPECT_STREQ(e.what(), "child exception");
-                 } catch (...) {
-                   ADD_FAILURE() << "Failure on rethrowing";
-                 }
+               .all([](std::variant<MyError>&& error) {
+                 EXPECT_EQ(std::get<MyError>(error).what(), "child exception");
 
                  return 100;
                });
@@ -185,26 +178,27 @@ TEST(CatchTest, UnexpectedAll) {
 }
 
 TEST(CatchTest, NoExactHandler) {
+  struct MyError : public Error {
+    std::string what() const noexcept override {
+      return "child exception";
+    }
+  };
+
   auto e = []() {
     return Just(1)
         >> Raise(std::string("error"))
         >> Catch()
-               .raised<std::overflow_error>([](std::overflow_error&& error) {
-                 ADD_FAILURE() << "Encountered unexpected matched raised";
-                 return 1;
-               })
-               .raised<std::underflow_error>([](std::underflow_error&& error) {
-                 ADD_FAILURE() << "Encountered unexpected matched raised";
-                 return 1;
+               .raised<MyError>([](MyError&& error) {
+                 FAIL() << "Encountered unexpected matched raised";
                });
   };
 
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THROW(*e(), std::runtime_error);
+  EXPECT_THROW(*e(), RuntimeError);
 }
 
 TEST(CatchTest, ReRaise) {
@@ -212,20 +206,16 @@ TEST(CatchTest, ReRaise) {
     return Just(1)
         >> Raise("10")
         >> Catch()
-               .raised<std::runtime_error>([](std::runtime_error&& error) {
-                 EXPECT_STREQ(error.what(), "10");
+               .raised<RuntimeError>([](RuntimeError&& error) {
+                 EXPECT_EQ(error.what(), "10");
                  return Raise("1");
-               })
-               .all([](std::exception_ptr&& error) {
-                 ADD_FAILURE() << "Encountered an unexpected all";
-                 return Just(100);
                })
         >> Then([](int) {
              return 200;
            })
         >> Catch()
-               .raised<std::runtime_error>([](std::runtime_error&& error) {
-                 EXPECT_STREQ(error.what(), "1");
+               .raised<RuntimeError>([](RuntimeError&& error) {
+                 EXPECT_EQ(error.what(), "1");
                  return Just(10);
                })
         >> Then([](int value) {
@@ -243,13 +233,14 @@ TEST(CatchTest, ReRaise) {
 
 TEST(CatchTest, VoidPropagate) {
   auto e = []() {
-    return Just("error")
+    return Just("some string")
         >> Then([](const char* i) {
              return;
            })
+        >> Raise("error")
         >> Catch()
-               .raised<std::exception>([](std::exception&& error) {
-                 EXPECT_STREQ(error.what(), "error");
+               .raised<TypeErasedError>([](TypeErasedError&& error) {
+                 EXPECT_EQ(error.what(), "error");
                  // MUST RETURN VOID HERE!
                })
         >> Then([](/* MUST TAKE VOID HERE! */) {
@@ -268,16 +259,10 @@ TEST(CatchTest, VoidPropagate) {
 TEST(CatchTest, Interrupt) {
   auto e = []() {
     return Just(1)
-        >> Raise(std::runtime_error("message"))
+        >> Raise(RuntimeError("message"))
         >> Catch()
-               .raised<std::overflow_error>([](std::overflow_error&& error) {
-                 ADD_FAILURE() << "Encountered unexpected matched raised";
-                 return Then([]() {
-                   return 100;
-                 });
-               })
-               .raised<std::runtime_error>([](std::runtime_error&& error) {
-                 EXPECT_STREQ(error.what(), "message");
+               .raised<RuntimeError>([](RuntimeError&& error) {
+                 EXPECT_EQ(error.what(), "message");
                  return Just(100);
                })
         >> Then([](int i) {
@@ -300,6 +285,38 @@ TEST(CatchTest, Interrupt) {
 
   EXPECT_EQ(future.get(), "100");
 }
+
+TEST(CatchTest, RaiseFromCatch) {
+  auto all = []() {
+    return Just(1)
+        >> Raise("10")
+        >> Catch()
+               .all([](auto&& error) {
+                 return Just(10) >> Raise("1");
+               });
+  };
+
+  auto raised = []() {
+    return Just(1)
+        >> Raise("10")
+        >> Catch()
+               .raised<RuntimeError>([](auto&& error) {
+                 return Just(10) >> Raise("1");
+               });
+  };
+
+  // Be careful there!
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(all())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<>>);
+
+  static_assert(
+      eventuals::tuple_types_unordered_equals_v<
+          decltype(raised())::ErrorsFrom<void, std::tuple<>>,
+          std::tuple<RuntimeError>>);
+}
+
 
 } // namespace
 } // namespace eventuals::test

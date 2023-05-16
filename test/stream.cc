@@ -18,7 +18,6 @@ namespace eventuals::test {
 namespace {
 
 using testing::MockFunction;
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(StreamTest, Succeed) {
@@ -130,16 +129,16 @@ TEST(StreamTest, Fail) {
   auto s = [&]() {
     return Stream<int>()
                .context("error")
-               .raises<std::runtime_error>()
+               .raises<RuntimeError>()
                .next([](auto& error, auto& k) {
-                 k.Fail(std::runtime_error(error));
+                 k.Fail(RuntimeError(error));
                })
                .done([&](auto&, auto&) {
                  done.Call();
                })
         >> Loop<int>()
                .context(0)
-               .raises<std::runtime_error>()
+               .raises<RuntimeError>()
                .body([](auto&, auto& stream, auto&&) {
                  stream.Next();
                })
@@ -157,11 +156,13 @@ TEST(StreamTest, Fail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(s())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *s(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *s();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 
@@ -237,7 +238,7 @@ TEST(StreamTest, InterruptStream) {
 
   triggered.store(true);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 
@@ -264,7 +265,7 @@ TEST(StreamTest, InterruptLoop) {
         >> Loop<int>()
                .context(Lazy<std::atomic<bool>>(false))
                .interruptible()
-               .raises<std::runtime_error>()
+               .raises<RuntimeError>()
                .begin([](auto& interrupted,
                          auto& k,
                          auto& handler) {
@@ -288,7 +289,7 @@ TEST(StreamTest, InterruptLoop) {
                  if (interrupted->load()) {
                    k.Stop();
                  } else {
-                   k.Fail(std::runtime_error("error"));
+                   k.Fail(RuntimeError("error"));
                  }
                })
                .fail([&](auto&, auto&, auto&&) {
@@ -302,7 +303,7 @@ TEST(StreamTest, InterruptLoop) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(s())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   auto [future, k] = PromisifyForTest(s());
 
@@ -316,7 +317,7 @@ TEST(StreamTest, InterruptLoop) {
 
   triggered.store(true);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 
@@ -416,14 +417,16 @@ TEST(StreamTest, Head) {
         >> Head();
   };
 
-  EXPECT_THAT(
-      [&]() { *s2(); },
-      ThrowsMessage<std::runtime_error>(StrEq("empty stream")));
+  try {
+    *s2();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "empty stream");
+  }
 }
 
 TEST(StreamTest, PropagateError) {
   auto e = []() {
-    return Raise(std::runtime_error("error"))
+    return Raise(RuntimeError("error"))
         >> Stream<int>()
                .next([](auto& k) {
                  k.Ended();
@@ -434,25 +437,33 @@ TEST(StreamTest, PropagateError) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 TEST(StreamTest, ThrowSpecificError) {
+  struct MyError : public Error {
+    std::string what() const noexcept override {
+      return "my error";
+    }
+  };
+
   auto e = []() {
-    return Raise(std::bad_alloc())
+    return Raise(MyError())
         >> Stream<int>()
-               .raises<std::runtime_error>()
+               .raises<RuntimeError>()
                .fail([](auto& k, auto&& error) {
                  static_assert(
                      std::is_same_v<
                          std::decay_t<decltype(error)>,
-                         std::bad_alloc>);
+                         MyError>);
 
-                 k.Fail(std::runtime_error("error"));
+                 k.Fail(RuntimeError("error"));
                })
                .next([](auto& k) {
                  k.Ended();
@@ -463,25 +474,33 @@ TEST(StreamTest, ThrowSpecificError) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error, std::bad_alloc>>);
+          std::tuple<RuntimeError, MyError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 TEST(StreamTest, ThrowGeneralError) {
+  struct MyError : public Error {
+    std::string what() const noexcept override {
+      return "my error";
+    }
+  };
+
   auto e = []() {
-    return Raise(std::bad_alloc())
+    return Raise(MyError())
         >> Stream<int>()
-               .raises() // Same as 'raises<std::exception>'.
+               .raises<TypeErasedError>()
                .fail([](auto& k, auto&& error) {
                  static_assert(
                      std::is_same_v<
                          std::decay_t<decltype(error)>,
-                         std::bad_alloc>);
+                         MyError>);
 
-                 k.Fail(std::runtime_error("error"));
+                 k.Fail(RuntimeError("error"));
                })
                .next([](auto& k) {
                  k.Ended();
@@ -492,11 +511,13 @@ TEST(StreamTest, ThrowGeneralError) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           decltype(e())::ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error, std::bad_alloc, std::exception>>);
+          std::tuple<RuntimeError, MyError, TypeErasedError>>);
 
-  EXPECT_THAT(
-      [&]() { *e(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *e();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 } // namespace

@@ -23,7 +23,7 @@ auto Server::RequestCall(
     ServerContext* context,
     ::grpc::ServerCompletionQueue* cq) {
   return Eventual<void>()
-      .raises<std::runtime_error>()
+      .raises<RuntimeError>()
       .context(Callback<void(bool)>())
       // NOTE: 'context' and 'cq' are stored in a 'Closure()' so safe
       // to capture them as references here.
@@ -33,7 +33,7 @@ auto Server::RequestCall(
             if (ok) {
               k.Start();
             } else {
-              k.Fail(std::runtime_error("RequestCall !ok"));
+              k.Fail(RuntimeError("RequestCall !ok"));
             }
           };
         }
@@ -119,7 +119,7 @@ Server::Server(
     serve->service->Register(this);
 
     serve->task.emplace(
-        Task::Of<void>::Raises<std::exception>([service]() {
+        Task::Of<void>::Raises<TypeErasedError>([service]() {
           return service->Serve();
         }));
 
@@ -135,10 +135,16 @@ Server::Server(
               << " completed serving";
           serve->done.store(true);
         },
-        [&serve](std::exception_ptr) {
+        [&serve](std::variant<TypeErasedError>&& error) {
           EVENTUALS_GRPC_LOG(1)
               << serve->service->name()
-              << " failed serving";
+              << " failed serving with the error: "
+              << std::visit(
+                     [](TypeErasedError& error) {
+                       return error.what();
+                     },
+                     error);
+
           serve->done.store(true);
         },
         [&serve]() {
@@ -187,8 +193,8 @@ Server::Server(
                        })
                     >> Loop()
                     >> Catch()
-                           .raised<std::exception>(
-                               [this](std::exception&& e) {
+                           .raised<RuntimeError>(
+                               [this](RuntimeError&& e) {
                                  EVENTUALS_GRPC_LOG(1)
                                      << "Failed to accept a call: "
                                      << e.what() << "; shutting down";
@@ -207,7 +213,7 @@ Server::Server(
         [&worker]() {
           worker->done.store(true);
         },
-        [](std::exception_ptr) {
+        []() {
           LOG(FATAL) << "Unreachable";
         },
         []() {

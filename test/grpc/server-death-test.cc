@@ -69,7 +69,9 @@ TEST(ServerDeathTest, ClientReceivesUnavailable) {
              request.set_name("emily");
              return call.Writer().WriteLast(request)
                  >> Finally(
-                        [&](expected<void, std::exception_ptr>&&) {
+                        [&](expected<
+                            void,
+                            std::variant<Stopped, RuntimeError>>&&) {
                           return call.Finish();
                         });
            }));

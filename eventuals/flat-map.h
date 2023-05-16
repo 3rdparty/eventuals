@@ -94,7 +94,7 @@ struct _FlatMap final {
 
       adapted_.emplace(
           f_(std::forward<Args>(args)...)
-              .template k<void>(Adaptor<Continuation>{this}));
+              .template k<void, std::tuple<>>(Adaptor<Continuation>{this}));
 
       if (interrupt_ != nullptr) {
         adapted_->Register(*interrupt_);
@@ -136,7 +136,7 @@ struct _FlatMap final {
 
     using E_ = typename std::invoke_result<F_, Arg_>::type;
 
-    using Adapted_ = decltype(std::declval<E_>().template k<void>(
+    using Adapted_ = decltype(std::declval<E_>().template k<void, std::tuple<>>(
         std::declval<Adaptor<Continuation>>()));
 
     std::optional<Adapted_> adapted_;
@@ -156,19 +156,23 @@ struct _FlatMap final {
 
   template <typename F_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = typename std::conditional_t<
         std::is_void_v<Arg>,
         std::invoke_result<F_>,
-        std::invoke_result<F_, Arg>>::type::template ValueFrom<void>;
+        std::invoke_result<
+            F_,
+            Arg>>::type::template ValueFrom<void, std::tuple<>>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename std::conditional_t<
         std::is_void_v<Arg>,
         std::invoke_result<F_>,
-        std::invoke_result<F_, Arg>>::type::template ErrorsFrom<void, Errors>;
+        std::invoke_result<
+            F_,
+            Arg>>::type::template ErrorsFrom<void, std::tuple<>>;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, F_, Arg>(std::move(k), std::move(f_));
     }

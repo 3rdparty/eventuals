@@ -57,22 +57,6 @@ struct StreamOrValue {
 
 ////////////////////////////////////////////////////////////////////////
 
-// Helper to avoid creating nested 'std::exception_ptr'.
-template <typename Error>
-auto make_exception_ptr_or_forward(Error&& error) {
-  static_assert(!std::is_same_v<std::decay_t<Error>, std::exception_ptr>);
-  static_assert(
-      std::is_base_of_v<std::exception, std::decay_t<Error>>,
-      "Expecting a type derived from std::exception");
-  return std::make_exception_ptr(std::forward<Error>(error));
-}
-
-inline auto make_exception_ptr_or_forward(std::exception_ptr error) {
-  return error;
-}
-
-////////////////////////////////////////////////////////////////////////
-
 // Using to get right type for 'std::promise' at 'Terminate' because
 // using 'std::promise<std::reference_wrapper<T>>' is forbidden on
 // Windows build using MSVC.
@@ -100,13 +84,14 @@ struct Composed final {
   Left_ left_;
   Right_ right_;
 
-  template <typename Arg>
+  template <typename Arg, typename Errors>
   using ValueFrom = typename Right_::template ValueFrom<
-      typename Left_::template ValueFrom<Arg>>;
+      typename Left_::template ValueFrom<Arg, Errors>,
+      typename Left_::template ErrorsFrom<Arg, Errors>>;
 
   template <typename Arg, typename Errors>
   using ErrorsFrom = typename Right_::template ErrorsFrom<
-      typename Left_::template ValueFrom<Arg>,
+      typename Left_::template ValueFrom<Arg, Errors>,
       typename Left_::template ErrorsFrom<Arg, Errors>>;
 
   template <typename Downstream>
@@ -115,20 +100,25 @@ struct Composed final {
 
   using Expects = typename Left_::Expects;
 
-  template <typename Arg>
+  template <typename Arg, typename Errors>
   auto k() && {
-    using Value = typename Left_::template ValueFrom<Arg>;
+    using LeftValue = typename Left_::template ValueFrom<Arg, Errors>;
+    using LeftErrors = typename Left_::template ErrorsFrom<Arg, Errors>;
+
     return std::move(left_)
-        .template k<Arg>(std::move(right_).template k<Value>());
+        .template k<
+            Arg,
+            Errors>(std::move(right_).template k<LeftValue, LeftErrors>());
   }
 
-  template <typename Arg, typename K>
+  template <typename Arg, typename Errors, typename K>
   auto k(K k) && {
-    using Value = typename Left_::template ValueFrom<Arg>;
+    using LeftValue = typename Left_::template ValueFrom<Arg, Errors>;
+    using LeftErrors = typename Left_::template ErrorsFrom<Arg, Errors>;
 
     auto composed = [&]() {
-      return std::move(left_).template k<Arg>(
-          std::move(right_).template k<Value>(std::move(k)));
+      return std::move(left_).template k<Arg, Errors>(
+          std::move(right_).template k<LeftValue, LeftErrors>(std::move(k)));
     };
 
     os::CheckSufficientStackSpace(sizeof(decltype(composed())));
@@ -157,24 +147,24 @@ template <
 ////////////////////////////////////////////////////////////////////////
 
 // Helpers for _building_ a continuation out of an eventual.
-template <typename Arg, typename E>
+template <typename Arg, typename Errors, typename E>
 [[nodiscard]] auto Build(E e) {
-  return std::move(e).template k<Arg>();
+  return std::move(e).template k<Arg, Errors>();
 }
 
-template <typename Arg, typename E, typename K>
+template <typename Arg, typename Errors, typename E, typename K>
 [[nodiscard]] auto Build(E e, K k) {
-  return std::move(e).template k<Arg>(std::move(k));
+  return std::move(e).template k<Arg, Errors>(std::move(k));
 }
 
 template <typename E>
 [[nodiscard]] auto Build(E e) {
-  return Build<void>(std::move(e));
+  return Build<void, std::tuple<>>(std::move(e));
 }
 
 template <typename E, typename K>
 [[nodiscard]] auto Build(E e, K k) {
-  return Build<void>(std::move(e), std::move(k));
+  return Build<void, std::tuple<>>(std::move(e), std::move(k));
 }
 
 ////////////////////////////////////////////////////////////////////////

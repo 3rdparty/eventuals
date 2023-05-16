@@ -471,7 +471,7 @@ struct _Acquire final {
   };
 
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>
@@ -487,7 +487,7 @@ struct _Acquire final {
 
     using Expects = StreamOrValue;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, Arg>(std::move(k), lock_);
     }
@@ -558,7 +558,7 @@ struct _Release final {
   };
 
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>
@@ -574,7 +574,7 @@ struct _Release final {
 
     using Expects = StreamOrValue;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K>(std::move(k), lock_);
     }
@@ -796,7 +796,7 @@ struct _Wait final {
 
   template <typename F_>
   struct Composable final {
-    template <typename Arg>
+    template <typename Arg, typename Errors>
     using ValueFrom = Arg;
 
     template <typename Arg, typename Errors>
@@ -812,7 +812,7 @@ struct _Wait final {
 
     using Expects = StreamOrValue;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
       return Continuation<K, F_, Arg>(std::move(k), lock_, std::move(f_));
     }
@@ -853,8 +853,8 @@ struct _Synchronized final {
     using Composed_ =
         decltype(Acquire(lock_) >> std::move(e_) >> Release(lock_));
 
-    template <typename Arg>
-    using ValueFrom = typename Composed_::template ValueFrom<Arg>;
+    template <typename Arg, typename Errors>
+    using ValueFrom = typename Composed_::template ValueFrom<Arg, Errors>;
 
     template <typename Arg, typename Errors>
     using ErrorsFrom = typename Composed_::template ErrorsFrom<Arg, Errors>;
@@ -864,9 +864,9 @@ struct _Synchronized final {
 
     using Expects = typename E_::Expects;
 
-    template <typename Arg, typename K>
+    template <typename Arg, typename Errors, typename K>
     auto k(K k) && {
-      return Build<Arg>(
+      return Build<Arg, Errors>(
           Acquire(lock_) >> std::move(e_) >> Release(lock_),
           std::move(k));
     }

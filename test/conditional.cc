@@ -15,7 +15,6 @@ namespace {
 using std::string;
 
 using testing::MockFunction;
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 TEST(ConditionalTest, Then) {
@@ -91,11 +90,11 @@ TEST(ConditionalTest, Fail) {
 
   auto c = [&]() {
     return Eventual<int>()
-               .raises<std::runtime_error>()
+               .raises<RuntimeError>()
                .start([](auto& k) {
                  std::thread thread(
                      [&k]() mutable {
-                       k.Fail(std::runtime_error("error"));
+                       k.Fail(RuntimeError("error"));
                      });
                  thread.detach();
                })
@@ -109,11 +108,13 @@ TEST(ConditionalTest, Fail) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(c())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
-  EXPECT_THAT(
-      [&]() { *c(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    *c();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 
@@ -162,7 +163,7 @@ TEST(ConditionalTest, Interrupt) {
 
   k.Start();
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 
@@ -179,7 +180,7 @@ TEST(ConditionalTest, Raise) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(c())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   EXPECT_EQ(2, *c());
 }

@@ -48,7 +48,7 @@ TEST_P(HttpTest, Get) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   auto response = *e();
 
@@ -106,7 +106,7 @@ TEST_P(HttpTest, GetGet) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   auto [response1, response2] = *e();
 
@@ -135,11 +135,11 @@ TEST_P(HttpTest, GetFailTimeout) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
   // NOTE: not checking 'what()' of error because it differs across
   // operating systems.
-  EXPECT_THROW(*e(), std::runtime_error);
+  EXPECT_THROW(*e(), RuntimeError);
 }
 
 
@@ -154,7 +154,7 @@ TEST_P(HttpTest, PostFailTimeout) {
 
   // NOTE: not checking 'what()' of error because it differs across
   // operating systems.
-  EXPECT_THROW(*e(), std::runtime_error);
+  EXPECT_THROW(*e(), RuntimeError);
 }
 
 
@@ -174,7 +174,7 @@ TEST_P(HttpTest, GetInterrupt) {
 
   RunUntil(future);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 
@@ -197,7 +197,7 @@ TEST_P(HttpTest, PostInterrupt) {
 
   RunUntil(future);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 
@@ -228,7 +228,7 @@ TEST_P(HttpTest, GetInterruptAfterStart) {
 
   RunUntil(future);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 
@@ -262,7 +262,7 @@ TEST_P(HttpTest, PostInterruptAfterStart) {
 
   RunUntil(future);
 
-  EXPECT_THROW(future.get(), eventuals::StoppedException);
+  EXPECT_THROW(future.get(), eventuals::Stopped);
 }
 
 

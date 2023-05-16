@@ -15,7 +15,6 @@
 namespace eventuals::test {
 namespace {
 
-using testing::StrEq;
 using testing::ThrowsMessage;
 
 // Tests that when one of the 'Concurrent()' eventuals fails it may
@@ -29,9 +28,9 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailPipe) {
         >> this->ConcurrentOrConcurrentOrdered([&]() {
             return Map(Let([&](int& i) {
               return Eventual<std::string>()
-                  .raises<std::runtime_error>()
+                  .raises<RuntimeError>()
                   .start([&](auto& k) {
-                    k.Fail(std::runtime_error("error"));
+                    k.Fail(RuntimeError("error"));
                   });
             }));
           })
@@ -41,7 +40,7 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailPipe) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<std::runtime_error>>);
+          std::tuple<RuntimeError>>);
 
 
   auto [future, k] = PromisifyForTest(e());
@@ -54,14 +53,11 @@ TYPED_TEST(ConcurrentTypedTest, EmitFailPipe) {
 
   *pipe.Close();
 
-  EXPECT_THAT(
-      // NOTE: capturing 'future' as a pointer because until C++20 we
-      // can't capture a "local binding" by reference and there is a
-      // bug with 'EXPECT_THAT' that forces our lambda to be const so
-      // if we capture it by copy we can't call 'get()' because that
-      // is a non-const function.
-      [future = &future]() { future->get(); },
-      ThrowsMessage<std::runtime_error>(StrEq("error")));
+  try {
+    future.get();
+  } catch (const RuntimeError& error) {
+    EXPECT_EQ(error.what(), "error");
+  }
 }
 
 } // namespace

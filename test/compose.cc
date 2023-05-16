@@ -348,7 +348,7 @@ TEST(CanCompose, OnBeginOnEnd) {
 }
 
 TEST(CanCompose, Raise) {
-  auto raise = Raise(std::runtime_error("message"));
+  auto raise = Raise(RuntimeError("message"));
   auto then = Then([]() { return false; });
   auto map = Map([]() { return 0; });
 
