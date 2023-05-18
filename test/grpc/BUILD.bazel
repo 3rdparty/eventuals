@@ -58,24 +58,9 @@ cc_library(
     srcs = [
         "streaming/streaming.cc",
         "streaming/streaming.h",
-        "streaming/write_last_after_reply_two_requests.cc",
-        "streaming/write_last_before_reply_one_request.cc",
-        "streaming/write_last_before_reply_two_requests.cc",
-        "streaming/writes_done_after_reply_one_request.cc",
-        "streaming/writes_done_after_reply_two_requests.cc",
-        "streaming/writes_done_before_reply_one_request.cc",
-        "streaming/writes_done_before_reply_two_requests.cc",
         "test.h",
     ],
     copts = copts(),
-    # TODO(benh): resolve build issues on Windows and then remove
-    # these 'target_compatible_with' constraints.
-    target_compatible_with = select({
-        "@platforms//os:linux": [],
-        "@platforms//os:macos": [],
-        "//conditions:default": ["@platforms//:incompatible"],
-    }),
-    visibility = ["//test:__pkg__"],
     deps = [
         "//eventuals/grpc",
         "//test:promisify-for-test",
@@ -83,7 +68,6 @@ cc_library(
         "@com_github_google_googletest//:gtest",
         "@com_github_grpc_grpc//examples/protos:keyvaluestore",
     ],
-    alwayslink = True,
 )
 
 cc_test(
@@ -107,6 +91,13 @@ cc_test(
         "multiple-hosts.cc",
         "server-death-test.cc",
         "server-unavailable.cc",
+        "streaming/write_last_after_reply_two_requests.cc",
+        "streaming/write_last_before_reply_one_request.cc",
+        "streaming/write_last_before_reply_two_requests.cc",
+        "streaming/writes_done_after_reply_one_request.cc",
+        "streaming/writes_done_after_reply_two_requests.cc",
+        "streaming/writes_done_before_reply_one_request.cc",
+        "streaming/writes_done_before_reply_two_requests.cc",
         "test.h",
         "unary.cc",
         "unimplemented.cc",
