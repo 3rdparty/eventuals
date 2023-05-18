@@ -15,3 +15,6 @@ Checks: >
     modernize-*,
     performance-*,
     readability-*,
+    -modernize-use-trailing-return-type,
+    -readability-function-cognitive-complexity,
+    -readability-identifier-length,
