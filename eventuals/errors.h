@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <variant>
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -93,6 +94,15 @@ class TypeErasedError final : public Error {
   // extends 'Error'.
   std::shared_ptr<Error> e_;
 };
+
+template <typename... Errors>
+inline std::string What(const std::variant<Errors...>& error) {
+  return std::visit(
+      [](const auto& error) {
+        return error.what();
+      },
+      error);
+}
 
 ////////////////////////////////////////////////////////////////////////
 

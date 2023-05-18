@@ -139,11 +139,7 @@ Server::Server(
           EVENTUALS_GRPC_LOG(1)
               << serve->service->name()
               << " failed serving with the error: "
-              << std::visit(
-                     [](TypeErasedError& error) {
-                       return error.what();
-                     },
-                     error);
+              << What(error);
 
           serve->done.store(true);
         },

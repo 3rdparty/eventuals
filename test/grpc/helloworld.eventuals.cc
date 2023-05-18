@@ -24,6 +24,7 @@ using eventuals::RuntimeError;
 using eventuals::Stopped;
 using eventuals::Task;
 using eventuals::Then;
+using eventuals::What;
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -71,11 +72,7 @@ Task::Of<void> Greeter::TypeErasedService::Serve() {
                        std::variant<Stopped, RuntimeError>>&& expected) {
              if (!expected.has_value()) {
                LOG(WARNING) << "Failed to serve: "
-                            << std::visit(
-                                   [](auto& error) {
-                                     return error.what();
-                                   },
-                                   expected.error());
+                            << What(expected.error());
              }
            });
   };

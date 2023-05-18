@@ -830,11 +830,7 @@ template <typename Request, typename Response>
                                      << " and path = "
                                      << call.context()->method()
                                      << " failed: "
-                                     << std::visit(
-                                            [](auto& error) {
-                                              return error.what();
-                                            },
-                                            e.error());
+                                     << What(e.error());
 
                                  return Just();
                                })
@@ -877,11 +873,7 @@ template <typename Request, typename Response>
                                      << call.context()
                                             ->method()
                                      << " failed: "
-                                     << std::visit(
-                                            [](auto& error) {
-                                              return error.what();
-                                            },
-                                            e.error());
+                                     << What(e.error());
 
                                  return Just();
                                })
