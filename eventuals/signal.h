@@ -36,7 +36,7 @@ namespace eventuals {
 // NOTE: we take an array instead of a 'std::initializer_list' because
 // then we can 'std::move()' into 'Iterate()' without a copy.
 template <size_t N>
-[[nodiscard]] auto WaitForOneOfSignals(int(&&signums)[N]) {
+[[nodiscard]] auto WaitForOneOfSignals(int (&&signums)[N]) {
   return Iterate(std::move(signums))
       >> Concurrent([]() {
            return Map([](int signum) {

@@ -4,7 +4,7 @@
 
 # Eventuals
 
-A C++ library for writing asynchronous computations out of ***continuations***.
+A C++ library for writing asynchronous computations out of **_continuations_**.
 
 Unlike many other approaches to asynchronous code, eventuals doesn't require locking or dynamic heap allocations by default.
 
@@ -12,7 +12,7 @@ Unlike many other approaches to asynchronous code, eventuals doesn't require loc
 
 **Futures/Promises** are an approach that does support composition and cancellation, but many implementations have poor performance due to locking overhead and dynamic heap allocations. Furthermore, because the evaluation model of most futures/promises libraries is **eager** referential transparency is lost.
 
-**Eventuals** are an approach that, much like futures/promises, support composition and cancellation, however, are **lazy**. That is, an eventual has to be explicitly *started*.
+**Eventuals** are an approach that, much like futures/promises, support composition and cancellation, however, are **lazy**. That is, an eventual has to be explicitly _started_.
 
 Another key difference from futures/promises is that an eventual's continuation is **not** type-erased and can be directly used, saved, etc by the programmer. This allows the compiler to perform significant optimizations that are difficult to do with other lazy approaches that perform type-erasure. The tradeoff is that more code needs to be written in headers, which may lead to longer compile times. You can, however, mitgate long compile times by using a type-erasing `Task` like type (more on this later).
 
@@ -23,19 +23,20 @@ This library was inspired from experience building and using the [libprocess](ht
 ## User Guide
 
 ### Bazel
+
 For an example of how to depend on eventuals via Bazel in your own project you'll need to copy the lines selected in [WORKSPACE.bazel](https://github.com/3rdparty/eventuals-tutorial/blob/main/WORKSPACE.bazel#L3-L31) from our [eventuals-tutorial](https://github.com/3rdparty/eventuals-tutorial) repository.
 
 ### Eventual's theory
 
-Most of the time you'll use higher-level ***combinators*** for composing eventuals together. This guide will start with more basic ones and work our way up to creating your own eventuals.
+Most of the time you'll use higher-level **_combinators_** for composing eventuals together. This guide will start with more basic ones and work our way up to creating your own eventuals.
 
-You ***compose*** eventuals together using an overloaded `operator>>()`. You'll see some examples shortly. The syntax is similar to Bash "pipelines" (but instead of `|` we use `>>`) and we reuse the term pipeline for eventuals as well.
+You **_compose_** eventuals together using an overloaded `operator>>()`. You'll see some examples shortly. The syntax is similar to Bash "pipelines" (but instead of `|` we use `>>`) and we reuse the term pipeline for eventuals as well.
 
 Note that we use `operator>>()` instead of `operator|()` because it provides safer expression evaluation order in C++17 and on. See [this paper](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2016/p0145r3.pdf) for more details.
 
 Because the result type of a composed pipeline is not type-erased you'll use `auto` generously, e.g., as function return types.
 
-You must explicitly ***start*** an eventual in order for it to run. You'll only start eventuals at the "edges" of your code, e.g., in `int main()`. Before you start an eventual you must first "terminate it" by composing with a `Terminal()`:
+You must explicitly **_start_** an eventual in order for it to run. You'll only start eventuals at the "edges" of your code, e.g., in `int main()`. Before you start an eventual you must first "terminate it" by composing with a `Terminal()`:
 
 ```cpp
 auto e = AsynchronousFunction()
@@ -63,7 +64,7 @@ You'll often see the variable `k` to refer to an eventual in it's continuation f
 k.Start();
 ```
 
-Note that once you start an eventual ***it must not be deallocated/destructed and can not be moved until after it has completed***.
+Note that once you start an eventual **_it must not be deallocated/destructed and can not be moved until after it has completed_**.
 
 To integrate eventuals with `std::future` you can use the helper `Terminate()` that calls `Build()` on an eventual terminated with an implementation of `Terminal()` that integrates `std::promise` and `std::future`:
 
@@ -83,7 +84,7 @@ You'll often see this form in tests. You can reduce the above boilerplate furthe
 auto result = *AsynchronousFunction();
 ```
 
-But this ***is blocking*** and shoud only be done in tests!
+But this **_is blocking_** and shoud only be done in tests!
 
 Ok, let's dive into some eventuals!
 
@@ -151,7 +152,7 @@ Depending on whether your writing synchronous or asynchronous code there are a f
 
 #### Synchronous Errors
 
-When working with *synchronous* code you should return an `Expected::Of<T>` type:
+When working with _synchronous_ code you should return an `Expected::Of<T>` type:
 
 ```cpp
 Expected::Of<std::string> GetFullName(const Person& person) {
@@ -180,7 +181,7 @@ auto get_full_name = [](const Person& person) -> Expected::Of<std::string> {
 };
 ```
 
-An `Expected:Of<T>` *composes* with other eventuals exactly as though it is an eventual itself. You can return an `Expected::Of<T>` where you might return an eventual:
+An `Expected:Of<T>` _composes_ with other eventuals exactly as though it is an eventual itself. You can return an `Expected::Of<T>` where you might return an eventual:
 
 ```cpp
 ReadPersonFromFile(file)
@@ -210,7 +211,7 @@ ReadPersonFromFile(file)
 
 #### Asynchronous Errors
 
-Working with *asynchronous* code is a little complicated because there might be multiple eventuals returned that propagate the same type of value (e.g., a `Just(T())` and an `Eventual<T>`), but they themselves are _different_ types. In synchronous code you'll only ever be returning `T()` or `Expected(T())` and the compiler doesn't take much to be happy. To solve this problem asynchronous code can use `If()` to _conditionally_ return differently typed continuations. And an error can be raised with `Raise()`:
+Working with _asynchronous_ code is a little complicated because there might be multiple eventuals returned that propagate the same type of value (e.g., a `Just(T())` and an `Eventual<T>`), but they themselves are _different_ types. In synchronous code you'll only ever be returning `T()` or `Expected(T())` and the compiler doesn't take much to be happy. To solve this problem asynchronous code can use `If()` to _conditionally_ return differently typed continuations. And an error can be raised with `Raise()`:
 
 ```cpp
 auto GetBody(const std::string& uri) {
@@ -240,7 +241,6 @@ auto GetOrRedirect(const std::string& uri, const std::string& redirect_uri) {
 ### Synchronization
 
 Synchronization is just as necessary with asynchronous code as with synchronous code, except you can't use existing abstractions like `std::mutex` because these are blocking! Instead, you need to use asynchronous aware replacements such as `Lock`:
-
 
 ```cpp
 Lock lock;
@@ -326,7 +326,7 @@ auto e = Task::Of<int>([]() { return Asynchronous(); })
          });
 ```
 
-A `Task::Of` needs to be terminated just like any other eventual unless the callable passed to `Task` is terminted. In tests you can use `*` just like you can with any other eventual, but remember this ***blocks*** the current thread!
+A `Task::Of` needs to be terminated just like any other eventual unless the callable passed to `Task` is terminted. In tests you can use `*` just like you can with any other eventual, but remember this **_blocks_** the current thread!
 
 ### Abstract Classes and Virtual Methods
 
@@ -480,7 +480,7 @@ Note we chose the more broad "interrupt" instead of "cancel" as there may be man
 
 ### `Stream`, `Repeat`, and `Loop`
 
-You can use `Stream` to "return" multiple values asynchronously. Instead of using `succeed(), `fail()`, and `stop()` as we've already seen, "streams" use `emit()` and `ended()` which emit a value on the stream and signify that there are no more values, respectively.
+You can use `Stream` to "return" multiple values asynchronously. Instead of using `succeed(), `fail()`, and `stop()`as we've already seen, "streams" use`emit()`and`ended()` which emit a value on the stream and signify that there are no more values, respectively.
 
 You "convert" a stream back into an eventual with a `Loop` and use `next()`, `done()` to request the next value on the stream or tell the stream that you don't want any more values, respectively.
 
@@ -715,17 +715,17 @@ We recommend cloning the examples and building them in order to play around with
 
 #### Known Limitations
 
-* Services can not (yet) be removed after they are "added" via `Server::Accept()`.
+- Services can not (yet) be removed after they are "added" via `Server::Accept()`.
 
-* One of the key design requirements was being able to add a "service" dynamically, i.e., after the server has started, by calling `Server::Accept()`. This doesn't play nicely with some built-in components of gRPC, such as server reflection (see below). In the short-term we'd like to support adding services **before** the server starts that under the covers use `RegisterService()` so that those services can benefit from any built-in components of gRPC.
+- One of the key design requirements was being able to add a "service" dynamically, i.e., after the server has started, by calling `Server::Accept()`. This doesn't play nicely with some built-in components of gRPC, such as server reflection (see below). In the short-term we'd like to support adding services **before** the server starts that under the covers use `RegisterService()` so that those services can benefit from any built-in components of gRPC.
 
-* Server Reflection via the (gRPC Server Reflection Protocol)[https://github.com/grpc/grpc/blob/master/doc/server-reflection.md] ***requires*** that all services are registered before the server starts. Because `eventuals::grpc::Server` is designed to allow services to be added dynamically via invoking `Server::Accept()` at any point during runtime, the reflection server started via `grpc::reflection::InitProtoReflectionServerBuilderPlugin()` will not know about any of the services. One possibility is to build a new implementation of the reflection server that works with dynamic addition/removal of services. A short-term possibility is to only support server reflection for services added before the server starts.
+- Server Reflection via the (gRPC Server Reflection Protocol)[https://github.com/grpc/grpc/blob/master/doc/server-reflection.md] **_requires_** that all services are registered before the server starts. Because `eventuals::grpc::Server` is designed to allow services to be added dynamically via invoking `Server::Accept()` at any point during runtime, the reflection server started via `grpc::reflection::InitProtoReflectionServerBuilderPlugin()` will not know about any of the services. One possibility is to build a new implementation of the reflection server that works with dynamic addition/removal of services. A short-term possibility is to only support server reflection for services added before the server starts.
 
-* No check is performed that all methods of a particular service are added via `Server::Accept()`. In practice, this probably won't be an issue as a `grpc::UNIMPLEMENTED` will get returned which is similar to how a lot of services get implemented incrementally (i.e., they implement one method at a time and return a `grpc::UNIMPLEMENTED` until they get to said method).
+- No check is performed that all methods of a particular service are added via `Server::Accept()`. In practice, this probably won't be an issue as a `grpc::UNIMPLEMENTED` will get returned which is similar to how a lot of services get implemented incrementally (i.e., they implement one method at a time and return a `grpc::UNIMPLEMENTED` until they get to said method).
 
 ### Scheduling and Memory Allocation
 
-*... to be completed ...*
+_... to be completed ..._
 
 ### Bazel
 
@@ -774,25 +774,27 @@ $ bazel test test:eventuals
 
 1. Download and install [Visual Studio Code](https://code.visualstudio.com/download) (VS Code).
 2. Run VS Code and install the necessary extensions:
-    1. [Bazel plugin](https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel). This extension provides support for Bazel in Visual Studio Code.
-    2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
-    3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
-    4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
+   1. [Bazel plugin](https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel). This extension provides support for Bazel in Visual Studio Code.
+   2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
+   3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
+   4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
 3. Install [Bazel](https://bazel.build). Possible instructions for doing so using Homebrew:
-    1. Check the presence of Bazel using the following command in your terminal:
-    ```
-    $ bazel --version
-    ```
-    2. If you have no Bazel - install it using [Homebrew](https://brew.sh).
-    ```
-    3. Install the Bazel package via Homebrew as follows:
-    ```
-    $ brew install bazel
-    ```
-    4. Upgrade to a newer version of Bazel using the following command (if needed):
-     ```
-    $ brew upgrade bazel
-    ```
+   1. Check the presence of Bazel using the following command in your terminal:
+   ```
+   $ bazel --version
+   ```
+   2. If you have no Bazel - install it using [Homebrew](https://brew.sh).
+   ```
+   3. Install the Bazel package via Homebrew as follows:
+   ```
+   $ brew install bazel
+   ```
+   4. Upgrade to a newer version of Bazel using the following command (if needed):
+   ```
+   $ brew upgrade bazel
+   ```
+
+   ```
 4. Clone [eventuals](https://github.com/3rdparty/eventuals).
 5. Open the eventuals folder via VS Code.
 6. Check the checkboxes about "Trust the authors".
@@ -806,10 +808,10 @@ $ bazel test test:eventuals
 
 1. Download and install [Visual Studio Code](https://code.visualstudio.com/download) (VS Code).
 2. Run VS Code and install the necessary extensions:
-    1. [Bazel plugin](https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel). This extension provides support for Bazel in Visual Studio Code.
-    2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
-    3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
-    4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
+   1. [Bazel plugin](https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel). This extension provides support for Bazel in Visual Studio Code.
+   2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
+   3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
+   4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
 3. Install [Bazel](https://bazel.build).
 4. Install the latest version of the compiler [LLVM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
 5. Install [Git](https://git-scm.com/downloads).
@@ -826,22 +828,12 @@ $ bazel test test:eventuals
 
 1. Download and install [Visual Studio Code](https://code.visualstudio.com/download) (VS Code).
 2. Run VS Code and install the necessary extensions:
-    1. [Bazel plugin](https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel). This extension provides support for Bazel in Visual Studio Code.
-    2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
-    3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
-    Possible instuctions for how you can use Visual Studio's `clang-format`:
-        1. Create a folder `.vscode`in your project folder.
-        2. Create a file `settings.json` in the folder `.vscode`
-        3. Add the data to the file (check the path to your `clang-format.exe`):
-        ```
-        {
-        "clang-format.style": "Google",
-        "clang-format.executable": "C:/Program Files (x86)/Microsoft Visual Studio/2019/
-        Community/VC/Tools/Llvm/x64/bin/clang-format.exe",
-        "editor.formatOnSave": true
-        }
-        ```
-    4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
+   1. [Bazel plugin](https://marketplace.visualstudio.com/items?itemName=BazelBuild.vscode-bazel). This extension provides support for Bazel in Visual Studio Code.
+   2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
+   3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
+      Possible instuctions for how you can use Visual Studio's `clang-format`: 1. Create a folder `.vscode`in your project folder. 2. Create a file `settings.json` in the folder `.vscode` 3. Add the data to the file (check the path to your `clang-format.exe`):
+      ` { "clang-format.style": "Google", "clang-format.executable": "C:/Program Files (x86)/Microsoft Visual Studio/2019/ Community/VC/Tools/Llvm/x64/bin/clang-format.exe", "editor.formatOnSave": true } `
+   4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
 3. Install [Bazel](https://bazel.build). Detailed installation instructions for Windows can be found here: [Installing Bazel on Windows](https://docs.bazel.build/versions/4.1.0/install-windows.html). This is an important step. You must follow all the instructions, otherwise you will get various errors at the compilation stage.
 4. Install the latest version of the compiler [LLVM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
 5. Install [Git](https://git-scm.com/downloads).
@@ -972,7 +964,7 @@ Let's zoom in and break down what's happening here:
   }
 ```
 
-First, if a field should only be set once, the setter can do a `static_assert()` to check if the field has already been set! Second, every setter creates a fresh builder with all of the fields from the previous builder except the field being set which gets set by doing `field_.Set(...)`. The `Construct()` method takes all the fields and the type of the builder and creates the fresh builder for us by calling that constructor that we specified earlier. Since we had made that constructor `private` we need to make our base class `builder::Builder` be a  `friend` so it can call our constructor:
+First, if a field should only be set once, the setter can do a `static_assert()` to check if the field has already been set! Second, every setter creates a fresh builder with all of the fields from the previous builder except the field being set which gets set by doing `field_.Set(...)`. The `Construct()` method takes all the fields and the type of the builder and creates the fresh builder for us by calling that constructor that we specified earlier. Since we had made that constructor `private` we need to make our base class `builder::Builder` be a `friend` so it can call our constructor:
 
 ```cpp
 template <bool has_method_, bool has_uri_>

@@ -173,7 +173,7 @@ template <typename T>
 // rather than moved but the whole point is to move the temporary
 // values through the stream!
 template <typename T, size_t n>
-[[nodiscard]] auto Iterate(T(&&values)[n]) {
+[[nodiscard]] auto Iterate(T (&&values)[n]) {
   // NOTE: using a 'std::deque' in case 'T' is only moveable so that
   // when we do 'emplace_back()' it won't require that 'T' is also
   // copyable which 'std::vector' does.

@@ -20,7 +20,7 @@ on:
       # When manually running this workflow:
       # https://docs.github.com/en/actions/managing-workflow-runs/manually-running-a-workflow
       debug_enabled:
-        description: 'Enable tmate debugging'
+        description: "Enable tmate debugging"
         type: boolean
         default: false
 
@@ -104,9 +104,9 @@ jobs:
       - name: Set up Read+Write Remote Cache
         if: github.ref == 'refs/heads/main'
         run: |
-         echo "BAZEL_REMOTE_CACHE=--remote_upload_local_results=true \
-           --google_credentials=${{ env.GOOGLE_APPLICATION_CREDENTIALS }}" \
-           >> $GITHUB_ENV
+          echo "BAZEL_REMOTE_CACHE=--remote_upload_local_results=true \
+            --google_credentials=${{ env.GOOGLE_APPLICATION_CREDENTIALS }}" \
+            >> $GITHUB_ENV
 
       - name: Build
         run: |
