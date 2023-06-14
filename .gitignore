@@ -7,6 +7,12 @@ user.bazelrc
 # Runtime file for Dazel.
 .dazel_run
 
+# Files inside submodules. This is moot for git itself, since it knows that
+# these are submodules and that any file inside a submodule should be treated
+# as being in a separate repo (with its own .gitignore) but it is useful for
+# other tools that don't know about submodules, notably isort.
+submodules/*
+
 ### Added by Hedron's Bazel Compile Commands Extractor: https://github.com/hedronvision/bazel-compile-commands-extractor
 # The external link: Differs on Windows vs macOS/Linux, so we can't check it in. The pattern needs to not have a trailing / because it's a symlink on macOS/Linux.
 /external

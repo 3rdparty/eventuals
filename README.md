@@ -779,22 +779,31 @@ $ bazel test test:eventuals
    3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
    4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
 3. Install [Bazel](https://bazel.build). Possible instructions for doing so using Homebrew:
+
    1. Check the presence of Bazel using the following command in your terminal:
+
    ```
    $ bazel --version
    ```
+
    2. If you have no Bazel - install it using [Homebrew](https://brew.sh).
+
    ```
    3. Install the Bazel package via Homebrew as follows:
    ```
+
    $ brew install bazel
+
    ```
    4. Upgrade to a newer version of Bazel using the following command (if needed):
    ```
+
    $ brew upgrade bazel
+
    ```
 
    ```
+
 4. Clone [eventuals](https://github.com/3rdparty/eventuals).
 5. Open the eventuals folder via VS Code.
 6. Check the checkboxes about "Trust the authors".
@@ -832,7 +841,7 @@ $ bazel test test:eventuals
    2. [C/C++ plugin](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools). The C/C++ extension adds language support for C/C++ to Visual Studio Code, including features such as IntelliSense and debugging.
    3. [Clang-format plugin](https://marketplace.visualstudio.com/items?itemName=xaver.clang-format). This extension allows you to comply with the clang format for your code. Read the plugin overview for configuration.
       Possible instuctions for how you can use Visual Studio's `clang-format`: 1. Create a folder `.vscode`in your project folder. 2. Create a file `settings.json` in the folder `.vscode` 3. Add the data to the file (check the path to your `clang-format.exe`):
-      ` { "clang-format.style": "Google", "clang-format.executable": "C:/Program Files (x86)/Microsoft Visual Studio/2019/ Community/VC/Tools/Llvm/x64/bin/clang-format.exe", "editor.formatOnSave": true } `
+      `{ "clang-format.style": "Google", "clang-format.executable": "C:/Program Files (x86)/Microsoft Visual Studio/2019/ Community/VC/Tools/Llvm/x64/bin/clang-format.exe", "editor.formatOnSave": true }`
    4. [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb). This extension allows you to debug your code. Read the plugin overview for configuration.
 3. Install [Bazel](https://bazel.build). Detailed installation instructions for Windows can be found here: [Installing Bazel on Windows](https://docs.bazel.build/versions/4.1.0/install-windows.html). This is an important step. You must follow all the instructions, otherwise you will get various errors at the compilation stage.
 4. Install the latest version of the compiler [LLVM](https://llvm.org) ([LLVM Download Page](https://releases.llvm.org/download.html)).
