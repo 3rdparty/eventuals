@@ -21,13 +21,13 @@ jobs:
 
       - uses: actions/checkout@v3
         with:
-          submodules: "recursive"  
+          submodules: "recursive"
 
       - name: Grab current commit and shallow_since
         id: current_info
         run: |
           echo ::set-output name=latest_commit::$(git log -n 1 --pretty=format:"%H")
-          echo ::set-output name=latest_shallow_since::$(git log -n 1 --date=raw --pretty=format:"%cd")   
+          echo ::set-output name=latest_shallow_since::$(git log -n 1 --date=raw --pretty=format:"%cd")
 
       - uses: actions/checkout@v3
         with:
@@ -70,7 +70,7 @@ jobs:
       - name: Set ISSUE_EXISTS to False
         if: (env.ISSUE_EXISTS == 'true' && env.PR_EXISTS == 'false')
         run: echo "ISSUE_EXISTS=false" >> $GITHUB_ENV
-  
+
       - name: Create Pull Request
         id: pr
         uses: peter-evans/create-pull-request@v4
@@ -109,7 +109,7 @@ jobs:
         id: wait-for-build
         with:
           token: ${{ secrets.private_repo_access_as_rebot_token }}
-          checkName: 'Build'
+          checkName: "Build"
           ref: ${{ steps.pr.outputs.pull-request-head-sha }}
           repo: ${{ env.REPO_NAME }}
           owner: ${{ env.OWNER }}

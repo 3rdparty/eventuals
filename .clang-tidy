@@ -7,11 +7,11 @@ UseColor: true
 # Available checks can be found here:
 # https://clang.llvm.org/extra/clang-tidy/checks/list.html
 Checks: >
-    bugprone-*,
-    clang-analyzer-cplusplus*,
-    concurrency-*,
-    cppcoreguidelines-*,
-    google-*,
-    modernize-*,
-    performance-*,
-    readability-*,
+  bugprone-*,
+  clang-analyzer-cplusplus*,
+  concurrency-*,
+  cppcoreguidelines-*,
+  google-*,
+  modernize-*,
+  performance-*,
+  readability-*,
