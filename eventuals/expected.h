@@ -171,12 +171,12 @@ class expected : public tl::expected<Value_, Error_> {
                 Errors>>(std::move(k));
   }
 
-  using tl::expected<Value_, Error_>::expected;
-
   template <typename Downstream>
   static constexpr bool CanCompose = Downstream::ExpectsValue;
 
   using Expects = SingleValue;
+
+  using tl::expected<Value_, Error_>::expected;
 
   // Need explicit constructors for 'tl::expected', inherited
   // constructors are not sufficient.
@@ -185,6 +185,8 @@ class expected : public tl::expected<Value_, Error_> {
 
   expected(tl::expected<Value_, Error_>&& that)
     : tl::expected<Value_, Error_>::expected(std::move(that)) {}
+
+  using tl::expected<Value_, Error_>::operator*;
 };
 
 template <typename E>

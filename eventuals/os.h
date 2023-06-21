@@ -263,14 +263,11 @@ class Thread {
                  try {
                    data->callable();
                  } catch (const std::exception& e) {
-                   LOG(WARNING) << "Caught exception while running thread '"
-                                << data->thread_name
-                                << "': " << e.what();
+                   LOG(FATAL) << "Caught exception while running thread '"
+                              << data->thread_name << "': " << e.what();
                  } catch (...) {
-                   LOG(WARNING) << "Caught unknown exception while "
-                                   "running thread '"
-                                << data->thread_name
-                                << "'";
+                   LOG(FATAL) << "Caught unknown exception while running"
+                              << "thread '" << data->thread_name << "'";
                  }
                  delete data;
                  return nullptr;
