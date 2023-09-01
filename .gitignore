@@ -4,9 +4,6 @@
 user.bazelrc
 *~
 
-# Runtime file for Dazel.
-.dazel_run
-
 # Files inside submodules. This is moot for git itself, since it knows that
 # these are submodules and that any file inside a submodule should be treated
 # as being in a separate repo (with its own .gitignore) but it is useful for
