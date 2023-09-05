@@ -27,27 +27,24 @@ on:
 jobs:
   build-and-test:
     name: Build and Test
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         include:
-          - os: macos-latest
+          - runner: macos-latest
             sudo-command: "sudo"
             # Explicitly not using `dazel` here as we don't want to
             # build/test on Linux but on macOS!
-            bazel-command: "bazelisk"
             bazel-config: ""
             output-user_root: ""
-          - os: ubuntu-latest
+          - runner: 64_core_GitHub_hosted
             sudo-command: "sudo"
-            bazel-command: "dazel"
-            bazel-config: "--config=asan"
+            bazel-config: "--config=asan --test_env=ASAN_OPTIONS=detect_odr_violation=0"
             output-user_root: ""
-          - os: windows-2019
+          - runner: windows-2019
             sudo-command: "" # The Windows runner already runs as root.
             # Explicitly not using `dazel` here as we don't want to
             # build/test on Linux but on Windows!
-            bazel-command: "bazelisk"
             bazel-config: ""
             # Fixes issue #248.
             output-user_root: "--output_user_root=C:/bzl"
@@ -84,18 +81,6 @@ jobs:
         if: ${{ matrix.os == 'windows-2019' }}
         run: ${{ matrix.sudo-command }} pip3 install wheel
 
-      # Install Dazel for use on Linux so that we use the same build
-      # tooling in our Actions as we do on our workstations.
-      - name: Install Dazel
-        if: ${{ matrix.bazel-command == 'dazel' }}
-        run: ${{ matrix.sudo-command }} pip3 install dazel
-
-      # Invoke 'dazel version' in order to build the Docker container
-      # as a separate step so we can track how long it takes and
-      # optimize as necessary.
-      - name: Dazel Docker Build
-        if: ${{ matrix.bazel-command == 'dazel' }}
-        run: dazel version
 
       # With the exception of GITHUB_TOKEN, secrets are not passed to the runner
       # when a workflow is triggered from a forked repository, and thus we
@@ -110,7 +95,7 @@ jobs:
 
       - name: Build
         run: |
-          ${{ matrix.bazel-command }} \
+          bazelisk \
             ${{ matrix.output-user_root }} \
             build \
             ${{ matrix.bazel-config }} \
@@ -122,7 +107,7 @@ jobs:
 
       - name: Test
         run: |
-          ${{ matrix.bazel-command }} \
+          bazelisk \
             ${{ matrix.output-user_root }} \
             test \
             ${{ matrix.bazel-config }} \

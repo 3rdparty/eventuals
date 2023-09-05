@@ -6,6 +6,9 @@ build --enable_platform_specific_config
 # Verbose failure logs when something goes wrong.
 build --verbose_failures
 
+build --compilation_mode=fastbuild
+build --host_compilation_mode=fastbuild
+
 # Build with clang (rather than the default of gcc) since clang compiles
 # templates faster and produces better error messages.
 # Prefer repo_env over action_env to avoid invalidating the action graph:
