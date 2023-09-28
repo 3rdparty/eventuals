@@ -15,6 +15,19 @@ namespace eventuals {
 
 ////////////////////////////////////////////////////////////////////////
 
+// The following are used in `Composable` (below) and could logically be scoped
+// inside of it, but since this does template specialization these definitions
+// must be at namespace-scope for `gcc` to be willing to compile this file.
+// Otherwise we'll get the error "Explicit specialization in non-namespace
+// scope".
+template <typename F_, typename Arg>
+struct F_invoke_result_ : std::invoke_result<F_, size_t, Arg&> {};
+
+template <typename F_>
+struct F_invoke_result_<F_, void> : std::invoke_result<F_, size_t> {};
+
+////////////////////////////////////////////////////////////////////////
+
 struct _ForkJoin final {
   // We need to run each eventual created from the callable passed to
   // 'ForkJoin()' with it's own 'Scheduler::Context' so that it can be
@@ -349,13 +362,7 @@ struct _ForkJoin final {
   template <typename F_>
   struct Composable final {
     template <typename Arg>
-    struct F_invoke_result_ : std::invoke_result<F_, size_t, Arg&> {};
-
-    template <>
-    struct F_invoke_result_<void> : std::invoke_result<F_, size_t> {};
-
-    template <typename Arg>
-    using E_ = typename F_invoke_result_<Arg>::type;
+    using E_ = typename F_invoke_result_<F_, Arg>::type;
 
     template <typename Arg>
     using Value_ = typename E_<Arg>::template ValueFrom<void, std::tuple<>>;
