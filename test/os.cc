@@ -32,7 +32,13 @@ TEST(Thread, Joinable) {
 TEST(Thread, SetStackSize) {
   Thread t{
       []() {
+#if defined(__MACH__) && defined(__arm64__)
+        // macOS ARM sets the stack size a bit more than
+        // we require, we are ok with that for now.
+        EXPECT_GE(os::GetStackInfo().size, Bytes(16'777'216));
+#else
         EXPECT_EQ(os::GetStackInfo().size, Bytes(16'777'216));
+#endif
       },
       "thread_name",
       Bytes(16'777'216)};
@@ -80,6 +86,5 @@ TEST(Thread, Moveable) {
 }
 
 #endif
-
 } // namespace
 } // namespace eventuals::test
