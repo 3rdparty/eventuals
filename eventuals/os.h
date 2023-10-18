@@ -78,7 +78,7 @@ struct StackInfo {
   Bytes size = 0;
   inline Bytes StackAvailable() {
     [[maybe_unused]] char local_var{};
-#if defined(__x86_64__)
+#if defined(__x86_64__) || defined(__MACH__)
     return Bytes(
         (&local_var)
         - ((char*) end) - sizeof(local_var));
@@ -94,7 +94,7 @@ inline StackInfo GetStackInfo() {
   [[maybe_unused]] pthread_t self = pthread_self();
   void* stack_addr = nullptr;
   size_t size = 0;
-#ifdef __linux__
+#if defined(__linux__) && defined(__x86_64__)
   pthread_attr_t attr;
 
   PCHECK(pthread_getattr_np(pthread_self(), &attr) == 0)
@@ -107,15 +107,7 @@ inline StackInfo GetStackInfo() {
   PCHECK(pthread_attr_destroy(&attr) == 0)
       << "Failed to destroy thread attributes via "
          "'pthread_attr_destroy(...)'";
-#endif // If Linux.
 
-#ifdef __MACH__
-  stack_addr = pthread_get_stackaddr_np(self);
-  size = pthread_get_stacksize_np(self);
-#endif // If macOS.
-
-#if defined(__x86_64__)
-#ifdef __linux__
   // Implementation for Windows might be added in future for this architecture.
   // For x86 stack grows downward (from highest address to lowest).
   // (check_line_length skip)
@@ -133,17 +125,19 @@ inline StackInfo GetStackInfo() {
       /* size = */ Bytes(size)};
 #endif // If Linux.
 
-#ifdef __MACH__
+#if defined(__MACH__) && (defined(__arm64__) || defined(__x86_64__))
   // For macOS `pthread_get_stackaddr_np` can return either the base
-  // or the end of the stack.
-  // Check 1274 line on the link below:
-  // https://android.googlesource.com/platform/art/+/master/runtime/thread.cc
+  // or the end of the stack. On macOS 10.7, it's the end.
+  // (check_line_length skip)
+  // https://android.googlesource.com/platform/art/+/master/runtime/thread.cc#1281
 
   // If the address of a local variable is greater than the stack
   // address from `pthread_get_stacksize_np` ->
   // `pthread_get_stacksize_np` returns the end of the stack since
   // on x86 architecture the stack grows downward (from highest to
   // lowest address).
+  stack_addr = pthread_get_stackaddr_np(self);
+  size = pthread_get_stacksize_np(self);
   [[maybe_unused]] char local_var{};
   if (&local_var > stack_addr) {
     return StackInfo{
@@ -157,7 +151,6 @@ inline StackInfo GetStackInfo() {
         /* size = */ Bytes(size)};
   }
 #endif // If macOS.
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////
