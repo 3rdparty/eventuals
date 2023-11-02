@@ -77,8 +77,8 @@ struct StackInfo {
   void* end = nullptr;
   Bytes size = 0;
   inline Bytes StackAvailable() {
-    [[maybe_unused]] char local_var{};
-#if defined(__x86_64__) || defined(__MACH__)
+#if defined(__linux__) || defined(__MACH__)
+    char local_var{};
     return Bytes(
         (&local_var)
         - ((char*) end) - sizeof(local_var));
@@ -94,7 +94,7 @@ inline StackInfo GetStackInfo() {
   [[maybe_unused]] pthread_t self = pthread_self();
   void* stack_addr = nullptr;
   size_t size = 0;
-#if defined(__linux__) && defined(__x86_64__)
+#ifdef __linux__
   pthread_attr_t attr;
 
   PCHECK(pthread_getattr_np(pthread_self(), &attr) == 0)
@@ -125,7 +125,7 @@ inline StackInfo GetStackInfo() {
       /* size = */ Bytes(size)};
 #endif // If Linux.
 
-#if defined(__MACH__) && (defined(__arm64__) || defined(__x86_64__))
+#ifdef __MACH__
   // For macOS `pthread_get_stackaddr_np` can return either the base
   // or the end of the stack. On macOS 10.7, it's the end.
   // (check_line_length skip)
