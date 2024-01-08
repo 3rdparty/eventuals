@@ -62,6 +62,10 @@ jobs:
         with:
           submodules: "recursive"
 
+      - name: Report version of `clang`
+        run: |
+          clang --version
+
       - name: Set up Read+Write remote cache credentials
         # With the exception of GITHUB_TOKEN, secrets are not passed to the runner
         # when a workflow is triggered from a forked repository.
