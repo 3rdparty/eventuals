@@ -26,6 +26,9 @@ on:
 
 jobs:
   build-and-test:
+    # Remove the following when https://github.com/3rdparty/eventuals/issues/608
+    # has been fixed.
+    if: false
     name: Build and Test
     runs-on: ${{ matrix.runner }}
     strategy:
