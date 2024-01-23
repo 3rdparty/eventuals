@@ -31,7 +31,7 @@ class Key final {
 
   Key(std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> key)
     : key_(std::move(key)) {
-    CHECK_EQ(CHECK_NOTNULL(key_.get())->type, EVP_PKEY_RSA);
+    CHECK_EQ(EVP_PKEY_id(CHECK_NOTNULL(key_.get())), EVP_PKEY_RSA);
   }
 
   Key(const Key& that)
@@ -84,7 +84,7 @@ class Key final {
     // https://www.openssl.org/docs/manmaster/man3/EVP_PKEY_fromdata.html
 
     // Get the underlying RSA key.
-    CHECK_EQ(CHECK_NOTNULL(from.key_.get())->type, EVP_PKEY_RSA);
+    CHECK_EQ(EVP_PKEY_id(CHECK_NOTNULL(from.key_.get())), EVP_PKEY_RSA);
     RSA* rsa = EVP_PKEY_get1_RSA(from.key_.get());
 
     EVP_PKEY* to = EVP_PKEY_new();
