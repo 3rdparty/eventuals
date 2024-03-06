@@ -1,0 +1,29 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.209.6/containers/ubuntu
+{
+  "name": "Codespace Workstation",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  // Set *default* container specific settings.json values on container create.
+  "settings": {},
+  "containerEnv": {
+    // Pass on 'GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS' so that we
+    // can run any builds that might need the remote cache.
+    "GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS": "${localEnv:GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS}",
+    // Export a file path that contains credentials that can be used to
+    // access a Google Cloud Storage bucket which we use as a remote
+    // `bazel` cache to speed up builds.
+    // The credentials file will be populated using a combination of secrets
+    // and the `updateContentCommand` below.
+    // As it turns out, we can not export this variable inside the script
+    // or on the "command line", so we do it here.
+    "GOOGLE_APPLICATION_CREDENTIALS": "/home/vscode/google_application_credentials.json"
+  },
+  // Comment out to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
+  "remoteUser": "vscode",
+  // updateContent runs inside the container after repo content is updated
+  // with new commits. We use it to build new content so users' builds are
+  // mostly incremental.
+  "updateContentCommand": "/workspaces/eventuals/.devcontainer/update_content.sh"
+}

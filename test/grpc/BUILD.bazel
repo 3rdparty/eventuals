@@ -19,15 +19,18 @@ cc_binary(
         ":death-constants",
         "//eventuals/grpc",
         "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
-    ] + select({
-        # We support backward lib only for macOS and Linux.
-        # The support for Windows might be added in future.
-        # https://github.com/3rdparty/eventuals/issues/450
-        "@bazel_tools//src/conditions:windows": [],
-        "//conditions:default": [
-            "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
-        ],
-    }),
+    ] + select(
+        {
+            # We support backward lib only for Linux.
+            # The support for Windows and MacOS might be added in future.
+            # https://github.com/3rdparty/eventuals/issues/450
+            # https://github.com/3rdparty/eventuals/issues/616
+            "@platforms//os:linux": [
+                "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
+            ],
+            "//conditions:default": [],
+        },
+    ),
 )
 
 cc_binary(
@@ -42,15 +45,18 @@ cc_binary(
         ":death-constants",
         "//eventuals/grpc",
         "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
-    ] + select({
-        # We support backward lib only for macOS and Linux.
-        # The support for Windows might be added in future.
-        # https://github.com/3rdparty/eventuals/issues/450
-        "@bazel_tools//src/conditions:windows": [],
-        "//conditions:default": [
-            "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
-        ],
-    }),
+    ] + select(
+        {
+            # We support backward lib only for Linux.
+            # The support for Windows and MacOS might be added in future.
+            # https://github.com/3rdparty/eventuals/issues/450
+            # https://github.com/3rdparty/eventuals/issues/616
+            "@platforms//os:linux": [
+                "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
+            ],
+            "//conditions:default": [],
+        },
+    ),
 )
 
 cc_library(
@@ -64,10 +70,20 @@ cc_library(
     deps = [
         "//eventuals/grpc",
         "//test:promisify-for-test",
-        "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
         "@com_github_google_googletest//:gtest",
         "@com_github_grpc_grpc//examples/protos:keyvaluestore",
-    ],
+    ] + select(
+        {
+            # We support backward lib only for Linux.
+            # The support for Windows and MacOS might be added in future.
+            # https://github.com/3rdparty/eventuals/issues/450
+            # https://github.com/3rdparty/eventuals/issues/616
+            "@platforms//os:linux": [
+                "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
+            ],
+            "//conditions:default": [],
+        },
+    ),
 )
 
 cc_test(
@@ -126,11 +142,21 @@ cc_test(
         "//eventuals/grpc",
         "//test:promisify-for-test",
         "@bazel_tools//tools/cpp/runfiles",
-        "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
         "@com_github_google_googletest//:gtest",
         "@com_github_grpc_grpc//examples/protos:helloworld_cc_grpc",
         "@com_github_grpc_grpc//examples/protos:keyvaluestore",
-    ],
+    ] + select(
+        {
+            # We support backward lib only for Linux.
+            # The support for Windows and MacOS might be added in future.
+            # https://github.com/3rdparty/eventuals/issues/450
+            # https://github.com/3rdparty/eventuals/issues/616
+            "@platforms//os:linux": [
+                "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
+            ],
+            "//conditions:default": [],
+        },
+    ),
 )
 
 cc_library(

@@ -24,96 +24,181 @@ on:
         type: boolean
         default: false
 
+env:
+  XCODE_VERSION: 14.3.1
+
 jobs:
-  build-and-test:
-    # Remove the following when https://github.com/3rdparty/eventuals/issues/608
-    # has been fixed.
-    if: false
-    name: Build and Test
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-          - runner: macos-latest
-            sudo-command: "sudo"
-            bazel-config: ""
-            output-user_root: ""
-          - runner: 64_core_GitHub_hosted
-            sudo-command: "sudo"
-            bazel-config: "--config=asan --test_env=ASAN_OPTIONS=detect_odr_violation=0"
-            output-user_root: ""
-          - runner: windows-2019
-            sudo-command: "" # The Windows runner already runs as root.
-            bazel-config: ""
-            # Fixes issue #248.
-            output-user_root: "--output_user_root=C:/bzl"
-      # Don't fail all workflows if one fails as we're still getting
-      # to a stable build right now and when one fails it doesn't mean
-      # they all will fail.
-      fail-fast: false
-
-    defaults:
-      run:
-        shell: bash
-
-    env:
-      GOOGLE_APPLICATION_CREDENTIALS: service_account_credentials.json
-
+  check-secrets:
+    name: Check Secrets
+    # There is no reason to run that job on the 'macos-13' or 'macos-13-xlarge,
+    # which are more expensive runners, since we are just checking the secrets.
+    runs-on: ubuntu-latest
     steps:
-      # Checkout the repository under $GITHUB_WORKSPACE.
+      - name: Fail if GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS secret is missing
+        env:
+          secret: ${{ secrets.GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS }}
+        if: ${{ env.secret == '' }}
+        run: echo "Missing secret 'GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS'"; exit 1
+
+  linux-test:
+    name: Test eventuals on Linux
+    needs: [check-secrets]
+    runs-on: 64_core_GitHub_hosted
+    steps:
       - uses: actions/checkout@v2
         with:
           submodules: "recursive"
 
-      - name: Set up Read+Write remote cache credentials
-        # With the exception of GITHUB_TOKEN, secrets are not passed to the runner
-        # when a workflow is triggered from a forked repository.
-        if: github.ref == 'refs/heads/main'
-        uses: jsdaniell/create-json@1.1.2
+      - name: Use Bazel remote cache (scoped to this devcontainer version)
+        env:
+          # The devcontainer is fully defined by the files in the
+          # `.devcontainer/` directory, so we can use the hash of those files to
+          # determine a "version" that changes if and only if the devcontainer
+          # changes.
+          #
+          # By then setting that "version" as an `--action_env` variable, we
+          # force Bazel to reject cached results from previous devcontainer
+          # versions. This is intended to prevent cache corruptions due to
+          # incompatible tooling across devcontainer versions, see:
+          #   https://github.com/reboot-dev/respect/issues/1723
+          DEVCONTAINER_VERSION: ${{ hashFiles('.devcontainer/') }}
+        run: |
+          # The remote bazel cache saves a LOT of time when building in a clean
+          # environment.
+          echo "build --remote_cache=https://storage.googleapis.com/reboot-dev-bazel-remote-cache-eventuals-us" >user.bazelrc
+          # The remote cache credentials are provided by environment variable.
+          echo "build --google_default_credentials" >>user.bazelrc
+          # Scope all of the artifacts we'll produce in the remote cache to this
+          # devcontainer version by adding an `--action_env` variable. This will
+          # ensure that changes to the devcontainer (which might produce
+          # incompatible artifacts) don't cause cache corruption.
+          echo "build --action_env=DEVCONTAINER_VERSION=$DEVCONTAINER_VERSION" >>user.bazelrc
+          echo "user.bazelrc:"
+          echo "----"
+          cat user.bazelrc
+          echo "----"
+
+      - name: Run
+        uses: devcontainers/ci@v0.3
+        env:
+          # NOTE: the following environment variables are _not_ passed through
+          #       to the devcontainer when it runs, but are available ONLY to
+          #       its `devcontainer.json` (the build step). The
+          #       `devcontainer.json` forwards some of them on to the runtime
+          #       environment of the devcontainer, but that is not a given.
+          #       If you would like to pass environment variables to the
+          #       run-time of the devcontainer, use the `env` section inside the
+          #       `with`; see:
+          #         https://github.com/devcontainers/ci/blob/main/docs/github-action.md#environment-variables
+
+          # Specify that this devcontainer build was triggered by this
+          # YML file so we skip steps that we intend only when using
+          # Codespaces.
+          #
+          # NOTE: while there does exist an 'env' input to
+          # 'devcontainers/ci', that _only_ changes the environment for
+          # the 'runCmd', not for the building and creating of the
+          # devcontainer itself. In contrast, this 'env' section also influences
+          # the build, as it should.
+          GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS: ${{ secrets.GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS }}
         with:
-          name: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-          json: ${{ secrets.GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS }}
+          # The Docker image of the runner will get built based on the
+          # `.devcontainer/devcontainer.json`, which in our case means it's
+          # mostly based on the `Dockerfile`.
+          imageName: ghcr.io/reboot-dev/3rdparty/eventuals/workstation
+          imageTag: latest
+          runCmd: |
+            bazel \
+              test \
+              --config=asan \
+              --test_env=ASAN_OPTIONS=detect_odr_violation=0 \
+              --experimental_ui_max_stdouterr_bytes=-1 \
+              --verbose_failures \
+              -c dbg \
+              --strip="never" \
+              --test_output=errors \
+              test/... \
+              --test_arg=--gtest_shuffle \
+              --test_arg=--gtest_repeat=100
 
-      # Install 'wheel' for Python on Windows as required for running
-      # commands like 'python setup.py bdist_wheel'.
-      - name: Install Python 'wheel'
-        if: ${{ matrix.os == 'windows-2019' }}
-        run: ${{ matrix.sudo-command }} pip3 install wheel
+      - name: Debug using tmate (if failure)
+        uses: mxschmitt/action-tmate@v3
+        # Optionally enable tmate debugging if the workflow was manually-triggered
+        # with `debug_enabled` set to `true`.
+        # https://github.com/mxschmitt/action-tmate#manually-triggered-debug
+        if: ${{ failure() && github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled }}
 
-      # With the exception of GITHUB_TOKEN, secrets are not passed to the runner
-      # when a workflow is triggered from a forked repository, and thus we
-      # can only set up a remote cache if this pull request comes from a
-      # non-forked repository.
-      - name: Set up Read+Write Remote Cache
-        if: github.ref == 'refs/heads/main'
+  macos-test:
+    name: Test eventuals on macOS
+    needs: [check-secrets]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        runner: [macos-13, macos-13-xlarge]
+
+    steps:
+      - name: Install llvm@14
         run: |
-          echo "BAZEL_REMOTE_CACHE=--remote_upload_local_results=true \
-            --google_credentials=${{ env.GOOGLE_APPLICATION_CREDENTIALS }}" \
-            >> $GITHUB_ENV
+          brew install llvm@14
+          brew link llvm@14 --force --overwrite
+          echo 'export PATH="/opt/homebrew/opt/llvm@14/bin:$PATH"' >> $HOME/.bash_profile
 
-      - name: Build
+      - name: Select Xcode
         run: |
-          bazelisk \
-            ${{ matrix.output-user_root }} \
-            build \
-            ${{ matrix.bazel-config }} \
-            ${{ env.BAZEL_REMOTE_CACHE }} \
-            --verbose_failures \
-            -c dbg \
-            --strip="never" \
-            ...
+          sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
 
-      - name: Test
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+
+      # We need to differentiate between different MacOS environments, like
+      # arm64 and x86_64 in the remote cache, so we dump information about the
+      # environment into 'mac_os_environment.txt' and calculate a hash of
+      # that file later.
+      - name: Create environment information file for remote-cache
         run: |
-          bazelisk \
-            ${{ matrix.output-user_root }} \
+          # Get the architecture and Release version of the runner.
+          echo $(uname -rsm) >> mac_os_environment.txt
+          # Get the MacOS version of the runner.
+          echo $(sw_vers) >> mac_os_environment.txt
+
+      - name: Use Bazel remote cache (scoped to this MacOS runner version)
+        env:
+          # Setting a hash of "mac_os_environment.txt" as an `--action_env`
+          # variable, we force Bazel to reject cached results from other
+          # MacOS environments. This is intended to prevent cache
+          # corruptions due to incompatible tooling across MacOS runner versions.
+          # See: https://github.com/reboot-dev/respect/issues/1723
+          MAC_OS_ENVIRONMENT_VERSION: ${{ hashFiles('mac_os_environment.txt') }}
+        run: |
+          # The remote bazel cache saves a LOT of time when building in a clean
+          # environment.
+          echo "build --remote_cache=https://storage.googleapis.com/reboot-dev-bazel-remote-cache-eventuals-us" >> user.bazelrc
+          # The remote cache credentials are provided by environment variable.
+          echo "build --google_default_credentials" >> user.bazelrc
+          # Scope all of the artifacts we'll produce in the remote cache to this
+          # MacOS runner version by adding an `--action_env` variable. This will
+          # ensure that changes to the MacOS runner (which might produce
+          # incompatible artifacts) don't cause cache corruption.
+          echo "build --action_env=MAC_OS_ENVIRONMENT_VERSION=$MAC_OS_ENVIRONMENT_VERSION" >> user.bazelrc
+          echo "user.bazelrc:"
+          echo "----"
+          cat user.bazelrc
+          echo "----"
+
+      - name: Create google_application_credentials.json
+        env:
+          GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS: ${{ secrets.GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS }}
+        run: |
+          echo "export GOOGLE_APPLICATION_CREDENTIALS=google_application_credentials.json" >> $HOME/.bash_profile
+          source $HOME/.bash_profile
+          echo $GCP_GITHUB_INFRA_REMOTE_CACHE_CREDENTIALS > $GOOGLE_APPLICATION_CREDENTIALS
+
+      - name: Run
+        run: |
+          source $HOME/.bash_profile
+          bazel \
             test \
-            ${{ matrix.bazel-config }} \
-            --experimental_ui_max_stdouterr_bytes=-1 \
-            ${{ env.BAZEL_REMOTE_CACHE }} \
-            --verbose_failures \
-            -c dbg \
-            --strip="never" \
             --test_output=errors \
             test/... \
             --test_arg=--gtest_shuffle \

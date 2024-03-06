@@ -40,15 +40,18 @@ cc_library(
         "//test:promisify-for-test",
         "@com_github_google_googletest//:gtest",
         "@com_github_google_googletest//:gtest_main",
-    ] + select({
-        # We support backward lib only for macOS and Linux.
-        # The support for Windows might be added in future.
-        # https://github.com/3rdparty/eventuals/issues/450
-        "@bazel_tools//src/conditions:windows": [],
-        "//conditions:default": [
-            "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
-        ],
-    }),
+    ] + select(
+        {
+            # We support backward lib only for Linux.
+            # The support for Windows and MacOS might be added in future.
+            # https://github.com/3rdparty/eventuals/issues/450
+            # https://github.com/3rdparty/eventuals/issues/616
+            "@platforms//os:linux": [
+                "@com_github_3rdparty_bazel_rules_backward_cpp_stacktrace//:backward-stacktrace",
+            ],
+            "//conditions:default": [],
+        },
+    ),
     # Setting it to False or leaving it absent will prevent concurrent
     # tests from running on Windows.
     alwayslink = True,
