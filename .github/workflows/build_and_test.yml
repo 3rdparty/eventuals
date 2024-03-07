@@ -105,8 +105,10 @@ jobs:
           # The Docker image of the runner will get built based on the
           # `.devcontainer/devcontainer.json`, which in our case means it's
           # mostly based on the `Dockerfile`.
-          imageName: ghcr.io/reboot-dev/3rdparty/eventuals/workstation
-          imageTag: latest
+
+          # We are not using cache for the devcontainer build.
+          push: never
+
           runCmd: |
             bazel \
               test \
