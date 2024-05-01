@@ -1,5 +1,6 @@
 #pragma once
 
+#include "test/event-loop-test.h"
 #include "eventuals/concurrent-ordered.h"
 #include "eventuals/concurrent.h"
 #include "gmock/gmock.h"
