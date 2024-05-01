@@ -8,6 +8,7 @@
 #include "eventuals/iterate.h"
 #include "eventuals/let.h"
 #include "eventuals/map.h"
+#include "eventuals/timer.h"
 #include "test/concurrent/concurrent.h"
 #include "test/promisify-for-test.h"
 
@@ -26,15 +27,18 @@ TYPED_TEST(ConcurrentTypedTest, Success) {
               int i;
             };
             return Map(Let([&](int& i) {
-              return Eventual<std::string>(
-                  [&, data = Data()](auto& k) mutable {
-                    using K = std::decay_t<decltype(k)>;
-                    data.k = &k;
-                    data.i = i;
-                    callbacks.emplace_back([&data]() {
-                      static_cast<K*>(data.k)->Start(std::to_string(data.i));
-                    });
-                  });
+              std::cout << "setting up timer for " << i << std::endl;
+              return Timer(std::chrono::milliseconds(i == 2 ? 10 : 100))
+                  >> Eventual<std::string>(
+                         [&, data = Data()](auto& k) mutable {
+                           std::cout << "executing eventual for " << i << std::endl;
+                           using K = std::decay_t<decltype(k)>;
+                           data.k = &k;
+                           data.i = i;
+                           callbacks.emplace_back([&data]() {
+                             static_cast<K*>(data.k)->Start(std::to_string(data.i));
+                           });
+                         });
             }));
           })
         >> Collect<std::vector>();
@@ -43,11 +47,15 @@ TYPED_TEST(ConcurrentTypedTest, Success) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<>>);
+          std::tuple<RuntimeError>>);
 
   auto [future, k] = PromisifyForTest(e());
 
   k.Start();
+
+  while (callbacks.size() != 2) {
+    this->RunUntilIdle();
+  }
 
   ASSERT_EQ(2, callbacks.size());
 

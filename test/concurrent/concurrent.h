@@ -1,5 +1,6 @@
 #pragma once
 
+#include "test/event-loop-test.h"
 #include "eventuals/concurrent-ordered.h"
 #include "eventuals/concurrent.h"
 #include "gmock/gmock.h"
@@ -11,7 +12,7 @@ struct ConcurrentType {};
 struct ConcurrentOrderedType {};
 
 template <typename Type>
-class ConcurrentTypedTest : public testing::Test {
+class ConcurrentTypedTest : public EventLoopTest {
  public:
   template <typename F>
   auto ConcurrentOrConcurrentOrdered(F f) {

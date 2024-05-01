@@ -38,6 +38,7 @@ cc_library(
     deps = [
         "//eventuals",
         "//test:promisify-for-test",
+        "//test:event-loop-test",
         "@com_github_google_googletest//:gtest",
         "@com_github_google_googletest//:gtest_main",
     ] + select(
