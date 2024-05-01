@@ -71,14 +71,7 @@ struct _Concurrent final {
     // that have completed but haven't yet been pruned (see
     // 'CreateOrReuseFiber()').
     struct TypeErasedFiber {
-      void Reuse() {
-        done = false;
-        // Need to reinitialize the interrupt so that the
-        // previous eventual that registered with this
-        // interrupt won't get invoked as a handler!
-        interrupt.~Interrupt();
-        new (&interrupt) class Interrupt();
-      }
+      virtual bool Reuse() = 0;
 
       virtual ~TypeErasedFiber() = default;
 
@@ -179,6 +172,7 @@ struct _Concurrent final {
                 if (!fibers_) {
                   fibers_.reset(CreateFiber());
                   fiber = fibers_.get();
+                  std::cout << "Create fiber" << std::endl;
                 } else if (fibers_->done) {
                   // Need to release next before we reset so it
                   // doesn't get deallocated as part of reset.
@@ -189,12 +183,16 @@ struct _Concurrent final {
                   fiber = fibers_.get();
                   CHECK_NOTNULL(fiber);
                   for (;;) {
-                    if (fiber->done) {
+                    if (fiber->Reuse()) {
                       std::cout << "Reuse fiber not first" << std::endl;
-                      fiber->Reuse();
                       break;
                     } else if (!fiber->next) {
-                      std::cout << "Create fiber\n";
+                      // TODO(benh): we will create an "infinite"
+                      // number of fibers if none are ever done, we
+                      // should consider adding some max number of
+                      // concurrency and then never create more than
+                      // that.
+                      std::cout << "Create fiber not first" << std::endl;
                       fiber->next.reset(CreateFiber());
                       fiber = fiber->next.get();
                       break;
@@ -295,6 +293,9 @@ struct _Concurrent final {
           Eventual<void>()
               .context(std::move(stopped_or_error))
               .start([this, fiber](auto& /* stopped_or_error */, auto& k) {
+                CHECK_EQ(&fiber->context.value(), Scheduler::Context::Get().get());
+                CHECK(fiber->context->running());
+
                 fiber->done = true;
 
                 fibers_done_ = FibersDone();
@@ -310,6 +311,9 @@ struct _Concurrent final {
                         auto& stopped_or_error,
                         auto& k,
                         auto&& error) {
+                CHECK_EQ(&fiber->context.value(), Scheduler::Context::Get().get());
+                CHECK(fiber->context->running());
+
                 fiber->done = true;
 
                 if (!stopped_or_error->has_value()) {
@@ -327,6 +331,9 @@ struct _Concurrent final {
                 k.Start(); // Exits the synchronized block!
               })
               .stop([this, fiber](auto& stopped_or_error, auto& k) {
+                CHECK_EQ(&fiber->context.value(), Scheduler::Context::Get().get());
+                CHECK(fiber->context->running());
+
                 fiber->done = true;
 
                 if (!stopped_or_error->has_value()) {
@@ -479,6 +486,32 @@ struct _Concurrent final {
     // start for each upstream value.
     template <typename E_>
     struct Fiber : TypeErasedFiber {
+      bool Reuse() override {
+        if (!done) {
+          return false;
+        }
+
+        CHECK(context.has_value());
+
+        if (context->running() || context->blocked()) {
+          return false;
+        }
+
+        done = false;
+
+        // Need to reinitialize the interrupt so that the
+        // previous eventual that registered with this
+        // interrupt won't get invoked as a handler!
+        interrupt.~Interrupt();
+        new (&interrupt) class Interrupt();
+
+        k.reset();
+
+        context.reset();
+
+        return true;
+      }
+
       using K = decltype(Build(std::declval<E_>()));
       std::optional<K> k;
     };
@@ -528,6 +561,7 @@ struct _Concurrent final {
       fiber->context->scheduler()->Submit(
           [fiber]() {
             CHECK_EQ(&fiber->context.value(), Scheduler::Context::Get().get());
+            CHECK(fiber->context->running());
             static_cast<Fiber<E>*>(fiber)->k->Register(fiber->interrupt);
             static_cast<Fiber<E>*>(fiber)->k->Start();
           },
