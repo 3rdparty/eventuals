@@ -1,6 +1,7 @@
 #pragma once
 
 #include <deque>
+#include <iostream>
 #include <mutex>
 #include <optional>
 
@@ -187,9 +188,11 @@ struct _Concurrent final {
                   CHECK_NOTNULL(fiber);
                   for (;;) {
                     if (fiber->done) {
+                      std::cout << "Reuse fiber\n";
                       fiber->Reuse();
                       break;
                     } else if (!fiber->next) {
+                      std::cout << "Create fiber\n";
                       fiber->next.reset(CreateFiber());
                       fiber = fiber->next.get();
                       break;

@@ -4,6 +4,7 @@
 #include "eventuals/concurrent.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "test/event-loop-test.h"
 
 namespace eventuals::test {
 
@@ -11,7 +12,7 @@ struct ConcurrentType {};
 struct ConcurrentOrderedType {};
 
 template <typename Type>
-class ConcurrentTypedTest : public testing::Test {
+class ConcurrentTypedTest : public EventLoopTest {
  public:
   template <typename F>
   auto ConcurrentOrConcurrentOrdered(F f) {
@@ -28,6 +29,15 @@ class ConcurrentTypedTest : public testing::Test {
       return testing::UnorderedElementsAre(std::forward<Args>(args)...);
     } else {
       return testing::ElementsAre(std::forward<Args>(args)...);
+    }
+  }
+
+  template <typename Container>
+  auto OrderedOrUnorderedElementsAreArray(const Container& container) {
+    if constexpr (std::is_same_v<Type, ConcurrentType>) {
+      return testing::UnorderedElementsAreArray(container.begin(), container.end());
+    } else {
+      return testing::ElementsAreArray(container.begin(), container.end());
     }
   }
 };
