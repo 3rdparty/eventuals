@@ -30,11 +30,12 @@ TYPED_TEST(ConcurrentTypedTest, Timer) {
     *pipe.Close();
   });
 
+
   auto e = [&]() {
     return pipe.Read()
         >> Concurrent([&]() {
              return Map(Let([&](int& i) {
-               std::cout << "Done Actual Function " << i << std::endl;
+               std::cout << "Actual Function " << i << std::endl;
                return Timer(std::chrono::milliseconds(i))
                    >> Eventual<int>([&](auto& k) {
                         k.Start(42);

@@ -176,11 +176,9 @@ struct _Concurrent final {
             if (!(downstream_done_
                   || interrupted_ || stopped_or_error->has_value())) {
               do {
-                std::cout << "int loop" << std::endl;
                 if (!fibers_) {
                   fibers_.reset(CreateFiber());
                   fiber = fibers_.get();
-                  std::cout << "first fiber" << std::endl;
                 } else if (fibers_->done) {
                   // Need to release next before we reset so it
                   // doesn't get deallocated as part of reset.

@@ -31,15 +31,6 @@ class ConcurrentTypedTest : public EventLoopTest {
       return testing::ElementsAre(std::forward<Args>(args)...);
     }
   }
-
-  template <typename Container>
-  auto OrderedOrUnorderedElementsAreArray(const Container& container) {
-    if constexpr (std::is_same_v<Type, ConcurrentType>) {
-      return testing::UnorderedElementsAreArray(container.begin(), container.end());
-    } else {
-      return testing::ElementsAreArray(container.begin(), container.end());
-    }
-  }
 };
 
 using ConcurrentTypes = testing::Types<ConcurrentType, ConcurrentOrderedType>;
