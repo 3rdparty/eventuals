@@ -9,6 +9,7 @@
 #include "eventuals/iterate.h"
 #include "eventuals/let.h"
 #include "eventuals/map.h"
+#include "eventuals/pipe.h"
 #include "eventuals/timer.h"
 #include "test/concurrent/concurrent.h"
 #include "test/promisify-for-test.h"
@@ -16,44 +17,30 @@
 namespace eventuals::test {
 namespace {
 
-// Tests when all eventuals are successful.
 TYPED_TEST(ConcurrentTypedTest, Timer) {
-  std::deque<Callback<void()>> callbacks;
-  std::deque<int> values;
-
-  std::random_device rd;
-  std::mt19937 gen(rd());
-
-  std::uniform_int_distribution<> distribution(50, 500);
-
   size_t concurrency = 100;
-  std::vector<std::string> expected;
 
-  for (int i = 0; i < concurrency; i++) {
-    values.push_back(distribution(gen));
-    expected.push_back(std::to_string(values.back()));
-  }
+  Pipe<int> pipe;
+
+  std::thread t([&]() {
+    for (size_t i = 1; i <= concurrency; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      *pipe.Write(std::move(i));
+    }
+    *pipe.Close();
+  });
 
   auto e = [&]() {
-    return Iterate(std::move(values))
-        >> this->ConcurrentOrConcurrentOrdered([&]() {
-            struct Data {
-              void* k;
-              int i;
-            };
-            return Map(Let([&](int& i) {
-              return Timer(std::chrono::milliseconds(i * 10))
-                  >> Eventual<std::string>(
-                         [&, data = Data()](auto& k) mutable {
-                           using K = std::decay_t<decltype(k)>;
-                           data.k = &k;
-                           data.i = i;
-                           callbacks.emplace_back([&data]() {
-                             static_cast<K*>(data.k)->Start(std::to_string(data.i));
-                           });
-                         });
-            }));
-          })
+    return pipe.Read()
+        >> Concurrent([&]() {
+             return Map(Let([&](int& i) {
+               std::cout << "Done Actual Function " << i << std::endl;
+               return Timer(std::chrono::milliseconds(i))
+                   >> Eventual<int>([&](auto& k) {
+                        k.Start(42);
+                      });
+             }));
+           })
         >> Collect<std::vector>();
   };
 
@@ -66,21 +53,18 @@ TYPED_TEST(ConcurrentTypedTest, Timer) {
 
   k.Start();
 
-  while (callbacks.size() != concurrency) {
-    this->RunUntilIdle();
+  this->RunUntil(future);
+
+  t.join();
+
+  auto r = future.get();
+
+  std::vector<int> result;
+  for (int i = 0; i < concurrency; i++) {
+    result.push_back(42);
   }
 
-  ASSERT_EQ(concurrency, callbacks.size());
-
-  EXPECT_EQ(
-      std::future_status::timeout,
-      future.wait_for(std::chrono::seconds(0)));
-
-  for (Callback<void()>& callback : callbacks) {
-    callback();
-  }
-
-  EXPECT_THAT(future.get(), this->OrderedOrUnorderedElementsAreArray(expected));
+  EXPECT_EQ(r, result);
 }
 
 } // namespace
