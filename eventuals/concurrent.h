@@ -176,11 +176,9 @@ struct _Concurrent final {
             if (!(downstream_done_
                   || interrupted_ || stopped_or_error->has_value())) {
               do {
-                std::cout << "int loop" << std::endl;
                 if (!fibers_) {
                   fibers_.reset(CreateFiber());
                   fiber = fibers_.get();
-                  std::cout << "first fiber" << std::endl;
                 } else if (fibers_->done) {
                   // Need to release next before we reset so it
                   // doesn't get deallocated as part of reset.
@@ -192,7 +190,7 @@ struct _Concurrent final {
                   CHECK_NOTNULL(fiber);
                   for (;;) {
                     if (fiber->done) {
-                      std::cout << "Reuse fiber" << std::endl;
+                      std::cout << "Reuse fiber not first" << std::endl;
                       fiber->Reuse();
                       break;
                     } else if (!fiber->next) {
@@ -235,7 +233,6 @@ struct _Concurrent final {
           Eventual<void>()
               .context(std::move(stopped_or_error))
               .start([this](auto& /* stopped_or_error */, auto& k) {
-                std::cout << "Ingress Epilogue" << std::endl;
                 upstream_done_ = true;
 
                 fibers_done_ = FibersDone();
@@ -298,7 +295,6 @@ struct _Concurrent final {
           Eventual<void>()
               .context(std::move(stopped_or_error))
               .start([this, fiber](auto& /* stopped_or_error */, auto& k) {
-                std::cout << "FiberEpilogue start" << std::endl;
                 fiber->done = true;
 
                 fibers_done_ = FibersDone();
@@ -503,7 +499,6 @@ struct _Concurrent final {
                  Iterate({std::move(arg)})
                  >> f_())
           >> Synchronized(Map([this](auto&& value) {
-               std::cout << "FiberEventual Synch block" << std::endl;
                values_.push_back(std::forward<decltype(value)>(value));
                notify_egress_();
              }))
@@ -520,7 +515,6 @@ struct _Concurrent final {
 
     // Helper that starts a fiber by downcasting to typeful fiber.
     void StartFiber(TypeErasedFiber* fiber, Arg_&& arg) {
-      std::cout << "Start fiber" << std::endl;
       using E = decltype(FiberEventual(fiber, std::move(arg)));
 
       static_cast<Fiber<E>*>(fiber)->k.emplace(
@@ -549,13 +543,11 @@ struct _Concurrent final {
                         // A nullptr indicates that we should tell
                         // upstream we're "done" because something
                         // failed or an interrupt was received.
-                        std::cout << "Got fiber and run Then" << std::endl;
                         bool done = fiber == nullptr;
 
                         if (!done) {
                           StartFiber(fiber, std::move(arg));
                         }
-                        std::cout << "StartFiber end" << std::endl;
 
                         return done;
                       });
@@ -571,7 +563,6 @@ struct _Concurrent final {
     [[nodiscard]] auto Egress() {
       return Synchronized(
                  Wait([this](auto notify) {
-                   std::cout << "Egress wait" << std::endl;
                    notify_egress_ = std::move(notify);
                    return [this]() {
                      if (values_.empty()) {
@@ -588,7 +579,6 @@ struct _Concurrent final {
                      return Eventual<std::optional<Value_>>()
                          .template raises<UpstreamErrorsAndErrorsFromE_>()
                          .start([this](auto& k) {
-                           std::cout << "Egress map" << std::endl;
                            if (stopped_or_error_->has_value()
                                && upstream_done_ && fibers_done_) {
                              // TODO(benh): flush remaining values first?

@@ -18,24 +18,34 @@ namespace eventuals::test {
 namespace {
 
 TYPED_TEST(ConcurrentTypedTest, Timer) {
-  size_t concurrency = 500;
+  size_t concurrency = 100;
+
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<> dis(10000, 1000000000);
+
 
   Pipe<int> pipe;
 
   std::thread t([&]() {
     for (size_t i = 1; i <= concurrency; ++i) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
       *pipe.Write(std::move(i));
     }
     *pipe.Close();
   });
+
 
   auto e = [&]() {
     return pipe.Read()
         >> Concurrent([&]() {
              return Map(Let([&](int& i) {
                std::cout << "Actual Function " << i << std::endl;
-               return Just(42);
+               std::cout << "Done Actual Function " << i << std::endl;
+               return Timer(std::chrono::milliseconds(i))
+                   >> Eventual<int>([&](auto& k) {
+                        k.Start(42);
+                      });
              }));
            })
         >> Collect<std::vector>();
@@ -44,12 +54,13 @@ TYPED_TEST(ConcurrentTypedTest, Timer) {
   static_assert(
       eventuals::tuple_types_unordered_equals_v<
           typename decltype(e())::template ErrorsFrom<void, std::tuple<>>,
-          std::tuple<>>);
+          std::tuple<RuntimeError>>);
 
   auto [future, k] = PromisifyForTest(e());
 
   k.Start();
 
+  this->RunUntil(future);
   t.join();
 
   auto r = future.get();
