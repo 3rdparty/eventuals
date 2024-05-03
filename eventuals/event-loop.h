@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <future>
+#include <iostream>
 #include <list>
 #include <memory>
 #include <mutex>
@@ -1215,9 +1216,11 @@ struct _EventLoopSchedule final {
 
       if (loop()->InEventLoop()) {
         Adapt();
+        std::cout << "event-loop.h:1219" << std::endl;
         auto previous = Scheduler::Context::Switch(context_->Borrow());
         adapted_->Start(std::forward<Args>(args)...);
         previous = Scheduler::Context::Switch(std::move(previous));
+        std::cout << "event-loop.h:1223" << std::endl;
         CHECK_EQ(previous.get(), context_.get());
       } else {
         if constexpr (!std::is_void_v<Arg_>) {
@@ -1245,9 +1248,11 @@ struct _EventLoopSchedule final {
       // propagate a different failure.
       if (loop()->InEventLoop()) {
         Adapt();
+        std::cout << "event-loop.h:1251" << std::endl;
         auto previous = Scheduler::Context::Switch(context_->Borrow());
         adapted_->Fail(std::forward<Error>(error));
         previous = Scheduler::Context::Switch(std::move(previous));
+        std::cout << "event-loop.h:1255" << std::endl;
         CHECK_EQ(previous.get(), context_.get());
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
@@ -1279,9 +1284,11 @@ struct _EventLoopSchedule final {
 
       if (loop()->InEventLoop()) {
         Adapt();
+        std::cout << "event-loop.h:1287" << std::endl;
         auto previous = Scheduler::Context::Switch(context_->Borrow());
         adapted_->Stop();
         previous = Scheduler::Context::Switch(std::move(previous));
+        std::cout << "event-loop.h:1291" << std::endl;
         CHECK_EQ(previous.get(), context_.get());
       } else {
         loop()->Submit(

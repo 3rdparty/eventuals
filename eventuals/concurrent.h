@@ -172,11 +172,7 @@ struct _Concurrent final {
                 if (!fibers_) {
                   fibers_.reset(CreateFiber());
                   fiber = fibers_.get();
-                  std::cout << "Create fiber" << std::endl;
                 } else if (fibers_->done) {
-                  // Need to release next before we reset so it
-                  // doesn't get deallocated as part of reset.
-                  std::cout << "Reuse fiber" << std::endl;
                   fiber = fibers_.get();
                   fiber->Reuse();
                 } else {
@@ -184,7 +180,6 @@ struct _Concurrent final {
                   CHECK_NOTNULL(fiber);
                   for (;;) {
                     if (fiber->Reuse()) {
-                      std::cout << "Reuse fiber not first" << std::endl;
                       break;
                     } else if (!fiber->next) {
                       // TODO(benh): we will create an "infinite"
@@ -192,7 +187,6 @@ struct _Concurrent final {
                       // should consider adding some max number of
                       // concurrency and then never create more than
                       // that.
-                      std::cout << "Create fiber not first" << std::endl;
                       fiber->next.reset(CreateFiber());
                       fiber = fiber->next.get();
                       break;

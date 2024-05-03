@@ -148,7 +148,7 @@ class Scheduler {
     // Every context includes a waiter that can be used by schedulers.
     Waiter waiter;
 
-    bool running_ = false;
+    friend class Scheduler;
 
    private:
     static thread_local Context default_;
@@ -158,6 +158,8 @@ class Scheduler {
 
     // There is the most common set of variables to create contexts.
     bool blocked_ = false;
+
+    bool running_ = false;
 
     std::string name_;
   };
@@ -171,6 +173,15 @@ class Scheduler {
   virtual void Submit(Callback<void()> callback, Context& context) = 0;
 
   virtual void Clone(Context& child) = 0;
+
+ protected:
+  void set_running(Context& context, bool running) {
+    context.running_ = running;
+  }
+
+  bool running(Context& context) {
+    return context.running_;
+  }
 };
 
 ////////////////////////////////////////////////////////////////////////

@@ -18,7 +18,8 @@ namespace eventuals::test {
 namespace {
 
 TYPED_TEST(ConcurrentTypedTest, Timer) {
-  size_t concurrency = 100;
+  size_t concurrency = 20000;
+  srand(time(NULL));
 
   Pipe<int> pipe;
 
@@ -35,8 +36,8 @@ TYPED_TEST(ConcurrentTypedTest, Timer) {
     return pipe.Read()
         >> Concurrent([&]() {
              return Map(Let([&](int& i) {
-               std::cout << "Actual Function " << i << std::endl;
-               return Timer(std::chrono::milliseconds(i))
+               //  std::cout << "Actual Function " << i << std::endl;
+               return Timer(std::chrono::milliseconds(rand() % 800))
                    >> Eventual<int>([&](auto& k) {
                         k.Start(42);
                       });

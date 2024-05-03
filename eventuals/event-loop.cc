@@ -1,5 +1,6 @@
 #include "eventuals/event-loop.h"
 
+#include <iostream>
 #include <sstream>
 
 ////////////////////////////////////////////////////////////////////////
@@ -335,6 +336,7 @@ void EventLoop::Check() {
 
       context->unblock();
 
+      std::cout << "event-loop.cc:339" << std::endl;
       stout::borrowed_ref<Context> previous =
           Context::Switch(std::move(waiter->context).reference());
 
@@ -350,6 +352,7 @@ void EventLoop::Check() {
       ////////////////////////////////////////////////////
 
       CHECK_EQ(context, Context::Switch(std::move(previous)).get());
+      std::cout << "event-loop.cc:355" << std::endl;
     }
   } while (waiter != nullptr);
 }
