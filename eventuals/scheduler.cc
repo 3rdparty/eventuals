@@ -29,9 +29,20 @@ class DefaultScheduler final : public Scheduler {
     EVENTUALS_LOG(1)
         << "'" << context.name() << "' preempted '" << previous->name() << "'";
 
+    context.in_use_.fetch_add(1);
+
     callback();
 
     CHECK_EQ(&context, Context::Switch(std::move(previous)).get());
+
+    CHECK(context.in_use_.load() > 0);
+    context.in_use_.fetch_sub(1);
+    EVENTUALS_LOG(1)
+        << "'"
+        << Context::Get()->name()
+        << "' switched back with '"
+        << context.name()
+        << "'";
   }
 
   void Clone(Context& context) override {

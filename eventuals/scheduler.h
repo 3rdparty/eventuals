@@ -101,6 +101,10 @@ class Scheduler {
       return blocked_;
     }
 
+    bool in_use() const {
+      return in_use_.load() != 0;
+    }
+
     const std::string& name() const {
       return name_;
     }
@@ -114,8 +118,11 @@ class Scheduler {
     void Continue(F&& f) {
       if (scheduler()->Continuable(*this)) {
         auto previous = Switch(Borrow());
+        in_use_.fetch_add(1);
         f();
         Switch(std::move(previous));
+        CHECK(in_use_.load() > 0);
+        in_use_.fetch_sub(1);
       } else {
         scheduler()->Submit(std::forward<F>(f), *this);
       }
@@ -125,8 +132,11 @@ class Scheduler {
     void Continue(F&& f, G&& g) {
       if (scheduler()->Continuable(*this)) {
         auto previous = Switch(Borrow());
+        in_use_.fetch_add(1);
         f();
         Switch(std::move(previous));
+        CHECK(in_use_.load() > 0);
+        in_use_.fetch_sub(1);
       } else {
         scheduler()->Submit(g(), *this);
       }
@@ -137,6 +147,8 @@ class Scheduler {
 
     // Every context includes a waiter that can be used by schedulers.
     Waiter waiter;
+
+    std::atomic<int> in_use_ = 0;
 
    private:
     static thread_local Context default_;

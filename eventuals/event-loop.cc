@@ -335,6 +335,8 @@ void EventLoop::Check() {
 
       context->unblock();
 
+      context->in_use_.fetch_add(1);
+
       stout::borrowed_ref<Context> previous =
           Context::Switch(std::move(waiter->context).reference());
 
@@ -350,6 +352,8 @@ void EventLoop::Check() {
       ////////////////////////////////////////////////////
 
       CHECK_EQ(context, Context::Switch(std::move(previous)).get());
+      CHECK(context->in_use_.load() > 0);
+      context->in_use_.fetch_sub(1);
     }
   } while (waiter != nullptr);
 }

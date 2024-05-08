@@ -217,6 +217,11 @@ class ServerReader {
             };
           }
 
+          EVENTUALS_GRPC_LOG(1)
+              << "Reading requests for call (" << context_ << ")"
+              << " for host = " << context_->host()
+              << " and path = " << context_->method();
+
           context_->stream()->Read(&data.buffer, &callback);
         });
   }
