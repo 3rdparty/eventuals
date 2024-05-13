@@ -242,9 +242,11 @@ struct _StaticThreadPoolSchedule final {
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
         auto previous = Scheduler::Context::Switch(context_->Borrow());
+        context_->use();
         adapted_->Start(std::forward<Args>(args)...);
         previous = Scheduler::Context::Switch(std::move(previous));
         CHECK_EQ(previous.get(), context_.get());
+        context_->unuse();
       } else {
         if constexpr (!std::is_void_v<Arg_>) {
           arg_.emplace(std::forward<Args>(args)...);
@@ -290,9 +292,12 @@ struct _StaticThreadPoolSchedule final {
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
         auto previous = Scheduler::Context::Switch(context_->Borrow());
+        context_->use();
         adapted_->Fail(std::forward<Error>(error));
         previous = Scheduler::Context::Switch(std::move(previous));
         CHECK_EQ(previous.get(), context_.get());
+        context_->unuse();
+        ;
       } else {
         // TODO(benh): avoid allocating on heap by storing args in
         // pre-allocated buffer based on composing with Errors.
@@ -341,9 +346,11 @@ struct _StaticThreadPoolSchedule final {
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
         auto previous = Scheduler::Context::Switch(context_->Borrow());
+        context_->use();
         adapted_->Stop();
         previous = Scheduler::Context::Switch(std::move(previous));
         CHECK_EQ(previous.get(), context_.get());
+        context_->unuse();
       } else {
         EVENTUALS_LOG(1)
             << "Schedule submitting '" << context_->name() << "'";
@@ -378,9 +385,11 @@ struct _StaticThreadPoolSchedule final {
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
         auto previous = Scheduler::Context::Switch(context_->Borrow());
+        context_->use();
         adapted_->Begin(*CHECK_NOTNULL(stream_));
         previous = Scheduler::Context::Switch(std::move(previous));
         CHECK_EQ(previous.get(), context_.get());
+        context_->unuse();
       } else {
         EVENTUALS_LOG(1)
             << "Schedule submitting '" << context_->name() << "'";
@@ -417,9 +426,11 @@ struct _StaticThreadPoolSchedule final {
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
         auto previous = Scheduler::Context::Switch(context_->Borrow());
+        context_->use();
         adapted_->Body(std::forward<Args>(args)...);
         previous = Scheduler::Context::Switch(std::move(previous));
         CHECK_EQ(previous.get(), context_.get());
+        context_->unuse();
       } else {
         if constexpr (!std::is_void_v<Arg_>) {
           arg_.emplace(std::forward<Args>(args)...);
@@ -464,9 +475,11 @@ struct _StaticThreadPoolSchedule final {
       if (StaticThreadPool::member && StaticThreadPool::cpu == pinned.cpu()) {
         Adapt();
         auto previous = Scheduler::Context::Switch(context_->Borrow());
+        context_->use();
         adapted_->Ended();
         previous = Scheduler::Context::Switch(std::move(previous));
         CHECK_EQ(previous.get(), context_.get());
+        context_->unuse();
       } else {
         EVENTUALS_LOG(1)
             << "Schedule submitting '" << context_->name() << "'";
