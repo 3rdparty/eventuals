@@ -29,14 +29,13 @@ class DefaultScheduler final : public Scheduler {
     EVENTUALS_LOG(1)
         << "'" << context.name() << "' preempted '" << previous->name() << "'";
 
-    context.in_use_.fetch_add(1);
+    context.use();
 
     callback();
 
     CHECK_EQ(&context, Context::Switch(std::move(previous)).get());
 
-    CHECK(context.in_use_.load() > 0);
-    context.in_use_.fetch_sub(1);
+    context.unuse();
     EVENTUALS_LOG(1)
         << "'"
         << Context::Get()->name()

@@ -118,11 +118,10 @@ class Scheduler {
     void Continue(F&& f) {
       if (scheduler()->Continuable(*this)) {
         auto previous = Switch(Borrow());
-        in_use_.fetch_add(1);
+        use();
         f();
         Switch(std::move(previous));
-        CHECK(in_use_.load() > 0);
-        in_use_.fetch_sub(1);
+        unuse();
       } else {
         scheduler()->Submit(std::forward<F>(f), *this);
       }
@@ -132,14 +131,22 @@ class Scheduler {
     void Continue(F&& f, G&& g) {
       if (scheduler()->Continuable(*this)) {
         auto previous = Switch(Borrow());
-        in_use_.fetch_add(1);
+        use();
         f();
         Switch(std::move(previous));
-        CHECK(in_use_.load() > 0);
-        in_use_.fetch_sub(1);
+        unuse();
       } else {
         scheduler()->Submit(g(), *this);
       }
+    }
+
+    void use() {
+      in_use_.fetch_add(1);
+    }
+
+    void unuse() {
+      CHECK(in_use_.load() > 0);
+      in_use_.fetch_sub(1);
     }
 
     // For schedulers that need to store arbitrary data.
@@ -148,13 +155,13 @@ class Scheduler {
     // Every context includes a waiter that can be used by schedulers.
     Waiter waiter;
 
-    std::atomic<int> in_use_ = 0;
-
    private:
     static thread_local Context default_;
     static thread_local stout::borrowed_ref<Context> current_;
 
     Scheduler* scheduler_ = nullptr;
+
+    std::atomic<int> in_use_ = 0;
 
     // There is the most common set of variables to create contexts.
     bool blocked_ = false;

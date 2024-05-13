@@ -49,9 +49,9 @@ TYPED_TEST(ConcurrentTypedTest, Timer) {
 
   this->RunUntil(future);
 
-  auto r = future.get();
+  auto result = future.get();
 
-  EXPECT_EQ(r.size(), concurrency);
+  EXPECT_EQ(result.size(), concurrency);
 }
 
 } // namespace

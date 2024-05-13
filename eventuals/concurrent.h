@@ -307,7 +307,8 @@ struct _Concurrent final {
                 CHECK_EQ(
                     &fiber->context.value(),
                     Scheduler::Context::Get().get());
-                CHECK(fiber->context->in_use());
+                CHECK(fiber->context->in_use())
+                    << "Context: " << fiber->context->name();
 
                 fiber->done = true;
 
@@ -329,7 +330,8 @@ struct _Concurrent final {
                 CHECK_EQ(
                     &fiber->context.value(),
                     Scheduler::Context::Get().get());
-                CHECK(fiber->context->in_use());
+                CHECK(fiber->context->in_use())
+                    << "Context: " << fiber->context->name();
 
                 fiber->done = true;
 
@@ -502,6 +504,8 @@ struct _Concurrent final {
         interrupt.~Interrupt();
         new (&interrupt) class Interrupt();
 
+        // We should reset 'k' before 'context', because 'k' may contain
+        // a borrowed reference to 'context', which may lead to a deadlock.
         k.reset();
 
         context.reset();
@@ -558,7 +562,8 @@ struct _Concurrent final {
       fiber->context->scheduler()->Submit(
           [fiber]() {
             CHECK_EQ(&fiber->context.value(), Scheduler::Context::Get().get());
-            CHECK(fiber->context->in_use());
+            CHECK(fiber->context->in_use())
+                << "Context: " << fiber->context->name();
             static_cast<Fiber<E>*>(fiber)->k->Register(fiber->interrupt);
             static_cast<Fiber<E>*>(fiber)->k->Start();
           },

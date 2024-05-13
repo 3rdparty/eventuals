@@ -77,7 +77,7 @@ StaticThreadPool::StaticThreadPool()
 
               context->unblock();
 
-              context->in_use_.fetch_add(1);
+              context->use();
 
               stout::borrowed_ref<Context> previous =
                   Context::Switch(std::move(waiter->context).reference());
@@ -95,8 +95,7 @@ StaticThreadPool::StaticThreadPool()
 
               CHECK_EQ(context, Context::Switch(std::move(previous)).get());
 
-              CHECK(context->in_use_.load() > 0);
-              context->in_use_.fetch_sub(1);
+              context->unuse();
             }
           } while (!shutdown_.load());
         });
