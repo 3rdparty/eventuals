@@ -223,7 +223,8 @@ class Interrupt final {
       // callback causes the handler to get destructed it won't try and
       // uninstall itself!
       CHECK_EQ(state, Handler::State::INSTALLED);
-      CHECK(handler->state_.Update(state, Handler::State::UNINSTALLED));
+      CHECK(handler->state_.Update(state, Handler::State::UNINSTALLED))
+          << handler->state_.state();
       handler->Invoke();
     }
   }
