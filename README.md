@@ -26,6 +26,14 @@ This library was inspired from experience building and using the [libprocess](ht
 
 For an example of how to depend on eventuals via Bazel in your own project you'll need to copy the lines selected in [WORKSPACE.bazel](https://github.com/3rdparty/eventuals-tutorial/blob/main/WORKSPACE.bazel#L3-L31) from our [eventuals-tutorial](https://github.com/3rdparty/eventuals-tutorial) repository.
 
+### clangd and clang-tidy integration
+The default C++ engines provided by many code editors (e.g. `IntelliSense` in VS Code) were found inconsistent and quite painful to use. Since this project relies on `Clang` toolchain, we can use the power of `clangd` and `clang-tidy` checks to provide developers with smooth coding experience and preemptive warnings:
+
+1. Build the library using Bazel: `bazel build eventuals` (or `bazel build ...` if you prefer to build tests as well). This step is a must to ensure that all dependecies are downloaded and built beforehand.
+2. Run the compiler command generator rule: `bazel build refresh_cc`. This command will generate a file with all compiler commands issued by `Bazel`.
+3. Follow the [clangd's Getting started guide](https://clangd.llvm.org/installation) to install the necessary plugins into your favourite code editor.
+4. You're ready to roll!
+
 ### Eventual's theory
 
 Most of the time you'll use higher-level **_combinators_** for composing eventuals together. This guide will start with more basic ones and work our way up to creating your own eventuals.
